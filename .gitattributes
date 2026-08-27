@@ -1,0 +1,15 @@
+* text=auto
+.gitattributes text eol=lf
+
+*.md text eol=lf
+*.txt text eol=lf
+*.json text eol=lf
+*.py text eol=lf
+*.sh text eol=lf
+*.bat text eol=crlf
+*.html text eol=lf
+*.zip binary
+
+# 封版快照必须保持逐字节不变，不参与换行符规范化。
+handoff/FINAL_v2.0/** -text
+contracts/v0.6/** -text
