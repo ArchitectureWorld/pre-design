@@ -1,0 +1,400 @@
+{
+  "case_id": "GC07",
+  "name": "东街多年代建筑与市政更新",
+  "source_materials": [
+    "11- 东街城市更新概念规划文本 .pdf"
+  ],
+  "chapters": [
+    "02",
+    "07"
+  ],
+  "objects": [
+    {
+      "object_id": "BL04",
+      "object_type": "SpatialBuildingBaseline",
+      "schema_version": "0.6.0",
+      "project_id": "GC07",
+      "chapter_id": "02",
+      "work_item_id": "02-04",
+      "status": "provisional",
+      "revision": 1,
+      "created_at": "2026-08-27T12:00:00+00:00",
+      "updated_at": "2026-08-27T12:00:00+00:00",
+      "created_by": {
+        "actor_id": "AGENT-1",
+        "name": "Preplan Agent",
+        "role": "agent",
+        "organization": null,
+        "authority_scope": [
+          "propose"
+        ],
+        "contact_ref": null
+      },
+      "source_snapshot": {
+        "PS03": 1,
+        "BL02": 1,
+        "PS07": 1
+      },
+      "data": {
+        "objects": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "geometry": [
+          {
+            "geometry_id": "geometry_id_sample",
+            "geometry_type": "Point",
+            "crs": "crs_sample"
+          }
+        ],
+        "land_use": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "building_use": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "areas": [
+          {
+            "name": "name_sample",
+            "value": 1.0,
+            "unit": "unit_sample"
+          }
+        ],
+        "heights": [
+          {
+            "name": "name_sample",
+            "value": 1.0,
+            "unit": "unit_sample"
+          }
+        ],
+        "age": [
+          {
+            "id": "era-1",
+            "name": "明清"
+          },
+          {
+            "id": "era-2",
+            "name": "民国"
+          },
+          {
+            "id": "era-3",
+            "name": "建国初期至80年代"
+          },
+          {
+            "id": "era-4",
+            "name": "现代"
+          }
+        ],
+        "condition": "condition_sample",
+        "occupancy": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "heritage": [
+          {
+            "id": "heritage-1",
+            "name": "文保及历史建筑"
+          },
+          {
+            "id": "heritage-2",
+            "name": "传统风貌建筑"
+          },
+          {
+            "id": "heritage-3",
+            "name": "一般风貌建筑"
+          }
+        ],
+        "vacancy": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "photo_refs": [],
+        "confidence": {
+          "level": "very_low",
+          "score": 1.0,
+          "basis": "basis_sample"
+        }
+      },
+      "quality": {
+        "completeness": 0.8,
+        "consistency": 0.8,
+        "timeliness": 0.8,
+        "traceability": 0.8,
+        "reproducibility": 0.7,
+        "issues": [],
+        "grade": "B"
+      },
+      "approval": {
+        "status": "pending",
+        "required_role": "chapter_reviewer",
+        "approver": null,
+        "approved_at": null,
+        "conditions": [],
+        "comment": ""
+      }
+    },
+    {
+      "object_id": "SP03",
+      "object_type": "BuildingInterventionPlan",
+      "schema_version": "0.6.0",
+      "project_id": "GC07",
+      "chapter_id": "07",
+      "work_item_id": "07-03",
+      "status": "provisional",
+      "revision": 1,
+      "created_at": "2026-08-27T12:00:00+00:00",
+      "updated_at": "2026-08-27T12:00:00+00:00",
+      "created_by": {
+        "actor_id": "AGENT-1",
+        "name": "Preplan Agent",
+        "role": "agent",
+        "organization": null,
+        "authority_scope": [
+          "propose"
+        ],
+        "contact_ref": null
+      },
+      "source_snapshot": {
+        "BL02": 1,
+        "BL04": 1,
+        "SP02": 1
+      },
+      "data": {
+        "building_refs": [
+          {
+            "id": "B1",
+            "name": "示例既有建筑"
+          }
+        ],
+        "heritage_value": [
+          {
+            "id": "heritage_value",
+            "name": "历史价值"
+          }
+        ],
+        "safety": [
+          {
+            "id": "safety",
+            "name": "安全状态"
+          }
+        ],
+        "use_fit": [
+          {
+            "id": "use_fit",
+            "name": "使用适配"
+          }
+        ],
+        "ownership": [
+          {
+            "id": "ownership",
+            "name": "产权状态"
+          }
+        ],
+        "cost_range": [
+          {
+            "min": 1000,
+            "max": 2000,
+            "unit": "万元",
+            "basis": "初步估算",
+            "confidence": {
+              "level": "low",
+              "score": 0.4,
+              "basis": "概念阶段",
+              "limitations": [
+                "未完成检测"
+              ]
+            }
+          }
+        ],
+        "action": [
+          {
+            "id": "action-1",
+            "name": "保护修缮"
+          },
+          {
+            "id": "action-2",
+            "name": "收储改造"
+          },
+          {
+            "id": "action-3",
+            "name": "引导改造"
+          },
+          {
+            "id": "action-4",
+            "name": "拆除新建"
+          }
+        ],
+        "conditions": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "required_inspections": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "approval_status": "pending"
+      },
+      "quality": {
+        "completeness": 0.8,
+        "consistency": 0.8,
+        "timeliness": 0.8,
+        "traceability": 0.8,
+        "reproducibility": 0.7,
+        "issues": [],
+        "grade": "B"
+      },
+      "approval": {
+        "status": "pending",
+        "required_role": "chapter_reviewer",
+        "approver": null,
+        "approved_at": null,
+        "conditions": [],
+        "comment": ""
+      }
+    },
+    {
+      "object_id": "SP06",
+      "object_type": "TechnicalFeasibilityMatrix",
+      "schema_version": "0.6.0",
+      "project_id": "GC07",
+      "chapter_id": "07",
+      "work_item_id": "07-06",
+      "status": "provisional",
+      "revision": 1,
+      "created_at": "2026-08-27T12:00:00+00:00",
+      "updated_at": "2026-08-27T12:00:00+00:00",
+      "created_by": {
+        "actor_id": "AGENT-1",
+        "name": "Preplan Agent",
+        "role": "agent",
+        "organization": null,
+        "authority_scope": [
+          "propose"
+        ],
+        "contact_ref": null
+      },
+      "source_snapshot": {
+        "BL08": 1,
+        "SP02": 1,
+        "SP03": 1,
+        "SP04": 1,
+        "SP05": 1
+      },
+      "data": {
+        "systems": [
+          {
+            "id": "system-1",
+            "name": "雨污分流"
+          },
+          {
+            "id": "system-2",
+            "name": "污水达标排放"
+          },
+          {
+            "id": "system-3",
+            "name": "排水管径复算"
+          },
+          {
+            "id": "system-4",
+            "name": "杆线下地"
+          }
+        ],
+        "existing_capacity": [
+          {
+            "name": "name_sample",
+            "value": 1.0,
+            "unit": "unit_sample"
+          }
+        ],
+        "required_capacity": [
+          {
+            "name": "name_sample",
+            "value": 1.0,
+            "unit": "unit_sample"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "solutions": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "cost_risks": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "tests": [
+          {
+            "id": "T1",
+            "name": "消防专项预审"
+          }
+        ],
+        "authorities": [
+          {
+            "actor_id": "AUTH1",
+            "name": "主管部门",
+            "role": "authority",
+            "organization": null,
+            "authority_scope": [
+              "消防审查"
+            ],
+            "contact_ref": null
+          }
+        ],
+        "owners": [
+          {
+            "actor_id": "actor_id_sample",
+            "name": "name_sample",
+            "role": "role_sample"
+          }
+        ],
+        "status": "provisional"
+      },
+      "quality": {
+        "completeness": 0.8,
+        "consistency": 0.8,
+        "timeliness": 0.8,
+        "traceability": 0.8,
+        "reproducibility": 0.7,
+        "issues": [],
+        "grade": "B"
+      },
+      "approval": {
+        "status": "pending",
+        "required_role": "chapter_reviewer",
+        "approver": null,
+        "approved_at": null,
+        "conditions": [],
+        "comment": ""
+      }
+    }
+  ],
+  "assertions": [
+    "建筑年代仅是拆改留的一项证据",
+    "市政系统进入专项预审而不是末尾补充"
+  ]
+}

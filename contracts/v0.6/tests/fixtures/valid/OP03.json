@@ -1,0 +1,99 @@
+{
+  "object_id": "OP03",
+  "object_type": "OptionTestFit",
+  "schema_version": "0.6.0",
+  "project_id": "PREPLAN-DEMO-001",
+  "chapter_id": "05",
+  "work_item_id": "05-03",
+  "status": "provisional",
+  "revision": 1,
+  "created_at": "2026-08-27T12:00:00+00:00",
+  "updated_at": "2026-08-27T12:00:00+00:00",
+  "created_by": {
+    "actor_id": "AGENT-1",
+    "name": "Preplan Agent",
+    "role": "agent",
+    "organization": null,
+    "authority_scope": [
+      "propose"
+    ],
+    "contact_ref": null
+  },
+  "source_snapshot": {
+    "OP02": 1,
+    "BL02": 1,
+    "BL04": 1,
+    "BL08": 1
+  },
+  "data": {
+    "option_id": "option_id_sample",
+    "function_packages": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "capacity_ranges": [
+      {
+        "min": 1.0,
+        "max": 1.0,
+        "unit": "unit_sample"
+      }
+    ],
+    "area_ranges": [
+      {
+        "min": 1.0,
+        "max": 1.0,
+        "unit": "unit_sample"
+      }
+    ],
+    "spatial_carriers": [
+      {
+        "geometry_id": "geometry_id_sample",
+        "geometry_type": "Point",
+        "crs": "crs_sample"
+      }
+    ],
+    "phasing": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "implementation_packages": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "preconditions": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "capacity_flags": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ]
+  },
+  "quality": {
+    "completeness": 0.8,
+    "consistency": 0.8,
+    "timeliness": 0.8,
+    "traceability": 0.8,
+    "reproducibility": 0.7,
+    "issues": [],
+    "grade": "B"
+  },
+  "approval": {
+    "status": "pending",
+    "required_role": "chapter_reviewer",
+    "approver": null,
+    "approved_at": null,
+    "conditions": [],
+    "comment": ""
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "object_id": "PG06",
+  "object_type": "PublicCommercialBoundary",
+  "schema_version": "0.6.0",
+  "project_id": "PREPLAN-DEMO-001",
+  "chapter_id": "06",
+  "work_item_id": "06-06",
+  "status": "provisional",
+  "revision": 1,
+  "created_at": "2026-08-27T12:00:00+00:00",
+  "updated_at": "2026-08-27T12:00:00+00:00",
+  "created_by": {
+    "actor_id": "AGENT-1",
+    "name": "Preplan Agent",
+    "role": "agent",
+    "organization": null,
+    "authority_scope": [
+      "propose"
+    ],
+    "contact_ref": null
+  },
+  "source_snapshot": {
+    "PG02": 1,
+    "PG03": 1,
+    "PG04": 1,
+    "BL01": 1
+  },
+  "data": {
+    "units": [
+      {
+        "id": "U1",
+        "name": "全民健身公益时段"
+      }
+    ],
+    "service_class": [
+      "public_low_fee"
+    ],
+    "pricing_principles": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "asset_class": [
+      "public_service"
+    ],
+    "funding_restrictions": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "capacity_protection": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "subsidy_or_cross_support": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "maintenance_responsibility": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "approval_status": "pending"
+  },
+  "quality": {
+    "completeness": 0.8,
+    "consistency": 0.8,
+    "timeliness": 0.8,
+    "traceability": 0.8,
+    "reproducibility": 0.7,
+    "issues": [],
+    "grade": "B"
+  },
+  "approval": {
+    "status": "pending",
+    "required_role": "chapter_reviewer",
+    "approver": null,
+    "approved_at": null,
+    "conditions": [],
+    "comment": ""
+  }
+}

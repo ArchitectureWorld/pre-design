@@ -1,0 +1,3046 @@
+{
+  "version": "0.6.0",
+  "nodes": [
+    {
+      "object_id": "BL01",
+      "workflow_id": "preplan.wf.02.01",
+      "chapter_id": "02"
+    },
+    {
+      "object_id": "BL02",
+      "workflow_id": "preplan.wf.02.02",
+      "chapter_id": "02"
+    },
+    {
+      "object_id": "BL03",
+      "workflow_id": "preplan.wf.02.03",
+      "chapter_id": "02"
+    },
+    {
+      "object_id": "BL04",
+      "workflow_id": "preplan.wf.02.04",
+      "chapter_id": "02"
+    },
+    {
+      "object_id": "BL05",
+      "workflow_id": "preplan.wf.02.05",
+      "chapter_id": "02"
+    },
+    {
+      "object_id": "BL06",
+      "workflow_id": "preplan.wf.02.06",
+      "chapter_id": "02"
+    },
+    {
+      "object_id": "BL07",
+      "workflow_id": "preplan.wf.02.07",
+      "chapter_id": "02"
+    },
+    {
+      "object_id": "BL08",
+      "workflow_id": "preplan.wf.02.08",
+      "chapter_id": "02"
+    },
+    {
+      "object_id": "DG01",
+      "workflow_id": "preplan.wf.03.01",
+      "chapter_id": "03"
+    },
+    {
+      "object_id": "DG02",
+      "workflow_id": "preplan.wf.03.02",
+      "chapter_id": "03"
+    },
+    {
+      "object_id": "DG03",
+      "workflow_id": "preplan.wf.03.03",
+      "chapter_id": "03"
+    },
+    {
+      "object_id": "DG04",
+      "workflow_id": "preplan.wf.03.04",
+      "chapter_id": "03"
+    },
+    {
+      "object_id": "DG05",
+      "workflow_id": "preplan.wf.03.05",
+      "chapter_id": "03"
+    },
+    {
+      "object_id": "DG06",
+      "workflow_id": "preplan.wf.03.06",
+      "chapter_id": "03"
+    },
+    {
+      "object_id": "IM01",
+      "workflow_id": "preplan.wf.08.01",
+      "chapter_id": "08"
+    },
+    {
+      "object_id": "IM02",
+      "workflow_id": "preplan.wf.08.02",
+      "chapter_id": "08"
+    },
+    {
+      "object_id": "IM03",
+      "workflow_id": "preplan.wf.08.03",
+      "chapter_id": "08"
+    },
+    {
+      "object_id": "IM04",
+      "workflow_id": "preplan.wf.08.04",
+      "chapter_id": "08"
+    },
+    {
+      "object_id": "IM05",
+      "workflow_id": "preplan.wf.08.05",
+      "chapter_id": "08"
+    },
+    {
+      "object_id": "IM06",
+      "workflow_id": "preplan.wf.08.06",
+      "chapter_id": "08"
+    },
+    {
+      "object_id": "IM07",
+      "workflow_id": "preplan.wf.08.07",
+      "chapter_id": "08"
+    },
+    {
+      "object_id": "IM08",
+      "workflow_id": "preplan.wf.08.08",
+      "chapter_id": "08"
+    },
+    {
+      "object_id": "OB01",
+      "workflow_id": "preplan.wf.04.01",
+      "chapter_id": "04"
+    },
+    {
+      "object_id": "OB02",
+      "workflow_id": "preplan.wf.04.02",
+      "chapter_id": "04"
+    },
+    {
+      "object_id": "OB03",
+      "workflow_id": "preplan.wf.04.03",
+      "chapter_id": "04"
+    },
+    {
+      "object_id": "OB04",
+      "workflow_id": "preplan.wf.04.04",
+      "chapter_id": "04"
+    },
+    {
+      "object_id": "OB05",
+      "workflow_id": "preplan.wf.04.05",
+      "chapter_id": "04"
+    },
+    {
+      "object_id": "OB06",
+      "workflow_id": "preplan.wf.04.06",
+      "chapter_id": "04"
+    },
+    {
+      "object_id": "OP01",
+      "workflow_id": "preplan.wf.05.01",
+      "chapter_id": "05"
+    },
+    {
+      "object_id": "OP02",
+      "workflow_id": "preplan.wf.05.02",
+      "chapter_id": "05"
+    },
+    {
+      "object_id": "OP03",
+      "workflow_id": "preplan.wf.05.03",
+      "chapter_id": "05"
+    },
+    {
+      "object_id": "OP04",
+      "workflow_id": "preplan.wf.05.04",
+      "chapter_id": "05"
+    },
+    {
+      "object_id": "OP05",
+      "workflow_id": "preplan.wf.05.05",
+      "chapter_id": "05"
+    },
+    {
+      "object_id": "OP06",
+      "workflow_id": "preplan.wf.05.06",
+      "chapter_id": "05"
+    },
+    {
+      "object_id": "OP07",
+      "workflow_id": "preplan.wf.05.07",
+      "chapter_id": "05"
+    },
+    {
+      "object_id": "PG01",
+      "workflow_id": "preplan.wf.06.01",
+      "chapter_id": "06"
+    },
+    {
+      "object_id": "PG02",
+      "workflow_id": "preplan.wf.06.02",
+      "chapter_id": "06"
+    },
+    {
+      "object_id": "PG03",
+      "workflow_id": "preplan.wf.06.03",
+      "chapter_id": "06"
+    },
+    {
+      "object_id": "PG04",
+      "workflow_id": "preplan.wf.06.04",
+      "chapter_id": "06"
+    },
+    {
+      "object_id": "PG05",
+      "workflow_id": "preplan.wf.06.05",
+      "chapter_id": "06"
+    },
+    {
+      "object_id": "PG06",
+      "workflow_id": "preplan.wf.06.06",
+      "chapter_id": "06"
+    },
+    {
+      "object_id": "PG07",
+      "workflow_id": "preplan.wf.06.07",
+      "chapter_id": "06"
+    },
+    {
+      "object_id": "PS01",
+      "workflow_id": "preplan.wf.01.01",
+      "chapter_id": "01"
+    },
+    {
+      "object_id": "PS02",
+      "workflow_id": "preplan.wf.01.02",
+      "chapter_id": "01"
+    },
+    {
+      "object_id": "PS03",
+      "workflow_id": "preplan.wf.01.03",
+      "chapter_id": "01"
+    },
+    {
+      "object_id": "PS04",
+      "workflow_id": "preplan.wf.01.04",
+      "chapter_id": "01"
+    },
+    {
+      "object_id": "PS05",
+      "workflow_id": "preplan.wf.01.05",
+      "chapter_id": "01"
+    },
+    {
+      "object_id": "PS06",
+      "workflow_id": "preplan.wf.01.06",
+      "chapter_id": "01"
+    },
+    {
+      "object_id": "PS07",
+      "workflow_id": "preplan.wf.01.07",
+      "chapter_id": "01"
+    },
+    {
+      "object_id": "SP01",
+      "workflow_id": "preplan.wf.07.01",
+      "chapter_id": "07"
+    },
+    {
+      "object_id": "SP02",
+      "workflow_id": "preplan.wf.07.02",
+      "chapter_id": "07"
+    },
+    {
+      "object_id": "SP03",
+      "workflow_id": "preplan.wf.07.03",
+      "chapter_id": "07"
+    },
+    {
+      "object_id": "SP04",
+      "workflow_id": "preplan.wf.07.04",
+      "chapter_id": "07"
+    },
+    {
+      "object_id": "SP05",
+      "workflow_id": "preplan.wf.07.05",
+      "chapter_id": "07"
+    },
+    {
+      "object_id": "SP06",
+      "workflow_id": "preplan.wf.07.06",
+      "chapter_id": "07"
+    },
+    {
+      "object_id": "SP07",
+      "workflow_id": "preplan.wf.07.07",
+      "chapter_id": "07"
+    },
+    {
+      "object_id": "SP08",
+      "workflow_id": "preplan.wf.07.08",
+      "chapter_id": "07"
+    }
+  ],
+  "edges": [
+    {
+      "from": "PS01",
+      "to": "PS02",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS02",
+      "to": "PS03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS02",
+      "to": "PS04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS03",
+      "to": "PS04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS01",
+      "to": "PS05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS03",
+      "to": "PS05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS02",
+      "to": "PS06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS04",
+      "to": "PS06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS05",
+      "to": "PS06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS01",
+      "to": "PS07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS02",
+      "to": "PS07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS03",
+      "to": "PS07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS04",
+      "to": "PS07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS05",
+      "to": "PS07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS06",
+      "to": "PS07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS03",
+      "to": "BL01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS05",
+      "to": "BL01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS07",
+      "to": "BL01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS03",
+      "to": "BL02",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS07",
+      "to": "BL02",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS03",
+      "to": "BL03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS07",
+      "to": "BL03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS03",
+      "to": "BL04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL02",
+      "to": "BL04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS07",
+      "to": "BL04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS03",
+      "to": "BL05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS07",
+      "to": "BL05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL05",
+      "to": "BL06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS03",
+      "to": "BL06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS07",
+      "to": "BL06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS03",
+      "to": "BL07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS07",
+      "to": "BL07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS03",
+      "to": "BL08",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL04",
+      "to": "BL08",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS07",
+      "to": "BL08",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL01",
+      "to": "DG01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL02",
+      "to": "DG01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL03",
+      "to": "DG01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL04",
+      "to": "DG01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL05",
+      "to": "DG01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL06",
+      "to": "DG01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL07",
+      "to": "DG01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL08",
+      "to": "DG01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS04",
+      "to": "DG02",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL05",
+      "to": "DG02",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "DG01",
+      "to": "DG02",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "DG01",
+      "to": "DG03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "DG02",
+      "to": "DG03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL01",
+      "to": "DG03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL08",
+      "to": "DG03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL02",
+      "to": "DG04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL03",
+      "to": "DG04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL04",
+      "to": "DG04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL06",
+      "to": "DG04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL07",
+      "to": "DG04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL01",
+      "to": "DG05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL05",
+      "to": "DG05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL07",
+      "to": "DG05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "DG01",
+      "to": "DG06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "DG02",
+      "to": "DG06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "DG03",
+      "to": "DG06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "DG04",
+      "to": "DG06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "DG05",
+      "to": "DG06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "DG06",
+      "to": "OB01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS04",
+      "to": "OB01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OB01",
+      "to": "OB02",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "DG06",
+      "to": "OB02",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OB02",
+      "to": "OB03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL01",
+      "to": "OB03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL05",
+      "to": "OB03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL06",
+      "to": "OB03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL07",
+      "to": "OB03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL08",
+      "to": "OB03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS05",
+      "to": "OB04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL01",
+      "to": "OB04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL02",
+      "to": "OB04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL03",
+      "to": "OB04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL08",
+      "to": "OB04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OB01",
+      "to": "OB05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OB02",
+      "to": "OB05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OB04",
+      "to": "OB05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "DG04",
+      "to": "OB05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "DG05",
+      "to": "OB05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OB02",
+      "to": "OB06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OB03",
+      "to": "OB06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OB04",
+      "to": "OB06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OB05",
+      "to": "OB06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS02",
+      "to": "OP01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL01",
+      "to": "OP01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL02",
+      "to": "OP01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL03",
+      "to": "OP01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL04",
+      "to": "OP01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL05",
+      "to": "OP01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL06",
+      "to": "OP01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL07",
+      "to": "OP01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL08",
+      "to": "OP01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OB06",
+      "to": "OP01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OP01",
+      "to": "OP02",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OB05",
+      "to": "OP02",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "DG06",
+      "to": "OP02",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OP02",
+      "to": "OP03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL02",
+      "to": "OP03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL04",
+      "to": "OP03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL08",
+      "to": "OP03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OP03",
+      "to": "OP04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OP01",
+      "to": "OP04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OP02",
+      "to": "OP05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OP03",
+      "to": "OP05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OP04",
+      "to": "OP05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OB04",
+      "to": "OP05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OP01",
+      "to": "OP06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OP02",
+      "to": "OP06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OP03",
+      "to": "OP06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OP04",
+      "to": "OP06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OP05",
+      "to": "OP06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OB06",
+      "to": "OP06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OP06",
+      "to": "OP07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OP07",
+      "to": "PG01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL05",
+      "to": "PG01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "DG06",
+      "to": "PG01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PG01",
+      "to": "PG02",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OB02",
+      "to": "PG02",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "DG06",
+      "to": "PG02",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OP07",
+      "to": "PG02",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PG01",
+      "to": "PG03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PG02",
+      "to": "PG03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OP04",
+      "to": "PG03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PG02",
+      "to": "PG04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PG03",
+      "to": "PG04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL07",
+      "to": "PG04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PG02",
+      "to": "PG05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PG03",
+      "to": "PG05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PG04",
+      "to": "PG05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PG02",
+      "to": "PG06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PG03",
+      "to": "PG06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PG04",
+      "to": "PG06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL01",
+      "to": "PG06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PG01",
+      "to": "PG07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PG02",
+      "to": "PG07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PG03",
+      "to": "PG07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PG04",
+      "to": "PG07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PG05",
+      "to": "PG07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PG06",
+      "to": "PG07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PG07",
+      "to": "SP01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL01",
+      "to": "SP01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL02",
+      "to": "SP01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL03",
+      "to": "SP01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL08",
+      "to": "SP01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP01",
+      "to": "SP02",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PG03",
+      "to": "SP02",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PG05",
+      "to": "SP02",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PG07",
+      "to": "SP02",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL02",
+      "to": "SP03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL04",
+      "to": "SP03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP02",
+      "to": "SP03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL08",
+      "to": "SP04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PG01",
+      "to": "SP04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP02",
+      "to": "SP04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL03",
+      "to": "SP05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL05",
+      "to": "SP05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL06",
+      "to": "SP05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP01",
+      "to": "SP05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL08",
+      "to": "SP06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP02",
+      "to": "SP06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP03",
+      "to": "SP06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP04",
+      "to": "SP06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP05",
+      "to": "SP06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OB04",
+      "to": "SP07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP01",
+      "to": "SP07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP03",
+      "to": "SP07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP05",
+      "to": "SP07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP06",
+      "to": "SP07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP01",
+      "to": "SP08",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP02",
+      "to": "SP08",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP03",
+      "to": "SP08",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP04",
+      "to": "SP08",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP05",
+      "to": "SP08",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP06",
+      "to": "SP08",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP07",
+      "to": "SP08",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP01",
+      "to": "IM01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP02",
+      "to": "IM01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP03",
+      "to": "IM01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP04",
+      "to": "IM01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP05",
+      "to": "IM01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP06",
+      "to": "IM01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP07",
+      "to": "IM01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP08",
+      "to": "IM01",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "IM01",
+      "to": "IM02",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP06",
+      "to": "IM02",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "IM01",
+      "to": "IM03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "IM02",
+      "to": "IM03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PG06",
+      "to": "IM03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL01",
+      "to": "IM03",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "IM01",
+      "to": "IM04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "BL02",
+      "to": "IM04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP03",
+      "to": "IM04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP08",
+      "to": "IM04",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PS04",
+      "to": "IM05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "IM01",
+      "to": "IM05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "IM04",
+      "to": "IM05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PG07",
+      "to": "IM05",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "IM02",
+      "to": "IM06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "IM03",
+      "to": "IM06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "IM05",
+      "to": "IM06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "PG06",
+      "to": "IM06",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "IM01",
+      "to": "IM07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "IM02",
+      "to": "IM07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "IM03",
+      "to": "IM07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "IM04",
+      "to": "IM07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "IM05",
+      "to": "IM07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "IM06",
+      "to": "IM07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "SP08",
+      "to": "IM07",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "IM01",
+      "to": "IM08",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "IM02",
+      "to": "IM08",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "IM03",
+      "to": "IM08",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "IM04",
+      "to": "IM08",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "IM05",
+      "to": "IM08",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "IM06",
+      "to": "IM08",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "IM07",
+      "to": "IM08",
+      "relation": "semantic_dependency"
+    },
+    {
+      "from": "OB03",
+      "to": "IM08",
+      "relation": "semantic_dependency"
+    }
+  ],
+  "acyclic": true,
+  "transitive_descendants": {
+    "BL01": [
+      "DG01",
+      "DG02",
+      "DG03",
+      "DG05",
+      "DG06",
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB01",
+      "OB02",
+      "OB03",
+      "OB04",
+      "OB05",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "BL02": [
+      "BL04",
+      "BL08",
+      "DG01",
+      "DG02",
+      "DG03",
+      "DG04",
+      "DG06",
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB01",
+      "OB02",
+      "OB03",
+      "OB04",
+      "OB05",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "BL03": [
+      "DG01",
+      "DG02",
+      "DG03",
+      "DG04",
+      "DG06",
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB01",
+      "OB02",
+      "OB03",
+      "OB04",
+      "OB05",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "BL04": [
+      "BL08",
+      "DG01",
+      "DG02",
+      "DG03",
+      "DG04",
+      "DG06",
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB01",
+      "OB02",
+      "OB03",
+      "OB04",
+      "OB05",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "BL05": [
+      "BL06",
+      "DG01",
+      "DG02",
+      "DG03",
+      "DG04",
+      "DG05",
+      "DG06",
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB01",
+      "OB02",
+      "OB03",
+      "OB05",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "BL06": [
+      "DG01",
+      "DG02",
+      "DG03",
+      "DG04",
+      "DG06",
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB01",
+      "OB02",
+      "OB03",
+      "OB05",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "BL07": [
+      "DG01",
+      "DG02",
+      "DG03",
+      "DG04",
+      "DG05",
+      "DG06",
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB01",
+      "OB02",
+      "OB03",
+      "OB05",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "BL08": [
+      "DG01",
+      "DG02",
+      "DG03",
+      "DG06",
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB01",
+      "OB02",
+      "OB03",
+      "OB04",
+      "OB05",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "DG01": [
+      "DG02",
+      "DG03",
+      "DG06",
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB01",
+      "OB02",
+      "OB03",
+      "OB05",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "DG02": [
+      "DG03",
+      "DG06",
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB01",
+      "OB02",
+      "OB03",
+      "OB05",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "DG03": [
+      "DG06",
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB01",
+      "OB02",
+      "OB03",
+      "OB05",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "DG04": [
+      "DG06",
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB01",
+      "OB02",
+      "OB03",
+      "OB05",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "DG05": [
+      "DG06",
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB01",
+      "OB02",
+      "OB03",
+      "OB05",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "DG06": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB01",
+      "OB02",
+      "OB03",
+      "OB05",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "IM01": [
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08"
+    ],
+    "IM02": [
+      "IM03",
+      "IM06",
+      "IM07",
+      "IM08"
+    ],
+    "IM03": [
+      "IM06",
+      "IM07",
+      "IM08"
+    ],
+    "IM04": [
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08"
+    ],
+    "IM05": [
+      "IM06",
+      "IM07",
+      "IM08"
+    ],
+    "IM06": [
+      "IM07",
+      "IM08"
+    ],
+    "IM07": [
+      "IM08"
+    ],
+    "IM08": [],
+    "OB01": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB02",
+      "OB03",
+      "OB05",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "OB02": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB03",
+      "OB05",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "OB03": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "OB04": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB05",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "OB05": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "OB06": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "OP01": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "OP02": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "OP03": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "OP04": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "OP05": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "OP06": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "OP07": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "PG01": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "PG02": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "PG03": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "PG04": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "PG05": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "PG06": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "PG07": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "PS01": [
+      "BL01",
+      "BL02",
+      "BL03",
+      "BL04",
+      "BL05",
+      "BL06",
+      "BL07",
+      "BL08",
+      "DG01",
+      "DG02",
+      "DG03",
+      "DG04",
+      "DG05",
+      "DG06",
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB01",
+      "OB02",
+      "OB03",
+      "OB04",
+      "OB05",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "PS02",
+      "PS03",
+      "PS04",
+      "PS05",
+      "PS06",
+      "PS07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "PS02": [
+      "BL01",
+      "BL02",
+      "BL03",
+      "BL04",
+      "BL05",
+      "BL06",
+      "BL07",
+      "BL08",
+      "DG01",
+      "DG02",
+      "DG03",
+      "DG04",
+      "DG05",
+      "DG06",
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB01",
+      "OB02",
+      "OB03",
+      "OB04",
+      "OB05",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "PS03",
+      "PS04",
+      "PS05",
+      "PS06",
+      "PS07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "PS03": [
+      "BL01",
+      "BL02",
+      "BL03",
+      "BL04",
+      "BL05",
+      "BL06",
+      "BL07",
+      "BL08",
+      "DG01",
+      "DG02",
+      "DG03",
+      "DG04",
+      "DG05",
+      "DG06",
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB01",
+      "OB02",
+      "OB03",
+      "OB04",
+      "OB05",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "PS04",
+      "PS05",
+      "PS06",
+      "PS07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "PS04": [
+      "BL01",
+      "BL02",
+      "BL03",
+      "BL04",
+      "BL05",
+      "BL06",
+      "BL07",
+      "BL08",
+      "DG01",
+      "DG02",
+      "DG03",
+      "DG04",
+      "DG05",
+      "DG06",
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB01",
+      "OB02",
+      "OB03",
+      "OB04",
+      "OB05",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "PS06",
+      "PS07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "PS05": [
+      "BL01",
+      "BL02",
+      "BL03",
+      "BL04",
+      "BL05",
+      "BL06",
+      "BL07",
+      "BL08",
+      "DG01",
+      "DG02",
+      "DG03",
+      "DG04",
+      "DG05",
+      "DG06",
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB01",
+      "OB02",
+      "OB03",
+      "OB04",
+      "OB05",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "PS06",
+      "PS07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "PS06": [
+      "BL01",
+      "BL02",
+      "BL03",
+      "BL04",
+      "BL05",
+      "BL06",
+      "BL07",
+      "BL08",
+      "DG01",
+      "DG02",
+      "DG03",
+      "DG04",
+      "DG05",
+      "DG06",
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB01",
+      "OB02",
+      "OB03",
+      "OB04",
+      "OB05",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "PS07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "PS07": [
+      "BL01",
+      "BL02",
+      "BL03",
+      "BL04",
+      "BL05",
+      "BL06",
+      "BL07",
+      "BL08",
+      "DG01",
+      "DG02",
+      "DG03",
+      "DG04",
+      "DG05",
+      "DG06",
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "OB01",
+      "OB02",
+      "OB03",
+      "OB04",
+      "OB05",
+      "OB06",
+      "OP01",
+      "OP02",
+      "OP03",
+      "OP04",
+      "OP05",
+      "OP06",
+      "OP07",
+      "PG01",
+      "PG02",
+      "PG03",
+      "PG04",
+      "PG05",
+      "PG06",
+      "PG07",
+      "SP01",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "SP01": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "SP02",
+      "SP03",
+      "SP04",
+      "SP05",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "SP02": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "SP03",
+      "SP04",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "SP03": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "SP04": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "SP05": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "SP06",
+      "SP07",
+      "SP08"
+    ],
+    "SP06": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "SP07",
+      "SP08"
+    ],
+    "SP07": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08",
+      "SP08"
+    ],
+    "SP08": [
+      "IM01",
+      "IM02",
+      "IM03",
+      "IM04",
+      "IM05",
+      "IM06",
+      "IM07",
+      "IM08"
+    ]
+  },
+  "external_roots": [
+    "ProjectSeed"
+  ]
+}

@@ -1,0 +1,271 @@
+{
+  "case_id": "GC02",
+  "name": "无中生有主动策源",
+  "source_materials": [
+    "鄂州市2025年度策划咨询服务项目12.7.pptx"
+  ],
+  "chapters": [
+    "01",
+    "03"
+  ],
+  "objects": [
+    {
+      "object_id": "PS01",
+      "object_type": "ProjectIdentity",
+      "schema_version": "0.6.0",
+      "project_id": "GC02",
+      "chapter_id": "01",
+      "work_item_id": "01-01",
+      "status": "provisional",
+      "revision": 1,
+      "created_at": "2026-08-27T12:00:00+00:00",
+      "updated_at": "2026-08-27T12:00:00+00:00",
+      "created_by": {
+        "actor_id": "AGENT-1",
+        "name": "Preplan Agent",
+        "role": "agent",
+        "organization": null,
+        "authority_scope": [
+          "propose"
+        ],
+        "contact_ref": null
+      },
+      "source_snapshot": {},
+      "data": {
+        "project_id": "GC02",
+        "canonical_name": "鄂州主动策源城市更新项目池示例",
+        "aliases": [
+          "示例项目"
+        ],
+        "location": {
+          "name": "湖北省鄂州市",
+          "admin_codes": [
+            "420700"
+          ],
+          "geometry_refs": []
+        },
+        "object_type": "城市更新",
+        "origin_mode": "active_sourcing",
+        "trigger_events": [
+          {
+            "event_id": "event_id_sample",
+            "name": "name_sample",
+            "date": "2026-08-27",
+            "event_type": "event_type_sample"
+          }
+        ],
+        "start_reason": "通过价值勘探、概念策源和资源包装主动形成项目需求",
+        "time_constraints": [
+          {
+            "name": "name_sample",
+            "deadline": "2026-08-27",
+            "hardness": "hard"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "evidence_id": "evidence_id_sample",
+            "asset_id": "asset_id_sample",
+            "version_id": "version_id_sample",
+            "claim_class": "fact",
+            "locator": {}
+          }
+        ],
+        "status": "provisional"
+      },
+      "quality": {
+        "completeness": 0.8,
+        "consistency": 0.8,
+        "timeliness": 0.8,
+        "traceability": 0.8,
+        "reproducibility": 0.7,
+        "issues": [],
+        "grade": "B"
+      },
+      "approval": {
+        "status": "pending",
+        "required_role": "chapter_reviewer",
+        "approver": null,
+        "approved_at": null,
+        "conditions": [],
+        "comment": ""
+      }
+    },
+    {
+      "object_id": "PS05",
+      "object_type": "ConstraintRegister",
+      "schema_version": "0.6.0",
+      "project_id": "GC02",
+      "chapter_id": "01",
+      "work_item_id": "01-05",
+      "status": "provisional",
+      "revision": 1,
+      "created_at": "2026-08-27T12:00:00+00:00",
+      "updated_at": "2026-08-27T12:00:00+00:00",
+      "created_by": {
+        "actor_id": "AGENT-1",
+        "name": "Preplan Agent",
+        "role": "agent",
+        "organization": null,
+        "authority_scope": [
+          "propose"
+        ],
+        "contact_ref": null
+      },
+      "source_snapshot": {
+        "PS01": 1,
+        "PS03": 1
+      },
+      "data": {
+        "constraints": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "category": "category_sample",
+        "source_level": "law",
+        "effective_status": "effective",
+        "spatial_scope": {
+          "scope_id": "scope_id_sample",
+          "label": "label_sample",
+          "scope_type": "study",
+          "basis": [
+            "basis_sample"
+          ],
+          "status": "provisional"
+        },
+        "flexibility": "flexibility_sample",
+        "assumptions": [
+          {
+            "id": "assumption-1",
+            "name": "政策扶持路线与商业运营路线均需后续验证"
+          }
+        ],
+        "route_tags": [
+          "mixed_delivery"
+        ],
+        "validation_tasks": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "evidence_id": "evidence_id_sample",
+            "asset_id": "asset_id_sample",
+            "version_id": "version_id_sample",
+            "claim_class": "fact",
+            "locator": {}
+          }
+        ]
+      },
+      "quality": {
+        "completeness": 0.8,
+        "consistency": 0.8,
+        "timeliness": 0.8,
+        "traceability": 0.8,
+        "reproducibility": 0.7,
+        "issues": [],
+        "grade": "B"
+      },
+      "approval": {
+        "status": "pending",
+        "required_role": "chapter_reviewer",
+        "approver": null,
+        "approved_at": null,
+        "conditions": [],
+        "comment": ""
+      }
+    },
+    {
+      "object_id": "DG05",
+      "object_type": "ExternalOpportunityRegister",
+      "schema_version": "0.6.0",
+      "project_id": "GC02",
+      "chapter_id": "03",
+      "work_item_id": "03-05",
+      "status": "provisional",
+      "revision": 1,
+      "created_at": "2026-08-27T12:00:00+00:00",
+      "updated_at": "2026-08-27T12:00:00+00:00",
+      "created_by": {
+        "actor_id": "AGENT-1",
+        "name": "Preplan Agent",
+        "role": "agent",
+        "organization": null,
+        "authority_scope": [
+          "propose"
+        ],
+        "contact_ref": null
+      },
+      "source_snapshot": {
+        "BL01": 1,
+        "BL05": 1,
+        "BL07": 1
+      },
+      "data": {
+        "opportunities": [
+          {
+            "id": "opp-1",
+            "name": "存量空间价值勘探窗口"
+          }
+        ],
+        "trend_or_policy": "trend_or_policy_sample",
+        "geography": "geography_sample",
+        "time_window": "time_window_sample",
+        "project_relevance": "project_relevance_sample",
+        "required_conditions": [
+          {
+            "id": "condition-1",
+            "name": "本地需求、可用资产与实施主体同时成立"
+          }
+        ],
+        "uncertainty": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "invalidation_signals": [
+          {
+            "id": "signal-1",
+            "name": "资产不可用或本地需求验证失败"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "evidence_id": "evidence_id_sample",
+            "asset_id": "asset_id_sample",
+            "version_id": "version_id_sample",
+            "claim_class": "fact",
+            "locator": {}
+          }
+        ]
+      },
+      "quality": {
+        "completeness": 0.8,
+        "consistency": 0.8,
+        "timeliness": 0.8,
+        "traceability": 0.8,
+        "reproducibility": 0.7,
+        "issues": [],
+        "grade": "B"
+      },
+      "approval": {
+        "status": "pending",
+        "required_role": "chapter_reviewer",
+        "approver": null,
+        "approved_at": null,
+        "conditions": [],
+        "comment": ""
+      }
+    }
+  ],
+  "assertions": [
+    "没有传统设计委托仍可合法启动",
+    "公益/市场/混合只是动态路由标签",
+    "机会必须同时声明成立条件与失效信号"
+  ]
+}

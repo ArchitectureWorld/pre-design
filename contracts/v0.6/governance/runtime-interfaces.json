@@ -1,0 +1,86 @@
+{
+  "version": "0.6.0",
+  "note": "这是 DSH 原生插件内部 Host/Browser 绑定合同；不是独立通用 Runtime Adapter，也不允许先建设第二套 Web 或产品级 Mock Runtime。",
+  "interfaces": {
+    "ContractRegistry.load": {
+      "signature": "load(contract_id: str, version: str = \"0.6.0\") -> Contract",
+      "errors": [
+        "CONTRACT_NOT_FOUND",
+        "VERSION_UNSUPPORTED"
+      ]
+    },
+    "ToolRuntime.invoke": {
+      "signature": "invoke(tool_id: str, input: dict, context: ExecutionContext) -> ToolResult",
+      "guarantees": [
+        "input/output schema validation",
+        "audit log",
+        "no direct state write"
+      ]
+    },
+    "WorkflowRuntime.command": {
+      "signature": "command(workflow_id: str, command: str, payload: dict, actor: ActorContext) -> WorkflowEvent",
+      "guarantees": [
+        "state transition guard",
+        "role permission",
+        "optimistic concurrency"
+      ]
+    },
+    "ProposalService.submit": {
+      "signature": "submit(envelope: ProposalEnvelope) -> ValidationReport",
+      "guarantees": [
+        "T42 validation",
+        "immutable proposal hash"
+      ]
+    },
+    "ProjectStateRepository.commit": {
+      "signature": "commit(validated_proposal_id: str, actor: ActorContext) -> StateRevision",
+      "restriction": "Only system_service after T42 pass or authorized human confirmation."
+    },
+    "GateService.decide": {
+      "signature": "decide(gate_id: str, snapshot_id: str, decision: GateDecision, actor: ActorContext) -> DecisionSnapshot",
+      "restriction": "Assigned human decision_owner only."
+    },
+    "RevisionService.plan": {
+      "signature": "plan(request: RevisionRequest) -> ImpactPlan",
+      "guarantees": [
+        "dependency graph traversal",
+        "minimal reopen",
+        "history preserved"
+      ]
+    },
+    "ReportRenderer.render": {
+      "signature": "render(report_package_id: str, formats: list[str]) -> ArtifactManifest",
+      "restriction": "Artifacts are projections, never source of truth."
+    },
+    "DSHModelTool.preplanning_get_context": {
+      "contract_ref": "../model-tools/preplanning_get_context.contract.json",
+      "restriction": "Read-only controlled context slice; never full project dump by default."
+    },
+    "DSHModelTool.preplanning_apply_commands": {
+      "contract_ref": "../model-tools/preplanning_apply_commands.contract.json",
+      "restriction": "Proposal submission only; direct Project State write and Gate approval are forbidden."
+    }
+  },
+  "dsh_native_binding": {
+    "bundle": "dsh.bundle + cordis.patch.yml",
+    "browser_client": "dsh.client + package exports ./client",
+    "model_tools": [
+      "preplanning_get_context",
+      "preplanning_apply_commands"
+    ],
+    "slash_commands": [
+      "/preplan-new",
+      "/preplan-open",
+      "/preplan-list",
+      "/preplan-status",
+      "/preplan-confirm",
+      "/preplan-export"
+    ],
+    "context_injection": "agent.inject() or agent/pre-step, verified against pinned DSH version",
+    "durable_question_events": [
+      "preplanning/question-opened",
+      "preplanning/question-answered"
+    ],
+    "session_project_rule": "Project is the business source of truth; DSH Session stores interaction/execution trail only."
+  }
+}

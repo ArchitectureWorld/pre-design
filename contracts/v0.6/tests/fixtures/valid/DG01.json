@@ -1,0 +1,103 @@
+{
+  "object_id": "DG01",
+  "object_type": "GapIssueRegister",
+  "schema_version": "0.6.0",
+  "project_id": "PREPLAN-DEMO-001",
+  "chapter_id": "03",
+  "work_item_id": "03-01",
+  "status": "provisional",
+  "revision": 1,
+  "created_at": "2026-08-27T12:00:00+00:00",
+  "updated_at": "2026-08-27T12:00:00+00:00",
+  "created_by": {
+    "actor_id": "AGENT-1",
+    "name": "Preplan Agent",
+    "role": "agent",
+    "organization": null,
+    "authority_scope": [
+      "propose"
+    ],
+    "contact_ref": null
+  },
+  "source_snapshot": {
+    "BL01": 1,
+    "BL02": 1,
+    "BL03": 1,
+    "BL04": 1,
+    "BL05": 1,
+    "BL06": 1,
+    "BL07": 1,
+    "BL08": 1
+  },
+  "data": {
+    "issues": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "baseline": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "reference_standard": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "gap_value": {
+      "name": "name_sample",
+      "value": 1.0,
+      "unit": "unit_sample"
+    },
+    "location": {
+      "name": "name_sample"
+    },
+    "affected_groups": [
+      {
+        "actor_id": "actor_id_sample",
+        "name": "name_sample",
+        "role": "role_sample"
+      }
+    ],
+    "severity": {
+      "level": "very_low",
+      "rationale": "rationale_sample"
+    },
+    "evidence_refs": [
+      {
+        "evidence_id": "evidence_id_sample",
+        "asset_id": "asset_id_sample",
+        "version_id": "version_id_sample",
+        "claim_class": "fact",
+        "locator": {}
+      }
+    ],
+    "confidence": {
+      "level": "very_low",
+      "score": 1.0,
+      "basis": "basis_sample"
+    },
+    "status": "provisional"
+  },
+  "quality": {
+    "completeness": 0.8,
+    "consistency": 0.8,
+    "timeliness": 0.8,
+    "traceability": 0.8,
+    "reproducibility": 0.7,
+    "issues": [],
+    "grade": "B"
+  },
+  "approval": {
+    "status": "pending",
+    "required_role": "chapter_reviewer",
+    "approver": null,
+    "approved_at": null,
+    "conditions": [],
+    "comment": ""
+  }
+}

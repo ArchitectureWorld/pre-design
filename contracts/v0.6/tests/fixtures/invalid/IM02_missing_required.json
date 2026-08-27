@@ -1,0 +1,102 @@
+{
+  "object_id": "IM02",
+  "object_type": "CostBaseline",
+  "schema_version": "0.6.0",
+  "project_id": "PREPLAN-DEMO-001",
+  "chapter_id": "08",
+  "work_item_id": "08-02",
+  "status": "provisional",
+  "revision": 1,
+  "created_at": "2026-08-27T12:00:00+00:00",
+  "updated_at": "2026-08-27T12:00:00+00:00",
+  "created_by": {
+    "actor_id": "AGENT-1",
+    "name": "Preplan Agent",
+    "role": "agent",
+    "organization": null,
+    "authority_scope": [
+      "propose"
+    ],
+    "contact_ref": null
+  },
+  "source_snapshot": {
+    "IM01": 1,
+    "SP06": 1
+  },
+  "data": {
+    "quantities": [
+      {
+        "name": "name_sample",
+        "value": 1.0,
+        "unit": "unit_sample"
+      }
+    ],
+    "unit_rates": [
+      {
+        "name": "建筑单方",
+        "value": 6500,
+        "unit": "元/㎡"
+      }
+    ],
+    "base_date": "2026-08-27",
+    "tax_basis": "tax_basis_sample",
+    "capex": {
+      "name": "name_sample",
+      "value": 1.0,
+      "unit": "unit_sample"
+    },
+    "other_fees": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "contingency": "contingency_sample",
+    "financing_cost": {
+      "name": "name_sample",
+      "value": 1.0,
+      "unit": "unit_sample"
+    },
+    "startup_cost": {
+      "name": "name_sample",
+      "value": 1.0,
+      "unit": "unit_sample"
+    },
+    "lifecycle_cost": {
+      "name": "name_sample",
+      "value": 1.0,
+      "unit": "unit_sample"
+    },
+    "ranges": [
+      {
+        "min": 9000,
+        "max": 11000,
+        "unit": "万元",
+        "basis": "概念估算区间",
+        "confidence": {
+          "level": "medium",
+          "score": 0.6,
+          "basis": "工程量与指标",
+          "limitations": []
+        }
+      }
+    ]
+  },
+  "quality": {
+    "completeness": 0.8,
+    "consistency": 0.8,
+    "timeliness": 0.8,
+    "traceability": 0.8,
+    "reproducibility": 0.7,
+    "issues": [],
+    "grade": "B"
+  },
+  "approval": {
+    "status": "pending",
+    "required_role": "chapter_reviewer",
+    "approver": null,
+    "approved_at": null,
+    "conditions": [],
+    "comment": ""
+  }
+}

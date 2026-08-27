@@ -1,0 +1,107 @@
+{
+  "object_id": "SP05",
+  "object_type": "OpenSpaceEcologyPlan",
+  "schema_version": "0.6.0",
+  "project_id": "PREPLAN-DEMO-001",
+  "chapter_id": "07",
+  "work_item_id": "07-05",
+  "status": "provisional",
+  "revision": 1,
+  "created_at": "2026-08-27T12:00:00+00:00",
+  "updated_at": "2026-08-27T12:00:00+00:00",
+  "created_by": {
+    "actor_id": "AGENT-1",
+    "name": "Preplan Agent",
+    "role": "agent",
+    "organization": null,
+    "authority_scope": [
+      "propose"
+    ],
+    "contact_ref": null
+  },
+  "source_snapshot": {
+    "BL03": 1,
+    "BL05": 1,
+    "BL06": 1,
+    "SP01": 1
+  },
+  "data": {
+    "open_space_network": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "service_nodes": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "green_blue_system": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "rainwater": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "ecology": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "shade_heat": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "event_spaces": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "maintenance": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "resilience": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "risks": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ]
+  },
+  "quality": {
+    "completeness": 0.8,
+    "consistency": 0.8,
+    "timeliness": 0.8,
+    "traceability": 0.8,
+    "reproducibility": 0.7,
+    "issues": [],
+    "grade": "B"
+  },
+  "approval": {
+    "status": "pending",
+    "required_role": "chapter_reviewer",
+    "approver": null,
+    "approved_at": null,
+    "conditions": [],
+    "comment": ""
+  }
+}

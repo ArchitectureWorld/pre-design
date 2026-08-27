@@ -1,0 +1,148 @@
+{
+  "contract_version": "0.6.0",
+  "tool_name": "preplanning_get_context",
+  "exposure": "MODEL_FACING",
+  "purpose": "读取当前 DSH Session 所绑定前期策划项目的受控上下文切片；不返回全量 Project State 或全部文件文本。",
+  "permissions": {
+    "allowed_actor_types": [
+      "agent"
+    ],
+    "read_only": true,
+    "direct_state_write": false
+  },
+  "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "project_id": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "为空时读取当前 SessionBinding。"
+      },
+      "expected_revision": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 0
+      },
+      "workflow_ids": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "uniqueItems": true
+      },
+      "include_evidence_summary": {
+        "type": "boolean",
+        "default": true
+      },
+      "max_state_objects": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 30,
+        "default": 12
+      }
+    },
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": [
+      "project_id",
+      "revision",
+      "method_version",
+      "current_stage",
+      "state_slice",
+      "allowed_actions"
+    ],
+    "properties": {
+      "project_id": {
+        "type": "string"
+      },
+      "revision": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "method_version": {
+        "type": "string"
+      },
+      "current_stage": {
+        "type": "string"
+      },
+      "active_workflows": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "state_slice": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "blockers": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "open_question": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": true
+      },
+      "evidence_summary": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "allowed_actions": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "uniqueItems": true
+      },
+      "context_revision_hash": {
+        "type": "string"
+      }
+    },
+    "additionalProperties": false
+  },
+  "examples": {
+    "input": {
+      "project_id": null,
+      "expected_revision": null,
+      "workflow_ids": [
+        "preplan.wf.01.01"
+      ],
+      "include_evidence_summary": true,
+      "max_state_objects": 12
+    },
+    "output": {
+      "project_id": "project-001",
+      "revision": 3,
+      "method_version": "0.6.0",
+      "current_stage": "01",
+      "active_workflows": [
+        "preplan.wf.01.01"
+      ],
+      "state_slice": [],
+      "blockers": [],
+      "open_question": null,
+      "evidence_summary": {},
+      "allowed_actions": [
+        "submit_proposal"
+      ],
+      "context_revision_hash": "sha256:example"
+    }
+  }
+}

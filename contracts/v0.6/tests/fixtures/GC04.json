@@ -1,0 +1,504 @@
+{
+  "case_id": "GC04",
+  "name": "完整社区跨社区共享补短",
+  "source_materials": [
+    "厦门三康社区.pdf"
+  ],
+  "chapters": [
+    "02",
+    "06",
+    "07"
+  ],
+  "objects": [
+    {
+      "object_id": "BL05",
+      "object_type": "PopulationBehaviorProfile",
+      "schema_version": "0.6.0",
+      "project_id": "GC04",
+      "chapter_id": "02",
+      "work_item_id": "02-05",
+      "status": "provisional",
+      "revision": 1,
+      "created_at": "2026-08-27T12:00:00+00:00",
+      "updated_at": "2026-08-27T12:00:00+00:00",
+      "created_by": {
+        "actor_id": "AGENT-1",
+        "name": "Preplan Agent",
+        "role": "agent",
+        "organization": null,
+        "authority_scope": [
+          "propose"
+        ],
+        "contact_ref": null
+      },
+      "source_snapshot": {
+        "PS03": 1,
+        "PS07": 1
+      },
+      "data": {
+        "groups": [
+          {
+            "actor_id": "GC04-group-1",
+            "name": "老年人",
+            "role": "target_group",
+            "organization": null,
+            "authority_scope": [],
+            "contact_ref": null
+          },
+          {
+            "actor_id": "GC04-group-2",
+            "name": "婴幼儿及青少年",
+            "role": "target_group",
+            "organization": null,
+            "authority_scope": [],
+            "contact_ref": null
+          },
+          {
+            "actor_id": "GC04-group-3",
+            "name": "中青年家庭",
+            "role": "target_group",
+            "organization": null,
+            "authority_scope": [],
+            "contact_ref": null
+          },
+          {
+            "actor_id": "GC04-group-4",
+            "name": "外来常住人口",
+            "role": "target_group",
+            "organization": null,
+            "authority_scope": [],
+            "contact_ref": null
+          }
+        ],
+        "population": {
+          "name": "三康片区人口",
+          "value": 22000,
+          "unit": "人",
+          "basis": "案例资料",
+          "source_ref": "厦门三康社区.pdf",
+          "as_of": "2026-01-01",
+          "method": "行政与调研数据",
+          "confidence": {
+            "level": "medium",
+            "score": 0.7,
+            "basis": "案例资料",
+            "limitations": []
+          }
+        },
+        "demographics": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "households": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "origins": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "time_patterns": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "journeys": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "peak_periods": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "samples": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "method": "method_sample",
+        "confidence": {
+          "level": "very_low",
+          "score": 1.0,
+          "basis": "basis_sample"
+        }
+      },
+      "quality": {
+        "completeness": 0.8,
+        "consistency": 0.8,
+        "timeliness": 0.8,
+        "traceability": 0.8,
+        "reproducibility": 0.7,
+        "issues": [],
+        "grade": "B"
+      },
+      "approval": {
+        "status": "pending",
+        "required_role": "chapter_reviewer",
+        "approver": null,
+        "approved_at": null,
+        "conditions": [],
+        "comment": ""
+      }
+    },
+    {
+      "object_id": "BL06",
+      "object_type": "FacilityServiceBaseline",
+      "schema_version": "0.6.0",
+      "project_id": "GC04",
+      "chapter_id": "02",
+      "work_item_id": "02-06",
+      "status": "provisional",
+      "revision": 1,
+      "created_at": "2026-08-27T12:00:00+00:00",
+      "updated_at": "2026-08-27T12:00:00+00:00",
+      "created_by": {
+        "actor_id": "AGENT-1",
+        "name": "Preplan Agent",
+        "role": "agent",
+        "organization": null,
+        "authority_scope": [
+          "propose"
+        ],
+        "contact_ref": null
+      },
+      "source_snapshot": {
+        "BL05": 1,
+        "PS03": 1,
+        "PS07": 1
+      },
+      "data": {
+        "facilities": [
+          {
+            "id": "facility-1",
+            "name": "社区综合服务站"
+          },
+          {
+            "id": "facility-2",
+            "name": "托儿所"
+          },
+          {
+            "id": "facility-3",
+            "name": "老年服务站"
+          },
+          {
+            "id": "facility-4",
+            "name": "社区卫生服务站"
+          },
+          {
+            "id": "facility-5",
+            "name": "公共活动场地"
+          }
+        ],
+        "types": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "capacity": {
+          "name": "name_sample",
+          "value": 1.0,
+          "unit": "unit_sample"
+        },
+        "hours": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "pricing": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "operator": {
+          "actor_id": "actor_id_sample",
+          "name": "name_sample",
+          "role": "role_sample"
+        },
+        "coverage": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "accessibility": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "utilization": {
+          "name": "name_sample",
+          "value": 1.0,
+          "unit": "unit_sample"
+        },
+        "condition": "condition_sample",
+        "shareability": [
+          {
+            "id": "share-1",
+            "name": "三社区共建共享设施"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "evidence_id": "evidence_id_sample",
+            "asset_id": "asset_id_sample",
+            "version_id": "version_id_sample",
+            "claim_class": "fact",
+            "locator": {}
+          }
+        ]
+      },
+      "quality": {
+        "completeness": 0.8,
+        "consistency": 0.8,
+        "timeliness": 0.8,
+        "traceability": 0.8,
+        "reproducibility": 0.7,
+        "issues": [],
+        "grade": "B"
+      },
+      "approval": {
+        "status": "pending",
+        "required_role": "chapter_reviewer",
+        "approver": null,
+        "approved_at": null,
+        "conditions": [],
+        "comment": ""
+      }
+    },
+    {
+      "object_id": "PG05",
+      "object_type": "AdjacencySharingModel",
+      "schema_version": "0.6.0",
+      "project_id": "GC04",
+      "chapter_id": "06",
+      "work_item_id": "06-05",
+      "status": "provisional",
+      "revision": 1,
+      "created_at": "2026-08-27T12:00:00+00:00",
+      "updated_at": "2026-08-27T12:00:00+00:00",
+      "created_by": {
+        "actor_id": "AGENT-1",
+        "name": "Preplan Agent",
+        "role": "agent",
+        "organization": null,
+        "authority_scope": [
+          "propose"
+        ],
+        "contact_ref": null
+      },
+      "source_snapshot": {
+        "PG02": 1,
+        "PG03": 1,
+        "PG04": 1
+      },
+      "data": {
+        "functions": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "adjacency_scores": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "separation_rules": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "shared_resources": [
+          {
+            "id": "share-1",
+            "name": "共享托儿所"
+          },
+          {
+            "id": "share-2",
+            "name": "共享卫生服务中心"
+          },
+          {
+            "id": "share-3",
+            "name": "共享慢行环线"
+          }
+        ],
+        "time_schedules": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "flows": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "conflicts": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "distribution_mode": "shared",
+        "flexibility_modules": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ]
+      },
+      "quality": {
+        "completeness": 0.8,
+        "consistency": 0.8,
+        "timeliness": 0.8,
+        "traceability": 0.8,
+        "reproducibility": 0.7,
+        "issues": [],
+        "grade": "B"
+      },
+      "approval": {
+        "status": "pending",
+        "required_role": "chapter_reviewer",
+        "approver": null,
+        "approved_at": null,
+        "conditions": [],
+        "comment": ""
+      }
+    },
+    {
+      "object_id": "SP04",
+      "object_type": "MobilityOperationsPlan",
+      "schema_version": "0.6.0",
+      "project_id": "GC04",
+      "chapter_id": "07",
+      "work_item_id": "07-04",
+      "status": "provisional",
+      "revision": 1,
+      "created_at": "2026-08-27T12:00:00+00:00",
+      "updated_at": "2026-08-27T12:00:00+00:00",
+      "created_by": {
+        "actor_id": "AGENT-1",
+        "name": "Preplan Agent",
+        "role": "agent",
+        "organization": null,
+        "authority_scope": [
+          "propose"
+        ],
+        "contact_ref": null
+      },
+      "source_snapshot": {
+        "BL08": 1,
+        "PG01": 1,
+        "SP02": 1
+      },
+      "data": {
+        "external_access": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "pedestrian": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "bicycle": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "transit": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "vehicles": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "parking": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "loading": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "fire_access": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "peak_scenarios": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "bottlenecks": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "shared_parking": [
+          {
+            "id": "parking-1",
+            "name": "片区潮汐与共享停车"
+          }
+        ]
+      },
+      "quality": {
+        "completeness": 0.8,
+        "consistency": 0.8,
+        "timeliness": 0.8,
+        "traceability": 0.8,
+        "reproducibility": 0.7,
+        "issues": [],
+        "grade": "B"
+      },
+      "approval": {
+        "status": "pending",
+        "required_role": "chapter_reviewer",
+        "approver": null,
+        "approved_at": null,
+        "conditions": [],
+        "comment": ""
+      }
+    }
+  ],
+  "assertions": [
+    "设施存在不等于实际服务达标",
+    "共享设施必须对应可达性、时段、容量和运营条件"
+  ]
+}

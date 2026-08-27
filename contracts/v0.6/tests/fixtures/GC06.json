@@ -1,0 +1,363 @@
+{
+  "case_id": "GC06",
+  "name": "十平方公里多尺度城市设计",
+  "source_materials": [
+    "14-浙江省衢州市衢江区城南片区城市设计 [同济]（143页）.pdf"
+  ],
+  "chapters": [
+    "01",
+    "02",
+    "07"
+  ],
+  "objects": [
+    {
+      "object_id": "PS03",
+      "object_type": "BoundarySet",
+      "schema_version": "0.6.0",
+      "project_id": "GC06",
+      "chapter_id": "01",
+      "work_item_id": "01-03",
+      "status": "provisional",
+      "revision": 1,
+      "created_at": "2026-08-27T12:00:00+00:00",
+      "updated_at": "2026-08-27T12:00:00+00:00",
+      "created_by": {
+        "actor_id": "AGENT-1",
+        "name": "Preplan Agent",
+        "role": "agent",
+        "organization": null,
+        "authority_scope": [
+          "propose"
+        ],
+        "contact_ref": null
+      },
+      "source_snapshot": {
+        "PS02": 1
+      },
+      "data": {
+        "study_scope": {
+          "scope_id": "PS03-study_scope",
+          "label": "衢江城南片区约10.07平方公里研究范围",
+          "scope_type": "study",
+          "description": "示例范围",
+          "geometry_refs": [],
+          "basis": [
+            "用户描述与既有资料"
+          ],
+          "status": "provisional"
+        },
+        "impact_scope": {
+          "scope_id": "PS03-impact_scope",
+          "label": "impact_scope",
+          "scope_type": "impact",
+          "description": "示例范围",
+          "geometry_refs": [],
+          "basis": [
+            "用户描述与既有资料"
+          ],
+          "status": "provisional"
+        },
+        "implementation_scope": {
+          "scope_id": "PS03-implementation_scope",
+          "label": "按片区和项目包分期实施",
+          "scope_type": "implementation",
+          "description": "示例范围",
+          "geometry_refs": [],
+          "basis": [
+            "用户描述与既有资料"
+          ],
+          "status": "provisional"
+        },
+        "content_scope": {
+          "scope_id": "PS03-content_scope",
+          "label": "content_scope",
+          "scope_type": "content",
+          "description": "示例范围",
+          "geometry_refs": [],
+          "basis": [
+            "用户描述与既有资料"
+          ],
+          "status": "provisional"
+        },
+        "phase_scope": {
+          "scope_id": "PS03-phase_scope",
+          "label": "phase_scope",
+          "scope_type": "phase",
+          "description": "示例范围",
+          "geometry_refs": [],
+          "basis": [
+            "用户描述与既有资料"
+          ],
+          "status": "provisional"
+        },
+        "exclusions": [],
+        "geometry_refs": [],
+        "basis": "basis_sample",
+        "confidence": {
+          "level": "very_low",
+          "score": 1.0,
+          "basis": "basis_sample"
+        },
+        "status": "provisional"
+      },
+      "quality": {
+        "completeness": 0.8,
+        "consistency": 0.8,
+        "timeliness": 0.8,
+        "traceability": 0.8,
+        "reproducibility": 0.7,
+        "issues": [],
+        "grade": "B"
+      },
+      "approval": {
+        "status": "pending",
+        "required_role": "chapter_reviewer",
+        "approver": null,
+        "approved_at": null,
+        "conditions": [],
+        "comment": ""
+      }
+    },
+    {
+      "object_id": "BL02",
+      "object_type": "LandAssetRegister",
+      "schema_version": "0.6.0",
+      "project_id": "GC06",
+      "chapter_id": "02",
+      "work_item_id": "02-02",
+      "status": "provisional",
+      "revision": 1,
+      "created_at": "2026-08-27T12:00:00+00:00",
+      "updated_at": "2026-08-27T12:00:00+00:00",
+      "created_by": {
+        "actor_id": "AGENT-1",
+        "name": "Preplan Agent",
+        "role": "agent",
+        "organization": null,
+        "authority_scope": [
+          "propose"
+        ],
+        "contact_ref": null
+      },
+      "source_snapshot": {
+        "PS03": 1,
+        "PS07": 1
+      },
+      "data": {
+        "objects": [
+          {
+            "id": "object-1",
+            "name": "村庄"
+          },
+          {
+            "id": "object-2",
+            "name": "耕地"
+          },
+          {
+            "id": "object-3",
+            "name": "在建项目"
+          },
+          {
+            "id": "object-4",
+            "name": "工业与商业用地"
+          },
+          {
+            "id": "object-5",
+            "name": "生态水系"
+          }
+        ],
+        "parcel_ids": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "building_ids": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "owners": [
+          {
+            "actor_id": "actor_id_sample",
+            "name": "name_sample",
+            "role": "role_sample"
+          }
+        ],
+        "right_types": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "current_use": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "leases": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "mortgages": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "areas": [
+          {
+            "name": "name_sample",
+            "value": 1.0,
+            "unit": "unit_sample"
+          }
+        ],
+        "disposition_constraints": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "verification_status": "partially_verified"
+      },
+      "quality": {
+        "completeness": 0.8,
+        "consistency": 0.8,
+        "timeliness": 0.8,
+        "traceability": 0.8,
+        "reproducibility": 0.7,
+        "issues": [],
+        "grade": "B"
+      },
+      "approval": {
+        "status": "pending",
+        "required_role": "chapter_reviewer",
+        "approver": null,
+        "approved_at": null,
+        "conditions": [],
+        "comment": ""
+      }
+    },
+    {
+      "object_id": "SP01",
+      "object_type": "SpatialStructurePlan",
+      "schema_version": "0.6.0",
+      "project_id": "GC06",
+      "chapter_id": "07",
+      "work_item_id": "07-01",
+      "status": "provisional",
+      "revision": 1,
+      "created_at": "2026-08-27T12:00:00+00:00",
+      "updated_at": "2026-08-27T12:00:00+00:00",
+      "created_by": {
+        "actor_id": "AGENT-1",
+        "name": "Preplan Agent",
+        "role": "agent",
+        "organization": null,
+        "authority_scope": [
+          "propose"
+        ],
+        "contact_ref": null
+      },
+      "source_snapshot": {
+        "PG07": 1,
+        "BL01": 1,
+        "BL02": 1,
+        "BL03": 1,
+        "BL08": 1
+      },
+      "data": {
+        "centers": [
+          {
+            "id": "center-1",
+            "name": "行政办公核心"
+          },
+          {
+            "id": "center-2",
+            "name": "康养文化核心"
+          }
+        ],
+        "axes": [
+          {
+            "id": "axis-1",
+            "name": "东西向功能发展轴"
+          },
+          {
+            "id": "axis-2",
+            "name": "南北向生态联系轴"
+          }
+        ],
+        "networks": [
+          {
+            "id": "network-1",
+            "name": "蓝绿生态网络"
+          },
+          {
+            "id": "network-2",
+            "name": "多样道路网络"
+          }
+        ],
+        "zones": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "land_use": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "intensity": {
+          "name": "name_sample",
+          "value": 1.0,
+          "unit": "unit_sample"
+        },
+        "area_balance": {
+          "name": "name_sample",
+          "value": 1.0,
+          "unit": "unit_sample"
+        },
+        "public_space": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "planning_alignment": "planning_alignment_sample",
+        "assumptions": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ]
+      },
+      "quality": {
+        "completeness": 0.8,
+        "consistency": 0.8,
+        "timeliness": 0.8,
+        "traceability": 0.8,
+        "reproducibility": 0.7,
+        "issues": [],
+        "grade": "B"
+      },
+      "approval": {
+        "status": "pending",
+        "required_role": "chapter_reviewer",
+        "approver": null,
+        "approved_at": null,
+        "conditions": [],
+        "comment": ""
+      }
+    }
+  ],
+  "assertions": [
+    "同一母骨架适配大尺度片区",
+    "土地、道路、水系、村庄和上位规划均对象化"
+  ]
+}

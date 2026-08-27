@@ -1,0 +1,3119 @@
+{
+  "version": "0.6.0",
+  "cases": [
+    {
+      "case_id": "GC01",
+      "name": "无资料最小启动",
+      "source_materials": [
+        "Project Seed 规则"
+      ],
+      "chapters": [
+        "01"
+      ],
+      "objects": [
+        {
+          "object_id": "PS01",
+          "object_type": "ProjectIdentity",
+          "schema_version": "0.6.0",
+          "project_id": "GC01",
+          "chapter_id": "01",
+          "work_item_id": "01-01",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {},
+          "data": {
+            "project_id": "GC01",
+            "canonical_name": "某地区城市更新前期策划（暂名）",
+            "aliases": [
+              "示例项目"
+            ],
+            "location": {
+              "name": "湖北省鄂州市",
+              "admin_codes": [
+                "420700"
+              ],
+              "geometry_refs": []
+            },
+            "object_type": "城市更新",
+            "origin_mode": "unknown",
+            "trigger_events": [
+              {
+                "event_id": "event_id_sample",
+                "name": "name_sample",
+                "date": "2026-08-27",
+                "event_type": "event_type_sample"
+              }
+            ],
+            "start_reason": "当前只有地区与项目性质，尚无正式委托或项目资料",
+            "time_constraints": [
+              {
+                "name": "name_sample",
+                "deadline": "2026-08-27",
+                "hardness": "hard"
+              }
+            ],
+            "evidence_refs": [],
+            "status": "provisional"
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        },
+        {
+          "object_id": "PS07",
+          "object_type": "EvidenceGapRegister",
+          "schema_version": "0.6.0",
+          "project_id": "GC01",
+          "chapter_id": "01",
+          "work_item_id": "01-07",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {
+            "PS01": 1,
+            "PS02": 1,
+            "PS03": 1,
+            "PS04": 1,
+            "PS05": 1,
+            "PS06": 1
+          },
+          "data": {
+            "asset_index": [],
+            "relevance": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "version_relations": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "quality_profile": {
+              "completeness": 1.0,
+              "consistency": 1.0,
+              "timeliness": 1.0,
+              "traceability": 1.0,
+              "reproducibility": 1.0
+            },
+            "conflicts": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "gaps": [
+              {
+                "id": "gap-1",
+                "name": "缺少正式研究范围"
+              },
+              {
+                "id": "gap-2",
+                "name": "缺少任务确认主体"
+              }
+            ],
+            "blocking_level": "non_blocking",
+            "owner": {
+              "actor_id": "actor_id_sample",
+              "name": "name_sample",
+              "role": "role_sample"
+            },
+            "due_date": "2026-08-27",
+            "downstream_task": "downstream_task_sample"
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        }
+      ],
+      "assertions": [
+        "允许仅凭地区＋项目性质建立 provisional 项目",
+        "缺失信息转化为补证任务，不伪造结论"
+      ]
+    },
+    {
+      "case_id": "GC02",
+      "name": "无中生有主动策源",
+      "source_materials": [
+        "鄂州市2025年度策划咨询服务项目12.7.pptx"
+      ],
+      "chapters": [
+        "01",
+        "03"
+      ],
+      "objects": [
+        {
+          "object_id": "PS01",
+          "object_type": "ProjectIdentity",
+          "schema_version": "0.6.0",
+          "project_id": "GC02",
+          "chapter_id": "01",
+          "work_item_id": "01-01",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {},
+          "data": {
+            "project_id": "GC02",
+            "canonical_name": "鄂州主动策源城市更新项目池示例",
+            "aliases": [
+              "示例项目"
+            ],
+            "location": {
+              "name": "湖北省鄂州市",
+              "admin_codes": [
+                "420700"
+              ],
+              "geometry_refs": []
+            },
+            "object_type": "城市更新",
+            "origin_mode": "active_sourcing",
+            "trigger_events": [
+              {
+                "event_id": "event_id_sample",
+                "name": "name_sample",
+                "date": "2026-08-27",
+                "event_type": "event_type_sample"
+              }
+            ],
+            "start_reason": "通过价值勘探、概念策源和资源包装主动形成项目需求",
+            "time_constraints": [
+              {
+                "name": "name_sample",
+                "deadline": "2026-08-27",
+                "hardness": "hard"
+              }
+            ],
+            "evidence_refs": [
+              {
+                "evidence_id": "evidence_id_sample",
+                "asset_id": "asset_id_sample",
+                "version_id": "version_id_sample",
+                "claim_class": "fact",
+                "locator": {}
+              }
+            ],
+            "status": "provisional"
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        },
+        {
+          "object_id": "PS05",
+          "object_type": "ConstraintRegister",
+          "schema_version": "0.6.0",
+          "project_id": "GC02",
+          "chapter_id": "01",
+          "work_item_id": "01-05",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {
+            "PS01": 1,
+            "PS03": 1
+          },
+          "data": {
+            "constraints": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "category": "category_sample",
+            "source_level": "law",
+            "effective_status": "effective",
+            "spatial_scope": {
+              "scope_id": "scope_id_sample",
+              "label": "label_sample",
+              "scope_type": "study",
+              "basis": [
+                "basis_sample"
+              ],
+              "status": "provisional"
+            },
+            "flexibility": "flexibility_sample",
+            "assumptions": [
+              {
+                "id": "assumption-1",
+                "name": "政策扶持路线与商业运营路线均需后续验证"
+              }
+            ],
+            "route_tags": [
+              "mixed_delivery"
+            ],
+            "validation_tasks": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "evidence_refs": [
+              {
+                "evidence_id": "evidence_id_sample",
+                "asset_id": "asset_id_sample",
+                "version_id": "version_id_sample",
+                "claim_class": "fact",
+                "locator": {}
+              }
+            ]
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        },
+        {
+          "object_id": "DG05",
+          "object_type": "ExternalOpportunityRegister",
+          "schema_version": "0.6.0",
+          "project_id": "GC02",
+          "chapter_id": "03",
+          "work_item_id": "03-05",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {
+            "BL01": 1,
+            "BL05": 1,
+            "BL07": 1
+          },
+          "data": {
+            "opportunities": [
+              {
+                "id": "opp-1",
+                "name": "存量空间价值勘探窗口"
+              }
+            ],
+            "trend_or_policy": "trend_or_policy_sample",
+            "geography": "geography_sample",
+            "time_window": "time_window_sample",
+            "project_relevance": "project_relevance_sample",
+            "required_conditions": [
+              {
+                "id": "condition-1",
+                "name": "本地需求、可用资产与实施主体同时成立"
+              }
+            ],
+            "uncertainty": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "invalidation_signals": [
+              {
+                "id": "signal-1",
+                "name": "资产不可用或本地需求验证失败"
+              }
+            ],
+            "evidence_refs": [
+              {
+                "evidence_id": "evidence_id_sample",
+                "asset_id": "asset_id_sample",
+                "version_id": "version_id_sample",
+                "claim_class": "fact",
+                "locator": {}
+              }
+            ]
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        }
+      ],
+      "assertions": [
+        "没有传统设计委托仍可合法启动",
+        "公益/市场/混合只是动态路由标签",
+        "机会必须同时声明成立条件与失效信号"
+      ]
+    },
+    {
+      "case_id": "GC03",
+      "name": "历史街区多层边界与分期",
+      "source_materials": [
+        "20251121鄂州城市更新.pdf",
+        "新民街地块历史文化保护和特色风貌塑造城市更新综合整治规划"
+      ],
+      "chapters": [
+        "01",
+        "02",
+        "07"
+      ],
+      "objects": [
+        {
+          "object_id": "PS03",
+          "object_type": "BoundarySet",
+          "schema_version": "0.6.0",
+          "project_id": "GC03",
+          "chapter_id": "01",
+          "work_item_id": "01-03",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {
+            "PS02": 1
+          },
+          "data": {
+            "study_scope": {
+              "scope_id": "PS03-study_scope",
+              "label": "吴王古城新民街约19公顷研究范围",
+              "scope_type": "study",
+              "description": "示例范围",
+              "geometry_refs": [],
+              "basis": [
+                "用户描述与既有资料"
+              ],
+              "status": "provisional"
+            },
+            "impact_scope": {
+              "scope_id": "PS03-impact_scope",
+              "label": "impact_scope",
+              "scope_type": "impact",
+              "description": "示例范围",
+              "geometry_refs": [],
+              "basis": [
+                "用户描述与既有资料"
+              ],
+              "status": "provisional"
+            },
+            "implementation_scope": {
+              "scope_id": "PS03-implementation_scope",
+              "label": "近期沿江大道首期更新范围",
+              "scope_type": "implementation",
+              "description": "示例范围",
+              "geometry_refs": [],
+              "basis": [
+                "用户描述与既有资料"
+              ],
+              "status": "provisional"
+            },
+            "content_scope": {
+              "scope_id": "PS03-content_scope",
+              "label": "content_scope",
+              "scope_type": "content",
+              "description": "示例范围",
+              "geometry_refs": [],
+              "basis": [
+                "用户描述与既有资料"
+              ],
+              "status": "provisional"
+            },
+            "phase_scope": {
+              "scope_id": "PS03-phase_scope",
+              "label": "phase_scope",
+              "scope_type": "phase",
+              "description": "近期改善交通与民生，远期开展遗址保护展示",
+              "geometry_refs": [],
+              "basis": [
+                "用户描述与既有资料"
+              ],
+              "status": "provisional"
+            },
+            "exclusions": [],
+            "geometry_refs": [],
+            "basis": "basis_sample",
+            "confidence": {
+              "level": "very_low",
+              "score": 1.0,
+              "basis": "basis_sample"
+            },
+            "status": "provisional"
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        },
+        {
+          "object_id": "BL04",
+          "object_type": "SpatialBuildingBaseline",
+          "schema_version": "0.6.0",
+          "project_id": "GC03",
+          "chapter_id": "02",
+          "work_item_id": "02-04",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {
+            "PS03": 1,
+            "BL02": 1,
+            "PS07": 1
+          },
+          "data": {
+            "objects": [
+              {
+                "id": "building-1",
+                "name": "历史建筑"
+              },
+              {
+                "id": "building-2",
+                "name": "传统风貌建筑"
+              },
+              {
+                "id": "building-3",
+                "name": "一般建筑"
+              },
+              {
+                "id": "building-4",
+                "name": "现代建筑"
+              }
+            ],
+            "geometry": [
+              {
+                "geometry_id": "geometry_id_sample",
+                "geometry_type": "Point",
+                "crs": "crs_sample"
+              }
+            ],
+            "land_use": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "building_use": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "areas": [
+              {
+                "name": "name_sample",
+                "value": 1.0,
+                "unit": "unit_sample"
+              }
+            ],
+            "heights": [
+              {
+                "name": "name_sample",
+                "value": 1.0,
+                "unit": "unit_sample"
+              }
+            ],
+            "age": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "condition": "condition_sample",
+            "occupancy": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "heritage": [
+              {
+                "id": "heritage-1",
+                "name": "吴王城遗址及历史节点"
+              }
+            ],
+            "vacancy": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "photo_refs": [
+              {
+                "evidence_id": "evidence_id_sample",
+                "asset_id": "asset_id_sample",
+                "version_id": "version_id_sample",
+                "claim_class": "fact",
+                "locator": {}
+              }
+            ],
+            "confidence": {
+              "level": "medium",
+              "score": 0.65,
+              "basis": "现场调研与既有资料",
+              "limitations": [
+                "部分建筑仍需结构检测"
+              ]
+            }
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        },
+        {
+          "object_id": "SP03",
+          "object_type": "BuildingInterventionPlan",
+          "schema_version": "0.6.0",
+          "project_id": "GC03",
+          "chapter_id": "07",
+          "work_item_id": "07-03",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {
+            "BL02": 1,
+            "BL04": 1,
+            "SP02": 1
+          },
+          "data": {
+            "building_refs": [
+              {
+                "id": "B1",
+                "name": "示例既有建筑"
+              }
+            ],
+            "heritage_value": [
+              {
+                "id": "heritage_value",
+                "name": "历史价值"
+              }
+            ],
+            "safety": [
+              {
+                "id": "safety",
+                "name": "安全状态"
+              }
+            ],
+            "use_fit": [
+              {
+                "id": "use_fit",
+                "name": "使用适配"
+              }
+            ],
+            "ownership": [
+              {
+                "id": "ownership",
+                "name": "产权状态"
+              }
+            ],
+            "cost_range": [
+              {
+                "min": 1000,
+                "max": 2000,
+                "unit": "万元",
+                "basis": "初步估算",
+                "confidence": {
+                  "level": "low",
+                  "score": 0.4,
+                  "basis": "概念阶段",
+                  "limitations": [
+                    "未完成检测"
+                  ]
+                }
+              }
+            ],
+            "action": [
+              {
+                "id": "action-1",
+                "name": "保护修缮"
+              },
+              {
+                "id": "action-2",
+                "name": "功能改变"
+              },
+              {
+                "id": "action-3",
+                "name": "局部改扩建"
+              },
+              {
+                "id": "action-4",
+                "name": "局部拆建"
+              }
+            ],
+            "conditions": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "required_inspections": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "approval_status": "pending"
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        },
+        {
+          "object_id": "SP08",
+          "object_type": "SpatialPhasingPlan",
+          "schema_version": "0.6.0",
+          "project_id": "GC03",
+          "chapter_id": "07",
+          "work_item_id": "07-08",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {
+            "SP01": 1,
+            "SP02": 1,
+            "SP03": 1,
+            "SP04": 1,
+            "SP05": 1,
+            "SP06": 1,
+            "SP07": 1
+          },
+          "data": {
+            "phases": [
+              {
+                "id": "phase-1",
+                "name": "近期实施"
+              },
+              {
+                "id": "phase-2",
+                "name": "远期规划"
+              }
+            ],
+            "scope": {
+              "scope_id": "scope_id_sample",
+              "label": "label_sample",
+              "scope_type": "study",
+              "basis": [
+                "basis_sample"
+              ],
+              "status": "provisional"
+            },
+            "prerequisites": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "temporary_uses": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "relocations": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "access": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "independent_operation": [
+              {
+                "id": "operation-1",
+                "name": "近期阶段可独立运行"
+              }
+            ],
+            "handover": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "future_reserve": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "risks": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ]
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        }
+      ],
+      "assertions": [
+        "研究范围、近期实施和远期规划分别表达",
+        "拆改留不能只由年代或外观决定"
+      ]
+    },
+    {
+      "case_id": "GC04",
+      "name": "完整社区跨社区共享补短",
+      "source_materials": [
+        "厦门三康社区.pdf"
+      ],
+      "chapters": [
+        "02",
+        "06",
+        "07"
+      ],
+      "objects": [
+        {
+          "object_id": "BL05",
+          "object_type": "PopulationBehaviorProfile",
+          "schema_version": "0.6.0",
+          "project_id": "GC04",
+          "chapter_id": "02",
+          "work_item_id": "02-05",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {
+            "PS03": 1,
+            "PS07": 1
+          },
+          "data": {
+            "groups": [
+              {
+                "actor_id": "GC04-group-1",
+                "name": "老年人",
+                "role": "target_group",
+                "organization": null,
+                "authority_scope": [],
+                "contact_ref": null
+              },
+              {
+                "actor_id": "GC04-group-2",
+                "name": "婴幼儿及青少年",
+                "role": "target_group",
+                "organization": null,
+                "authority_scope": [],
+                "contact_ref": null
+              },
+              {
+                "actor_id": "GC04-group-3",
+                "name": "中青年家庭",
+                "role": "target_group",
+                "organization": null,
+                "authority_scope": [],
+                "contact_ref": null
+              },
+              {
+                "actor_id": "GC04-group-4",
+                "name": "外来常住人口",
+                "role": "target_group",
+                "organization": null,
+                "authority_scope": [],
+                "contact_ref": null
+              }
+            ],
+            "population": {
+              "name": "三康片区人口",
+              "value": 22000,
+              "unit": "人",
+              "basis": "案例资料",
+              "source_ref": "厦门三康社区.pdf",
+              "as_of": "2026-01-01",
+              "method": "行政与调研数据",
+              "confidence": {
+                "level": "medium",
+                "score": 0.7,
+                "basis": "案例资料",
+                "limitations": []
+              }
+            },
+            "demographics": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "households": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "origins": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "time_patterns": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "journeys": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "peak_periods": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "samples": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "method": "method_sample",
+            "confidence": {
+              "level": "very_low",
+              "score": 1.0,
+              "basis": "basis_sample"
+            }
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        },
+        {
+          "object_id": "BL06",
+          "object_type": "FacilityServiceBaseline",
+          "schema_version": "0.6.0",
+          "project_id": "GC04",
+          "chapter_id": "02",
+          "work_item_id": "02-06",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {
+            "BL05": 1,
+            "PS03": 1,
+            "PS07": 1
+          },
+          "data": {
+            "facilities": [
+              {
+                "id": "facility-1",
+                "name": "社区综合服务站"
+              },
+              {
+                "id": "facility-2",
+                "name": "托儿所"
+              },
+              {
+                "id": "facility-3",
+                "name": "老年服务站"
+              },
+              {
+                "id": "facility-4",
+                "name": "社区卫生服务站"
+              },
+              {
+                "id": "facility-5",
+                "name": "公共活动场地"
+              }
+            ],
+            "types": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "capacity": {
+              "name": "name_sample",
+              "value": 1.0,
+              "unit": "unit_sample"
+            },
+            "hours": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "pricing": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "operator": {
+              "actor_id": "actor_id_sample",
+              "name": "name_sample",
+              "role": "role_sample"
+            },
+            "coverage": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "accessibility": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "utilization": {
+              "name": "name_sample",
+              "value": 1.0,
+              "unit": "unit_sample"
+            },
+            "condition": "condition_sample",
+            "shareability": [
+              {
+                "id": "share-1",
+                "name": "三社区共建共享设施"
+              }
+            ],
+            "evidence_refs": [
+              {
+                "evidence_id": "evidence_id_sample",
+                "asset_id": "asset_id_sample",
+                "version_id": "version_id_sample",
+                "claim_class": "fact",
+                "locator": {}
+              }
+            ]
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        },
+        {
+          "object_id": "PG05",
+          "object_type": "AdjacencySharingModel",
+          "schema_version": "0.6.0",
+          "project_id": "GC04",
+          "chapter_id": "06",
+          "work_item_id": "06-05",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {
+            "PG02": 1,
+            "PG03": 1,
+            "PG04": 1
+          },
+          "data": {
+            "functions": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "adjacency_scores": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "separation_rules": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "shared_resources": [
+              {
+                "id": "share-1",
+                "name": "共享托儿所"
+              },
+              {
+                "id": "share-2",
+                "name": "共享卫生服务中心"
+              },
+              {
+                "id": "share-3",
+                "name": "共享慢行环线"
+              }
+            ],
+            "time_schedules": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "flows": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "conflicts": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "distribution_mode": "shared",
+            "flexibility_modules": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ]
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        },
+        {
+          "object_id": "SP04",
+          "object_type": "MobilityOperationsPlan",
+          "schema_version": "0.6.0",
+          "project_id": "GC04",
+          "chapter_id": "07",
+          "work_item_id": "07-04",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {
+            "BL08": 1,
+            "PG01": 1,
+            "SP02": 1
+          },
+          "data": {
+            "external_access": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "pedestrian": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "bicycle": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "transit": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "vehicles": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "parking": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "loading": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "fire_access": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "peak_scenarios": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "bottlenecks": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "shared_parking": [
+              {
+                "id": "parking-1",
+                "name": "片区潮汐与共享停车"
+              }
+            ]
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        }
+      ],
+      "assertions": [
+        "设施存在不等于实际服务达标",
+        "共享设施必须对应可达性、时段、容量和运营条件"
+      ]
+    },
+    {
+      "case_id": "GC05",
+      "name": "全民健身中心公益与资金闭环",
+      "source_materials": [
+        "鄂州市全民健身中心建设项目谋划汇报4.1.pptx"
+      ],
+      "chapters": [
+        "01",
+        "06",
+        "08"
+      ],
+      "objects": [
+        {
+          "object_id": "PS05",
+          "object_type": "ConstraintRegister",
+          "schema_version": "0.6.0",
+          "project_id": "GC05",
+          "chapter_id": "01",
+          "work_item_id": "01-05",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {
+            "PS01": 1,
+            "PS03": 1
+          },
+          "data": {
+            "constraints": [
+              {
+                "id": "constraint-1",
+                "name": "项目以公益属性为主"
+              },
+              {
+                "id": "constraint-2",
+                "name": "专项债资金用途适配须验证"
+              }
+            ],
+            "category": "category_sample",
+            "source_level": "law",
+            "effective_status": "effective",
+            "spatial_scope": {
+              "scope_id": "scope_id_sample",
+              "label": "label_sample",
+              "scope_type": "study",
+              "basis": [
+                "basis_sample"
+              ],
+              "status": "provisional"
+            },
+            "flexibility": "flexibility_sample",
+            "assumptions": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "route_tags": [
+              "public_policy"
+            ],
+            "validation_tasks": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "evidence_refs": [
+              {
+                "evidence_id": "evidence_id_sample",
+                "asset_id": "asset_id_sample",
+                "version_id": "version_id_sample",
+                "claim_class": "fact",
+                "locator": {}
+              }
+            ]
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        },
+        {
+          "object_id": "PG03",
+          "object_type": "CapacityProgram",
+          "schema_version": "0.6.0",
+          "project_id": "GC05",
+          "chapter_id": "06",
+          "work_item_id": "06-03",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {
+            "PG01": 1,
+            "PG02": 1,
+            "OP04": 1
+          },
+          "data": {
+            "demand": {
+              "name": "服务人口",
+              "value": 750000,
+              "unit": "人",
+              "basis": "鄂城区及周边服务范围",
+              "source_ref": "全民健身中心谋划材料",
+              "as_of": "2026-01-01",
+              "method": "人口与同类项目比对",
+              "confidence": {
+                "level": "medium",
+                "score": 0.6,
+                "basis": "案例资料",
+                "limitations": [
+                  "仍需运动需求调研"
+                ]
+              }
+            },
+            "peak": {
+              "name": "name_sample",
+              "value": 1.0,
+              "unit": "unit_sample"
+            },
+            "throughput": {
+              "name": "name_sample",
+              "value": 1.0,
+              "unit": "unit_sample"
+            },
+            "turnover": {
+              "name": "name_sample",
+              "value": 1.0,
+              "unit": "unit_sample"
+            },
+            "utilization": {
+              "name": "name_sample",
+              "value": 1.0,
+              "unit": "unit_sample"
+            },
+            "quantities": [
+              {
+                "name": "name_sample",
+                "value": 1.0,
+                "unit": "unit_sample"
+              }
+            ],
+            "net_areas": [
+              {
+                "name": "name_sample",
+                "value": 1.0,
+                "unit": "unit_sample"
+              }
+            ],
+            "gross_factors": [
+              {
+                "name": "name_sample",
+                "value": 1.0,
+                "unit": "unit_sample"
+              }
+            ],
+            "gross_areas": [
+              {
+                "name": "name_sample",
+                "value": 1.0,
+                "unit": "unit_sample"
+              }
+            ],
+            "ranges": [
+              {
+                "min": 800,
+                "max": 1200,
+                "unit": "person/day",
+                "basis": "峰值区间",
+                "confidence": {
+                  "level": "medium",
+                  "score": 0.6,
+                  "basis": "初步调查",
+                  "limitations": []
+                }
+              }
+            ],
+            "formulas": [
+              {
+                "formula_id": "CAP-1",
+                "expression": "peak_demand / turnover / utilization",
+                "output_unit": "person",
+                "parameters": [
+                  "peak_demand",
+                  "turnover",
+                  "utilization"
+                ]
+              }
+            ],
+            "parameter_sources": [
+              {
+                "parameter": "peak_demand",
+                "value": 1000,
+                "unit": "person/day",
+                "source_type": "project_measurement",
+                "evidence_refs": [],
+                "sensitivity_range": {
+                  "min": 800,
+                  "max": 1200,
+                  "unit": "person/day",
+                  "basis": "调查波动",
+                  "confidence": {
+                    "level": "medium",
+                    "score": 0.6,
+                    "basis": "初步调查",
+                    "limitations": []
+                  }
+                }
+              }
+            ]
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        },
+        {
+          "object_id": "IM02",
+          "object_type": "CostBaseline",
+          "schema_version": "0.6.0",
+          "project_id": "GC05",
+          "chapter_id": "08",
+          "work_item_id": "08-02",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {
+            "IM01": 1,
+            "SP06": 1
+          },
+          "data": {
+            "package_costs": [
+              {
+                "name": "项目总投资",
+                "value": 31187.27,
+                "unit": "万元"
+              }
+            ],
+            "quantities": [
+              {
+                "name": "name_sample",
+                "value": 1.0,
+                "unit": "unit_sample"
+              }
+            ],
+            "unit_rates": [
+              {
+                "name": "建筑单方",
+                "value": 6500,
+                "unit": "元/㎡"
+              }
+            ],
+            "base_date": "2026-04-01",
+            "tax_basis": "tax_basis_sample",
+            "capex": {
+              "name": "name_sample",
+              "value": 1.0,
+              "unit": "unit_sample"
+            },
+            "other_fees": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "contingency": "contingency_sample",
+            "financing_cost": {
+              "name": "name_sample",
+              "value": 1.0,
+              "unit": "unit_sample"
+            },
+            "startup_cost": {
+              "name": "name_sample",
+              "value": 1.0,
+              "unit": "unit_sample"
+            },
+            "lifecycle_cost": {
+              "name": "name_sample",
+              "value": 1.0,
+              "unit": "unit_sample"
+            },
+            "ranges": [
+              {
+                "min": 9000,
+                "max": 11000,
+                "unit": "万元",
+                "basis": "概念估算区间",
+                "confidence": {
+                  "level": "medium",
+                  "score": 0.6,
+                  "basis": "工程量与指标",
+                  "limitations": []
+                }
+              }
+            ]
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        },
+        {
+          "object_id": "IM03",
+          "object_type": "FundingPlan",
+          "schema_version": "0.6.0",
+          "project_id": "GC05",
+          "chapter_id": "08",
+          "work_item_id": "08-03",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {
+            "IM01": 1,
+            "IM02": 1,
+            "PG06": 1,
+            "BL01": 1
+          },
+          "data": {
+            "package_id": "package_id_sample",
+            "asset_type": "asset_type_sample",
+            "eligible_sources": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "policy_matches": [
+              {
+                "id": "match-1",
+                "name": "全民健身公共服务投向匹配"
+              }
+            ],
+            "amounts": [
+              {
+                "name": "name_sample",
+                "value": 1.0,
+                "unit": "unit_sample"
+              }
+            ],
+            "conditions": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "timelines": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "funding_gap": "funding_gap_sample",
+            "fallbacks": [
+              {
+                "id": "fallback-1",
+                "name": "专项债不适配时调整建设内容或资金结构"
+              }
+            ],
+            "approval_status": "pending"
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        },
+        {
+          "object_id": "IM06",
+          "object_type": "FinancialModel",
+          "schema_version": "0.6.0",
+          "project_id": "GC05",
+          "chapter_id": "08",
+          "work_item_id": "08-06",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {
+            "IM02": 1,
+            "IM03": 1,
+            "IM05": 1,
+            "PG06": 1
+          },
+          "data": {
+            "assumptions": [
+              {
+                "id": "A1",
+                "name": "基准利用率假设"
+              }
+            ],
+            "revenues": [
+              {
+                "name": "name_sample",
+                "value": 1.0,
+                "unit": "unit_sample"
+              }
+            ],
+            "opex": {
+              "name": "name_sample",
+              "value": 1.0,
+              "unit": "unit_sample"
+            },
+            "taxes": [
+              {
+                "name": "name_sample",
+                "value": 1.0,
+                "unit": "unit_sample"
+              }
+            ],
+            "capex": {
+              "name": "name_sample",
+              "value": 1.0,
+              "unit": "unit_sample"
+            },
+            "cashflows": [
+              {
+                "name": "年度净现金流",
+                "value": 1000,
+                "unit": "万元/年"
+              }
+            ],
+            "subsidies": [
+              {
+                "name": "name_sample",
+                "value": 1.0,
+                "unit": "unit_sample"
+              }
+            ],
+            "financing": "financing_sample",
+            "npv": 1000,
+            "irr": 0.06,
+            "dscr": 1.26,
+            "scenarios": [
+              {
+                "id": "BASE",
+                "name": "基准情景"
+              },
+              {
+                "id": "DOWN",
+                "name": "收入下降情景"
+              },
+              {
+                "id": "COST",
+                "name": "成本上升情景"
+              }
+            ],
+            "stress_results": [
+              {
+                "id": "stress-1",
+                "name": "收入下降10%"
+              },
+              {
+                "id": "stress-2",
+                "name": "成本上升10%"
+              },
+              {
+                "id": "stress-3",
+                "name": "利率或工期不利变化"
+              }
+            ]
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        }
+      ],
+      "assertions": [
+        "公益服务和经营收益分别表达",
+        "规模保留公式、参数来源与区间",
+        "财务模型至少包含三类压力情景"
+      ]
+    },
+    {
+      "case_id": "GC06",
+      "name": "十平方公里多尺度城市设计",
+      "source_materials": [
+        "14-浙江省衢州市衢江区城南片区城市设计 [同济]（143页）.pdf"
+      ],
+      "chapters": [
+        "01",
+        "02",
+        "07"
+      ],
+      "objects": [
+        {
+          "object_id": "PS03",
+          "object_type": "BoundarySet",
+          "schema_version": "0.6.0",
+          "project_id": "GC06",
+          "chapter_id": "01",
+          "work_item_id": "01-03",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {
+            "PS02": 1
+          },
+          "data": {
+            "study_scope": {
+              "scope_id": "PS03-study_scope",
+              "label": "衢江城南片区约10.07平方公里研究范围",
+              "scope_type": "study",
+              "description": "示例范围",
+              "geometry_refs": [],
+              "basis": [
+                "用户描述与既有资料"
+              ],
+              "status": "provisional"
+            },
+            "impact_scope": {
+              "scope_id": "PS03-impact_scope",
+              "label": "impact_scope",
+              "scope_type": "impact",
+              "description": "示例范围",
+              "geometry_refs": [],
+              "basis": [
+                "用户描述与既有资料"
+              ],
+              "status": "provisional"
+            },
+            "implementation_scope": {
+              "scope_id": "PS03-implementation_scope",
+              "label": "按片区和项目包分期实施",
+              "scope_type": "implementation",
+              "description": "示例范围",
+              "geometry_refs": [],
+              "basis": [
+                "用户描述与既有资料"
+              ],
+              "status": "provisional"
+            },
+            "content_scope": {
+              "scope_id": "PS03-content_scope",
+              "label": "content_scope",
+              "scope_type": "content",
+              "description": "示例范围",
+              "geometry_refs": [],
+              "basis": [
+                "用户描述与既有资料"
+              ],
+              "status": "provisional"
+            },
+            "phase_scope": {
+              "scope_id": "PS03-phase_scope",
+              "label": "phase_scope",
+              "scope_type": "phase",
+              "description": "示例范围",
+              "geometry_refs": [],
+              "basis": [
+                "用户描述与既有资料"
+              ],
+              "status": "provisional"
+            },
+            "exclusions": [],
+            "geometry_refs": [],
+            "basis": "basis_sample",
+            "confidence": {
+              "level": "very_low",
+              "score": 1.0,
+              "basis": "basis_sample"
+            },
+            "status": "provisional"
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        },
+        {
+          "object_id": "BL02",
+          "object_type": "LandAssetRegister",
+          "schema_version": "0.6.0",
+          "project_id": "GC06",
+          "chapter_id": "02",
+          "work_item_id": "02-02",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {
+            "PS03": 1,
+            "PS07": 1
+          },
+          "data": {
+            "objects": [
+              {
+                "id": "object-1",
+                "name": "村庄"
+              },
+              {
+                "id": "object-2",
+                "name": "耕地"
+              },
+              {
+                "id": "object-3",
+                "name": "在建项目"
+              },
+              {
+                "id": "object-4",
+                "name": "工业与商业用地"
+              },
+              {
+                "id": "object-5",
+                "name": "生态水系"
+              }
+            ],
+            "parcel_ids": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "building_ids": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "owners": [
+              {
+                "actor_id": "actor_id_sample",
+                "name": "name_sample",
+                "role": "role_sample"
+              }
+            ],
+            "right_types": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "current_use": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "leases": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "mortgages": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "areas": [
+              {
+                "name": "name_sample",
+                "value": 1.0,
+                "unit": "unit_sample"
+              }
+            ],
+            "disposition_constraints": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "verification_status": "partially_verified"
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        },
+        {
+          "object_id": "SP01",
+          "object_type": "SpatialStructurePlan",
+          "schema_version": "0.6.0",
+          "project_id": "GC06",
+          "chapter_id": "07",
+          "work_item_id": "07-01",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {
+            "PG07": 1,
+            "BL01": 1,
+            "BL02": 1,
+            "BL03": 1,
+            "BL08": 1
+          },
+          "data": {
+            "centers": [
+              {
+                "id": "center-1",
+                "name": "行政办公核心"
+              },
+              {
+                "id": "center-2",
+                "name": "康养文化核心"
+              }
+            ],
+            "axes": [
+              {
+                "id": "axis-1",
+                "name": "东西向功能发展轴"
+              },
+              {
+                "id": "axis-2",
+                "name": "南北向生态联系轴"
+              }
+            ],
+            "networks": [
+              {
+                "id": "network-1",
+                "name": "蓝绿生态网络"
+              },
+              {
+                "id": "network-2",
+                "name": "多样道路网络"
+              }
+            ],
+            "zones": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "land_use": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "intensity": {
+              "name": "name_sample",
+              "value": 1.0,
+              "unit": "unit_sample"
+            },
+            "area_balance": {
+              "name": "name_sample",
+              "value": 1.0,
+              "unit": "unit_sample"
+            },
+            "public_space": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "planning_alignment": "planning_alignment_sample",
+            "assumptions": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ]
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        }
+      ],
+      "assertions": [
+        "同一母骨架适配大尺度片区",
+        "土地、道路、水系、村庄和上位规划均对象化"
+      ]
+    },
+    {
+      "case_id": "GC07",
+      "name": "东街多年代建筑与市政更新",
+      "source_materials": [
+        "11- 东街城市更新概念规划文本 .pdf"
+      ],
+      "chapters": [
+        "02",
+        "07"
+      ],
+      "objects": [
+        {
+          "object_id": "BL04",
+          "object_type": "SpatialBuildingBaseline",
+          "schema_version": "0.6.0",
+          "project_id": "GC07",
+          "chapter_id": "02",
+          "work_item_id": "02-04",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {
+            "PS03": 1,
+            "BL02": 1,
+            "PS07": 1
+          },
+          "data": {
+            "objects": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "geometry": [
+              {
+                "geometry_id": "geometry_id_sample",
+                "geometry_type": "Point",
+                "crs": "crs_sample"
+              }
+            ],
+            "land_use": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "building_use": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "areas": [
+              {
+                "name": "name_sample",
+                "value": 1.0,
+                "unit": "unit_sample"
+              }
+            ],
+            "heights": [
+              {
+                "name": "name_sample",
+                "value": 1.0,
+                "unit": "unit_sample"
+              }
+            ],
+            "age": [
+              {
+                "id": "era-1",
+                "name": "明清"
+              },
+              {
+                "id": "era-2",
+                "name": "民国"
+              },
+              {
+                "id": "era-3",
+                "name": "建国初期至80年代"
+              },
+              {
+                "id": "era-4",
+                "name": "现代"
+              }
+            ],
+            "condition": "condition_sample",
+            "occupancy": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "heritage": [
+              {
+                "id": "heritage-1",
+                "name": "文保及历史建筑"
+              },
+              {
+                "id": "heritage-2",
+                "name": "传统风貌建筑"
+              },
+              {
+                "id": "heritage-3",
+                "name": "一般风貌建筑"
+              }
+            ],
+            "vacancy": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "photo_refs": [],
+            "confidence": {
+              "level": "very_low",
+              "score": 1.0,
+              "basis": "basis_sample"
+            }
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        },
+        {
+          "object_id": "SP03",
+          "object_type": "BuildingInterventionPlan",
+          "schema_version": "0.6.0",
+          "project_id": "GC07",
+          "chapter_id": "07",
+          "work_item_id": "07-03",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {
+            "BL02": 1,
+            "BL04": 1,
+            "SP02": 1
+          },
+          "data": {
+            "building_refs": [
+              {
+                "id": "B1",
+                "name": "示例既有建筑"
+              }
+            ],
+            "heritage_value": [
+              {
+                "id": "heritage_value",
+                "name": "历史价值"
+              }
+            ],
+            "safety": [
+              {
+                "id": "safety",
+                "name": "安全状态"
+              }
+            ],
+            "use_fit": [
+              {
+                "id": "use_fit",
+                "name": "使用适配"
+              }
+            ],
+            "ownership": [
+              {
+                "id": "ownership",
+                "name": "产权状态"
+              }
+            ],
+            "cost_range": [
+              {
+                "min": 1000,
+                "max": 2000,
+                "unit": "万元",
+                "basis": "初步估算",
+                "confidence": {
+                  "level": "low",
+                  "score": 0.4,
+                  "basis": "概念阶段",
+                  "limitations": [
+                    "未完成检测"
+                  ]
+                }
+              }
+            ],
+            "action": [
+              {
+                "id": "action-1",
+                "name": "保护修缮"
+              },
+              {
+                "id": "action-2",
+                "name": "收储改造"
+              },
+              {
+                "id": "action-3",
+                "name": "引导改造"
+              },
+              {
+                "id": "action-4",
+                "name": "拆除新建"
+              }
+            ],
+            "conditions": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "required_inspections": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "approval_status": "pending"
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        },
+        {
+          "object_id": "SP06",
+          "object_type": "TechnicalFeasibilityMatrix",
+          "schema_version": "0.6.0",
+          "project_id": "GC07",
+          "chapter_id": "07",
+          "work_item_id": "07-06",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {
+            "BL08": 1,
+            "SP02": 1,
+            "SP03": 1,
+            "SP04": 1,
+            "SP05": 1
+          },
+          "data": {
+            "systems": [
+              {
+                "id": "system-1",
+                "name": "雨污分流"
+              },
+              {
+                "id": "system-2",
+                "name": "污水达标排放"
+              },
+              {
+                "id": "system-3",
+                "name": "排水管径复算"
+              },
+              {
+                "id": "system-4",
+                "name": "杆线下地"
+              }
+            ],
+            "existing_capacity": [
+              {
+                "name": "name_sample",
+                "value": 1.0,
+                "unit": "unit_sample"
+              }
+            ],
+            "required_capacity": [
+              {
+                "name": "name_sample",
+                "value": 1.0,
+                "unit": "unit_sample"
+              }
+            ],
+            "gaps": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "solutions": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "cost_risks": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "tests": [
+              {
+                "id": "T1",
+                "name": "消防专项预审"
+              }
+            ],
+            "authorities": [
+              {
+                "actor_id": "AUTH1",
+                "name": "主管部门",
+                "role": "authority",
+                "organization": null,
+                "authority_scope": [
+                  "消防审查"
+                ],
+                "contact_ref": null
+              }
+            ],
+            "owners": [
+              {
+                "actor_id": "actor_id_sample",
+                "name": "name_sample",
+                "role": "role_sample"
+              }
+            ],
+            "status": "provisional"
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        }
+      ],
+      "assertions": [
+        "建筑年代仅是拆改留的一项证据",
+        "市政系统进入专项预审而不是末尾补充"
+      ]
+    },
+    {
+      "case_id": "GC08",
+      "name": "新增问卷触发最小回退",
+      "source_materials": [
+        "20230318宜昌市城市更新 .pdf"
+      ],
+      "chapters": [
+        "02",
+        "03",
+        "治理"
+      ],
+      "objects": [
+        {
+          "object_id": "BL05",
+          "object_type": "PopulationBehaviorProfile",
+          "schema_version": "0.6.0",
+          "project_id": "GC08",
+          "chapter_id": "02",
+          "work_item_id": "02-05",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {
+            "PS03": 1,
+            "PS07": 1
+          },
+          "data": {
+            "groups": [
+              {
+                "actor_id": "GC08-group-1",
+                "name": "25—45岁",
+                "role": "target_group",
+                "organization": null,
+                "authority_scope": [],
+                "contact_ref": null
+              },
+              {
+                "actor_id": "GC08-group-2",
+                "name": "46—60岁",
+                "role": "target_group",
+                "organization": null,
+                "authority_scope": [],
+                "contact_ref": null
+              },
+              {
+                "actor_id": "GC08-group-3",
+                "name": "60岁以上",
+                "role": "target_group",
+                "organization": null,
+                "authority_scope": [],
+                "contact_ref": null
+              },
+              {
+                "actor_id": "GC08-group-4",
+                "name": "24岁以下",
+                "role": "target_group",
+                "organization": null,
+                "authority_scope": [],
+                "contact_ref": null
+              }
+            ],
+            "population": {
+              "name": "name_sample",
+              "value": 1.0,
+              "unit": "unit_sample"
+            },
+            "demographics": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "households": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "origins": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "time_patterns": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "journeys": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "peak_periods": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "samples": [
+              {
+                "id": "sample-1",
+                "name": "103份居民问卷"
+              }
+            ],
+            "method": "method_sample",
+            "confidence": {
+              "level": "very_low",
+              "score": 1.0,
+              "basis": "basis_sample"
+            }
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        },
+        {
+          "object_id": "DG06",
+          "object_type": "PriorityAgenda",
+          "schema_version": "0.6.0",
+          "project_id": "GC08",
+          "chapter_id": "03",
+          "work_item_id": "03-06",
+          "status": "provisional",
+          "revision": 1,
+          "created_at": "2026-08-27T12:00:00+00:00",
+          "updated_at": "2026-08-27T12:00:00+00:00",
+          "created_by": {
+            "actor_id": "AGENT-1",
+            "name": "Preplan Agent",
+            "role": "agent",
+            "organization": null,
+            "authority_scope": [
+              "propose"
+            ],
+            "contact_ref": null
+          },
+          "source_snapshot": {
+            "DG01": 1,
+            "DG02": 1,
+            "DG03": 1,
+            "DG04": 1,
+            "DG05": 1
+          },
+          "data": {
+            "topics": [
+              {
+                "id": "topic-1",
+                "name": "基础民生保障"
+              },
+              {
+                "id": "topic-2",
+                "name": "生活品质提升"
+              },
+              {
+                "id": "topic-3",
+                "name": "城市发展战略"
+              }
+            ],
+            "linked_issues": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "linked_opportunities": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "severity": {
+              "level": "very_low",
+              "rationale": "rationale_sample"
+            },
+            "urgency": {
+              "level": "very_low",
+              "rationale": "rationale_sample"
+            },
+            "leverage": {
+              "level": "very_low",
+              "rationale": "rationale_sample"
+            },
+            "feasibility": {
+              "level": "very_low",
+              "rationale": "rationale_sample"
+            },
+            "equity": {
+              "level": "very_low",
+              "rationale": "rationale_sample"
+            },
+            "strategic_fit": {
+              "level": "very_low",
+              "rationale": "rationale_sample"
+            },
+            "score_range": {
+              "min": 0,
+              "max": 100,
+              "unit": "分",
+              "basis": "多准则区间",
+              "confidence": {
+                "level": "medium",
+                "score": 0.6,
+                "basis": "问卷与事实底板",
+                "limitations": [
+                  "样本结构偏差需校核"
+                ]
+              }
+            },
+            "rationale": [
+              {
+                "id": "id_sample",
+                "name": "name_sample"
+              }
+            ],
+            "owner": {
+              "actor_id": "actor_id_sample",
+              "name": "name_sample",
+              "role": "role_sample"
+            }
+          },
+          "quality": {
+            "completeness": 0.8,
+            "consistency": 0.8,
+            "timeliness": 0.8,
+            "traceability": 0.8,
+            "reproducibility": 0.7,
+            "issues": [],
+            "grade": "B"
+          },
+          "approval": {
+            "status": "pending",
+            "required_role": "chapter_reviewer",
+            "approver": null,
+            "approved_at": null,
+            "conditions": [],
+            "comment": ""
+          }
+        }
+      ],
+      "revision_request": {
+        "revision_id": "REV-GC08-1",
+        "project_id": "GC08",
+        "change_type": "evidence_update",
+        "source_object_id": "BL05",
+        "source_revision": 1,
+        "semantic_paths": [
+          "/data/samples",
+          "/data/groups"
+        ],
+        "reason": "新增居民问卷批次",
+        "requested_by": {
+          "actor_id": "USER-1",
+          "name": "项目负责人",
+          "role": "project_owner",
+          "organization": null,
+          "authority_scope": [
+            "GC08"
+          ],
+          "contact_ref": null
+        },
+        "created_at": "2026-08-27T12:00:00+00:00",
+        "proposed_payload": {},
+        "evidence_refs": []
+      },
+      "assertions": [
+        "样本结构和偏差显式记录",
+        "沿依赖图只重开受影响对象，不清空无关成果"
+      ]
+    }
+  ]
+}

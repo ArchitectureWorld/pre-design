@@ -1,0 +1,89 @@
+{
+  "object_id": "PG05",
+  "object_type": "AdjacencySharingModel",
+  "schema_version": "0.6.0",
+  "project_id": "PREPLAN-DEMO-001",
+  "chapter_id": "06",
+  "work_item_id": "06-05",
+  "status": "provisional",
+  "revision": 1,
+  "created_at": "2026-08-27T12:00:00+00:00",
+  "updated_at": "2026-08-27T12:00:00+00:00",
+  "created_by": {
+    "actor_id": "AGENT-1",
+    "name": "Preplan Agent",
+    "role": "agent",
+    "organization": null,
+    "authority_scope": [
+      "propose"
+    ],
+    "contact_ref": null
+  },
+  "source_snapshot": {
+    "PG02": 1,
+    "PG03": 1,
+    "PG04": 1
+  },
+  "data": {
+    "adjacency_scores": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "separation_rules": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "shared_resources": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "time_schedules": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "flows": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "conflicts": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "distribution_mode": "centralized",
+    "flexibility_modules": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ]
+  },
+  "quality": {
+    "completeness": 0.8,
+    "consistency": 0.8,
+    "timeliness": 0.8,
+    "traceability": 0.8,
+    "reproducibility": 0.7,
+    "issues": [],
+    "grade": "B"
+  },
+  "approval": {
+    "status": "pending",
+    "required_role": "chapter_reviewer",
+    "approver": null,
+    "approved_at": null,
+    "conditions": [],
+    "comment": ""
+  }
+}

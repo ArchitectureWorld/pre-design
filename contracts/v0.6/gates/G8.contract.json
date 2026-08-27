@@ -1,0 +1,178 @@
+{
+  "contract_version": "0.6.0",
+  "gate_id": "G8",
+  "chapter_id": "08",
+  "title": "投资实施确认",
+  "purpose": "每个项目包均明确对象、措施、数量、投资、资金、产权审批、主体、时序、运营维护和绩效；关键假设通过敏感性或压力测试。",
+  "required_objects": [
+    "IM01",
+    "IM02",
+    "IM03",
+    "IM04",
+    "IM05",
+    "IM06",
+    "IM07",
+    "IM08"
+  ],
+  "allowed_decisions": [
+    "approved",
+    "approved_with_conditions",
+    "returned"
+  ],
+  "initial_state": "OPEN",
+  "states": {
+    "OPEN": "Gate 已打开，输入仍可变化。",
+    "PRECHECK_FAILED": "机器预检存在硬错误。",
+    "READY_FOR_REVIEW": "输入快照已冻结，等待指定人工审批。",
+    "APPROVED": "人工无条件批准。",
+    "APPROVED_WITH_CONDITIONS": "人工带条件批准，条件均为非阻断事项。",
+    "RETURNED": "退回最小工作项修订。",
+    "STALE": "快照之后的上游语义变化使 Gate 决策失效。"
+  },
+  "transitions": [
+    {
+      "command": "open_gate",
+      "from": [
+        "OPEN",
+        "RETURNED",
+        "STALE"
+      ],
+      "to": "OPEN",
+      "roles": [
+        "workflow_operator",
+        "chapter_reviewer",
+        "decision_owner"
+      ],
+      "guards": [
+        "chapter_workflows_exist"
+      ]
+    },
+    {
+      "command": "precheck_fail",
+      "from": [
+        "OPEN"
+      ],
+      "to": "PRECHECK_FAILED",
+      "roles": [
+        "system_service"
+      ],
+      "guards": [
+        "hard_schema_rule_version_or_dependency_error"
+      ],
+      "state_effect": "validation_report"
+    },
+    {
+      "command": "precheck_pass",
+      "from": [
+        "OPEN",
+        "PRECHECK_FAILED"
+      ],
+      "to": "READY_FOR_REVIEW",
+      "roles": [
+        "system_service"
+      ],
+      "guards": [
+        "all_required_objects_available",
+        "no_machine_hard_error",
+        "snapshot_frozen"
+      ],
+      "state_effect": "decision_snapshot_draft"
+    },
+    {
+      "command": "approve_gate",
+      "from": [
+        "READY_FOR_REVIEW"
+      ],
+      "to": "APPROVED",
+      "roles": [
+        "decision_owner"
+      ],
+      "guards": [
+        "assigned_gate_approver",
+        "no_hard_blocker",
+        "all_required_signoffs"
+      ],
+      "state_effect": "immutable_decision_snapshot"
+    },
+    {
+      "command": "approve_gate_with_conditions",
+      "from": [
+        "READY_FOR_REVIEW"
+      ],
+      "to": "APPROVED_WITH_CONDITIONS",
+      "roles": [
+        "decision_owner"
+      ],
+      "guards": [
+        "assigned_gate_approver",
+        "only_non_blocking_gaps",
+        "conditions_complete"
+      ],
+      "state_effect": "immutable_snapshot_and_tasks"
+    },
+    {
+      "command": "return_gate",
+      "from": [
+        "READY_FOR_REVIEW"
+      ],
+      "to": "RETURNED",
+      "roles": [
+        "decision_owner",
+        "chapter_reviewer"
+      ],
+      "guards": [
+        "return_reason_recorded",
+        "minimal_return_targets_recorded"
+      ],
+      "state_effect": "reopen_minimal_workflows"
+    },
+    {
+      "command": "upstream_changed",
+      "from": [
+        "READY_FOR_REVIEW",
+        "APPROVED",
+        "APPROVED_WITH_CONDITIONS"
+      ],
+      "to": "STALE",
+      "roles": [
+        "system_service"
+      ],
+      "guards": [
+        "semantic_change_after_snapshot"
+      ],
+      "state_effect": "preserve_snapshot_mark_stale"
+    }
+  ],
+  "precheck": {
+    "schema_and_version": "所有 required_objects 必须通过 Schema、规则、权限和 expected_revision 校验。",
+    "hard_blockers": "任一 gate_blocking 缺口、法定否决、未签核高风险结论都会阻断批准。",
+    "conditional_rule": "只有 non_blocking 缺口可以带条件通过；每条条件必须有 owner、due_date 和 downstream_task。"
+  },
+  "decision_snapshot": {
+    "schema_ref": "../common/decision-snapshot.schema.json",
+    "immutable": true,
+    "includes": [
+      "object_revisions",
+      "tool_versions",
+      "workflow_versions",
+      "open_issues",
+      "conditions",
+      "human_modifications",
+      "decision_status",
+      "immutable_hash"
+    ]
+  },
+  "approval": {
+    "role": "decision_owner",
+    "assignment_required": true,
+    "agent_allowed": false,
+    "system_service_allowed": false,
+    "artifact_allowed": false
+  },
+  "return_policy": {
+    "minimum_targets": "空间技术不成立回 07；功能规模或运营逻辑不成立回 06；推荐路径失效回 05；目标或事实变化继续回退至 04/03/02/01。",
+    "preserve_confirmed_history": true,
+    "recheck_after_revision": true
+  },
+  "output": "最终决策摘要、项目包与对象卡、投资资金方案、审批与主体方案、实施路线图、风险与后评估计划。"
+}

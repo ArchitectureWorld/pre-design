@@ -1,0 +1,1892 @@
+{
+  "contract_version": "0.6.0",
+  "tool_id": "T30",
+  "name": "功能编程、容量与面积测算",
+  "kind": "program",
+  "owner": "确定性计算+规则",
+  "purpose": "根据人群、峰值、周转、利用率和标准推导功能数量、面积与弹性区间。",
+  "execution": {
+    "mode": "async",
+    "determinism": "deterministic",
+    "idempotent": true,
+    "timeout_seconds": 300,
+    "retry": {
+      "max_attempts": 2,
+      "backoff": "exponential",
+      "retry_only": [
+        "TOOL_TIMEOUT",
+        "EXTERNAL_SERVICE_UNAVAILABLE",
+        "VERSION_CONFLICT"
+      ]
+    }
+  },
+  "risk": "H",
+  "permissions": {
+    "invoke_roles": [
+      "agent",
+      "workflow_operator",
+      "system_service"
+    ],
+    "review_roles": [
+      "data_steward",
+      "discipline_reviewer"
+    ],
+    "forbidden": [
+      "approve_gate",
+      "waive_hard_constraint",
+      "direct_project_state_write"
+    ]
+  },
+  "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "T30Input",
+    "type": "object",
+    "required": [
+      "user_scenarios",
+      "standards",
+      "parameters",
+      "formulas"
+    ],
+    "properties": {
+      "user_scenarios": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "minItems": 1
+      },
+      "standards": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "parameters": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "minItems": 1
+      },
+      "formulas": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/Formula"
+        },
+        "minItems": 1
+      }
+    },
+    "$defs": {
+      "Identifier": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160,
+        "pattern": "^[^\\s].*[^\\s]$|^[^\\s]$"
+      },
+      "StateStatus": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "provisional",
+          "pending_review",
+          "confirmed",
+          "rejected",
+          "stale",
+          "superseded"
+        ]
+      },
+      "ApprovalStatus": {
+        "type": "string",
+        "enum": [
+          "not_required",
+          "pending",
+          "approved",
+          "approved_with_conditions",
+          "returned",
+          "rejected",
+          "stale"
+        ]
+      },
+      "Confidence": {
+        "type": "object",
+        "required": [
+          "level",
+          "score",
+          "basis"
+        ],
+        "properties": {
+          "level": {
+            "type": "string",
+            "enum": [
+              "very_low",
+              "low",
+              "medium",
+              "high",
+              "very_high"
+            ]
+          },
+          "score": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "basis": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limitations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "Metric": {
+        "type": "object",
+        "required": [
+          "name",
+          "value",
+          "unit"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "value": {
+            "type": [
+              "number",
+              "integer",
+              "null"
+            ]
+          },
+          "unit": {
+            "type": "string",
+            "minLength": 1
+          },
+          "basis": {
+            "type": "string"
+          },
+          "source_ref": {
+            "type": "string"
+          },
+          "as_of": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "method": {
+            "type": "string"
+          },
+          "confidence": {
+            "$ref": "#/$defs/Confidence"
+          }
+        },
+        "additionalProperties": true
+      },
+      "NumericRange": {
+        "type": "object",
+        "required": [
+          "min",
+          "max",
+          "unit"
+        ],
+        "properties": {
+          "min": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "max": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "unit": {
+            "type": "string"
+          },
+          "basis": {
+            "type": "string"
+          },
+          "confidence": {
+            "$ref": "#/$defs/Confidence"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ActorRef": {
+        "type": "object",
+        "required": [
+          "actor_id",
+          "name",
+          "role"
+        ],
+        "properties": {
+          "actor_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1
+          },
+          "organization": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "authority_scope": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "contact_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": true
+      },
+      "EvidenceLocator": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "slide": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "sheet": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cell_range": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bbox": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "minItems": 4,
+            "maxItems": 4
+          },
+          "geometry_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "section": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "EvidenceRef": {
+        "type": "object",
+        "required": [
+          "evidence_id",
+          "asset_id",
+          "version_id",
+          "claim_class",
+          "locator"
+        ],
+        "properties": {
+          "evidence_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "asset_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "version_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "claim_class": {
+            "type": "string",
+            "enum": [
+              "fact",
+              "source_conclusion",
+              "user_statement",
+              "agent_inference",
+              "assumption",
+              "decision",
+              "missing"
+            ]
+          },
+          "locator": {
+            "$ref": "#/$defs/EvidenceLocator"
+          },
+          "quote_hash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "captured_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reliability": {
+            "type": "string",
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D",
+              "unknown"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GeometryRef": {
+        "type": "object",
+        "required": [
+          "geometry_id",
+          "geometry_type",
+          "crs"
+        ],
+        "properties": {
+          "geometry_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "geometry_type": {
+            "type": "string",
+            "enum": [
+              "Point",
+              "LineString",
+              "Polygon",
+              "MultiPoint",
+              "MultiLineString",
+              "MultiPolygon",
+              "BIMElementSet",
+              "CADLayerSet",
+              "Unknown"
+            ]
+          },
+          "crs": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_asset_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "precision_m": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "area_m2": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "provisional",
+              "verified",
+              "disputed"
+            ]
+          }
+        },
+        "additionalProperties": true
+      },
+      "Scope": {
+        "type": "object",
+        "required": [
+          "scope_id",
+          "label",
+          "scope_type",
+          "basis",
+          "status"
+        ],
+        "properties": {
+          "scope_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scope_type": {
+            "type": "string",
+            "enum": [
+              "study",
+              "impact",
+              "implementation",
+              "content",
+              "phase",
+              "exclusion",
+              "spatial",
+              "authority",
+              "other"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "geometry_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/GeometryRef"
+            }
+          },
+          "basis": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "provisional",
+              "verified",
+              "disputed"
+            ]
+          }
+        },
+        "additionalProperties": true
+      },
+      "Entity": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/EvidenceRef"
+            }
+          }
+        },
+        "additionalProperties": true
+      },
+      "Event": {
+        "type": "object",
+        "required": [
+          "event_id",
+          "name",
+          "date",
+          "event_type"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "event_type": {
+            "type": "string"
+          },
+          "impact": {
+            "type": "string"
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/EvidenceRef"
+            }
+          }
+        },
+        "additionalProperties": true
+      },
+      "TimeConstraint": {
+        "type": "object",
+        "required": [
+          "name",
+          "deadline",
+          "hardness"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "deadline": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "hardness": {
+            "type": "string",
+            "enum": [
+              "hard",
+              "soft",
+              "unknown"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "consequence": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Rating": {
+        "type": "object",
+        "required": [
+          "level",
+          "rationale"
+        ],
+        "properties": {
+          "level": {
+            "type": "string",
+            "enum": [
+              "very_low",
+              "low",
+              "medium",
+              "high",
+              "very_high",
+              "unknown"
+            ]
+          },
+          "score": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/EvidenceRef"
+            }
+          }
+        },
+        "additionalProperties": true
+      },
+      "Formula": {
+        "type": "object",
+        "required": [
+          "formula_id",
+          "expression",
+          "output_unit",
+          "parameters"
+        ],
+        "properties": {
+          "formula_id": {
+            "type": "string"
+          },
+          "expression": {
+            "type": "string",
+            "minLength": 1
+          },
+          "output_unit": {
+            "type": "string"
+          },
+          "parameters": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rounding": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ParameterSource": {
+        "type": "object",
+        "required": [
+          "parameter",
+          "value",
+          "unit",
+          "source_type"
+        ],
+        "properties": {
+          "parameter": {
+            "type": "string"
+          },
+          "value": {
+            "type": [
+              "number",
+              "string",
+              "null"
+            ]
+          },
+          "unit": {
+            "type": "string"
+          },
+          "source_type": {
+            "type": "string",
+            "enum": [
+              "project_measurement",
+              "official_standard",
+              "official_statistics",
+              "benchmark",
+              "expert_judgment",
+              "assumption"
+            ]
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/EvidenceRef"
+            }
+          },
+          "sensitivity_range": {
+            "$ref": "#/$defs/NumericRange"
+          }
+        },
+        "additionalProperties": true
+      },
+      "Edge": {
+        "type": "object",
+        "required": [
+          "edge_id",
+          "from",
+          "to",
+          "relation"
+        ],
+        "properties": {
+          "edge_id": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "relation": {
+            "type": "string"
+          },
+          "strength": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "evidence_strength": {
+            "type": "string",
+            "enum": [
+              "none",
+              "weak",
+              "medium",
+              "strong",
+              "confirmed"
+            ]
+          }
+        },
+        "additionalProperties": true
+      },
+      "ApprovalRecord": {
+        "type": "object",
+        "required": [
+          "status",
+          "required_role"
+        ],
+        "properties": {
+          "status": {
+            "$ref": "#/$defs/ApprovalStatus"
+          },
+          "required_role": {
+            "type": "string"
+          },
+          "approver": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/ActorRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "approved_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "conditions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/Entity"
+            }
+          },
+          "comment": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "QualityProfile": {
+        "type": "object",
+        "required": [
+          "completeness",
+          "consistency",
+          "timeliness",
+          "traceability",
+          "reproducibility"
+        ],
+        "properties": {
+          "completeness": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "consistency": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "timeliness": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "traceability": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "reproducibility": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "grade": {
+            "type": "string",
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D",
+              "unknown"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "RaciRow": {
+        "type": "object",
+        "required": [
+          "task",
+          "responsible",
+          "accountable"
+        ],
+        "properties": {
+          "task": {
+            "type": "string"
+          },
+          "responsible": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/ActorRef"
+            }
+          },
+          "accountable": {
+            "$ref": "#/$defs/ActorRef"
+          },
+          "consulted": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/ActorRef"
+            }
+          },
+          "informed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/ActorRef"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "T30Output",
+    "type": "object",
+    "required": [
+      "capacity_program",
+      "calculation_trace",
+      "sensitivity_ranges",
+      "warnings"
+    ],
+    "properties": {
+      "capacity_program": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "calculation_trace": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "sensitivity_ranges": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/NumericRange"
+        }
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "$defs": {
+      "Identifier": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160,
+        "pattern": "^[^\\s].*[^\\s]$|^[^\\s]$"
+      },
+      "StateStatus": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "provisional",
+          "pending_review",
+          "confirmed",
+          "rejected",
+          "stale",
+          "superseded"
+        ]
+      },
+      "ApprovalStatus": {
+        "type": "string",
+        "enum": [
+          "not_required",
+          "pending",
+          "approved",
+          "approved_with_conditions",
+          "returned",
+          "rejected",
+          "stale"
+        ]
+      },
+      "Confidence": {
+        "type": "object",
+        "required": [
+          "level",
+          "score",
+          "basis"
+        ],
+        "properties": {
+          "level": {
+            "type": "string",
+            "enum": [
+              "very_low",
+              "low",
+              "medium",
+              "high",
+              "very_high"
+            ]
+          },
+          "score": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "basis": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limitations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "Metric": {
+        "type": "object",
+        "required": [
+          "name",
+          "value",
+          "unit"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "value": {
+            "type": [
+              "number",
+              "integer",
+              "null"
+            ]
+          },
+          "unit": {
+            "type": "string",
+            "minLength": 1
+          },
+          "basis": {
+            "type": "string"
+          },
+          "source_ref": {
+            "type": "string"
+          },
+          "as_of": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "method": {
+            "type": "string"
+          },
+          "confidence": {
+            "$ref": "#/$defs/Confidence"
+          }
+        },
+        "additionalProperties": true
+      },
+      "NumericRange": {
+        "type": "object",
+        "required": [
+          "min",
+          "max",
+          "unit"
+        ],
+        "properties": {
+          "min": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "max": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "unit": {
+            "type": "string"
+          },
+          "basis": {
+            "type": "string"
+          },
+          "confidence": {
+            "$ref": "#/$defs/Confidence"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ActorRef": {
+        "type": "object",
+        "required": [
+          "actor_id",
+          "name",
+          "role"
+        ],
+        "properties": {
+          "actor_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1
+          },
+          "organization": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "authority_scope": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "contact_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": true
+      },
+      "EvidenceLocator": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "slide": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "sheet": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cell_range": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bbox": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "minItems": 4,
+            "maxItems": 4
+          },
+          "geometry_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "section": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "EvidenceRef": {
+        "type": "object",
+        "required": [
+          "evidence_id",
+          "asset_id",
+          "version_id",
+          "claim_class",
+          "locator"
+        ],
+        "properties": {
+          "evidence_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "asset_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "version_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "claim_class": {
+            "type": "string",
+            "enum": [
+              "fact",
+              "source_conclusion",
+              "user_statement",
+              "agent_inference",
+              "assumption",
+              "decision",
+              "missing"
+            ]
+          },
+          "locator": {
+            "$ref": "#/$defs/EvidenceLocator"
+          },
+          "quote_hash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "captured_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reliability": {
+            "type": "string",
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D",
+              "unknown"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GeometryRef": {
+        "type": "object",
+        "required": [
+          "geometry_id",
+          "geometry_type",
+          "crs"
+        ],
+        "properties": {
+          "geometry_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "geometry_type": {
+            "type": "string",
+            "enum": [
+              "Point",
+              "LineString",
+              "Polygon",
+              "MultiPoint",
+              "MultiLineString",
+              "MultiPolygon",
+              "BIMElementSet",
+              "CADLayerSet",
+              "Unknown"
+            ]
+          },
+          "crs": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_asset_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "precision_m": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "area_m2": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "provisional",
+              "verified",
+              "disputed"
+            ]
+          }
+        },
+        "additionalProperties": true
+      },
+      "Scope": {
+        "type": "object",
+        "required": [
+          "scope_id",
+          "label",
+          "scope_type",
+          "basis",
+          "status"
+        ],
+        "properties": {
+          "scope_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scope_type": {
+            "type": "string",
+            "enum": [
+              "study",
+              "impact",
+              "implementation",
+              "content",
+              "phase",
+              "exclusion",
+              "spatial",
+              "authority",
+              "other"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "geometry_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/GeometryRef"
+            }
+          },
+          "basis": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "provisional",
+              "verified",
+              "disputed"
+            ]
+          }
+        },
+        "additionalProperties": true
+      },
+      "Entity": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/EvidenceRef"
+            }
+          }
+        },
+        "additionalProperties": true
+      },
+      "Event": {
+        "type": "object",
+        "required": [
+          "event_id",
+          "name",
+          "date",
+          "event_type"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "event_type": {
+            "type": "string"
+          },
+          "impact": {
+            "type": "string"
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/EvidenceRef"
+            }
+          }
+        },
+        "additionalProperties": true
+      },
+      "TimeConstraint": {
+        "type": "object",
+        "required": [
+          "name",
+          "deadline",
+          "hardness"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "deadline": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "hardness": {
+            "type": "string",
+            "enum": [
+              "hard",
+              "soft",
+              "unknown"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "consequence": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Rating": {
+        "type": "object",
+        "required": [
+          "level",
+          "rationale"
+        ],
+        "properties": {
+          "level": {
+            "type": "string",
+            "enum": [
+              "very_low",
+              "low",
+              "medium",
+              "high",
+              "very_high",
+              "unknown"
+            ]
+          },
+          "score": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/EvidenceRef"
+            }
+          }
+        },
+        "additionalProperties": true
+      },
+      "Formula": {
+        "type": "object",
+        "required": [
+          "formula_id",
+          "expression",
+          "output_unit",
+          "parameters"
+        ],
+        "properties": {
+          "formula_id": {
+            "type": "string"
+          },
+          "expression": {
+            "type": "string",
+            "minLength": 1
+          },
+          "output_unit": {
+            "type": "string"
+          },
+          "parameters": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rounding": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ParameterSource": {
+        "type": "object",
+        "required": [
+          "parameter",
+          "value",
+          "unit",
+          "source_type"
+        ],
+        "properties": {
+          "parameter": {
+            "type": "string"
+          },
+          "value": {
+            "type": [
+              "number",
+              "string",
+              "null"
+            ]
+          },
+          "unit": {
+            "type": "string"
+          },
+          "source_type": {
+            "type": "string",
+            "enum": [
+              "project_measurement",
+              "official_standard",
+              "official_statistics",
+              "benchmark",
+              "expert_judgment",
+              "assumption"
+            ]
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/EvidenceRef"
+            }
+          },
+          "sensitivity_range": {
+            "$ref": "#/$defs/NumericRange"
+          }
+        },
+        "additionalProperties": true
+      },
+      "Edge": {
+        "type": "object",
+        "required": [
+          "edge_id",
+          "from",
+          "to",
+          "relation"
+        ],
+        "properties": {
+          "edge_id": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "relation": {
+            "type": "string"
+          },
+          "strength": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "evidence_strength": {
+            "type": "string",
+            "enum": [
+              "none",
+              "weak",
+              "medium",
+              "strong",
+              "confirmed"
+            ]
+          }
+        },
+        "additionalProperties": true
+      },
+      "ApprovalRecord": {
+        "type": "object",
+        "required": [
+          "status",
+          "required_role"
+        ],
+        "properties": {
+          "status": {
+            "$ref": "#/$defs/ApprovalStatus"
+          },
+          "required_role": {
+            "type": "string"
+          },
+          "approver": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/ActorRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "approved_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "conditions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/Entity"
+            }
+          },
+          "comment": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "QualityProfile": {
+        "type": "object",
+        "required": [
+          "completeness",
+          "consistency",
+          "timeliness",
+          "traceability",
+          "reproducibility"
+        ],
+        "properties": {
+          "completeness": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "consistency": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "timeliness": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "traceability": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "reproducibility": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "grade": {
+            "type": "string",
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D",
+              "unknown"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "RaciRow": {
+        "type": "object",
+        "required": [
+          "task",
+          "responsible",
+          "accountable"
+        ],
+        "properties": {
+          "task": {
+            "type": "string"
+          },
+          "responsible": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/ActorRef"
+            }
+          },
+          "accountable": {
+            "$ref": "#/$defs/ActorRef"
+          },
+          "consulted": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/ActorRef"
+            }
+          },
+          "informed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/ActorRef"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "additionalProperties": false
+  },
+  "preconditions": [
+    "project_context_available",
+    "input_schema_valid",
+    "actor_authorized",
+    "source_versions_declared"
+  ],
+  "postconditions": [
+    "output_schema_valid",
+    "evidence_and_method_trace_recorded",
+    "warnings_not_silently_discarded"
+  ],
+  "error_contract": [
+    {
+      "code": "INVALID_INPUT",
+      "retryable": false,
+      "meaning": "Invalid Input"
+    },
+    {
+      "code": "MISSING_EVIDENCE",
+      "retryable": false,
+      "meaning": "Missing Evidence"
+    },
+    {
+      "code": "VERSION_CONFLICT",
+      "retryable": true,
+      "meaning": "Version Conflict"
+    },
+    {
+      "code": "PERMISSION_DENIED",
+      "retryable": false,
+      "meaning": "Permission Denied"
+    },
+    {
+      "code": "FORMULA_PARAMETER_MISSING",
+      "retryable": false,
+      "meaning": "Formula Parameter Missing"
+    },
+    {
+      "code": "TOOL_TIMEOUT",
+      "retryable": true,
+      "meaning": "Execution exceeded timeout."
+    },
+    {
+      "code": "EXTERNAL_SERVICE_UNAVAILABLE",
+      "retryable": true,
+      "meaning": "Required external engine is unavailable."
+    }
+  ],
+  "observability": {
+    "required_logs": [
+      "tool_id",
+      "contract_version",
+      "project_id",
+      "workflow_id",
+      "actor_id",
+      "input_hash",
+      "output_hash",
+      "started_at",
+      "finished_at",
+      "status"
+    ],
+    "metrics": [
+      "duration_ms",
+      "input_count",
+      "output_count",
+      "warning_count",
+      "error_count"
+    ],
+    "artifacts": [
+      "method_trace",
+      "source_snapshot",
+      "calculation_trace"
+    ]
+  },
+  "state_effect": {
+    "type": "none",
+    "direct_project_state_write": false,
+    "proposal_envelope_required": true
+  },
+  "examples": {
+    "input": {
+      "user_scenarios": [
+        {}
+      ],
+      "standards": [
+        {}
+      ],
+      "parameters": [
+        {}
+      ],
+      "formulas": [
+        {
+          "formula_id": "formula_id_sample",
+          "expression": "expression_sample",
+          "output_unit": "output_unit_sample",
+          "parameters": [
+            "parameters_sample"
+          ]
+        }
+      ]
+    },
+    "output": {
+      "capacity_program": {},
+      "calculation_trace": [
+        {}
+      ],
+      "sensitivity_ranges": [
+        {
+          "min": 1.0,
+          "max": 1.0,
+          "unit": "unit_sample"
+        }
+      ],
+      "warnings": [
+        "warnings_sample"
+      ]
+    }
+  }
+}

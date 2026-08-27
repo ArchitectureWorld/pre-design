@@ -1,0 +1,402 @@
+{
+  "version": "v0.6",
+  "generated_at": "2026-08-27T05:35:33+00:00",
+  "chapter_checks": [
+    {
+      "chapter": "01",
+      "title": "项目任务",
+      "timestamp": "2026-08-27T05:35:33+00:00",
+      "counts": {
+        "works": 7,
+        "schemas": 7,
+        "workflows": 7,
+        "tools_used": 18,
+        "golden_tests": 6
+      },
+      "checks": {
+        "工作项均有对象 Schema": true,
+        "对象字段全部进入 Schema": true,
+        "工作项均有 Workflow 状态机": true,
+        "Workflow 可从 draft 到 committed": true,
+        "工具引用全部存在 Contract": true,
+        "高风险工作项强制人工复核": true,
+        "Project State 不允许直接写入": true,
+        "缺数据回退合同完整": true,
+        "Gate 为自然人批准": true,
+        "黄金测试覆盖至少2项": true
+      },
+      "semantic_review": {
+        "risks": [
+          "Schema 可能把启动底表做成完整尽调。",
+          "A1/A2 工作项可能被 system_service 自动提交。",
+          "资料包混入多个项目时可能错误归一。"
+        ],
+        "corrections": [
+          "PS 对象允许 provisional，但把核心决策、边界、主体和硬约束列入生命周期必填。",
+          "01-02、01-04、01-06 与全部 H 风险工作项强制人工复核。",
+          "GT-01/GT-02 覆盖无资料启动与多项目污染。"
+        ],
+        "conclusion": "通过：01 章合同只锁定任务基线，不侵入完整现状和最终实施；G1 保持自然人批准。"
+      },
+      "passed": true
+    },
+    {
+      "chapter": "02",
+      "title": "现状摸底",
+      "timestamp": "2026-08-27T05:35:33+00:00",
+      "counts": {
+        "works": 8,
+        "schemas": 8,
+        "workflows": 8,
+        "tools_used": 24,
+        "golden_tests": 5
+      },
+      "checks": {
+        "工作项均有对象 Schema": true,
+        "对象字段全部进入 Schema": true,
+        "工作项均有 Workflow 状态机": true,
+        "Workflow 可从 draft 到 committed": true,
+        "工具引用全部存在 Contract": true,
+        "高风险工作项强制人工复核": true,
+        "Project State 不允许直接写入": true,
+        "缺数据回退合同完整": true,
+        "Gate 为自然人批准": true,
+        "黄金测试覆盖至少2项": true
+      },
+      "semantic_review": {
+        "risks": [
+          "公开地图、POI、遥感和案例数据可能被写成已核事实。",
+          "Baseline 对象可能在 Schema 层混入诊断结论。",
+          "空间对象精度和版本可能缺失。"
+        ],
+        "corrections": [
+          "BL 对象统一要求证据、精度、置信度和 provisional 状态。",
+          "GT-03/GT-04 检查多层边界和“点位不等于服务能力”。",
+          "工具合同要求 CRS、分辨率、样本和时效告警。"
+        ],
+        "conclusion": "通过：02 章只写事实底板；诊断字段未进入 BL 对象，数据不足时自动转补测任务。"
+      },
+      "passed": true
+    },
+    {
+      "chapter": "03",
+      "title": "问题与机会",
+      "timestamp": "2026-08-27T05:35:33+00:00",
+      "counts": {
+        "works": 6,
+        "schemas": 6,
+        "workflows": 6,
+        "tools_used": 21,
+        "golden_tests": 5
+      },
+      "checks": {
+        "工作项均有对象 Schema": true,
+        "对象字段全部进入 Schema": true,
+        "工作项均有 Workflow 状态机": true,
+        "Workflow 可从 draft 到 committed": true,
+        "工具引用全部存在 Contract": true,
+        "高风险工作项强制人工复核": true,
+        "Project State 不允许直接写入": true,
+        "缺数据回退合同完整": true,
+        "Gate 为自然人批准": true,
+        "黄金测试覆盖至少2项": true
+      },
+      "semantic_review": {
+        "risks": [
+          "LLM 可能把相关性写成因果。",
+          "宏观趋势可能直接推导具体业态。",
+          "评分可能制造伪精确优先级。"
+        ],
+        "corrections": [
+          "T26 合同增加 CAUSALITY_UNSUPPORTED 和 alternative explanations。",
+          "T27 要求 activation_conditions 与 invalidation_signals。",
+          "GT-05/GT-06 阻止宏观直推和无证因果。"
+        ],
+        "conclusion": "通过：问题、根因、资源和机会保持不同对象；不确定性可计算、可回退。"
+      },
+      "passed": true
+    },
+    {
+      "chapter": "04",
+      "title": "目标与方向",
+      "timestamp": "2026-08-27T05:35:33+00:00",
+      "counts": {
+        "works": 6,
+        "schemas": 6,
+        "workflows": 6,
+        "tools_used": 15,
+        "golden_tests": 6
+      },
+      "checks": {
+        "工作项均有对象 Schema": true,
+        "对象字段全部进入 Schema": true,
+        "工作项均有 Workflow 状态机": true,
+        "Workflow 可从 draft 到 committed": true,
+        "工具引用全部存在 Contract": true,
+        "高风险工作项强制人工复核": true,
+        "Project State 不允许直接写入": true,
+        "缺数据回退合同完整": true,
+        "Gate 为自然人批准": true,
+        "黄金测试覆盖至少2项": true
+      },
+      "semantic_review": {
+        "risks": [
+          "目标口号可能直接成为定位。",
+          "缺基线时生成虚构目标值。",
+          "硬约束可能被权重评分抵消。"
+        ],
+        "corrections": [
+          "OB05 保持 DirectionHypothesisSet，不产生最终定位。",
+          "OB03 生命周期规则允许 KPI 定义先于目标值，GT-07 禁止填值。",
+          "OB04 与评价模型建立 veto 先行规则，GT-08 验证。"
+        ],
+        "conclusion": "通过：04 章只形成目标、候选方向和评价合同；最终定位仍需 05 章比较后确认。"
+      },
+      "passed": true
+    },
+    {
+      "chapter": "05",
+      "title": "方案选择",
+      "timestamp": "2026-08-27T05:35:33+00:00",
+      "counts": {
+        "works": 7,
+        "schemas": 7,
+        "workflows": 7,
+        "tools_used": 26,
+        "golden_tests": 7
+      },
+      "checks": {
+        "工作项均有对象 Schema": true,
+        "对象字段全部进入 Schema": true,
+        "工作项均有 Workflow 状态机": true,
+        "Workflow 可从 draft 到 committed": true,
+        "工具引用全部存在 Contract": true,
+        "高风险工作项强制人工复核": true,
+        "Project State 不允许直接写入": true,
+        "缺数据回退合同完整": true,
+        "Gate 为自然人批准": true,
+        "黄金测试覆盖至少2项": true
+      },
+      "semantic_review": {
+        "risks": [
+          "多方案仅有视觉差异。",
+          "政策/产权/技术否决被总分掩盖。",
+          "推荐结论可能由 Agent 自动批准。"
+        ],
+        "corrections": [
+          "OP02 强制 difference_fingerprint；T29 返回 OPTION_NOT_DISTINCT。",
+          "T32 先输出 veto_results，再进行排名。",
+          "OP07 为 A1/H，必须人工复核；GT-09/GT-10 覆盖。"
+        ],
+        "conclusion": "通过：05 章至少生成实质不同路径，并保留推荐、备选、失效条件和回退触发。"
+      },
+      "passed": true
+    },
+    {
+      "chapter": "06",
+      "title": "功能与规模",
+      "timestamp": "2026-08-27T05:35:33+00:00",
+      "counts": {
+        "works": 7,
+        "schemas": 7,
+        "workflows": 7,
+        "tools_used": 24,
+        "golden_tests": 6
+      },
+      "checks": {
+        "工作项均有对象 Schema": true,
+        "对象字段全部进入 Schema": true,
+        "工作项均有 Workflow 状态机": true,
+        "Workflow 可从 draft 到 committed": true,
+        "工具引用全部存在 Contract": true,
+        "高风险工作项强制人工复核": true,
+        "Project State 不允许直接写入": true,
+        "缺数据回退合同完整": true,
+        "Gate 为自然人批准": true,
+        "黄金测试覆盖至少2项": true
+      },
+      "semantic_review": {
+        "risks": [
+          "同类案例面积被直接复制。",
+          "功能清单脱离服务对象和时段。",
+          "经营功能侵占公共服务容量。"
+        ],
+        "corrections": [
+          "T30 输入必须含参数来源，输出公式和敏感性；缺参数返回区间。",
+          "PG 对象链保持人群—场景—功能—容量—业态—运营。",
+          "GT-11/GT-12 检查可复算容量和公益经营分账。"
+        ],
+        "conclusion": "通过：06 章形成可复算策划任务书，不提前完成空间设计或招商名单。"
+      },
+      "passed": true
+    },
+    {
+      "chapter": "07",
+      "title": "空间与技术",
+      "timestamp": "2026-08-27T05:35:33+00:00",
+      "counts": {
+        "works": 8,
+        "schemas": 8,
+        "workflows": 8,
+        "tools_used": 20,
+        "golden_tests": 6
+      },
+      "checks": {
+        "工作项均有对象 Schema": true,
+        "对象字段全部进入 Schema": true,
+        "工作项均有 Workflow 状态机": true,
+        "Workflow 可从 draft 到 committed": true,
+        "工具引用全部存在 Contract": true,
+        "高风险工作项强制人工复核": true,
+        "Project State 不允许直接写入": true,
+        "缺数据回退合同完整": true,
+        "Gate 为自然人批准": true,
+        "黄金测试覆盖至少2项": true
+      },
+      "semantic_review": {
+        "risks": [
+          "效果图反向成为事实证据。",
+          "拆改留凭外观决策。",
+          "分期仅按资金切割，无法独立运行。"
+        ],
+        "corrections": [
+          "T45 明确成果文件不是事实源。",
+          "SP03 强制结构、文保、产权和使用多因子；缺检测只初分级。",
+          "SP08 增加 independent_operation；GT-13/GT-14 验证。"
+        ],
+        "conclusion": "通过：空间用于验证策划，所有工程结论均需专业工具或人工复核，渲染不能替代可行性。"
+      },
+      "passed": true
+    },
+    {
+      "chapter": "08",
+      "title": "投资与实施",
+      "timestamp": "2026-08-27T05:35:33+00:00",
+      "counts": {
+        "works": 8,
+        "schemas": 8,
+        "workflows": 8,
+        "tools_used": 19,
+        "golden_tests": 8
+      },
+      "checks": {
+        "工作项均有对象 Schema": true,
+        "对象字段全部进入 Schema": true,
+        "工作项均有 Workflow 状态机": true,
+        "Workflow 可从 draft 到 committed": true,
+        "工具引用全部存在 Contract": true,
+        "高风险工作项强制人工复核": true,
+        "Project State 不允许直接写入": true,
+        "缺数据回退合同完整": true,
+        "Gate 为自然人批准": true,
+        "黄金测试覆盖至少2项": true
+      },
+      "semantic_review": {
+        "risks": [
+          "投资范围不完整。",
+          "未落实资金被写成确定来源。",
+          "基准情景乐观但未做压力测试。"
+        ],
+        "corrections": [
+          "T35 强制全生命周期成本范围和基准日。",
+          "T36 区分 eligible / intended / confirmed。",
+          "T37/T40 返回压力结果和阈值，GT-15/GT-16 覆盖。"
+        ],
+        "conclusion": "通过：08 章形成投资—资金—产权—主体—现金流—时序—风险闭环；不成立时回退 05—07。"
+      },
+      "passed": true
+    }
+  ],
+  "global_checks": {
+    "章节数为8": true,
+    "工作项/Schema/Workflow均为57": true,
+    "原子工具Contract为47": true,
+    "Gate Contract为8": true,
+    "对象ID唯一": true,
+    "Workflow ID唯一": true,
+    "Tool ID唯一": true,
+    "对象Schema通过Draft2020-12结构校验": true,
+    "Tool I/O Schema结构校验通过": true,
+    "全部读取对象存在或为ProjectSeed": true,
+    "对象依赖图无循环": true,
+    "所有高风险Workflow需要人工复核": true,
+    "所有Tool禁止直接写Project State": true,
+    "8个Gate禁止Agent批准": true,
+    "黄金测试20项且每章至少2项": true,
+    "ProposalEnvelope禁止remove操作": true,
+    "Revision采用最小回退": true
+  },
+  "counts": {
+    "chapters": 8,
+    "works": 57,
+    "schemas": 57,
+    "tools": 47,
+    "workflows": 57,
+    "gates": 8,
+    "golden_tests": 20,
+    "schema_fields": 576,
+    "dependency_edges": 220
+  },
+  "errors": {
+    "schema_errors": [],
+    "tool_schema_errors": [],
+    "unknown_reads": []
+  },
+  "passed": true,
+  "html": {
+    "internal_anchor_count": 473,
+    "broken_internal_anchors": [],
+    "passed": true
+  },
+  "files": {
+    "前期策划_章节工具级母架构_v0.6.html": {
+      "bytes": 1930217,
+      "sha256": "22e174dc7fc807484c2c36f8d0254ad8ce95d45d1d869096f2eb5c26e5b26dde"
+    },
+    "前期策划_章节工具级母架构_LATEST.html": {
+      "bytes": 1930217,
+      "sha256": "22e174dc7fc807484c2c36f8d0254ad8ce95d45d1d869096f2eb5c26e5b26dde"
+    },
+    "前期策划_全章节循环自检报告_v0.6.html": {
+      "bytes": 20479,
+      "sha256": "78e4570247a28f1544a6b8fbe3b41947057199a48e8f7c23067adfd082a3fa15"
+    },
+    "前期策划_ProjectState_SchemaBundle_v0.6.json": {
+      "bytes": 373662,
+      "sha256": "780efdfd1cc3324303278227d1c0cdb9f4614de460f139ab52f12a795c737539"
+    },
+    "前期策划_原子工具Contracts_v0.6.json": {
+      "bytes": 221495,
+      "sha256": "8e87280933410b9e59b7bcbc58b2a618137c7d803bc38750b2709715da63d157"
+    },
+    "前期策划_Workflow_StateMachines_v0.6.json": {
+      "bytes": 463466,
+      "sha256": "c4c1bfd5f9c20967f4c6c613fd7180112adca306c21460b27d708116b3372c04"
+    },
+    "前期策划_Gate权限与Revision合同_v0.6.json": {
+      "bytes": 27048,
+      "sha256": "0b5194b62a25dc9ad9bafd299bb8ee4268cf9c23919f63a71174090b4aa740bb"
+    },
+    "前期策划_黄金测试与验收集_v0.6.json": {
+      "bytes": 14939,
+      "sha256": "1ee577dadb117315cd2306978fea8434b2d069d304ee4d89e82be7ac0eb013fa"
+    },
+    "前期策划_开发合同源数据_v0.6.json": {
+      "bytes": 1319203,
+      "sha256": "0c61dd87bdcd5238ae44673046d774ae6cc8646312477e7f431e4d0cd7957bc9"
+    },
+    "前期策划_开发合同层_QA_v0.6.json": {
+      "bytes": 12625,
+      "sha256": "37273108f01377c95be197fba271c4c70c18f584d62f7128fde5997f3fa08532"
+    },
+    "前期策划_v0.6_逐章自检日志.json": {
+      "bytes": 13244,
+      "sha256": "a5844a14aed3c1a701a7c8dd22fff5a59ebd94e7c6db387f5138315a1a66d8d9"
+    },
+    "前期策划_v0.6_DSH开发合同包.zip": {
+      "bytes": 602207,
+      "sha256": "b06e93b6ec46e5d7b328682f449664f03c946597f7a37cffde5d08b65b2362b6"
+    }
+  },
+  "latest_matches_main": true
+}

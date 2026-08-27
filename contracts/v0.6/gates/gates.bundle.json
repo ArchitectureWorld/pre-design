@@ -1,0 +1,1422 @@
+{
+  "version": "0.6.0",
+  "gates": {
+    "G1": {
+      "contract_version": "0.6.0",
+      "gate_id": "G1",
+      "chapter_id": "01",
+      "title": "项目任务确认",
+      "purpose": "核心决策、研究边界、参与主体、已定条件、成果深度和资料基础相互一致；未决事项不影响后续调查方向。",
+      "required_objects": [
+        "PS01",
+        "PS02",
+        "PS03",
+        "PS04",
+        "PS05",
+        "PS06",
+        "PS07"
+      ],
+      "allowed_decisions": [
+        "approved",
+        "approved_with_conditions",
+        "returned"
+      ],
+      "initial_state": "OPEN",
+      "states": {
+        "OPEN": "Gate 已打开，输入仍可变化。",
+        "PRECHECK_FAILED": "机器预检存在硬错误。",
+        "READY_FOR_REVIEW": "输入快照已冻结，等待指定人工审批。",
+        "APPROVED": "人工无条件批准。",
+        "APPROVED_WITH_CONDITIONS": "人工带条件批准，条件均为非阻断事项。",
+        "RETURNED": "退回最小工作项修订。",
+        "STALE": "快照之后的上游语义变化使 Gate 决策失效。"
+      },
+      "transitions": [
+        {
+          "command": "open_gate",
+          "from": [
+            "OPEN",
+            "RETURNED",
+            "STALE"
+          ],
+          "to": "OPEN",
+          "roles": [
+            "workflow_operator",
+            "chapter_reviewer",
+            "decision_owner"
+          ],
+          "guards": [
+            "chapter_workflows_exist"
+          ]
+        },
+        {
+          "command": "precheck_fail",
+          "from": [
+            "OPEN"
+          ],
+          "to": "PRECHECK_FAILED",
+          "roles": [
+            "system_service"
+          ],
+          "guards": [
+            "hard_schema_rule_version_or_dependency_error"
+          ],
+          "state_effect": "validation_report"
+        },
+        {
+          "command": "precheck_pass",
+          "from": [
+            "OPEN",
+            "PRECHECK_FAILED"
+          ],
+          "to": "READY_FOR_REVIEW",
+          "roles": [
+            "system_service"
+          ],
+          "guards": [
+            "all_required_objects_available",
+            "no_machine_hard_error",
+            "snapshot_frozen"
+          ],
+          "state_effect": "decision_snapshot_draft"
+        },
+        {
+          "command": "approve_gate",
+          "from": [
+            "READY_FOR_REVIEW"
+          ],
+          "to": "APPROVED",
+          "roles": [
+            "decision_owner"
+          ],
+          "guards": [
+            "assigned_gate_approver",
+            "no_hard_blocker",
+            "all_required_signoffs"
+          ],
+          "state_effect": "immutable_decision_snapshot"
+        },
+        {
+          "command": "approve_gate_with_conditions",
+          "from": [
+            "READY_FOR_REVIEW"
+          ],
+          "to": "APPROVED_WITH_CONDITIONS",
+          "roles": [
+            "decision_owner"
+          ],
+          "guards": [
+            "assigned_gate_approver",
+            "only_non_blocking_gaps",
+            "conditions_complete"
+          ],
+          "state_effect": "immutable_snapshot_and_tasks"
+        },
+        {
+          "command": "return_gate",
+          "from": [
+            "READY_FOR_REVIEW"
+          ],
+          "to": "RETURNED",
+          "roles": [
+            "decision_owner",
+            "chapter_reviewer"
+          ],
+          "guards": [
+            "return_reason_recorded",
+            "minimal_return_targets_recorded"
+          ],
+          "state_effect": "reopen_minimal_workflows"
+        },
+        {
+          "command": "upstream_changed",
+          "from": [
+            "READY_FOR_REVIEW",
+            "APPROVED",
+            "APPROVED_WITH_CONDITIONS"
+          ],
+          "to": "STALE",
+          "roles": [
+            "system_service"
+          ],
+          "guards": [
+            "semantic_change_after_snapshot"
+          ],
+          "state_effect": "preserve_snapshot_mark_stale"
+        }
+      ],
+      "precheck": {
+        "schema_and_version": "所有 required_objects 必须通过 Schema、规则、权限和 expected_revision 校验。",
+        "hard_blockers": "任一 gate_blocking 缺口、法定否决、未签核高风险结论都会阻断批准。",
+        "conditional_rule": "只有 non_blocking 缺口可以带条件通过；每条条件必须有 owner、due_date 和 downstream_task。"
+      },
+      "decision_snapshot": {
+        "schema_ref": "../common/decision-snapshot.schema.json",
+        "immutable": true,
+        "includes": [
+          "object_revisions",
+          "tool_versions",
+          "workflow_versions",
+          "open_issues",
+          "conditions",
+          "human_modifications",
+          "decision_status",
+          "immutable_hash"
+        ]
+      },
+      "approval": {
+        "role": "decision_owner",
+        "assignment_required": true,
+        "agent_allowed": false,
+        "system_service_allowed": false,
+        "artifact_allowed": false
+      },
+      "return_policy": {
+        "minimum_targets": "退回 01-01—01-07 中实际发生缺口的最小节点。",
+        "preserve_confirmed_history": true,
+        "recheck_after_revision": true
+      },
+      "output": "项目任务书、未决事项清单、01 章任务基线、确认记录。"
+    },
+    "G2": {
+      "contract_version": "0.6.0",
+      "gate_id": "G2",
+      "chapter_id": "02",
+      "title": "现状底板确认",
+      "purpose": "支撑核心决策的现状事实已覆盖主要空间对象，来源、时间、单位、口径和可信度明确；冲突与未知已被显式标记。",
+      "required_objects": [
+        "BL01",
+        "BL02",
+        "BL03",
+        "BL04",
+        "BL05",
+        "BL06",
+        "BL07",
+        "BL08"
+      ],
+      "allowed_decisions": [
+        "approved",
+        "approved_with_conditions",
+        "returned"
+      ],
+      "initial_state": "OPEN",
+      "states": {
+        "OPEN": "Gate 已打开，输入仍可变化。",
+        "PRECHECK_FAILED": "机器预检存在硬错误。",
+        "READY_FOR_REVIEW": "输入快照已冻结，等待指定人工审批。",
+        "APPROVED": "人工无条件批准。",
+        "APPROVED_WITH_CONDITIONS": "人工带条件批准，条件均为非阻断事项。",
+        "RETURNED": "退回最小工作项修订。",
+        "STALE": "快照之后的上游语义变化使 Gate 决策失效。"
+      },
+      "transitions": [
+        {
+          "command": "open_gate",
+          "from": [
+            "OPEN",
+            "RETURNED",
+            "STALE"
+          ],
+          "to": "OPEN",
+          "roles": [
+            "workflow_operator",
+            "chapter_reviewer",
+            "decision_owner"
+          ],
+          "guards": [
+            "chapter_workflows_exist"
+          ]
+        },
+        {
+          "command": "precheck_fail",
+          "from": [
+            "OPEN"
+          ],
+          "to": "PRECHECK_FAILED",
+          "roles": [
+            "system_service"
+          ],
+          "guards": [
+            "hard_schema_rule_version_or_dependency_error"
+          ],
+          "state_effect": "validation_report"
+        },
+        {
+          "command": "precheck_pass",
+          "from": [
+            "OPEN",
+            "PRECHECK_FAILED"
+          ],
+          "to": "READY_FOR_REVIEW",
+          "roles": [
+            "system_service"
+          ],
+          "guards": [
+            "all_required_objects_available",
+            "no_machine_hard_error",
+            "snapshot_frozen"
+          ],
+          "state_effect": "decision_snapshot_draft"
+        },
+        {
+          "command": "approve_gate",
+          "from": [
+            "READY_FOR_REVIEW"
+          ],
+          "to": "APPROVED",
+          "roles": [
+            "decision_owner"
+          ],
+          "guards": [
+            "assigned_gate_approver",
+            "no_hard_blocker",
+            "all_required_signoffs"
+          ],
+          "state_effect": "immutable_decision_snapshot"
+        },
+        {
+          "command": "approve_gate_with_conditions",
+          "from": [
+            "READY_FOR_REVIEW"
+          ],
+          "to": "APPROVED_WITH_CONDITIONS",
+          "roles": [
+            "decision_owner"
+          ],
+          "guards": [
+            "assigned_gate_approver",
+            "only_non_blocking_gaps",
+            "conditions_complete"
+          ],
+          "state_effect": "immutable_snapshot_and_tasks"
+        },
+        {
+          "command": "return_gate",
+          "from": [
+            "READY_FOR_REVIEW"
+          ],
+          "to": "RETURNED",
+          "roles": [
+            "decision_owner",
+            "chapter_reviewer"
+          ],
+          "guards": [
+            "return_reason_recorded",
+            "minimal_return_targets_recorded"
+          ],
+          "state_effect": "reopen_minimal_workflows"
+        },
+        {
+          "command": "upstream_changed",
+          "from": [
+            "READY_FOR_REVIEW",
+            "APPROVED",
+            "APPROVED_WITH_CONDITIONS"
+          ],
+          "to": "STALE",
+          "roles": [
+            "system_service"
+          ],
+          "guards": [
+            "semantic_change_after_snapshot"
+          ],
+          "state_effect": "preserve_snapshot_mark_stale"
+        }
+      ],
+      "precheck": {
+        "schema_and_version": "所有 required_objects 必须通过 Schema、规则、权限和 expected_revision 校验。",
+        "hard_blockers": "任一 gate_blocking 缺口、法定否决、未签核高风险结论都会阻断批准。",
+        "conditional_rule": "只有 non_blocking 缺口可以带条件通过；每条条件必须有 owner、due_date 和 downstream_task。"
+      },
+      "decision_snapshot": {
+        "schema_ref": "../common/decision-snapshot.schema.json",
+        "immutable": true,
+        "includes": [
+          "object_revisions",
+          "tool_versions",
+          "workflow_versions",
+          "open_issues",
+          "conditions",
+          "human_modifications",
+          "decision_status",
+          "immutable_hash"
+        ]
+      },
+      "approval": {
+        "role": "decision_owner",
+        "assignment_required": true,
+        "agent_allowed": false,
+        "system_service_allowed": false,
+        "artifact_allowed": false
+      },
+      "return_policy": {
+        "minimum_targets": "资料缺口回 01-07；任务或边界错误回 01；单一专题不足回 02 对应工作项。",
+        "preserve_confirmed_history": true,
+        "recheck_after_revision": true
+      },
+      "output": "项目事实基线、对象台账、专题底图、未核实事项和补充调查任务。"
+    },
+    "G3": {
+      "contract_version": "0.6.0",
+      "gate_id": "G3",
+      "chapter_id": "03",
+      "title": "问题与机会确认",
+      "purpose": "关键问题具备事实、影响对象和因果解释；关键机会具备来源、时限与成立条件；优先级能够回答为什么本轮先处理这些议题。",
+      "required_objects": [
+        "DG01",
+        "DG02",
+        "DG03",
+        "DG04",
+        "DG05",
+        "DG06"
+      ],
+      "allowed_decisions": [
+        "approved",
+        "approved_with_conditions",
+        "returned"
+      ],
+      "initial_state": "OPEN",
+      "states": {
+        "OPEN": "Gate 已打开，输入仍可变化。",
+        "PRECHECK_FAILED": "机器预检存在硬错误。",
+        "READY_FOR_REVIEW": "输入快照已冻结，等待指定人工审批。",
+        "APPROVED": "人工无条件批准。",
+        "APPROVED_WITH_CONDITIONS": "人工带条件批准，条件均为非阻断事项。",
+        "RETURNED": "退回最小工作项修订。",
+        "STALE": "快照之后的上游语义变化使 Gate 决策失效。"
+      },
+      "transitions": [
+        {
+          "command": "open_gate",
+          "from": [
+            "OPEN",
+            "RETURNED",
+            "STALE"
+          ],
+          "to": "OPEN",
+          "roles": [
+            "workflow_operator",
+            "chapter_reviewer",
+            "decision_owner"
+          ],
+          "guards": [
+            "chapter_workflows_exist"
+          ]
+        },
+        {
+          "command": "precheck_fail",
+          "from": [
+            "OPEN"
+          ],
+          "to": "PRECHECK_FAILED",
+          "roles": [
+            "system_service"
+          ],
+          "guards": [
+            "hard_schema_rule_version_or_dependency_error"
+          ],
+          "state_effect": "validation_report"
+        },
+        {
+          "command": "precheck_pass",
+          "from": [
+            "OPEN",
+            "PRECHECK_FAILED"
+          ],
+          "to": "READY_FOR_REVIEW",
+          "roles": [
+            "system_service"
+          ],
+          "guards": [
+            "all_required_objects_available",
+            "no_machine_hard_error",
+            "snapshot_frozen"
+          ],
+          "state_effect": "decision_snapshot_draft"
+        },
+        {
+          "command": "approve_gate",
+          "from": [
+            "READY_FOR_REVIEW"
+          ],
+          "to": "APPROVED",
+          "roles": [
+            "decision_owner"
+          ],
+          "guards": [
+            "assigned_gate_approver",
+            "no_hard_blocker",
+            "all_required_signoffs"
+          ],
+          "state_effect": "immutable_decision_snapshot"
+        },
+        {
+          "command": "approve_gate_with_conditions",
+          "from": [
+            "READY_FOR_REVIEW"
+          ],
+          "to": "APPROVED_WITH_CONDITIONS",
+          "roles": [
+            "decision_owner"
+          ],
+          "guards": [
+            "assigned_gate_approver",
+            "only_non_blocking_gaps",
+            "conditions_complete"
+          ],
+          "state_effect": "immutable_snapshot_and_tasks"
+        },
+        {
+          "command": "return_gate",
+          "from": [
+            "READY_FOR_REVIEW"
+          ],
+          "to": "RETURNED",
+          "roles": [
+            "decision_owner",
+            "chapter_reviewer"
+          ],
+          "guards": [
+            "return_reason_recorded",
+            "minimal_return_targets_recorded"
+          ],
+          "state_effect": "reopen_minimal_workflows"
+        },
+        {
+          "command": "upstream_changed",
+          "from": [
+            "READY_FOR_REVIEW",
+            "APPROVED",
+            "APPROVED_WITH_CONDITIONS"
+          ],
+          "to": "STALE",
+          "roles": [
+            "system_service"
+          ],
+          "guards": [
+            "semantic_change_after_snapshot"
+          ],
+          "state_effect": "preserve_snapshot_mark_stale"
+        }
+      ],
+      "precheck": {
+        "schema_and_version": "所有 required_objects 必须通过 Schema、规则、权限和 expected_revision 校验。",
+        "hard_blockers": "任一 gate_blocking 缺口、法定否决、未签核高风险结论都会阻断批准。",
+        "conditional_rule": "只有 non_blocking 缺口可以带条件通过；每条条件必须有 owner、due_date 和 downstream_task。"
+      },
+      "decision_snapshot": {
+        "schema_ref": "../common/decision-snapshot.schema.json",
+        "immutable": true,
+        "includes": [
+          "object_revisions",
+          "tool_versions",
+          "workflow_versions",
+          "open_issues",
+          "conditions",
+          "human_modifications",
+          "decision_status",
+          "immutable_hash"
+        ]
+      },
+      "approval": {
+        "role": "decision_owner",
+        "assignment_required": true,
+        "agent_allowed": false,
+        "system_service_allowed": false,
+        "artifact_allowed": false
+      },
+      "return_policy": {
+        "minimum_targets": "事实不足回 02；任务或边界错误回 01；排序争议回 03-06。",
+        "preserve_confirmed_history": true,
+        "recheck_after_revision": true
+      },
+      "output": "诊断结论、问题树、价值机会图、优先级矩阵、关键策划议题。"
+    },
+    "G4": {
+      "contract_version": "0.6.0",
+      "gate_id": "G4",
+      "chapter_id": "04",
+      "title": "目标方向确认",
+      "purpose": "使命、服务对象、目标层级、指标、硬约束、候选方向和评价标准相互一致，并均可追溯到 G3 诊断。",
+      "required_objects": [
+        "OB01",
+        "OB02",
+        "OB03",
+        "OB04",
+        "OB05",
+        "OB06"
+      ],
+      "allowed_decisions": [
+        "approved",
+        "approved_with_conditions",
+        "returned"
+      ],
+      "initial_state": "OPEN",
+      "states": {
+        "OPEN": "Gate 已打开，输入仍可变化。",
+        "PRECHECK_FAILED": "机器预检存在硬错误。",
+        "READY_FOR_REVIEW": "输入快照已冻结，等待指定人工审批。",
+        "APPROVED": "人工无条件批准。",
+        "APPROVED_WITH_CONDITIONS": "人工带条件批准，条件均为非阻断事项。",
+        "RETURNED": "退回最小工作项修订。",
+        "STALE": "快照之后的上游语义变化使 Gate 决策失效。"
+      },
+      "transitions": [
+        {
+          "command": "open_gate",
+          "from": [
+            "OPEN",
+            "RETURNED",
+            "STALE"
+          ],
+          "to": "OPEN",
+          "roles": [
+            "workflow_operator",
+            "chapter_reviewer",
+            "decision_owner"
+          ],
+          "guards": [
+            "chapter_workflows_exist"
+          ]
+        },
+        {
+          "command": "precheck_fail",
+          "from": [
+            "OPEN"
+          ],
+          "to": "PRECHECK_FAILED",
+          "roles": [
+            "system_service"
+          ],
+          "guards": [
+            "hard_schema_rule_version_or_dependency_error"
+          ],
+          "state_effect": "validation_report"
+        },
+        {
+          "command": "precheck_pass",
+          "from": [
+            "OPEN",
+            "PRECHECK_FAILED"
+          ],
+          "to": "READY_FOR_REVIEW",
+          "roles": [
+            "system_service"
+          ],
+          "guards": [
+            "all_required_objects_available",
+            "no_machine_hard_error",
+            "snapshot_frozen"
+          ],
+          "state_effect": "decision_snapshot_draft"
+        },
+        {
+          "command": "approve_gate",
+          "from": [
+            "READY_FOR_REVIEW"
+          ],
+          "to": "APPROVED",
+          "roles": [
+            "decision_owner"
+          ],
+          "guards": [
+            "assigned_gate_approver",
+            "no_hard_blocker",
+            "all_required_signoffs"
+          ],
+          "state_effect": "immutable_decision_snapshot"
+        },
+        {
+          "command": "approve_gate_with_conditions",
+          "from": [
+            "READY_FOR_REVIEW"
+          ],
+          "to": "APPROVED_WITH_CONDITIONS",
+          "roles": [
+            "decision_owner"
+          ],
+          "guards": [
+            "assigned_gate_approver",
+            "only_non_blocking_gaps",
+            "conditions_complete"
+          ],
+          "state_effect": "immutable_snapshot_and_tasks"
+        },
+        {
+          "command": "return_gate",
+          "from": [
+            "READY_FOR_REVIEW"
+          ],
+          "to": "RETURNED",
+          "roles": [
+            "decision_owner",
+            "chapter_reviewer"
+          ],
+          "guards": [
+            "return_reason_recorded",
+            "minimal_return_targets_recorded"
+          ],
+          "state_effect": "reopen_minimal_workflows"
+        },
+        {
+          "command": "upstream_changed",
+          "from": [
+            "READY_FOR_REVIEW",
+            "APPROVED",
+            "APPROVED_WITH_CONDITIONS"
+          ],
+          "to": "STALE",
+          "roles": [
+            "system_service"
+          ],
+          "guards": [
+            "semantic_change_after_snapshot"
+          ],
+          "state_effect": "preserve_snapshot_mark_stale"
+        }
+      ],
+      "precheck": {
+        "schema_and_version": "所有 required_objects 必须通过 Schema、规则、权限和 expected_revision 校验。",
+        "hard_blockers": "任一 gate_blocking 缺口、法定否决、未签核高风险结论都会阻断批准。",
+        "conditional_rule": "只有 non_blocking 缺口可以带条件通过；每条条件必须有 owner、due_date 和 downstream_task。"
+      },
+      "decision_snapshot": {
+        "schema_ref": "../common/decision-snapshot.schema.json",
+        "immutable": true,
+        "includes": [
+          "object_revisions",
+          "tool_versions",
+          "workflow_versions",
+          "open_issues",
+          "conditions",
+          "human_modifications",
+          "decision_status",
+          "immutable_hash"
+        ]
+      },
+      "approval": {
+        "role": "decision_owner",
+        "assignment_required": true,
+        "agent_allowed": false,
+        "system_service_allowed": false,
+        "artifact_allowed": false
+      },
+      "return_policy": {
+        "minimum_targets": "证据或诊断不足回 02/03；使命与任务不符回 01；目标内部冲突回 04 对应节点。",
+        "preserve_confirmed_history": true,
+        "recheck_after_revision": true
+      },
+      "output": "目标与方向基线、KPI、负面清单、候选方向卡、方案评价矩阵。"
+    },
+    "G5": {
+      "contract_version": "0.6.0",
+      "gate_id": "G5",
+      "chapter_id": "05",
+      "title": "方案选择确认",
+      "purpose": "至少三条实质不同路径在同一基准和评价规则下完成粗排、粗算、可行性预审和敏感性比较，并明确推荐、备选及失效条件。",
+      "required_objects": [
+        "OP01",
+        "OP02",
+        "OP03",
+        "OP04",
+        "OP05",
+        "OP06",
+        "OP07"
+      ],
+      "allowed_decisions": [
+        "approved",
+        "approved_with_conditions",
+        "returned"
+      ],
+      "initial_state": "OPEN",
+      "states": {
+        "OPEN": "Gate 已打开，输入仍可变化。",
+        "PRECHECK_FAILED": "机器预检存在硬错误。",
+        "READY_FOR_REVIEW": "输入快照已冻结，等待指定人工审批。",
+        "APPROVED": "人工无条件批准。",
+        "APPROVED_WITH_CONDITIONS": "人工带条件批准，条件均为非阻断事项。",
+        "RETURNED": "退回最小工作项修订。",
+        "STALE": "快照之后的上游语义变化使 Gate 决策失效。"
+      },
+      "transitions": [
+        {
+          "command": "open_gate",
+          "from": [
+            "OPEN",
+            "RETURNED",
+            "STALE"
+          ],
+          "to": "OPEN",
+          "roles": [
+            "workflow_operator",
+            "chapter_reviewer",
+            "decision_owner"
+          ],
+          "guards": [
+            "chapter_workflows_exist"
+          ]
+        },
+        {
+          "command": "precheck_fail",
+          "from": [
+            "OPEN"
+          ],
+          "to": "PRECHECK_FAILED",
+          "roles": [
+            "system_service"
+          ],
+          "guards": [
+            "hard_schema_rule_version_or_dependency_error"
+          ],
+          "state_effect": "validation_report"
+        },
+        {
+          "command": "precheck_pass",
+          "from": [
+            "OPEN",
+            "PRECHECK_FAILED"
+          ],
+          "to": "READY_FOR_REVIEW",
+          "roles": [
+            "system_service"
+          ],
+          "guards": [
+            "all_required_objects_available",
+            "no_machine_hard_error",
+            "snapshot_frozen"
+          ],
+          "state_effect": "decision_snapshot_draft"
+        },
+        {
+          "command": "approve_gate",
+          "from": [
+            "READY_FOR_REVIEW"
+          ],
+          "to": "APPROVED",
+          "roles": [
+            "decision_owner"
+          ],
+          "guards": [
+            "assigned_gate_approver",
+            "no_hard_blocker",
+            "all_required_signoffs"
+          ],
+          "state_effect": "immutable_decision_snapshot"
+        },
+        {
+          "command": "approve_gate_with_conditions",
+          "from": [
+            "READY_FOR_REVIEW"
+          ],
+          "to": "APPROVED_WITH_CONDITIONS",
+          "roles": [
+            "decision_owner"
+          ],
+          "guards": [
+            "assigned_gate_approver",
+            "only_non_blocking_gaps",
+            "conditions_complete"
+          ],
+          "state_effect": "immutable_snapshot_and_tasks"
+        },
+        {
+          "command": "return_gate",
+          "from": [
+            "READY_FOR_REVIEW"
+          ],
+          "to": "RETURNED",
+          "roles": [
+            "decision_owner",
+            "chapter_reviewer"
+          ],
+          "guards": [
+            "return_reason_recorded",
+            "minimal_return_targets_recorded"
+          ],
+          "state_effect": "reopen_minimal_workflows"
+        },
+        {
+          "command": "upstream_changed",
+          "from": [
+            "READY_FOR_REVIEW",
+            "APPROVED",
+            "APPROVED_WITH_CONDITIONS"
+          ],
+          "to": "STALE",
+          "roles": [
+            "system_service"
+          ],
+          "guards": [
+            "semantic_change_after_snapshot"
+          ],
+          "state_effect": "preserve_snapshot_mark_stale"
+        }
+      ],
+      "precheck": {
+        "schema_and_version": "所有 required_objects 必须通过 Schema、规则、权限和 expected_revision 校验。",
+        "hard_blockers": "任一 gate_blocking 缺口、法定否决、未签核高风险结论都会阻断批准。",
+        "conditional_rule": "只有 non_blocking 缺口可以带条件通过；每条条件必须有 owner、due_date 和 downstream_task。"
+      },
+      "decision_snapshot": {
+        "schema_ref": "../common/decision-snapshot.schema.json",
+        "immutable": true,
+        "includes": [
+          "object_revisions",
+          "tool_versions",
+          "workflow_versions",
+          "open_issues",
+          "conditions",
+          "human_modifications",
+          "decision_status",
+          "immutable_hash"
+        ]
+      },
+      "approval": {
+        "role": "decision_owner",
+        "assignment_required": true,
+        "agent_allowed": false,
+        "system_service_allowed": false,
+        "artifact_allowed": false
+      },
+      "return_policy": {
+        "minimum_targets": "目标或评价问题回 04；事实与诊断问题回 02/03；单一路径问题回 05 对应节点。",
+        "preserve_confirmed_history": true,
+        "recheck_after_revision": true
+      },
+      "output": "推荐路径、备选路径、比较矩阵、关键假设、成立条件和回退方案。"
+    },
+    "G6": {
+      "contract_version": "0.6.0",
+      "gate_id": "G6",
+      "chapter_id": "06",
+      "title": "功能规模确认",
+      "purpose": "每个功能均明确服务对象、需求依据、容量、面积、时段、共享关系、公益经营属性和运营前提；总规模与投资边界初步一致。",
+      "required_objects": [
+        "PG01",
+        "PG02",
+        "PG03",
+        "PG04",
+        "PG05",
+        "PG06",
+        "PG07"
+      ],
+      "allowed_decisions": [
+        "approved",
+        "approved_with_conditions",
+        "returned"
+      ],
+      "initial_state": "OPEN",
+      "states": {
+        "OPEN": "Gate 已打开，输入仍可变化。",
+        "PRECHECK_FAILED": "机器预检存在硬错误。",
+        "READY_FOR_REVIEW": "输入快照已冻结，等待指定人工审批。",
+        "APPROVED": "人工无条件批准。",
+        "APPROVED_WITH_CONDITIONS": "人工带条件批准，条件均为非阻断事项。",
+        "RETURNED": "退回最小工作项修订。",
+        "STALE": "快照之后的上游语义变化使 Gate 决策失效。"
+      },
+      "transitions": [
+        {
+          "command": "open_gate",
+          "from": [
+            "OPEN",
+            "RETURNED",
+            "STALE"
+          ],
+          "to": "OPEN",
+          "roles": [
+            "workflow_operator",
+            "chapter_reviewer",
+            "decision_owner"
+          ],
+          "guards": [
+            "chapter_workflows_exist"
+          ]
+        },
+        {
+          "command": "precheck_fail",
+          "from": [
+            "OPEN"
+          ],
+          "to": "PRECHECK_FAILED",
+          "roles": [
+            "system_service"
+          ],
+          "guards": [
+            "hard_schema_rule_version_or_dependency_error"
+          ],
+          "state_effect": "validation_report"
+        },
+        {
+          "command": "precheck_pass",
+          "from": [
+            "OPEN",
+            "PRECHECK_FAILED"
+          ],
+          "to": "READY_FOR_REVIEW",
+          "roles": [
+            "system_service"
+          ],
+          "guards": [
+            "all_required_objects_available",
+            "no_machine_hard_error",
+            "snapshot_frozen"
+          ],
+          "state_effect": "decision_snapshot_draft"
+        },
+        {
+          "command": "approve_gate",
+          "from": [
+            "READY_FOR_REVIEW"
+          ],
+          "to": "APPROVED",
+          "roles": [
+            "decision_owner"
+          ],
+          "guards": [
+            "assigned_gate_approver",
+            "no_hard_blocker",
+            "all_required_signoffs"
+          ],
+          "state_effect": "immutable_decision_snapshot"
+        },
+        {
+          "command": "approve_gate_with_conditions",
+          "from": [
+            "READY_FOR_REVIEW"
+          ],
+          "to": "APPROVED_WITH_CONDITIONS",
+          "roles": [
+            "decision_owner"
+          ],
+          "guards": [
+            "assigned_gate_approver",
+            "only_non_blocking_gaps",
+            "conditions_complete"
+          ],
+          "state_effect": "immutable_snapshot_and_tasks"
+        },
+        {
+          "command": "return_gate",
+          "from": [
+            "READY_FOR_REVIEW"
+          ],
+          "to": "RETURNED",
+          "roles": [
+            "decision_owner",
+            "chapter_reviewer"
+          ],
+          "guards": [
+            "return_reason_recorded",
+            "minimal_return_targets_recorded"
+          ],
+          "state_effect": "reopen_minimal_workflows"
+        },
+        {
+          "command": "upstream_changed",
+          "from": [
+            "READY_FOR_REVIEW",
+            "APPROVED",
+            "APPROVED_WITH_CONDITIONS"
+          ],
+          "to": "STALE",
+          "roles": [
+            "system_service"
+          ],
+          "guards": [
+            "semantic_change_after_snapshot"
+          ],
+          "state_effect": "preserve_snapshot_mark_stale"
+        }
+      ],
+      "precheck": {
+        "schema_and_version": "所有 required_objects 必须通过 Schema、规则、权限和 expected_revision 校验。",
+        "hard_blockers": "任一 gate_blocking 缺口、法定否决、未签核高风险结论都会阻断批准。",
+        "conditional_rule": "只有 non_blocking 缺口可以带条件通过；每条条件必须有 owner、due_date 和 downstream_task。"
+      },
+      "decision_snapshot": {
+        "schema_ref": "../common/decision-snapshot.schema.json",
+        "immutable": true,
+        "includes": [
+          "object_revisions",
+          "tool_versions",
+          "workflow_versions",
+          "open_issues",
+          "conditions",
+          "human_modifications",
+          "decision_status",
+          "immutable_hash"
+        ]
+      },
+      "approval": {
+        "role": "decision_owner",
+        "assignment_required": true,
+        "agent_allowed": false,
+        "system_service_allowed": false,
+        "artifact_allowed": false
+      },
+      "return_policy": {
+        "minimum_targets": "推荐路径不成立回 05；目标变化回 04；需求基线问题回 02/03；单一功能问题回 06 对应节点。",
+        "preserve_confirmed_history": true,
+        "recheck_after_revision": true
+      },
+      "output": "策划任务书、功能容量与面积表、产品组合、运营需求和主数据基线。"
+    },
+    "G7": {
+      "contract_version": "0.6.0",
+      "gate_id": "G7",
+      "chapter_id": "07",
+      "title": "空间技术确认",
+      "purpose": "推荐方案通过规划、容量、交通、消防、市政、结构、文保、生态、运营和分期预校核；未解决问题已明确回退或列为前置专项。",
+      "required_objects": [
+        "SP01",
+        "SP02",
+        "SP03",
+        "SP04",
+        "SP05",
+        "SP06",
+        "SP07",
+        "SP08"
+      ],
+      "allowed_decisions": [
+        "approved",
+        "approved_with_conditions",
+        "returned"
+      ],
+      "initial_state": "OPEN",
+      "states": {
+        "OPEN": "Gate 已打开，输入仍可变化。",
+        "PRECHECK_FAILED": "机器预检存在硬错误。",
+        "READY_FOR_REVIEW": "输入快照已冻结，等待指定人工审批。",
+        "APPROVED": "人工无条件批准。",
+        "APPROVED_WITH_CONDITIONS": "人工带条件批准，条件均为非阻断事项。",
+        "RETURNED": "退回最小工作项修订。",
+        "STALE": "快照之后的上游语义变化使 Gate 决策失效。"
+      },
+      "transitions": [
+        {
+          "command": "open_gate",
+          "from": [
+            "OPEN",
+            "RETURNED",
+            "STALE"
+          ],
+          "to": "OPEN",
+          "roles": [
+            "workflow_operator",
+            "chapter_reviewer",
+            "decision_owner"
+          ],
+          "guards": [
+            "chapter_workflows_exist"
+          ]
+        },
+        {
+          "command": "precheck_fail",
+          "from": [
+            "OPEN"
+          ],
+          "to": "PRECHECK_FAILED",
+          "roles": [
+            "system_service"
+          ],
+          "guards": [
+            "hard_schema_rule_version_or_dependency_error"
+          ],
+          "state_effect": "validation_report"
+        },
+        {
+          "command": "precheck_pass",
+          "from": [
+            "OPEN",
+            "PRECHECK_FAILED"
+          ],
+          "to": "READY_FOR_REVIEW",
+          "roles": [
+            "system_service"
+          ],
+          "guards": [
+            "all_required_objects_available",
+            "no_machine_hard_error",
+            "snapshot_frozen"
+          ],
+          "state_effect": "decision_snapshot_draft"
+        },
+        {
+          "command": "approve_gate",
+          "from": [
+            "READY_FOR_REVIEW"
+          ],
+          "to": "APPROVED",
+          "roles": [
+            "decision_owner"
+          ],
+          "guards": [
+            "assigned_gate_approver",
+            "no_hard_blocker",
+            "all_required_signoffs"
+          ],
+          "state_effect": "immutable_decision_snapshot"
+        },
+        {
+          "command": "approve_gate_with_conditions",
+          "from": [
+            "READY_FOR_REVIEW"
+          ],
+          "to": "APPROVED_WITH_CONDITIONS",
+          "roles": [
+            "decision_owner"
+          ],
+          "guards": [
+            "assigned_gate_approver",
+            "only_non_blocking_gaps",
+            "conditions_complete"
+          ],
+          "state_effect": "immutable_snapshot_and_tasks"
+        },
+        {
+          "command": "return_gate",
+          "from": [
+            "READY_FOR_REVIEW"
+          ],
+          "to": "RETURNED",
+          "roles": [
+            "decision_owner",
+            "chapter_reviewer"
+          ],
+          "guards": [
+            "return_reason_recorded",
+            "minimal_return_targets_recorded"
+          ],
+          "state_effect": "reopen_minimal_workflows"
+        },
+        {
+          "command": "upstream_changed",
+          "from": [
+            "READY_FOR_REVIEW",
+            "APPROVED",
+            "APPROVED_WITH_CONDITIONS"
+          ],
+          "to": "STALE",
+          "roles": [
+            "system_service"
+          ],
+          "guards": [
+            "semantic_change_after_snapshot"
+          ],
+          "state_effect": "preserve_snapshot_mark_stale"
+        }
+      ],
+      "precheck": {
+        "schema_and_version": "所有 required_objects 必须通过 Schema、规则、权限和 expected_revision 校验。",
+        "hard_blockers": "任一 gate_blocking 缺口、法定否决、未签核高风险结论都会阻断批准。",
+        "conditional_rule": "只有 non_blocking 缺口可以带条件通过；每条条件必须有 owner、due_date 和 downstream_task。"
+      },
+      "decision_snapshot": {
+        "schema_ref": "../common/decision-snapshot.schema.json",
+        "immutable": true,
+        "includes": [
+          "object_revisions",
+          "tool_versions",
+          "workflow_versions",
+          "open_issues",
+          "conditions",
+          "human_modifications",
+          "decision_status",
+          "immutable_hash"
+        ]
+      },
+      "approval": {
+        "role": "decision_owner",
+        "assignment_required": true,
+        "agent_allowed": false,
+        "system_service_allowed": false,
+        "artifact_allowed": false
+      },
+      "return_policy": {
+        "minimum_targets": "功能规模不成立回 06；推荐路径不成立回 05；目标和约束冲突回 04；现状资料错误回 02。",
+        "preserve_confirmed_history": true,
+        "recheck_after_revision": true
+      },
+      "output": "空间方案、拆改留、技术校核、设计控制、典型节点和分期空间。"
+    },
+    "G8": {
+      "contract_version": "0.6.0",
+      "gate_id": "G8",
+      "chapter_id": "08",
+      "title": "投资实施确认",
+      "purpose": "每个项目包均明确对象、措施、数量、投资、资金、产权审批、主体、时序、运营维护和绩效；关键假设通过敏感性或压力测试。",
+      "required_objects": [
+        "IM01",
+        "IM02",
+        "IM03",
+        "IM04",
+        "IM05",
+        "IM06",
+        "IM07",
+        "IM08"
+      ],
+      "allowed_decisions": [
+        "approved",
+        "approved_with_conditions",
+        "returned"
+      ],
+      "initial_state": "OPEN",
+      "states": {
+        "OPEN": "Gate 已打开，输入仍可变化。",
+        "PRECHECK_FAILED": "机器预检存在硬错误。",
+        "READY_FOR_REVIEW": "输入快照已冻结，等待指定人工审批。",
+        "APPROVED": "人工无条件批准。",
+        "APPROVED_WITH_CONDITIONS": "人工带条件批准，条件均为非阻断事项。",
+        "RETURNED": "退回最小工作项修订。",
+        "STALE": "快照之后的上游语义变化使 Gate 决策失效。"
+      },
+      "transitions": [
+        {
+          "command": "open_gate",
+          "from": [
+            "OPEN",
+            "RETURNED",
+            "STALE"
+          ],
+          "to": "OPEN",
+          "roles": [
+            "workflow_operator",
+            "chapter_reviewer",
+            "decision_owner"
+          ],
+          "guards": [
+            "chapter_workflows_exist"
+          ]
+        },
+        {
+          "command": "precheck_fail",
+          "from": [
+            "OPEN"
+          ],
+          "to": "PRECHECK_FAILED",
+          "roles": [
+            "system_service"
+          ],
+          "guards": [
+            "hard_schema_rule_version_or_dependency_error"
+          ],
+          "state_effect": "validation_report"
+        },
+        {
+          "command": "precheck_pass",
+          "from": [
+            "OPEN",
+            "PRECHECK_FAILED"
+          ],
+          "to": "READY_FOR_REVIEW",
+          "roles": [
+            "system_service"
+          ],
+          "guards": [
+            "all_required_objects_available",
+            "no_machine_hard_error",
+            "snapshot_frozen"
+          ],
+          "state_effect": "decision_snapshot_draft"
+        },
+        {
+          "command": "approve_gate",
+          "from": [
+            "READY_FOR_REVIEW"
+          ],
+          "to": "APPROVED",
+          "roles": [
+            "decision_owner"
+          ],
+          "guards": [
+            "assigned_gate_approver",
+            "no_hard_blocker",
+            "all_required_signoffs"
+          ],
+          "state_effect": "immutable_decision_snapshot"
+        },
+        {
+          "command": "approve_gate_with_conditions",
+          "from": [
+            "READY_FOR_REVIEW"
+          ],
+          "to": "APPROVED_WITH_CONDITIONS",
+          "roles": [
+            "decision_owner"
+          ],
+          "guards": [
+            "assigned_gate_approver",
+            "only_non_blocking_gaps",
+            "conditions_complete"
+          ],
+          "state_effect": "immutable_snapshot_and_tasks"
+        },
+        {
+          "command": "return_gate",
+          "from": [
+            "READY_FOR_REVIEW"
+          ],
+          "to": "RETURNED",
+          "roles": [
+            "decision_owner",
+            "chapter_reviewer"
+          ],
+          "guards": [
+            "return_reason_recorded",
+            "minimal_return_targets_recorded"
+          ],
+          "state_effect": "reopen_minimal_workflows"
+        },
+        {
+          "command": "upstream_changed",
+          "from": [
+            "READY_FOR_REVIEW",
+            "APPROVED",
+            "APPROVED_WITH_CONDITIONS"
+          ],
+          "to": "STALE",
+          "roles": [
+            "system_service"
+          ],
+          "guards": [
+            "semantic_change_after_snapshot"
+          ],
+          "state_effect": "preserve_snapshot_mark_stale"
+        }
+      ],
+      "precheck": {
+        "schema_and_version": "所有 required_objects 必须通过 Schema、规则、权限和 expected_revision 校验。",
+        "hard_blockers": "任一 gate_blocking 缺口、法定否决、未签核高风险结论都会阻断批准。",
+        "conditional_rule": "只有 non_blocking 缺口可以带条件通过；每条条件必须有 owner、due_date 和 downstream_task。"
+      },
+      "decision_snapshot": {
+        "schema_ref": "../common/decision-snapshot.schema.json",
+        "immutable": true,
+        "includes": [
+          "object_revisions",
+          "tool_versions",
+          "workflow_versions",
+          "open_issues",
+          "conditions",
+          "human_modifications",
+          "decision_status",
+          "immutable_hash"
+        ]
+      },
+      "approval": {
+        "role": "decision_owner",
+        "assignment_required": true,
+        "agent_allowed": false,
+        "system_service_allowed": false,
+        "artifact_allowed": false
+      },
+      "return_policy": {
+        "minimum_targets": "空间技术不成立回 07；功能规模或运营逻辑不成立回 06；推荐路径失效回 05；目标或事实变化继续回退至 04/03/02/01。",
+        "preserve_confirmed_history": true,
+        "recheck_after_revision": true
+      },
+      "output": "最终决策摘要、项目包与对象卡、投资资金方案、审批与主体方案、实施路线图、风险与后评估计划。"
+    }
+  }
+}

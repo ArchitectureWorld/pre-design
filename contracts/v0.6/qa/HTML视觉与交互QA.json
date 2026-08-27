@@ -1,0 +1,58 @@
+{
+  "main": {
+    "title": "前期策划｜DSH 开发合同母架构 v0.6",
+    "desktop": {
+      "scroll_width": 1600,
+      "inner_width": 1600,
+      "scroll_height": 47760,
+      "errors": []
+    },
+    "anchor_counts": {
+      "overview": 1,
+      "contracts": 1,
+      "schemas": 1,
+      "tool-contracts": 1,
+      "workflows": 1,
+      "governance": 1,
+      "golden-tests": 1,
+      "ch01": 1,
+      "ch06": 1,
+      "ch08": 1,
+      "cases": 1
+    },
+    "counts": {
+      "work_cards": 57,
+      "schema_cards": 57,
+      "tool_contracts": 47,
+      "workflow_contracts": 57,
+      "golden_cards": 20
+    },
+    "search": {
+      "visible_schema_cards": 1,
+      "visible_work_cards": 1
+    },
+    "mobile": {
+      "scroll_width": 390,
+      "inner_width": 390,
+      "scroll_height": 123758,
+      "errors": []
+    }
+  },
+  "qa": {
+    "title": "前期策划｜全章节循环自检报告 v0.6",
+    "desktop": {
+      "scroll_width": 1600,
+      "inner_width": 1600,
+      "scroll_height": 4019,
+      "errors": []
+    },
+    "anchor_counts": {},
+    "chapter_count": 8,
+    "mobile": {
+      "scroll_width": 390,
+      "inner_width": 390,
+      "scroll_height": 11383,
+      "errors": []
+    }
+  }
+}

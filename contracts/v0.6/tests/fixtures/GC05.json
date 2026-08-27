@@ -1,0 +1,589 @@
+{
+  "case_id": "GC05",
+  "name": "全民健身中心公益与资金闭环",
+  "source_materials": [
+    "鄂州市全民健身中心建设项目谋划汇报4.1.pptx"
+  ],
+  "chapters": [
+    "01",
+    "06",
+    "08"
+  ],
+  "objects": [
+    {
+      "object_id": "PS05",
+      "object_type": "ConstraintRegister",
+      "schema_version": "0.6.0",
+      "project_id": "GC05",
+      "chapter_id": "01",
+      "work_item_id": "01-05",
+      "status": "provisional",
+      "revision": 1,
+      "created_at": "2026-08-27T12:00:00+00:00",
+      "updated_at": "2026-08-27T12:00:00+00:00",
+      "created_by": {
+        "actor_id": "AGENT-1",
+        "name": "Preplan Agent",
+        "role": "agent",
+        "organization": null,
+        "authority_scope": [
+          "propose"
+        ],
+        "contact_ref": null
+      },
+      "source_snapshot": {
+        "PS01": 1,
+        "PS03": 1
+      },
+      "data": {
+        "constraints": [
+          {
+            "id": "constraint-1",
+            "name": "项目以公益属性为主"
+          },
+          {
+            "id": "constraint-2",
+            "name": "专项债资金用途适配须验证"
+          }
+        ],
+        "category": "category_sample",
+        "source_level": "law",
+        "effective_status": "effective",
+        "spatial_scope": {
+          "scope_id": "scope_id_sample",
+          "label": "label_sample",
+          "scope_type": "study",
+          "basis": [
+            "basis_sample"
+          ],
+          "status": "provisional"
+        },
+        "flexibility": "flexibility_sample",
+        "assumptions": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "route_tags": [
+          "public_policy"
+        ],
+        "validation_tasks": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "evidence_id": "evidence_id_sample",
+            "asset_id": "asset_id_sample",
+            "version_id": "version_id_sample",
+            "claim_class": "fact",
+            "locator": {}
+          }
+        ]
+      },
+      "quality": {
+        "completeness": 0.8,
+        "consistency": 0.8,
+        "timeliness": 0.8,
+        "traceability": 0.8,
+        "reproducibility": 0.7,
+        "issues": [],
+        "grade": "B"
+      },
+      "approval": {
+        "status": "pending",
+        "required_role": "chapter_reviewer",
+        "approver": null,
+        "approved_at": null,
+        "conditions": [],
+        "comment": ""
+      }
+    },
+    {
+      "object_id": "PG03",
+      "object_type": "CapacityProgram",
+      "schema_version": "0.6.0",
+      "project_id": "GC05",
+      "chapter_id": "06",
+      "work_item_id": "06-03",
+      "status": "provisional",
+      "revision": 1,
+      "created_at": "2026-08-27T12:00:00+00:00",
+      "updated_at": "2026-08-27T12:00:00+00:00",
+      "created_by": {
+        "actor_id": "AGENT-1",
+        "name": "Preplan Agent",
+        "role": "agent",
+        "organization": null,
+        "authority_scope": [
+          "propose"
+        ],
+        "contact_ref": null
+      },
+      "source_snapshot": {
+        "PG01": 1,
+        "PG02": 1,
+        "OP04": 1
+      },
+      "data": {
+        "demand": {
+          "name": "服务人口",
+          "value": 750000,
+          "unit": "人",
+          "basis": "鄂城区及周边服务范围",
+          "source_ref": "全民健身中心谋划材料",
+          "as_of": "2026-01-01",
+          "method": "人口与同类项目比对",
+          "confidence": {
+            "level": "medium",
+            "score": 0.6,
+            "basis": "案例资料",
+            "limitations": [
+              "仍需运动需求调研"
+            ]
+          }
+        },
+        "peak": {
+          "name": "name_sample",
+          "value": 1.0,
+          "unit": "unit_sample"
+        },
+        "throughput": {
+          "name": "name_sample",
+          "value": 1.0,
+          "unit": "unit_sample"
+        },
+        "turnover": {
+          "name": "name_sample",
+          "value": 1.0,
+          "unit": "unit_sample"
+        },
+        "utilization": {
+          "name": "name_sample",
+          "value": 1.0,
+          "unit": "unit_sample"
+        },
+        "quantities": [
+          {
+            "name": "name_sample",
+            "value": 1.0,
+            "unit": "unit_sample"
+          }
+        ],
+        "net_areas": [
+          {
+            "name": "name_sample",
+            "value": 1.0,
+            "unit": "unit_sample"
+          }
+        ],
+        "gross_factors": [
+          {
+            "name": "name_sample",
+            "value": 1.0,
+            "unit": "unit_sample"
+          }
+        ],
+        "gross_areas": [
+          {
+            "name": "name_sample",
+            "value": 1.0,
+            "unit": "unit_sample"
+          }
+        ],
+        "ranges": [
+          {
+            "min": 800,
+            "max": 1200,
+            "unit": "person/day",
+            "basis": "峰值区间",
+            "confidence": {
+              "level": "medium",
+              "score": 0.6,
+              "basis": "初步调查",
+              "limitations": []
+            }
+          }
+        ],
+        "formulas": [
+          {
+            "formula_id": "CAP-1",
+            "expression": "peak_demand / turnover / utilization",
+            "output_unit": "person",
+            "parameters": [
+              "peak_demand",
+              "turnover",
+              "utilization"
+            ]
+          }
+        ],
+        "parameter_sources": [
+          {
+            "parameter": "peak_demand",
+            "value": 1000,
+            "unit": "person/day",
+            "source_type": "project_measurement",
+            "evidence_refs": [],
+            "sensitivity_range": {
+              "min": 800,
+              "max": 1200,
+              "unit": "person/day",
+              "basis": "调查波动",
+              "confidence": {
+                "level": "medium",
+                "score": 0.6,
+                "basis": "初步调查",
+                "limitations": []
+              }
+            }
+          }
+        ]
+      },
+      "quality": {
+        "completeness": 0.8,
+        "consistency": 0.8,
+        "timeliness": 0.8,
+        "traceability": 0.8,
+        "reproducibility": 0.7,
+        "issues": [],
+        "grade": "B"
+      },
+      "approval": {
+        "status": "pending",
+        "required_role": "chapter_reviewer",
+        "approver": null,
+        "approved_at": null,
+        "conditions": [],
+        "comment": ""
+      }
+    },
+    {
+      "object_id": "IM02",
+      "object_type": "CostBaseline",
+      "schema_version": "0.6.0",
+      "project_id": "GC05",
+      "chapter_id": "08",
+      "work_item_id": "08-02",
+      "status": "provisional",
+      "revision": 1,
+      "created_at": "2026-08-27T12:00:00+00:00",
+      "updated_at": "2026-08-27T12:00:00+00:00",
+      "created_by": {
+        "actor_id": "AGENT-1",
+        "name": "Preplan Agent",
+        "role": "agent",
+        "organization": null,
+        "authority_scope": [
+          "propose"
+        ],
+        "contact_ref": null
+      },
+      "source_snapshot": {
+        "IM01": 1,
+        "SP06": 1
+      },
+      "data": {
+        "package_costs": [
+          {
+            "name": "项目总投资",
+            "value": 31187.27,
+            "unit": "万元"
+          }
+        ],
+        "quantities": [
+          {
+            "name": "name_sample",
+            "value": 1.0,
+            "unit": "unit_sample"
+          }
+        ],
+        "unit_rates": [
+          {
+            "name": "建筑单方",
+            "value": 6500,
+            "unit": "元/㎡"
+          }
+        ],
+        "base_date": "2026-04-01",
+        "tax_basis": "tax_basis_sample",
+        "capex": {
+          "name": "name_sample",
+          "value": 1.0,
+          "unit": "unit_sample"
+        },
+        "other_fees": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "contingency": "contingency_sample",
+        "financing_cost": {
+          "name": "name_sample",
+          "value": 1.0,
+          "unit": "unit_sample"
+        },
+        "startup_cost": {
+          "name": "name_sample",
+          "value": 1.0,
+          "unit": "unit_sample"
+        },
+        "lifecycle_cost": {
+          "name": "name_sample",
+          "value": 1.0,
+          "unit": "unit_sample"
+        },
+        "ranges": [
+          {
+            "min": 9000,
+            "max": 11000,
+            "unit": "万元",
+            "basis": "概念估算区间",
+            "confidence": {
+              "level": "medium",
+              "score": 0.6,
+              "basis": "工程量与指标",
+              "limitations": []
+            }
+          }
+        ]
+      },
+      "quality": {
+        "completeness": 0.8,
+        "consistency": 0.8,
+        "timeliness": 0.8,
+        "traceability": 0.8,
+        "reproducibility": 0.7,
+        "issues": [],
+        "grade": "B"
+      },
+      "approval": {
+        "status": "pending",
+        "required_role": "chapter_reviewer",
+        "approver": null,
+        "approved_at": null,
+        "conditions": [],
+        "comment": ""
+      }
+    },
+    {
+      "object_id": "IM03",
+      "object_type": "FundingPlan",
+      "schema_version": "0.6.0",
+      "project_id": "GC05",
+      "chapter_id": "08",
+      "work_item_id": "08-03",
+      "status": "provisional",
+      "revision": 1,
+      "created_at": "2026-08-27T12:00:00+00:00",
+      "updated_at": "2026-08-27T12:00:00+00:00",
+      "created_by": {
+        "actor_id": "AGENT-1",
+        "name": "Preplan Agent",
+        "role": "agent",
+        "organization": null,
+        "authority_scope": [
+          "propose"
+        ],
+        "contact_ref": null
+      },
+      "source_snapshot": {
+        "IM01": 1,
+        "IM02": 1,
+        "PG06": 1,
+        "BL01": 1
+      },
+      "data": {
+        "package_id": "package_id_sample",
+        "asset_type": "asset_type_sample",
+        "eligible_sources": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "policy_matches": [
+          {
+            "id": "match-1",
+            "name": "全民健身公共服务投向匹配"
+          }
+        ],
+        "amounts": [
+          {
+            "name": "name_sample",
+            "value": 1.0,
+            "unit": "unit_sample"
+          }
+        ],
+        "conditions": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "timelines": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "funding_gap": "funding_gap_sample",
+        "fallbacks": [
+          {
+            "id": "fallback-1",
+            "name": "专项债不适配时调整建设内容或资金结构"
+          }
+        ],
+        "approval_status": "pending"
+      },
+      "quality": {
+        "completeness": 0.8,
+        "consistency": 0.8,
+        "timeliness": 0.8,
+        "traceability": 0.8,
+        "reproducibility": 0.7,
+        "issues": [],
+        "grade": "B"
+      },
+      "approval": {
+        "status": "pending",
+        "required_role": "chapter_reviewer",
+        "approver": null,
+        "approved_at": null,
+        "conditions": [],
+        "comment": ""
+      }
+    },
+    {
+      "object_id": "IM06",
+      "object_type": "FinancialModel",
+      "schema_version": "0.6.0",
+      "project_id": "GC05",
+      "chapter_id": "08",
+      "work_item_id": "08-06",
+      "status": "provisional",
+      "revision": 1,
+      "created_at": "2026-08-27T12:00:00+00:00",
+      "updated_at": "2026-08-27T12:00:00+00:00",
+      "created_by": {
+        "actor_id": "AGENT-1",
+        "name": "Preplan Agent",
+        "role": "agent",
+        "organization": null,
+        "authority_scope": [
+          "propose"
+        ],
+        "contact_ref": null
+      },
+      "source_snapshot": {
+        "IM02": 1,
+        "IM03": 1,
+        "IM05": 1,
+        "PG06": 1
+      },
+      "data": {
+        "assumptions": [
+          {
+            "id": "A1",
+            "name": "基准利用率假设"
+          }
+        ],
+        "revenues": [
+          {
+            "name": "name_sample",
+            "value": 1.0,
+            "unit": "unit_sample"
+          }
+        ],
+        "opex": {
+          "name": "name_sample",
+          "value": 1.0,
+          "unit": "unit_sample"
+        },
+        "taxes": [
+          {
+            "name": "name_sample",
+            "value": 1.0,
+            "unit": "unit_sample"
+          }
+        ],
+        "capex": {
+          "name": "name_sample",
+          "value": 1.0,
+          "unit": "unit_sample"
+        },
+        "cashflows": [
+          {
+            "name": "年度净现金流",
+            "value": 1000,
+            "unit": "万元/年"
+          }
+        ],
+        "subsidies": [
+          {
+            "name": "name_sample",
+            "value": 1.0,
+            "unit": "unit_sample"
+          }
+        ],
+        "financing": "financing_sample",
+        "npv": 1000,
+        "irr": 0.06,
+        "dscr": 1.26,
+        "scenarios": [
+          {
+            "id": "BASE",
+            "name": "基准情景"
+          },
+          {
+            "id": "DOWN",
+            "name": "收入下降情景"
+          },
+          {
+            "id": "COST",
+            "name": "成本上升情景"
+          }
+        ],
+        "stress_results": [
+          {
+            "id": "stress-1",
+            "name": "收入下降10%"
+          },
+          {
+            "id": "stress-2",
+            "name": "成本上升10%"
+          },
+          {
+            "id": "stress-3",
+            "name": "利率或工期不利变化"
+          }
+        ]
+      },
+      "quality": {
+        "completeness": 0.8,
+        "consistency": 0.8,
+        "timeliness": 0.8,
+        "traceability": 0.8,
+        "reproducibility": 0.7,
+        "issues": [],
+        "grade": "B"
+      },
+      "approval": {
+        "status": "pending",
+        "required_role": "chapter_reviewer",
+        "approver": null,
+        "approved_at": null,
+        "conditions": [],
+        "comment": ""
+      }
+    }
+  ],
+  "assertions": [
+    "公益服务和经营收益分别表达",
+    "规模保留公式、参数来源与区间",
+    "财务模型至少包含三类压力情景"
+  ]
+}

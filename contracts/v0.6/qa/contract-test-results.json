@@ -1,0 +1,4753 @@
+{
+  "generated_at": "2026-08-27T05:53:11+00:00",
+  "total": 949,
+  "passed": 949,
+  "failed": 0,
+  "results": [
+    {
+      "name": "schema-meta:PS01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:PS01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:PS01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:PS02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:PS02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:PS02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:PS03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:PS03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:PS03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:PS04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:PS04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:PS04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:PS05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:PS05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:PS05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:PS06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:PS06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:PS06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:PS07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:PS07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:PS07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:BL01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:BL01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:BL01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:BL02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:BL02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:BL02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:BL03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:BL03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:BL03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:BL04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:BL04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:BL04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:BL05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:BL05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:BL05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:BL06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:BL06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:BL06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:BL07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:BL07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:BL07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:BL08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:BL08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:BL08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:DG01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:DG01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:DG01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:DG02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:DG02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:DG02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:DG03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:DG03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:DG03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:DG04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:DG04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:DG04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:DG05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:DG05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:DG05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:DG06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:DG06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:DG06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:OB01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:OB01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:OB01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:OB02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:OB02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:OB02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:OB03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:OB03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:OB03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:OB04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:OB04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:OB04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:OB05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:OB05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:OB05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:OB06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:OB06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:OB06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:OP01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:OP01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:OP01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:OP02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:OP02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:OP02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:OP03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:OP03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:OP03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:OP04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:OP04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:OP04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:OP05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:OP05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:OP05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:OP06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:OP06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:OP06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:OP07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:OP07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:OP07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:PG01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:PG01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:PG01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:PG02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:PG02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:PG02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:PG03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:PG03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:PG03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:PG04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:PG04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:PG04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:PG05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:PG05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:PG05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:PG06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:PG06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:PG06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:PG07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:PG07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:PG07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:SP01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:SP01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:SP01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:SP02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:SP02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:SP02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:SP03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:SP03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:SP03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:SP04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:SP04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:SP04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:SP05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:SP05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:SP05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:SP06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:SP06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:SP06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:SP07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:SP07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:SP07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:SP08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:SP08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:SP08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:IM01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:IM01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:IM01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:IM02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:IM02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:IM02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:IM03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:IM03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:IM03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:IM04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:IM04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:IM04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:IM05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:IM05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:IM05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:IM06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:IM06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:IM06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:IM07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:IM07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:IM07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-meta:IM08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-positive:IM08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "schema-negative:IM08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T01",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T02",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T03",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T04",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T05",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T06",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T07",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T08",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T09",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T09",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T09",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T09",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T09",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T10",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T10",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T10",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T10",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T10",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T11",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T11",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T11",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T11",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T11",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T12",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T12",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T12",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T12",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T12",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T13",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T13",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T13",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T13",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T13",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T14",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T14",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T14",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T14",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T14",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T15",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T15",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T15",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T15",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T15",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T16",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T16",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T16",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T16",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T16",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T17",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T17",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T17",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T17",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T17",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T18",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T18",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T18",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T18",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T18",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T19",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T19",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T19",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T19",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T19",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T20",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T20",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T20",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T20",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T20",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T21",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T21",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T21",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T21",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T21",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T22",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T22",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T22",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T22",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T22",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T23",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T23",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T23",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T23",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T23",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T24",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T24",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T24",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T24",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T24",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T25",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T25",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T25",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T25",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T25",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T26",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T26",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T26",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T26",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T26",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T27",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T27",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T27",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T27",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T27",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T28",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T28",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T28",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T28",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T28",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T29",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T29",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T29",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T29",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T29",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T30",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T30",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T30",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T30",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T30",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T31",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T31",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T31",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T31",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T31",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T32",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T32",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T32",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T32",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T32",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T33",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T33",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T33",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T33",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T33",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T34",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T34",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T34",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T34",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T34",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T35",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T35",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T35",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T35",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T35",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T36",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T36",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T36",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T36",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T36",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T37",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T37",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T37",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T37",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T37",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T38",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T38",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T38",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T38",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T38",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T39",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T39",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T39",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T39",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T39",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T40",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T40",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T40",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T40",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T40",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T41",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T41",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T41",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T41",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T41",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T42",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T42",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T42",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T42",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T42",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T43",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T43",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T43",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T43",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T43",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T44",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T44",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T44",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T44",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T44",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T45",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T45",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T45",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T45",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T45",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T46",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T46",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T46",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T46",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T46",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-structure:T47",
+      "passed": true,
+      "detail": "set()"
+    },
+    {
+      "name": "tool-input:T47",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-output:T47",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-direct-write:T47",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tool-no-gate-approval:T47",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "model-tool-count",
+      "passed": true,
+      "detail": "['preplanning_apply_commands', 'preplanning_get_context']"
+    },
+    {
+      "name": "model-tool-atomic-internal",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "model-tool-input:preplanning_get_context",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "model-tool-output:preplanning_get_context",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "model-tool-no-direct-write:preplanning_get_context",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "model-tool-input:preplanning_apply_commands",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "model-tool-output:preplanning_apply_commands",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "model-tool-no-direct-write:preplanning_apply_commands",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.01.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.01.01",
+      "passed": true,
+      "detail": "PS01"
+    },
+    {
+      "name": "wf-tools:preplan.wf.01.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.01.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.01.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.01.01",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.01.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.01.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.01.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.01.02",
+      "passed": true,
+      "detail": "PS02"
+    },
+    {
+      "name": "wf-tools:preplan.wf.01.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.01.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.01.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.01.02",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.01.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.01.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.01.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.01.03",
+      "passed": true,
+      "detail": "PS03"
+    },
+    {
+      "name": "wf-tools:preplan.wf.01.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.01.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.01.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.01.03",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.01.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.01.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.01.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.01.04",
+      "passed": true,
+      "detail": "PS04"
+    },
+    {
+      "name": "wf-tools:preplan.wf.01.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.01.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.01.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.01.04",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.01.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.01.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.01.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.01.05",
+      "passed": true,
+      "detail": "PS05"
+    },
+    {
+      "name": "wf-tools:preplan.wf.01.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.01.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.01.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.01.05",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.01.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.01.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.01.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.01.06",
+      "passed": true,
+      "detail": "PS06"
+    },
+    {
+      "name": "wf-tools:preplan.wf.01.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.01.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.01.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.01.06",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.01.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.01.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.01.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.01.07",
+      "passed": true,
+      "detail": "PS07"
+    },
+    {
+      "name": "wf-tools:preplan.wf.01.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.01.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.01.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.01.07",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.01.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.02.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.02.01",
+      "passed": true,
+      "detail": "BL01"
+    },
+    {
+      "name": "wf-tools:preplan.wf.02.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.02.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.02.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.02.01",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.02.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.02.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.02.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.02.02",
+      "passed": true,
+      "detail": "BL02"
+    },
+    {
+      "name": "wf-tools:preplan.wf.02.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.02.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.02.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.02.02",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.02.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.02.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.02.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.02.03",
+      "passed": true,
+      "detail": "BL03"
+    },
+    {
+      "name": "wf-tools:preplan.wf.02.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.02.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.02.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.02.03",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.02.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.02.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.02.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.02.04",
+      "passed": true,
+      "detail": "BL04"
+    },
+    {
+      "name": "wf-tools:preplan.wf.02.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.02.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.02.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.02.04",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.02.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.02.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.02.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.02.05",
+      "passed": true,
+      "detail": "BL05"
+    },
+    {
+      "name": "wf-tools:preplan.wf.02.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.02.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.02.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.02.05",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.02.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.02.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.02.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.02.06",
+      "passed": true,
+      "detail": "BL06"
+    },
+    {
+      "name": "wf-tools:preplan.wf.02.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.02.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.02.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.02.06",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.02.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.02.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.02.07",
+      "passed": true,
+      "detail": "BL07"
+    },
+    {
+      "name": "wf-tools:preplan.wf.02.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.02.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.02.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.02.07",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.02.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.02.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.02.08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.02.08",
+      "passed": true,
+      "detail": "BL08"
+    },
+    {
+      "name": "wf-tools:preplan.wf.02.08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.02.08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.02.08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.02.08",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.02.08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.02.08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.03.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.03.01",
+      "passed": true,
+      "detail": "DG01"
+    },
+    {
+      "name": "wf-tools:preplan.wf.03.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.03.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.03.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.03.01",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.03.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.03.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.03.02",
+      "passed": true,
+      "detail": "DG02"
+    },
+    {
+      "name": "wf-tools:preplan.wf.03.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.03.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.03.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.03.02",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.03.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.03.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.03.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.03.03",
+      "passed": true,
+      "detail": "DG03"
+    },
+    {
+      "name": "wf-tools:preplan.wf.03.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.03.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.03.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.03.03",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.03.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.03.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.03.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.03.04",
+      "passed": true,
+      "detail": "DG04"
+    },
+    {
+      "name": "wf-tools:preplan.wf.03.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.03.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.03.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.03.04",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.03.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.03.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.03.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.03.05",
+      "passed": true,
+      "detail": "DG05"
+    },
+    {
+      "name": "wf-tools:preplan.wf.03.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.03.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.03.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.03.05",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.03.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.03.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.03.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.03.06",
+      "passed": true,
+      "detail": "DG06"
+    },
+    {
+      "name": "wf-tools:preplan.wf.03.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.03.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.03.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.03.06",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.03.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.03.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.04.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.04.01",
+      "passed": true,
+      "detail": "OB01"
+    },
+    {
+      "name": "wf-tools:preplan.wf.04.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.04.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.04.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.04.01",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.04.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.04.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.04.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.04.02",
+      "passed": true,
+      "detail": "OB02"
+    },
+    {
+      "name": "wf-tools:preplan.wf.04.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.04.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.04.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.04.02",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.04.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.04.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.04.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.04.03",
+      "passed": true,
+      "detail": "OB03"
+    },
+    {
+      "name": "wf-tools:preplan.wf.04.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.04.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.04.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.04.03",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.04.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.04.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.04.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.04.04",
+      "passed": true,
+      "detail": "OB04"
+    },
+    {
+      "name": "wf-tools:preplan.wf.04.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.04.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.04.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.04.04",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.04.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.04.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.04.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.04.05",
+      "passed": true,
+      "detail": "OB05"
+    },
+    {
+      "name": "wf-tools:preplan.wf.04.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.04.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.04.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.04.05",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.04.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.04.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.04.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.04.06",
+      "passed": true,
+      "detail": "OB06"
+    },
+    {
+      "name": "wf-tools:preplan.wf.04.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.04.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.04.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.04.06",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.04.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.04.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.05.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.05.01",
+      "passed": true,
+      "detail": "OP01"
+    },
+    {
+      "name": "wf-tools:preplan.wf.05.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.05.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.05.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.05.01",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.05.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.05.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.05.02",
+      "passed": true,
+      "detail": "OP02"
+    },
+    {
+      "name": "wf-tools:preplan.wf.05.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.05.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.05.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.05.02",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.05.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.05.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.05.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.05.03",
+      "passed": true,
+      "detail": "OP03"
+    },
+    {
+      "name": "wf-tools:preplan.wf.05.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.05.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.05.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.05.03",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.05.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.05.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.05.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.05.04",
+      "passed": true,
+      "detail": "OP04"
+    },
+    {
+      "name": "wf-tools:preplan.wf.05.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.05.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.05.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.05.04",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.05.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.05.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.05.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.05.05",
+      "passed": true,
+      "detail": "OP05"
+    },
+    {
+      "name": "wf-tools:preplan.wf.05.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.05.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.05.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.05.05",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.05.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.05.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.05.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.05.06",
+      "passed": true,
+      "detail": "OP06"
+    },
+    {
+      "name": "wf-tools:preplan.wf.05.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.05.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.05.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.05.06",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.05.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.05.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.05.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.05.07",
+      "passed": true,
+      "detail": "OP07"
+    },
+    {
+      "name": "wf-tools:preplan.wf.05.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.05.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.05.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.05.07",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.05.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.05.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.06.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.06.01",
+      "passed": true,
+      "detail": "PG01"
+    },
+    {
+      "name": "wf-tools:preplan.wf.06.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.06.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.06.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.06.01",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.06.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.06.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.06.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.06.02",
+      "passed": true,
+      "detail": "PG02"
+    },
+    {
+      "name": "wf-tools:preplan.wf.06.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.06.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.06.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.06.02",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.06.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.06.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.06.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.06.03",
+      "passed": true,
+      "detail": "PG03"
+    },
+    {
+      "name": "wf-tools:preplan.wf.06.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.06.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.06.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.06.03",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.06.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.06.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.06.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.06.04",
+      "passed": true,
+      "detail": "PG04"
+    },
+    {
+      "name": "wf-tools:preplan.wf.06.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.06.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.06.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.06.04",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.06.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.06.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.06.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.06.05",
+      "passed": true,
+      "detail": "PG05"
+    },
+    {
+      "name": "wf-tools:preplan.wf.06.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.06.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.06.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.06.05",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.06.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.06.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.06.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.06.06",
+      "passed": true,
+      "detail": "PG06"
+    },
+    {
+      "name": "wf-tools:preplan.wf.06.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.06.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.06.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.06.06",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.06.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.06.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.06.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.06.07",
+      "passed": true,
+      "detail": "PG07"
+    },
+    {
+      "name": "wf-tools:preplan.wf.06.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.06.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.06.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.06.07",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.06.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.06.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.07.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.07.01",
+      "passed": true,
+      "detail": "SP01"
+    },
+    {
+      "name": "wf-tools:preplan.wf.07.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.07.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.07.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.07.01",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.07.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.07.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.07.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.07.02",
+      "passed": true,
+      "detail": "SP02"
+    },
+    {
+      "name": "wf-tools:preplan.wf.07.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.07.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.07.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.07.02",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.07.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.07.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.07.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.07.03",
+      "passed": true,
+      "detail": "SP03"
+    },
+    {
+      "name": "wf-tools:preplan.wf.07.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.07.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.07.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.07.03",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.07.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.07.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.07.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.07.04",
+      "passed": true,
+      "detail": "SP04"
+    },
+    {
+      "name": "wf-tools:preplan.wf.07.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.07.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.07.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.07.04",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.07.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.07.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.07.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.07.05",
+      "passed": true,
+      "detail": "SP05"
+    },
+    {
+      "name": "wf-tools:preplan.wf.07.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.07.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.07.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.07.05",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.07.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.07.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.07.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.07.06",
+      "passed": true,
+      "detail": "SP06"
+    },
+    {
+      "name": "wf-tools:preplan.wf.07.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.07.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.07.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.07.06",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.07.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.07.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.07.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.07.07",
+      "passed": true,
+      "detail": "SP07"
+    },
+    {
+      "name": "wf-tools:preplan.wf.07.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.07.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.07.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.07.07",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.07.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.07.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.07.08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.07.08",
+      "passed": true,
+      "detail": "SP08"
+    },
+    {
+      "name": "wf-tools:preplan.wf.07.08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.07.08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.07.08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.07.08",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.07.08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.07.08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.08.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.08.01",
+      "passed": true,
+      "detail": "IM01"
+    },
+    {
+      "name": "wf-tools:preplan.wf.08.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.08.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.08.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.08.01",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.08.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.08.01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.08.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.08.02",
+      "passed": true,
+      "detail": "IM02"
+    },
+    {
+      "name": "wf-tools:preplan.wf.08.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.08.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.08.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.08.02",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.08.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.08.02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.08.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.08.03",
+      "passed": true,
+      "detail": "IM03"
+    },
+    {
+      "name": "wf-tools:preplan.wf.08.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.08.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.08.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.08.03",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.08.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.08.03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.08.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.08.04",
+      "passed": true,
+      "detail": "IM04"
+    },
+    {
+      "name": "wf-tools:preplan.wf.08.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.08.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.08.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.08.04",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.08.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.08.04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.08.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.08.05",
+      "passed": true,
+      "detail": "IM05"
+    },
+    {
+      "name": "wf-tools:preplan.wf.08.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.08.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.08.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.08.05",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.08.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.08.05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.08.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.08.06",
+      "passed": true,
+      "detail": "IM06"
+    },
+    {
+      "name": "wf-tools:preplan.wf.08.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.08.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.08.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.08.06",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.08.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.08.06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.08.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.08.07",
+      "passed": true,
+      "detail": "IM07"
+    },
+    {
+      "name": "wf-tools:preplan.wf.08.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.08.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.08.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.08.07",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.08.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.08.07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-id:preplan.wf.08.08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-write:preplan.wf.08.08",
+      "passed": true,
+      "detail": "IM08"
+    },
+    {
+      "name": "wf-tools:preplan.wf.08.08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-no-direct-write:preplan.wf.08.08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-agent-no-approve:preplan.wf.08.08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-all-states-reachable:preplan.wf.08.08",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "wf-provisional-guarded:preplan.wf.08.08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wf-review-required:preplan.wf.08.08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "permission-agent-no-gate",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "permission-service-no-gate",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "permission-only-authority-waives",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "gate-objects:G1",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "gate-human:G1",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "gate-conditional:G1",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "gate-objects:G2",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "gate-human:G2",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "gate-conditional:G2",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "gate-objects:G3",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "gate-human:G3",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "gate-conditional:G3",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "gate-objects:G4",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "gate-human:G4",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "gate-conditional:G4",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "gate-objects:G5",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "gate-human:G5",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "gate-conditional:G5",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "gate-objects:G6",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "gate-human:G6",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "gate-conditional:G6",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "gate-objects:G7",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "gate-human:G7",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "gate-conditional:G7",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "gate-objects:G8",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "gate-human:G8",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "gate-conditional:G8",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "dependency-57",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "dependency-acyclic",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "revision-history",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "revision-minimal",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "sem-02-baseline",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "sem-DG05-conditions",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "sem-DG05-invalidations",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "sem-OB05-hypothesis",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "sem-OP02-three",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "sem-OP06-veto",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "sem-PG03-reproducible",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "sem-SP03-five",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "sem-IM06-stress",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "golden:GC01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "golden:GC02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "golden:GC03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "golden:GC04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "golden:GC05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "golden:GC06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "golden:GC07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "golden:GC08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "golden-revision:GC08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "acceptance-count-20",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "acceptance-id-unique",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "acceptance-structure:GT-01",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "acceptance-structure:GT-02",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "acceptance-structure:GT-03",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "acceptance-structure:GT-04",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "acceptance-structure:GT-05",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "acceptance-structure:GT-06",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "acceptance-structure:GT-07",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "acceptance-structure:GT-08",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "acceptance-structure:GT-09",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "acceptance-structure:GT-10",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "acceptance-structure:GT-11",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "acceptance-structure:GT-12",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "acceptance-structure:GT-13",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "acceptance-structure:GT-14",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "acceptance-structure:GT-15",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "acceptance-structure:GT-16",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "acceptance-structure:GT-17",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "acceptance-structure:GT-18",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "acceptance-structure:GT-19",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "acceptance-structure:GT-20",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "acceptance-coverage:01",
+      "passed": true,
+      "detail": "6"
+    },
+    {
+      "name": "acceptance-coverage:02",
+      "passed": true,
+      "detail": "5"
+    },
+    {
+      "name": "acceptance-coverage:03",
+      "passed": true,
+      "detail": "5"
+    },
+    {
+      "name": "acceptance-coverage:04",
+      "passed": true,
+      "detail": "6"
+    },
+    {
+      "name": "acceptance-coverage:05",
+      "passed": true,
+      "detail": "7"
+    },
+    {
+      "name": "acceptance-coverage:06",
+      "passed": true,
+      "detail": "6"
+    },
+    {
+      "name": "acceptance-coverage:07",
+      "passed": true,
+      "detail": "6"
+    },
+    {
+      "name": "acceptance-coverage:08",
+      "passed": true,
+      "detail": "8"
+    },
+    {
+      "name": "plugin-id",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "plugin-repo",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "plugin-package",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "plugin-model-surface",
+      "passed": true,
+      "detail": ""
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "object_id": "PS02",
+  "object_type": "DecisionBrief",
+  "schema_version": "0.6.0",
+  "project_id": "PREPLAN-DEMO-001",
+  "chapter_id": "01",
+  "work_item_id": "01-02",
+  "status": "provisional",
+  "revision": 1,
+  "created_at": "2026-08-27T12:00:00+00:00",
+  "updated_at": "2026-08-27T12:00:00+00:00",
+  "created_by": {
+    "actor_id": "AGENT-1",
+    "name": "Preplan Agent",
+    "role": "agent",
+    "organization": null,
+    "authority_scope": [
+      "propose"
+    ],
+    "contact_ref": null
+  },
+  "source_snapshot": {
+    "PS01": 1
+  },
+  "data": {
+    "decision_question": "鄂州市决策主体需要在既定政策、空间和资金约束下决定优先推进哪一类城市更新路径？",
+    "subquestions": [
+      "优先解决哪些短板？",
+      "哪些资源具备激活条件？"
+    ],
+    "decision_scope": "decision_scope_sample",
+    "excluded_decisions": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "urgency": {
+      "level": "very_low",
+      "rationale": "rationale_sample"
+    },
+    "acceptance_criteria": [
+      "能够支持进入现状摸底",
+      "不预设唯一方案"
+    ],
+    "evidence_refs": [
+      {
+        "evidence_id": "evidence_id_sample",
+        "asset_id": "asset_id_sample",
+        "version_id": "version_id_sample",
+        "claim_class": "fact",
+        "locator": {}
+      }
+    ],
+    "status": "provisional"
+  },
+  "quality": {
+    "completeness": 0.8,
+    "consistency": 0.8,
+    "timeliness": 0.8,
+    "traceability": 0.8,
+    "reproducibility": 0.7,
+    "issues": [],
+    "grade": "B"
+  },
+  "approval": {
+    "status": "pending",
+    "required_role": "chapter_reviewer",
+    "approver": null,
+    "approved_at": null,
+    "conditions": [],
+    "comment": ""
+  }
+}

@@ -1,0 +1,197 @@
+{
+  "version": "0.6.0",
+  "commands": {
+    "create_proposal": {
+      "input_schema": "../common/proposal-envelope.schema.json",
+      "side_effect": "proposal_only",
+      "requires": [
+        "actor_authorized",
+        "target_workflow_active"
+      ]
+    },
+    "validate_proposal": {
+      "service": "T42",
+      "side_effect": "validation_report_only",
+      "requires": [
+        "schema_available",
+        "rule_set_versioned",
+        "permission_context_available",
+        "expected_revision_matches"
+      ]
+    },
+    "commit_provisional": {
+      "actor_roles": [
+        "system_service"
+      ],
+      "side_effect": "new_project_state_revision",
+      "requires": [
+        "T42_pass",
+        "workflow_allows_A3_provisional_commit",
+        "no_high_risk_blocker"
+      ]
+    },
+    "confirm_work_item": {
+      "actor_roles": [
+        "chapter_reviewer",
+        "discipline_reviewer",
+        "decision_owner"
+      ],
+      "side_effect": "confirmed_state_revision",
+      "requires": [
+        "assigned_reviewer",
+        "T42_pass",
+        "professional_signoffs_complete",
+        "expected_revision_matches"
+      ]
+    },
+    "approve_gate": {
+      "actor_roles": [
+        "decision_owner"
+      ],
+      "side_effect": "immutable_decision_snapshot",
+      "requires": [
+        "assigned_gate_approver",
+        "no_hard_blocker",
+        "snapshot_frozen"
+      ]
+    },
+    "approve_gate_with_conditions": {
+      "actor_roles": [
+        "decision_owner"
+      ],
+      "side_effect": "immutable_decision_snapshot_and_tasks",
+      "requires": [
+        "assigned_gate_approver",
+        "only_non_blocking_gaps",
+        "each_condition_has_owner_due_date_and_downstream_task"
+      ]
+    },
+    "return_gate": {
+      "actor_roles": [
+        "decision_owner",
+        "chapter_reviewer"
+      ],
+      "side_effect": "return_record_and_minimal_reopen",
+      "requires": [
+        "return_reason",
+        "minimal_workflow_targets"
+      ]
+    },
+    "waive_hard_constraint": {
+      "actor_roles": [
+        "constraint_authority"
+      ],
+      "side_effect": "waiver_record",
+      "requires": [
+        "authority_scope_matches",
+        "legal_or_organizational_basis",
+        "expiry_or_review_date",
+        "affected_snapshots_invalidated"
+      ]
+    },
+    "apply_revision": {
+      "actor_roles": [
+        "system_service"
+      ],
+      "side_effect": "new_state_revision_and_downstream_stale_flags",
+      "requires": [
+        "revision_approved_or_editorial_only",
+        "impact_plan_complete",
+        "history_preserved"
+      ]
+    },
+    "render_artifact": {
+      "actor_roles": [
+        "system_service",
+        "workflow_operator"
+      ],
+      "side_effect": "artifact_only",
+      "requires": [
+        "report_package_snapshot",
+        "no_artifact_as_fact_source"
+      ]
+    }
+  },
+  "optimistic_concurrency": {
+    "required": true,
+    "field": "expected_revision",
+    "conflict_code": "VERSION_CONFLICT"
+  },
+  "audit": {
+    "append_only": true,
+    "required_fields": [
+      "actor_id",
+      "role",
+      "project_id",
+      "command",
+      "target_id",
+      "input_hash",
+      "result",
+      "timestamp"
+    ]
+  },
+  "model_tool_boundary": {
+    "registered_to_model": [
+      "preplanning_get_context",
+      "preplanning_apply_commands"
+    ],
+    "internal_only": [
+      "T01",
+      "T02",
+      "T03",
+      "T04",
+      "T05",
+      "T06",
+      "T07",
+      "T08",
+      "T09",
+      "T10",
+      "T11",
+      "T12",
+      "T13",
+      "T14",
+      "T15",
+      "T16",
+      "T17",
+      "T18",
+      "T19",
+      "T20",
+      "T21",
+      "T22",
+      "T23",
+      "T24",
+      "T25",
+      "T26",
+      "T27",
+      "T28",
+      "T29",
+      "T30",
+      "T31",
+      "T32",
+      "T33",
+      "T34",
+      "T35",
+      "T36",
+      "T37",
+      "T38",
+      "T39",
+      "T40",
+      "T41",
+      "T42",
+      "T43",
+      "T44",
+      "T45",
+      "T46",
+      "T47"
+    ],
+    "rule": "The model may request workflows and submit structured commands, but cannot invoke internal domain engines as unrestricted public tools."
+  },
+  "durable_question_contract": {
+    "max_open_blocking_questions_per_project": 1,
+    "events": [
+      "preplanning/question-opened",
+      "preplanning/question-answered"
+    ],
+    "answer_continuation": "agent.followup() with structured answer after Project State persistence"
+  }
+}

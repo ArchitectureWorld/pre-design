@@ -1,0 +1,506 @@
+{
+  "case_id": "GC03",
+  "name": "历史街区多层边界与分期",
+  "source_materials": [
+    "20251121鄂州城市更新.pdf",
+    "新民街地块历史文化保护和特色风貌塑造城市更新综合整治规划"
+  ],
+  "chapters": [
+    "01",
+    "02",
+    "07"
+  ],
+  "objects": [
+    {
+      "object_id": "PS03",
+      "object_type": "BoundarySet",
+      "schema_version": "0.6.0",
+      "project_id": "GC03",
+      "chapter_id": "01",
+      "work_item_id": "01-03",
+      "status": "provisional",
+      "revision": 1,
+      "created_at": "2026-08-27T12:00:00+00:00",
+      "updated_at": "2026-08-27T12:00:00+00:00",
+      "created_by": {
+        "actor_id": "AGENT-1",
+        "name": "Preplan Agent",
+        "role": "agent",
+        "organization": null,
+        "authority_scope": [
+          "propose"
+        ],
+        "contact_ref": null
+      },
+      "source_snapshot": {
+        "PS02": 1
+      },
+      "data": {
+        "study_scope": {
+          "scope_id": "PS03-study_scope",
+          "label": "吴王古城新民街约19公顷研究范围",
+          "scope_type": "study",
+          "description": "示例范围",
+          "geometry_refs": [],
+          "basis": [
+            "用户描述与既有资料"
+          ],
+          "status": "provisional"
+        },
+        "impact_scope": {
+          "scope_id": "PS03-impact_scope",
+          "label": "impact_scope",
+          "scope_type": "impact",
+          "description": "示例范围",
+          "geometry_refs": [],
+          "basis": [
+            "用户描述与既有资料"
+          ],
+          "status": "provisional"
+        },
+        "implementation_scope": {
+          "scope_id": "PS03-implementation_scope",
+          "label": "近期沿江大道首期更新范围",
+          "scope_type": "implementation",
+          "description": "示例范围",
+          "geometry_refs": [],
+          "basis": [
+            "用户描述与既有资料"
+          ],
+          "status": "provisional"
+        },
+        "content_scope": {
+          "scope_id": "PS03-content_scope",
+          "label": "content_scope",
+          "scope_type": "content",
+          "description": "示例范围",
+          "geometry_refs": [],
+          "basis": [
+            "用户描述与既有资料"
+          ],
+          "status": "provisional"
+        },
+        "phase_scope": {
+          "scope_id": "PS03-phase_scope",
+          "label": "phase_scope",
+          "scope_type": "phase",
+          "description": "近期改善交通与民生，远期开展遗址保护展示",
+          "geometry_refs": [],
+          "basis": [
+            "用户描述与既有资料"
+          ],
+          "status": "provisional"
+        },
+        "exclusions": [],
+        "geometry_refs": [],
+        "basis": "basis_sample",
+        "confidence": {
+          "level": "very_low",
+          "score": 1.0,
+          "basis": "basis_sample"
+        },
+        "status": "provisional"
+      },
+      "quality": {
+        "completeness": 0.8,
+        "consistency": 0.8,
+        "timeliness": 0.8,
+        "traceability": 0.8,
+        "reproducibility": 0.7,
+        "issues": [],
+        "grade": "B"
+      },
+      "approval": {
+        "status": "pending",
+        "required_role": "chapter_reviewer",
+        "approver": null,
+        "approved_at": null,
+        "conditions": [],
+        "comment": ""
+      }
+    },
+    {
+      "object_id": "BL04",
+      "object_type": "SpatialBuildingBaseline",
+      "schema_version": "0.6.0",
+      "project_id": "GC03",
+      "chapter_id": "02",
+      "work_item_id": "02-04",
+      "status": "provisional",
+      "revision": 1,
+      "created_at": "2026-08-27T12:00:00+00:00",
+      "updated_at": "2026-08-27T12:00:00+00:00",
+      "created_by": {
+        "actor_id": "AGENT-1",
+        "name": "Preplan Agent",
+        "role": "agent",
+        "organization": null,
+        "authority_scope": [
+          "propose"
+        ],
+        "contact_ref": null
+      },
+      "source_snapshot": {
+        "PS03": 1,
+        "BL02": 1,
+        "PS07": 1
+      },
+      "data": {
+        "objects": [
+          {
+            "id": "building-1",
+            "name": "历史建筑"
+          },
+          {
+            "id": "building-2",
+            "name": "传统风貌建筑"
+          },
+          {
+            "id": "building-3",
+            "name": "一般建筑"
+          },
+          {
+            "id": "building-4",
+            "name": "现代建筑"
+          }
+        ],
+        "geometry": [
+          {
+            "geometry_id": "geometry_id_sample",
+            "geometry_type": "Point",
+            "crs": "crs_sample"
+          }
+        ],
+        "land_use": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "building_use": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "areas": [
+          {
+            "name": "name_sample",
+            "value": 1.0,
+            "unit": "unit_sample"
+          }
+        ],
+        "heights": [
+          {
+            "name": "name_sample",
+            "value": 1.0,
+            "unit": "unit_sample"
+          }
+        ],
+        "age": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "condition": "condition_sample",
+        "occupancy": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "heritage": [
+          {
+            "id": "heritage-1",
+            "name": "吴王城遗址及历史节点"
+          }
+        ],
+        "vacancy": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "photo_refs": [
+          {
+            "evidence_id": "evidence_id_sample",
+            "asset_id": "asset_id_sample",
+            "version_id": "version_id_sample",
+            "claim_class": "fact",
+            "locator": {}
+          }
+        ],
+        "confidence": {
+          "level": "medium",
+          "score": 0.65,
+          "basis": "现场调研与既有资料",
+          "limitations": [
+            "部分建筑仍需结构检测"
+          ]
+        }
+      },
+      "quality": {
+        "completeness": 0.8,
+        "consistency": 0.8,
+        "timeliness": 0.8,
+        "traceability": 0.8,
+        "reproducibility": 0.7,
+        "issues": [],
+        "grade": "B"
+      },
+      "approval": {
+        "status": "pending",
+        "required_role": "chapter_reviewer",
+        "approver": null,
+        "approved_at": null,
+        "conditions": [],
+        "comment": ""
+      }
+    },
+    {
+      "object_id": "SP03",
+      "object_type": "BuildingInterventionPlan",
+      "schema_version": "0.6.0",
+      "project_id": "GC03",
+      "chapter_id": "07",
+      "work_item_id": "07-03",
+      "status": "provisional",
+      "revision": 1,
+      "created_at": "2026-08-27T12:00:00+00:00",
+      "updated_at": "2026-08-27T12:00:00+00:00",
+      "created_by": {
+        "actor_id": "AGENT-1",
+        "name": "Preplan Agent",
+        "role": "agent",
+        "organization": null,
+        "authority_scope": [
+          "propose"
+        ],
+        "contact_ref": null
+      },
+      "source_snapshot": {
+        "BL02": 1,
+        "BL04": 1,
+        "SP02": 1
+      },
+      "data": {
+        "building_refs": [
+          {
+            "id": "B1",
+            "name": "示例既有建筑"
+          }
+        ],
+        "heritage_value": [
+          {
+            "id": "heritage_value",
+            "name": "历史价值"
+          }
+        ],
+        "safety": [
+          {
+            "id": "safety",
+            "name": "安全状态"
+          }
+        ],
+        "use_fit": [
+          {
+            "id": "use_fit",
+            "name": "使用适配"
+          }
+        ],
+        "ownership": [
+          {
+            "id": "ownership",
+            "name": "产权状态"
+          }
+        ],
+        "cost_range": [
+          {
+            "min": 1000,
+            "max": 2000,
+            "unit": "万元",
+            "basis": "初步估算",
+            "confidence": {
+              "level": "low",
+              "score": 0.4,
+              "basis": "概念阶段",
+              "limitations": [
+                "未完成检测"
+              ]
+            }
+          }
+        ],
+        "action": [
+          {
+            "id": "action-1",
+            "name": "保护修缮"
+          },
+          {
+            "id": "action-2",
+            "name": "功能改变"
+          },
+          {
+            "id": "action-3",
+            "name": "局部改扩建"
+          },
+          {
+            "id": "action-4",
+            "name": "局部拆建"
+          }
+        ],
+        "conditions": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "required_inspections": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "approval_status": "pending"
+      },
+      "quality": {
+        "completeness": 0.8,
+        "consistency": 0.8,
+        "timeliness": 0.8,
+        "traceability": 0.8,
+        "reproducibility": 0.7,
+        "issues": [],
+        "grade": "B"
+      },
+      "approval": {
+        "status": "pending",
+        "required_role": "chapter_reviewer",
+        "approver": null,
+        "approved_at": null,
+        "conditions": [],
+        "comment": ""
+      }
+    },
+    {
+      "object_id": "SP08",
+      "object_type": "SpatialPhasingPlan",
+      "schema_version": "0.6.0",
+      "project_id": "GC03",
+      "chapter_id": "07",
+      "work_item_id": "07-08",
+      "status": "provisional",
+      "revision": 1,
+      "created_at": "2026-08-27T12:00:00+00:00",
+      "updated_at": "2026-08-27T12:00:00+00:00",
+      "created_by": {
+        "actor_id": "AGENT-1",
+        "name": "Preplan Agent",
+        "role": "agent",
+        "organization": null,
+        "authority_scope": [
+          "propose"
+        ],
+        "contact_ref": null
+      },
+      "source_snapshot": {
+        "SP01": 1,
+        "SP02": 1,
+        "SP03": 1,
+        "SP04": 1,
+        "SP05": 1,
+        "SP06": 1,
+        "SP07": 1
+      },
+      "data": {
+        "phases": [
+          {
+            "id": "phase-1",
+            "name": "近期实施"
+          },
+          {
+            "id": "phase-2",
+            "name": "远期规划"
+          }
+        ],
+        "scope": {
+          "scope_id": "scope_id_sample",
+          "label": "label_sample",
+          "scope_type": "study",
+          "basis": [
+            "basis_sample"
+          ],
+          "status": "provisional"
+        },
+        "prerequisites": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "temporary_uses": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "relocations": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "access": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "independent_operation": [
+          {
+            "id": "operation-1",
+            "name": "近期阶段可独立运行"
+          }
+        ],
+        "handover": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "future_reserve": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ],
+        "risks": [
+          {
+            "id": "id_sample",
+            "name": "name_sample"
+          }
+        ]
+      },
+      "quality": {
+        "completeness": 0.8,
+        "consistency": 0.8,
+        "timeliness": 0.8,
+        "traceability": 0.8,
+        "reproducibility": 0.7,
+        "issues": [],
+        "grade": "B"
+      },
+      "approval": {
+        "status": "pending",
+        "required_role": "chapter_reviewer",
+        "approver": null,
+        "approved_at": null,
+        "conditions": [],
+        "comment": ""
+      }
+    }
+  ],
+  "assertions": [
+    "研究范围、近期实施和远期规划分别表达",
+    "拆改留不能只由年代或外观决定"
+  ]
+}

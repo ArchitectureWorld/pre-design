@@ -1,0 +1,82 @@
+{
+  "version": "0.6.0",
+  "generated_at": "2026-08-27T05:37:08+00:00",
+  "passed": true,
+  "counts": {
+    "chapters": 8,
+    "state_schemas": 57,
+    "atomic_tool_contracts": 47,
+    "workflow_state_machines": 57,
+    "gate_contracts": 8,
+    "rule_level_golden_tests": 20,
+    "end_to_end_golden_scenarios": 8,
+    "executable_contract_assertions": 949
+  },
+  "chapter_loop": {
+    "passed": true,
+    "chapters": [
+      [
+        "01",
+        true
+      ],
+      [
+        "02",
+        true
+      ],
+      [
+        "03",
+        true
+      ],
+      [
+        "04",
+        true
+      ],
+      [
+        "05",
+        true
+      ],
+      [
+        "06",
+        true
+      ],
+      [
+        "07",
+        true
+      ],
+      [
+        "08",
+        true
+      ]
+    ]
+  },
+  "contract_tests": {
+    "total": 949,
+    "passed": 949,
+    "failed": 0
+  },
+  "html": {
+    "main_desktop_overflow": 0,
+    "main_mobile_overflow": 0,
+    "main_console_errors": [],
+    "self_check_desktop_overflow": 0,
+    "self_check_mobile_overflow": 0,
+    "self_check_console_errors": [],
+    "component_counts": {
+      "work_cards": 57,
+      "schema_cards": 57,
+      "tool_contracts": 47,
+      "workflow_contracts": 57,
+      "golden_cards": 20
+    }
+  },
+  "integrity": {
+    "main_latest_same": true,
+    "state_schema_files": 57,
+    "tool_contract_files": 47,
+    "workflow_contract_files": 57,
+    "gate_contract_files": 8,
+    "valid_fixtures": 57,
+    "invalid_fixtures": 57
+  },
+  "canonical_note": "Final canonical package includes 2 model-facing tool contracts and 20 rule-level acceptance scenarios; live contract suite is 949/949."
+}

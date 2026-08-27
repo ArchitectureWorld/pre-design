@@ -1,0 +1,47 @@
+{
+  "handoff_package": "前期策划_DSH插件开发_下一会话交接包_FINAL_v2.0",
+  "version": "2.0",
+  "generated_at": "2026-08-27T06:26:42.290035+00:00",
+  "canonical_contract": {
+    "file": "03_前期策划_v0.6_DSH完整技术合同包_CANONICAL_949.zip",
+    "expected_assertions": 949,
+    "expected_result": "949 passed / 0 failed"
+  },
+  "files": [
+    {
+      "name": "00_README_START_HERE.md",
+      "size_bytes": 1043,
+      "sha256": "1bb95ab72d976a41d52801a80942f6c7a86655955baa46bd9f56774a78a4b9e0"
+    },
+    {
+      "name": "01_前期策划Agent_DSH插件开发_HANDOFF_FINAL_v2.0.md",
+      "size_bytes": 32295,
+      "sha256": "5088ac77d508834b612f6b8980dc0735e009cc1997696ce78aa3f0228b6cb18e"
+    },
+    {
+      "name": "02_下一会话启动指令_前期策划_DSH插件开发_v2.0.txt",
+      "size_bytes": 1991,
+      "sha256": "108d94847694a583fe58139dd7346b0420860437453d5e8ba41fdf3856edf873"
+    },
+    {
+      "name": "03_前期策划_v0.6_DSH完整技术合同包_CANONICAL_949.zip",
+      "size_bytes": 1830298,
+      "sha256": "5560fc79f75cf3730842a9698a5512f4582e2d7c4a5f86a8088c9a1e261f8308"
+    },
+    {
+      "name": "04_前期策划_章节工具级母架构_LATEST.html",
+      "size_bytes": 1930217,
+      "sha256": "22e174dc7fc807484c2c36f8d0254ad8ce95d45d1d869096f2eb5c26e5b26dde"
+    },
+    {
+      "name": "05_前期策划_全章节循环自检报告_v0.6.html",
+      "size_bytes": 20479,
+      "sha256": "78e4570247a28f1544a6b8fbe3b41947057199a48e8f7c23067adfd082a3fa15"
+    },
+    {
+      "name": "06_前期策划_DSH插件技术合同_v0.6.md",
+      "size_bytes": 12258,
+      "sha256": "334453100bd250ccf03751d07b1e71844759b984b2b732de3bad29aacc2b3d30"
+    }
+  ]
+}

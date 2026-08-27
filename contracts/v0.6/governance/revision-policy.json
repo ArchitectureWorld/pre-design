@@ -1,0 +1,99 @@
+{
+  "version": "0.6.0",
+  "revision_schema": "../common/revision-request.schema.json",
+  "types": {
+    "evidence_update": {
+      "semantic_by_default": true,
+      "examples": [
+        "新资料到达",
+        "旧版资料被替换",
+        "来源冲突解决"
+      ]
+    },
+    "boundary_change": {
+      "semantic_by_default": true,
+      "minimum_reopen": [
+        "PS03"
+      ],
+      "always_invalidate_downstream": true
+    },
+    "policy_change": {
+      "semantic_by_default": true,
+      "minimum_reopen": [
+        "BL01",
+        "PS05"
+      ],
+      "always_invalidate_downstream": true
+    },
+    "cost_base_change": {
+      "semantic_by_default": true,
+      "minimum_reopen": [
+        "OP04",
+        "IM02",
+        "IM06"
+      ],
+      "always_invalidate_downstream": false
+    },
+    "decision_change": {
+      "semantic_by_default": true,
+      "minimum_reopen": [
+        "PS02",
+        "OB01",
+        "OP07"
+      ],
+      "always_invalidate_downstream": true
+    },
+    "method_change": {
+      "semantic_by_default": true,
+      "minimum_reopen": "object_using_method",
+      "always_invalidate_downstream": true
+    },
+    "editorial_only": {
+      "semantic_by_default": false,
+      "examples": [
+        "错别字",
+        "显示顺序",
+        "不改变语义的标题"
+      ],
+      "always_invalidate_downstream": false
+    }
+  },
+  "algorithm": [
+    "1. 校验 RevisionRequest 与 actor 权限。",
+    "2. 将 semantic_paths 与对象 Schema 中的语义字段匹配；editorial_only 仍需机器确认。",
+    "3. 对语义变更，从 source_object_id 沿 dependency-graph 计算所有 descendants。",
+    "4. 创建新的 source object revision；不覆盖旧版本和 DecisionSnapshot。",
+    "5. 将受影响 descendants 标记 stale，并生成 reopen_workflows；未受影响对象保持 confirmed。",
+    "6. 重新执行的 Workflow 必须引用新 upstream revision，完成后按拓扑顺序解除 stale。",
+    "7. 任一已批准 Gate 的 snapshot 若包含旧 revision，保留原记录并标记 STALE，重新审批。"
+  ],
+  "minimal_rollback": {
+    "principle": "最小影响，不清空全项目。",
+    "reopen_source_workflow": true,
+    "reopen_only_transitive_descendants": true,
+    "preserve_unaffected_confirmations": true,
+    "preserve_all_history": true
+  },
+  "commands": [
+    "create_revision",
+    "assess_revision",
+    "approve_revision",
+    "apply_revision"
+  ],
+  "approval": {
+    "editorial_only": [
+      "system_service"
+    ],
+    "semantic_M_or_L": [
+      "chapter_reviewer",
+      "decision_owner"
+    ],
+    "semantic_H_or_gate_impact": [
+      "decision_owner",
+      "discipline_reviewer"
+    ],
+    "hard_constraint_waiver": [
+      "constraint_authority"
+    ]
+  }
+}

@@ -1,0 +1,88 @@
+{
+  "object_id": "IM03",
+  "object_type": "FundingPlan",
+  "schema_version": "0.6.0",
+  "project_id": "PREPLAN-DEMO-001",
+  "chapter_id": "08",
+  "work_item_id": "08-03",
+  "status": "provisional",
+  "revision": 1,
+  "created_at": "2026-08-27T12:00:00+00:00",
+  "updated_at": "2026-08-27T12:00:00+00:00",
+  "created_by": {
+    "actor_id": "AGENT-1",
+    "name": "Preplan Agent",
+    "role": "agent",
+    "organization": null,
+    "authority_scope": [
+      "propose"
+    ],
+    "contact_ref": null
+  },
+  "source_snapshot": {
+    "IM01": 1,
+    "IM02": 1,
+    "PG06": 1,
+    "BL01": 1
+  },
+  "data": {
+    "package_id": "package_id_sample",
+    "asset_type": "asset_type_sample",
+    "eligible_sources": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "policy_matches": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "amounts": [
+      {
+        "name": "name_sample",
+        "value": 1.0,
+        "unit": "unit_sample"
+      }
+    ],
+    "conditions": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "timelines": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "funding_gap": "funding_gap_sample",
+    "fallbacks": [
+      {
+        "id": "id_sample",
+        "name": "name_sample"
+      }
+    ],
+    "approval_status": "pending"
+  },
+  "quality": {
+    "completeness": 0.8,
+    "consistency": 0.8,
+    "timeliness": 0.8,
+    "traceability": 0.8,
+    "reproducibility": 0.7,
+    "issues": [],
+    "grade": "B"
+  },
+  "approval": {
+    "status": "pending",
+    "required_role": "chapter_reviewer",
+    "approver": null,
+    "approved_at": null,
+    "conditions": [],
+    "comment": ""
+  }
+}

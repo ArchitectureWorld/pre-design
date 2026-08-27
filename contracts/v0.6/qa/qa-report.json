@@ -1,0 +1,415 @@
+{
+  "version": "0.6.0",
+  "generated_at": "2026-08-27T05:53:11+00:00",
+  "canonical": true,
+  "plugin_identity": {
+    "repository": "dsh-preplanning-agent",
+    "package": "@architectureworld/dsh-preplanning-agent",
+    "plugin_id": "preplanning-agent"
+  },
+  "counts": {
+    "chapters": 8,
+    "work_items": 57,
+    "state_schemas": 57,
+    "atomic_tool_contracts": 47,
+    "model_facing_tools": 2,
+    "workflow_contracts": 57,
+    "gate_contracts": 8,
+    "executable_golden_cases": 8,
+    "rule_level_acceptance_scenarios": 20,
+    "test_assertions": 949,
+    "test_passed": 949,
+    "test_failed": 0
+  },
+  "structural_checks": {
+    "chapter_numbers_exact_01_to_08": true,
+    "object_ids_unique": true,
+    "workflow_ids_unique": true,
+    "tool_ids_exact_T01_to_T47": true,
+    "model_tool_surface_exact_two": true,
+    "all_workflow_states_reachable": true,
+    "acceptance_coverage_each_chapter_ge_2": true,
+    "all_tests_pass": true,
+    "latest_matches_main": true
+  },
+  "chapter_loop_checks": {
+    "01": {
+      "title": "项目任务",
+      "object_ids": [
+        "PS01",
+        "PS02",
+        "PS03",
+        "PS04",
+        "PS05",
+        "PS06",
+        "PS07"
+      ],
+      "workflow_ids": [
+        "preplan.wf.01.01",
+        "preplan.wf.01.02",
+        "preplan.wf.01.03",
+        "preplan.wf.01.04",
+        "preplan.wf.01.05",
+        "preplan.wf.01.06",
+        "preplan.wf.01.07"
+      ],
+      "counts": {
+        "work_items": 7,
+        "acceptance_scenarios": 6
+      },
+      "checks": {
+        "对象 Schema 完整": true,
+        "正反例均通过": true,
+        "Workflow 全状态可达": true,
+        "工具引用存在且禁止直接写": true,
+        "高风险人工复核": true,
+        "Gate 禁止 Agent/System 批准": true,
+        "规则级验收场景覆盖不少于2项": true
+      },
+      "risks": [
+        "项目启动被误做成完整尽调。",
+        "主动策源被无委托阻断。",
+        "早期路线标签被升级为实施结论。"
+      ],
+      "corrections": [
+        "PS01 支持 active_sourcing/unknown 和 provisional。",
+        "PS05 路线只保留为 route_tags/assumptions。",
+        "G1 只锁定任务基线。"
+      ],
+      "conclusion": "通过：本章完成 Schema、Tool、Workflow、Gate/Revision 与验收场景闭环。",
+      "status": "PASS"
+    },
+    "02": {
+      "title": "现状摸底",
+      "object_ids": [
+        "BL01",
+        "BL02",
+        "BL03",
+        "BL04",
+        "BL05",
+        "BL06",
+        "BL07",
+        "BL08"
+      ],
+      "workflow_ids": [
+        "preplan.wf.02.01",
+        "preplan.wf.02.02",
+        "preplan.wf.02.03",
+        "preplan.wf.02.04",
+        "preplan.wf.02.05",
+        "preplan.wf.02.06",
+        "preplan.wf.02.07",
+        "preplan.wf.02.08"
+      ],
+      "counts": {
+        "work_items": 8,
+        "acceptance_scenarios": 5
+      },
+      "checks": {
+        "对象 Schema 完整": true,
+        "正反例均通过": true,
+        "Workflow 全状态可达": true,
+        "工具引用存在且禁止直接写": true,
+        "高风险人工复核": true,
+        "Gate 禁止 Agent/System 批准": true,
+        "规则级验收场景覆盖不少于2项": true
+      },
+      "risks": [
+        "POI/遥感被误作实测。",
+        "Baseline 混入问题和建议。",
+        "坐标、精度、版本和样本偏差丢失。"
+      ],
+      "corrections": [
+        "BL 对象保留来源、方法、置信度、时间和 provisional/verified。",
+        "02 章仅 Baseline。",
+        "空间与调查合同保留 CRS、精度、样本和时效。"
+      ],
+      "conclusion": "通过：本章完成 Schema、Tool、Workflow、Gate/Revision 与验收场景闭环。",
+      "status": "PASS"
+    },
+    "03": {
+      "title": "问题与机会",
+      "object_ids": [
+        "DG01",
+        "DG02",
+        "DG03",
+        "DG04",
+        "DG05",
+        "DG06"
+      ],
+      "workflow_ids": [
+        "preplan.wf.03.01",
+        "preplan.wf.03.02",
+        "preplan.wf.03.03",
+        "preplan.wf.03.04",
+        "preplan.wf.03.05",
+        "preplan.wf.03.06"
+      ],
+      "counts": {
+        "work_items": 6,
+        "acceptance_scenarios": 5
+      },
+      "checks": {
+        "对象 Schema 完整": true,
+        "正反例均通过": true,
+        "Workflow 全状态可达": true,
+        "工具引用存在且禁止直接写": true,
+        "高风险人工复核": true,
+        "Gate 禁止 Agent/System 批准": true,
+        "规则级验收场景覆盖不少于2项": true
+      },
+      "risks": [
+        "相关性被写成因果。",
+        "宏观趋势直推具体项目。",
+        "单分数制造伪精确。"
+      ],
+      "corrections": [
+        "DG03 保留证据强度与替代解释。",
+        "DG05 强制成立条件和失效信号。",
+        "DG06 采用区间、敏感性与证据覆盖率。"
+      ],
+      "conclusion": "通过：本章完成 Schema、Tool、Workflow、Gate/Revision 与验收场景闭环。",
+      "status": "PASS"
+    },
+    "04": {
+      "title": "目标与方向",
+      "object_ids": [
+        "OB01",
+        "OB02",
+        "OB03",
+        "OB04",
+        "OB05",
+        "OB06"
+      ],
+      "workflow_ids": [
+        "preplan.wf.04.01",
+        "preplan.wf.04.02",
+        "preplan.wf.04.03",
+        "preplan.wf.04.04",
+        "preplan.wf.04.05",
+        "preplan.wf.04.06"
+      ],
+      "counts": {
+        "work_items": 6,
+        "acceptance_scenarios": 6
+      },
+      "checks": {
+        "对象 Schema 完整": true,
+        "正反例均通过": true,
+        "Workflow 全状态可达": true,
+        "工具引用存在且禁止直接写": true,
+        "高风险人工复核": true,
+        "Gate 禁止 Agent/System 批准": true,
+        "规则级验收场景覆盖不少于2项": true
+      },
+      "risks": [
+        "目标口号变成最终定位。",
+        "缺基线时伪造目标值。",
+        "硬约束被综合评分抵消。"
+      ],
+      "corrections": [
+        "OB05 固定为 DirectionHypothesisSet。",
+        "OB03 可只形成指标和采集任务。",
+        "OB04/OB06 在方案生成前冻结 veto。"
+      ],
+      "conclusion": "通过：本章完成 Schema、Tool、Workflow、Gate/Revision 与验收场景闭环。",
+      "status": "PASS"
+    },
+    "05": {
+      "title": "方案选择",
+      "object_ids": [
+        "OP01",
+        "OP02",
+        "OP03",
+        "OP04",
+        "OP05",
+        "OP06",
+        "OP07"
+      ],
+      "workflow_ids": [
+        "preplan.wf.05.01",
+        "preplan.wf.05.02",
+        "preplan.wf.05.03",
+        "preplan.wf.05.04",
+        "preplan.wf.05.05",
+        "preplan.wf.05.06",
+        "preplan.wf.05.07"
+      ],
+      "counts": {
+        "work_items": 7,
+        "acceptance_scenarios": 7
+      },
+      "checks": {
+        "对象 Schema 完整": true,
+        "正反例均通过": true,
+        "Workflow 全状态可达": true,
+        "工具引用存在且禁止直接写": true,
+        "高风险人工复核": true,
+        "Gate 禁止 Agent/System 批准": true,
+        "规则级验收场景覆盖不少于2项": true
+      },
+      "risks": [
+        "多方案只有风格差异。",
+        "否决项被总分抵消。",
+        "权重变更后结果不可复算。"
+      ],
+      "corrections": [
+        "OP02 至少三条实质路径并记录 difference_fingerprint。",
+        "OP05 否决先行。",
+        "OP06 固化模型版本并做敏感性。"
+      ],
+      "conclusion": "通过：本章完成 Schema、Tool、Workflow、Gate/Revision 与验收场景闭环。",
+      "status": "PASS"
+    },
+    "06": {
+      "title": "功能与规模",
+      "object_ids": [
+        "PG01",
+        "PG02",
+        "PG03",
+        "PG04",
+        "PG05",
+        "PG06",
+        "PG07"
+      ],
+      "workflow_ids": [
+        "preplan.wf.06.01",
+        "preplan.wf.06.02",
+        "preplan.wf.06.03",
+        "preplan.wf.06.04",
+        "preplan.wf.06.05",
+        "preplan.wf.06.06",
+        "preplan.wf.06.07"
+      ],
+      "counts": {
+        "work_items": 7,
+        "acceptance_scenarios": 6
+      },
+      "checks": {
+        "对象 Schema 完整": true,
+        "正反例均通过": true,
+        "Workflow 全状态可达": true,
+        "工具引用存在且禁止直接写": true,
+        "高风险人工复核": true,
+        "Gate 禁止 Agent/System 批准": true,
+        "规则级验收场景覆盖不少于2项": true
+      },
+      "risks": [
+        "直接套案例面积。",
+        "业态清单替代需求容量。",
+        "经营功能挤占公益容量。"
+      ],
+      "corrections": [
+        "PG03 强制公式、参数来源、范围与敏感性。",
+        "PG04 回指人群场景时段。",
+        "PG06 分开公益与经营单元。"
+      ],
+      "conclusion": "通过：本章完成 Schema、Tool、Workflow、Gate/Revision 与验收场景闭环。",
+      "status": "PASS"
+    },
+    "07": {
+      "title": "空间与技术",
+      "object_ids": [
+        "SP01",
+        "SP02",
+        "SP03",
+        "SP04",
+        "SP05",
+        "SP06",
+        "SP07",
+        "SP08"
+      ],
+      "workflow_ids": [
+        "preplan.wf.07.01",
+        "preplan.wf.07.02",
+        "preplan.wf.07.03",
+        "preplan.wf.07.04",
+        "preplan.wf.07.05",
+        "preplan.wf.07.06",
+        "preplan.wf.07.07",
+        "preplan.wf.07.08"
+      ],
+      "counts": {
+        "work_items": 8,
+        "acceptance_scenarios": 6
+      },
+      "checks": {
+        "对象 Schema 完整": true,
+        "正反例均通过": true,
+        "Workflow 全状态可达": true,
+        "工具引用存在且禁止直接写": true,
+        "高风险人工复核": true,
+        "Gate 禁止 Agent/System 批准": true,
+        "规则级验收场景覆盖不少于2项": true
+      },
+      "risks": [
+        "效果图替代工程可行性。",
+        "仅凭外观决定拆留。",
+        "专项技术被末尾补充。"
+      ],
+      "corrections": [
+        "SP02 Test-fit 先于渲染。",
+        "SP03 覆盖价值、安全、使用、产权、成本。",
+        "SP06 前置专项预审。"
+      ],
+      "conclusion": "通过：本章完成 Schema、Tool、Workflow、Gate/Revision 与验收场景闭环。",
+      "status": "PASS"
+    },
+    "08": {
+      "title": "投资与实施",
+      "object_ids": [
+        "IM01",
+        "IM02",
+        "IM03",
+        "IM04",
+        "IM05",
+        "IM06",
+        "IM07",
+        "IM08"
+      ],
+      "workflow_ids": [
+        "preplan.wf.08.01",
+        "preplan.wf.08.02",
+        "preplan.wf.08.03",
+        "preplan.wf.08.04",
+        "preplan.wf.08.05",
+        "preplan.wf.08.06",
+        "preplan.wf.08.07",
+        "preplan.wf.08.08"
+      ],
+      "counts": {
+        "work_items": 8,
+        "acceptance_scenarios": 8
+      },
+      "checks": {
+        "对象 Schema 完整": true,
+        "正反例均通过": true,
+        "Workflow 全状态可达": true,
+        "工具引用存在且禁止直接写": true,
+        "高风险人工复核": true,
+        "Gate 禁止 Agent/System 批准": true,
+        "规则级验收场景覆盖不少于2项": true
+      },
+      "risks": [
+        "乐观收入制造财务闭环。",
+        "产权审批运营主体后置。",
+        "投资口径与基准日不清。"
+      ],
+      "corrections": [
+        "IM02 强制全成本与基准日。",
+        "IM03—IM05 纳入关键路径。",
+        "IM06/IM08 至少三类压力情景并可回退。"
+      ],
+      "conclusion": "通过：本章完成 Schema、Tool、Workflow、Gate/Revision 与验收场景闭环。",
+      "status": "PASS"
+    }
+  },
+  "global_invariants": [
+    "Only two DSH model-facing tools are registered; T01–T47 remain internal.",
+    "Agent/LLM/Tool/artifact cannot directly write Project State.",
+    "All declared Workflow states are reachable and guard-constrained.",
+    "Gate approval requires assigned human decision owner.",
+    "Revision preserves history and reopens only semantically affected descendants."
+  ],
+  "passed": true
+}

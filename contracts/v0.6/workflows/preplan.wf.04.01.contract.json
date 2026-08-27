@@ -1,0 +1,337 @@
+{
+  "contract_version": "0.6.0",
+  "workflow_id": "preplan.wf.04.01",
+  "skill_id": "preplan.skill.objective-direction",
+  "chapter_id": "04",
+  "work_item_id": "04-01",
+  "title": "项目使命与服务对象",
+  "purpose": "明确项目为什么存在、优先为谁创造什么价值。",
+  "reads": [
+    "DG06",
+    "PS04"
+  ],
+  "writes": "OB01",
+  "output_schema_ref": "../state/OB01.schema.json",
+  "atomic_tools": [
+    "T19",
+    "T27",
+    "T28",
+    "T41",
+    "T42"
+  ],
+  "automation_level": "A1",
+  "risk": "H",
+  "gate_id": "G4",
+  "initial_state": "NOT_STARTED",
+  "states": {
+    "NOT_STARTED": "尚未初始化。",
+    "READY": "上游满足或缺口已显式，允许启动。",
+    "RUNNING": "正在执行资料、工具或人工任务。",
+    "BLOCKED": "存在阻断缺口，等待补证或授权。",
+    "PROPOSAL_READY": "已形成 ProposalEnvelope，尚未通过校验。",
+    "VALIDATION_FAILED": "Schema、规则、权限、版本或依赖校验失败。",
+    "PENDING_REVIEW": "等待指定人工复核。",
+    "COMMITTED_PROVISIONAL": "已写入 provisional Project State，仍需人工确认或 Gate 处理。",
+    "CONFIRMED": "工作项成果已由授权人员确认。",
+    "REJECTED": "人工复核退回。",
+    "STALE": "上游语义变更导致当前成果失效。",
+    "CANCELLED": "工作项被授权取消。"
+  },
+  "transitions": [
+    {
+      "command": "prepare",
+      "from": [
+        "NOT_STARTED",
+        "STALE",
+        "REJECTED"
+      ],
+      "to": "READY",
+      "roles": [
+        "workflow_operator",
+        "system_service"
+      ],
+      "guards": [
+        "workflow_enabled",
+        "upstream_versions_resolved_or_missing_declared"
+      ],
+      "state_effect": "none"
+    },
+    {
+      "command": "start",
+      "from": [
+        "READY"
+      ],
+      "to": "RUNNING",
+      "roles": [
+        "agent",
+        "workflow_operator",
+        "system_service"
+      ],
+      "guards": [
+        "required_inputs_available_or_fallback_active"
+      ],
+      "state_effect": "none"
+    },
+    {
+      "command": "block",
+      "from": [
+        "READY",
+        "RUNNING",
+        "PROPOSAL_READY"
+      ],
+      "to": "BLOCKED",
+      "roles": [
+        "agent",
+        "workflow_operator",
+        "system_service",
+        "chapter_reviewer"
+      ],
+      "guards": [
+        "blocking_reason_recorded",
+        "owner_and_due_date_set"
+      ],
+      "state_effect": "human_task"
+    },
+    {
+      "command": "resolve_blocker",
+      "from": [
+        "BLOCKED"
+      ],
+      "to": "READY",
+      "roles": [
+        "workflow_operator",
+        "chapter_reviewer",
+        "data_steward"
+      ],
+      "guards": [
+        "blocking_evidence_resolved_or_authorized_fallback"
+      ],
+      "state_effect": "none"
+    },
+    {
+      "command": "submit_proposal",
+      "from": [
+        "RUNNING"
+      ],
+      "to": "PROPOSAL_READY",
+      "roles": [
+        "agent",
+        "workflow_operator",
+        "system_service"
+      ],
+      "guards": [
+        "proposal_envelope_schema_valid",
+        "target_object_matches_workflow",
+        "evidence_and_assumptions_declared"
+      ],
+      "state_effect": "proposal_only"
+    },
+    {
+      "command": "validation_fail",
+      "from": [
+        "PROPOSAL_READY"
+      ],
+      "to": "VALIDATION_FAILED",
+      "roles": [
+        "system_service"
+      ],
+      "guards": [
+        "validator_report_contains_errors"
+      ],
+      "state_effect": "validation_report"
+    },
+    {
+      "command": "validation_pass_to_review",
+      "from": [
+        "PROPOSAL_READY"
+      ],
+      "to": "PENDING_REVIEW",
+      "roles": [
+        "system_service"
+      ],
+      "guards": [
+        "schema_rules_permissions_versions_pass",
+        "human_review_required_or_high_risk",
+        "no_undeclared_high_risk_inference"
+      ],
+      "state_effect": "review_queue"
+    },
+    {
+      "command": "validation_pass_and_commit_provisional",
+      "from": [
+        "PROPOSAL_READY"
+      ],
+      "to": "COMMITTED_PROVISIONAL",
+      "roles": [
+        "system_service"
+      ],
+      "guards": [
+        "schema_rules_permissions_versions_pass",
+        "automation_allows_provisional_commit",
+        "human_review_not_mandatory",
+        "no_high_risk_blocker"
+      ],
+      "state_effect": "commit_provisional"
+    },
+    {
+      "command": "revise",
+      "from": [
+        "VALIDATION_FAILED",
+        "REJECTED"
+      ],
+      "to": "RUNNING",
+      "roles": [
+        "agent",
+        "workflow_operator"
+      ],
+      "guards": [
+        "review_or_validation_feedback_acknowledged"
+      ],
+      "state_effect": "none"
+    },
+    {
+      "command": "request_review",
+      "from": [
+        "COMMITTED_PROVISIONAL"
+      ],
+      "to": "PENDING_REVIEW",
+      "roles": [
+        "workflow_operator",
+        "system_service"
+      ],
+      "guards": [
+        "reviewer_assigned"
+      ],
+      "state_effect": "human_task"
+    },
+    {
+      "command": "approve",
+      "from": [
+        "PENDING_REVIEW",
+        "COMMITTED_PROVISIONAL"
+      ],
+      "to": "CONFIRMED",
+      "roles": [
+        "chapter_reviewer",
+        "discipline_reviewer",
+        "decision_owner"
+      ],
+      "guards": [
+        "actor_assigned_to_work_item",
+        "all_high_risk_checks_signed",
+        "expected_revision_matches"
+      ],
+      "state_effect": "commit_confirmed"
+    },
+    {
+      "command": "reject",
+      "from": [
+        "PENDING_REVIEW"
+      ],
+      "to": "REJECTED",
+      "roles": [
+        "chapter_reviewer",
+        "discipline_reviewer",
+        "decision_owner"
+      ],
+      "guards": [
+        "reason_and_required_revision_paths_recorded"
+      ],
+      "state_effect": "review_record"
+    },
+    {
+      "command": "dependency_changed",
+      "from": [
+        "PENDING_REVIEW",
+        "COMMITTED_PROVISIONAL",
+        "CONFIRMED"
+      ],
+      "to": "STALE",
+      "roles": [
+        "system_service"
+      ],
+      "guards": [
+        "semantic_change_impacts_object"
+      ],
+      "state_effect": "mark_stale"
+    },
+    {
+      "command": "cancel",
+      "from": [
+        "READY",
+        "RUNNING",
+        "BLOCKED"
+      ],
+      "to": "CANCELLED",
+      "roles": [
+        "project_owner",
+        "decision_owner"
+      ],
+      "guards": [
+        "cancellation_reason_recorded"
+      ],
+      "state_effect": "audit_event"
+    }
+  ],
+  "input_contract": {
+    "required_upstream": [
+      "DG06",
+      "PS04"
+    ],
+    "missing_data_policy": "未确认时保存多个候选表述，不自动选定。",
+    "evidence_policy": [
+      "所有事实与材料原结论必须绑定 EvidenceRef。",
+      "Agent 推断和假设必须显式分类。",
+      "冲突证据不得静默覆盖。"
+    ]
+  },
+  "proposal_contract": {
+    "schema_ref": "../common/proposal-envelope.schema.json",
+    "target_object_id": "OB01",
+    "allowed_operations": [
+      "create",
+      "replace",
+      "merge_patch",
+      "supersede"
+    ],
+    "direct_state_write": false
+  },
+  "completion_criteria": [
+    "使命能够追溯到诊断，不是泛化口号；明确谁受益、谁可能承担成本。",
+    "项目决策人确认使命和服务对象优先级。"
+  ],
+  "reopen_triggers": [
+    "核心决策、优先问题或主要受益对象变化"
+  ],
+  "failure_recovery": {
+    "fallback": "未确认时保存多个候选表述，不自动选定。",
+    "minimum_reopen": "04-01",
+    "preserve_history": true
+  },
+  "forbidden_actions": [
+    "agent_approve_gate",
+    "direct_project_state_write",
+    "silent_source_overwrite",
+    "fabricate_missing_values"
+  ],
+  "review_policy": {
+    "human_review_mandatory": true,
+    "provisional_auto_commit_allowed": false,
+    "confirmation_roles": [
+      "chapter_reviewer",
+      "discipline_reviewer",
+      "decision_owner"
+    ],
+    "gate_still_human": true
+  },
+  "state_reachability_contract": {
+    "all_declared_states_must_be_reachable": true,
+    "terminal_states": [
+      "CONFIRMED",
+      "CANCELLED"
+    ],
+    "conditional_states": {
+      "COMMITTED_PROVISIONAL": "Only A3 non-high-risk workflows may enter automatically; other workflows reach it only if future policy explicitly enables the same guard."
+    }
+  }
+}

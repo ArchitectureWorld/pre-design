@@ -1,0 +1,11 @@
+读取《前期策划Agent_DSH插件开发_HANDOFF_FINAL_v2.0.md》，并以《前期策划_v0.6_DSH完整技术合同包_CANONICAL_949.zip》作为唯一 canonical 业务合同。
+
+不要重新讨论产品路线，不要重画专业母架构，不要先做独立 Web、通用 Runtime Adapter 或 Mock 产品。第一产品必须是安装到 DSH Web Profile 的原生单 Bundle 插件，并直接调用 DSH 已配置的真实模型。
+
+先执行 Phase D0：核验并锁定当前 DSH 版本、插件 API、Node/pnpm、安装与 Web 扩展点；建立或接管 dsh-preplanning-agent 仓库；复制 v0.6 合同；运行 949 项合同测试；完成 Host/Browser 插件骨架；安装到 web profile；在 DSH Web 中显示真实插件卡；提供命令、日志、截图和兼容性基线。
+
+D0 通过后直接执行 Phase D1：实现 Project State 持久化、SessionBinding、Contract Registry、Proposal Gateway、Workflow Runtime、preplanning_get_context、preplanning_apply_commands、项目上下文注入、一个持久化动态关键问题，以及 /preplan-new、/preplan-open、/preplan-list、/preplan-status、/preplan-confirm。`/preplan-export` 留到真实 HTML 渲染链成立后的 D4。
+
+使用真实模型跑通固定黄金场景：地区“鄂州市”，项目性质“在老城区谋划一个全民健身中心”，资料“暂无”。必须证明模型实际调用工具、用户回答导致 revision 变化、事件可审计、DSH 重启后状态恢复。不得用固定分类、固定问题、固定回答或聊天假状态代替真实闭环。
+
+开发采用测试先行。每完成一个 Phase 或可独立验收的工作包，立即执行一轮循环自检；阻断问题修复并全量复测后才进入下一包。每轮同步交付源码与 commit、可安装插件或可复现构建物、版本化实施成果 HTML、循环自检 HTML、机器 QA JSON、真实运行证据、变更清单和下一条准确命令，并更新 LATEST 与 Handoff Live Status。

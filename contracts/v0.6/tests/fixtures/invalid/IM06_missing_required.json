@@ -1,0 +1,117 @@
+{
+  "object_id": "IM06",
+  "object_type": "FinancialModel",
+  "schema_version": "0.6.0",
+  "project_id": "PREPLAN-DEMO-001",
+  "chapter_id": "08",
+  "work_item_id": "08-06",
+  "status": "provisional",
+  "revision": 1,
+  "created_at": "2026-08-27T12:00:00+00:00",
+  "updated_at": "2026-08-27T12:00:00+00:00",
+  "created_by": {
+    "actor_id": "AGENT-1",
+    "name": "Preplan Agent",
+    "role": "agent",
+    "organization": null,
+    "authority_scope": [
+      "propose"
+    ],
+    "contact_ref": null
+  },
+  "source_snapshot": {
+    "IM02": 1,
+    "IM03": 1,
+    "IM05": 1,
+    "PG06": 1
+  },
+  "data": {
+    "revenues": [
+      {
+        "name": "name_sample",
+        "value": 1.0,
+        "unit": "unit_sample"
+      }
+    ],
+    "opex": {
+      "name": "name_sample",
+      "value": 1.0,
+      "unit": "unit_sample"
+    },
+    "taxes": [
+      {
+        "name": "name_sample",
+        "value": 1.0,
+        "unit": "unit_sample"
+      }
+    ],
+    "capex": {
+      "name": "name_sample",
+      "value": 1.0,
+      "unit": "unit_sample"
+    },
+    "cashflows": [
+      {
+        "name": "年度净现金流",
+        "value": 1000,
+        "unit": "万元/年"
+      }
+    ],
+    "subsidies": [
+      {
+        "name": "name_sample",
+        "value": 1.0,
+        "unit": "unit_sample"
+      }
+    ],
+    "financing": "financing_sample",
+    "npv": 1000,
+    "irr": 0.06,
+    "dscr": 1.2,
+    "scenarios": [
+      {
+        "id": "BASE",
+        "name": "基准情景"
+      },
+      {
+        "id": "DOWN",
+        "name": "收入下降情景"
+      },
+      {
+        "id": "COST",
+        "name": "成本上升情景"
+      }
+    ],
+    "stress_results": [
+      {
+        "id": "S1",
+        "name": "收入下降10%"
+      },
+      {
+        "id": "S2",
+        "name": "成本上升10%"
+      },
+      {
+        "id": "S3",
+        "name": "工期延误一年"
+      }
+    ]
+  },
+  "quality": {
+    "completeness": 0.8,
+    "consistency": 0.8,
+    "timeliness": 0.8,
+    "traceability": 0.8,
+    "reproducibility": 0.7,
+    "issues": [],
+    "grade": "B"
+  },
+  "approval": {
+    "status": "pending",
+    "required_role": "chapter_reviewer",
+    "approver": null,
+    "approved_at": null,
+    "conditions": [],
+    "comment": ""
+  }
+}
