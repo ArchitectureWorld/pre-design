@@ -1,0 +1,3 @@
+- insert:
+    - id: preplanning-agent
+      name: '@architectureworld/dsh-preplanning-agent'

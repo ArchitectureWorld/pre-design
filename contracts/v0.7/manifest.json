@@ -1,0 +1,13 @@
+{
+  "contractVersion": "preplan.runtime.v0.7.0",
+  "schemas": [
+    { "id": "artifact-manifest", "file": "governance/artifact-manifest.schema.json" },
+    { "id": "automation-authorization", "file": "governance/automation-authorization.schema.json" },
+    { "id": "gate-decision", "file": "governance/gate-decision.schema.json" },
+    { "id": "project-policy", "file": "governance/project-policy.schema.json" },
+    { "id": "report-package", "file": "governance/report-package.schema.json" },
+    { "id": "visual-asset-manifest", "file": "governance/visual-asset-manifest.schema.json" },
+    { "id": "visual-generation-policy", "file": "governance/visual-generation-policy.schema.json" },
+    { "id": "workflow-run", "file": "governance/workflow-run.schema.json" }
+  ]
+}

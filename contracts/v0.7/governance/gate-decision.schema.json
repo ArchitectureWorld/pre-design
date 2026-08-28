@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:preplan:runtime:v0.7:gate-decision",
+  "title": "GateDecision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decisionId", "projectId", "gateId", "revision", "decision", "source", "decidedBy", "decidedAt"],
+  "properties": {
+    "decisionId": { "type": "string", "minLength": 1 },
+    "projectId": { "type": "string", "minLength": 1 },
+    "gateId": { "type": "string", "pattern": "^G[1-8]$" },
+    "revision": { "type": "integer", "minimum": 0 },
+    "decision": { "enum": ["approved", "approved_with_conditions", "returned", "blocked"] },
+    "source": { "enum": ["human_review", "automation_authorization"] },
+    "authorizationId": { "type": "string", "minLength": 1 },
+    "decidedBy": { "$ref": "#/$defs/actor" },
+    "decidedAt": { "type": "string", "format": "date-time" },
+    "reason": { "type": "string", "minLength": 1 },
+    "snapshot": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "source": { "const": "automation_authorization" } }, "required": ["source"] },
+      "then": { "required": ["authorizationId"] }
+    }
+  ],
+  "$defs": {
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actorId", "name", "role"],
+      "properties": {
+        "actorId": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "role": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

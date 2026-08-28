@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:preplan:runtime:v0.7:visual-asset-manifest",
+  "title": "VisualAssetManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["assetId", "taskId", "projectId", "kind", "required", "status", "mimeType", "fileName", "sha256", "width", "height", "createdAt"],
+  "properties": {
+    "assetId": { "type": "string", "minLength": 1 },
+    "taskId": { "type": "string", "minLength": 1 },
+    "projectId": { "type": "string", "minLength": 1 },
+    "kind": { "enum": ["evidence", "deterministic", "concept"] },
+    "required": { "type": "boolean" },
+    "status": { "enum": ["candidate", "adopted", "rejected", "blocked"] },
+    "referenceAssetIds": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "provider": { "type": "string", "minLength": 1 },
+    "model": { "type": "string", "minLength": 1 },
+    "promptSummary": { "type": "string", "minLength": 1 },
+    "mimeType": { "enum": ["image/png", "image/jpeg", "image/webp", "image/svg+xml"] },
+    "fileName": { "type": "string", "minLength": 1 },
+    "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+    "width": { "type": "integer", "minimum": 1 },
+    "height": { "type": "integer", "minimum": 1 },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accepted", "score", "issues"],
+      "properties": {
+        "accepted": { "type": "boolean" },
+        "score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "issues": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "adoptedRevision": { "type": "integer", "minimum": 0 }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "adopted" } }, "required": ["status"] },
+      "then": { "required": ["adoptedRevision"] }
+    }
+  ]
+}

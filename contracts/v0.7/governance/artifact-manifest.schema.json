@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:preplan:runtime:v0.7:artifact-manifest",
+  "title": "ArtifactManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["manifestId", "packageId", "projectId", "sourceRevision", "artifacts", "createdAt"],
+  "properties": {
+    "manifestId": { "type": "string", "minLength": 1 },
+    "packageId": { "type": "string", "minLength": 1 },
+    "projectId": { "type": "string", "minLength": 1 },
+    "sourceRevision": { "type": "integer", "minimum": 0 },
+    "recommendationId": { "type": "string", "minLength": 1 },
+    "adoptedAssetIds": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "artifacts": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["format", "fileName", "sha256", "bytes"],
+        "properties": {
+          "format": { "enum": ["pptx", "pdf", "html"] },
+          "fileName": { "type": "string", "minLength": 1 },
+          "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+          "bytes": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "createdAt": { "type": "string", "format": "date-time" }
+  }
+}

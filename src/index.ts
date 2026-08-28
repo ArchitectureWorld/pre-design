@@ -1,0 +1,173 @@
+import { randomUUID } from 'node:crypto'
+import { existsSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+import type { Context } from '@deepseek-ai/cordis'
+import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
+import type { LlmRuntime } from '@deepseek-ai/dsh-llm'
+import type { SessionStore } from '@deepseek-ai/dsh-session'
+import type { SubagentRuntime } from '@deepseek-ai/dsh-subagent'
+import z from '@deepseek-ai/schemastery'
+import { registerPreplanningCommands } from './commands/register.ts'
+import { ContractRegistry } from './contracts/registry.ts'
+import { GovernanceRepository } from './governance/repository.ts'
+import { PREPLANNING_SYSTEM_PROMPT } from './prompts/preplanning-system.ts'
+import { ProposalGateway } from './proposals/gateway.ts'
+import { AutomationService } from './runtime/automation-service.ts'
+import { AutomationCoordinator } from './runtime/coordinator.ts'
+import { GateService } from './runtime/gate-service.ts'
+import { QuestionService } from './runtime/question-service.ts'
+import { registerReportDownloadRoute, type ReportDownloadRegistrar } from './report/download-route.ts'
+import { ReportPackageService } from './report/package-service.ts'
+import { createFrozenProjectInput } from './report/source.ts'
+import { RevisionService } from './runtime/revision-service.ts'
+import { WorkflowRuntime } from './runtime/workflow-runtime.ts'
+import { ProjectRepository } from './state/repository.ts'
+import { registerPreplanningTools } from './tools/register.ts'
+import { VisualAgentService } from './visual/agent.ts'
+import { VisualAssetStore } from './visual/asset-store.ts'
+import { SessionImageCollector } from './visual/session-image-collector.ts'
+
+interface PreplanningHost {
+  readonly pluginId: 'preplanning-agent'
+  readonly contractVersion: '0.6.0'
+  readonly repository: ProjectRepository
+  readonly governance: GovernanceRepository
+  readonly gateway: ProposalGateway
+  readonly registry: ContractRegistry
+  readonly runtime: WorkflowRuntime
+  readonly automation: AutomationService
+  readonly gates: GateService
+  readonly revisions: RevisionService
+  readonly questions: QuestionService
+  readonly coordinator: AutomationCoordinator
+  readonly visual: VisualAgentService
+  readonly reports: ReportPackageService
+}
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    preplanning: PreplanningHost
+    webServer: ReportDownloadRegistrar
+  }
+}
+
+interface ConfigShape {}
+
+export const name = 'preplanning-agent'
+export const inject = [
+  'attachments', 'commands', 'llm', 'sessions', 'storage', 'storageDomain', 'subagents', 'systemPrompt', 'tools', 'webServer',
+]
+export const Config: z<ConfigShape> = z.object({})
+
+function browserExecutable(): string {
+  const configured = process.env.PREPLANNING_BROWSER_EXECUTABLE?.trim()
+  if (configured !== undefined && configured !== '') return configured
+  const candidates = [
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+  ]
+  return candidates.find(candidate => existsSync(candidate)) ?? 'msedge'
+}
+
+export async function apply(ctx: Context): Promise<void> {
+  const now = () => new Date().toISOString()
+  const registry = await ContractRegistry.open(new URL('../contracts/v0.6/', import.meta.url))
+  const repository = await ProjectRepository.open(ctx.storage.domain)
+  const governance = await GovernanceRepository.open(ctx.storage.domain)
+  const runtime = new WorkflowRuntime(registry, governance, now)
+  const automation = new AutomationService(governance, registry, now)
+  const gates = new GateService(registry, governance, runtime, automation, now)
+  const revisions = new RevisionService(registry, runtime)
+  const questions = new QuestionService(repository, runtime, now)
+  const coordinator = new AutomationCoordinator(runtime)
+  const gateway = new ProposalGateway(repository, registry, now, governance)
+  const visualStore = new VisualAssetStore(join(homedir(), '.dsh', 'preplanning-agent', 'visual-assets'))
+  const visualCollector = new SessionImageCollector({
+    sessions: { get: id => ctx.sessions.get(id as never) },
+    attachments: { readImage: (ref, signal) => ctx.attachments.readImage(ref as never, signal) },
+    waitForEvent: (childId, signal) => new Promise<void>((resolve, reject) => {
+      let dispose: () => unknown = () => undefined
+      const cleanup = () => {
+        signal.removeEventListener('abort', onAbort)
+        dispose()
+      }
+      const onAbort = () => {
+        cleanup()
+        reject(signal.reason ?? new Error('visual image collection aborted'))
+      }
+      dispose = ctx.on('session/event', (session) => {
+        if (String(session.id) !== childId) return
+        cleanup()
+        resolve()
+      })
+      signal.addEventListener('abort', onAbort, { once: true })
+      if (signal.aborted) onAbort()
+    }),
+  })
+  const visual = new VisualAgentService({
+    governance,
+    llm: ctx.llm,
+    subagents: ctx.subagents,
+    collector: visualCollector,
+    store: visualStore,
+    now,
+  })
+  const reportPackageRoot = join(homedir(), '.dsh', 'preplanning-agent', 'report-packages')
+  const reports = new ReportPackageService({
+    governance,
+    packageRoot: reportPackageRoot,
+    browserExecutable: browserExecutable(),
+    source: async (projectId, revision) => createFrozenProjectInput(projectId, revision, {
+      repository,
+      governance,
+      registry,
+      visualStore,
+    }),
+    createId: () => `report-${randomUUID()}`,
+    now,
+  })
+  registerReportDownloadRoute(ctx.webServer, reportPackageRoot)
+  ctx.effect(() => async () => {
+    await governance.close()
+    await repository.close()
+  })
+  registerPreplanningCommands(ctx, {
+    repository,
+    gateway,
+    governance,
+    runtime,
+    automation,
+    gates,
+    revisions,
+    coordinator,
+    visual,
+    registry,
+    reports,
+    createId: () => `preplan-${randomUUID()}`,
+    now,
+  })
+  registerPreplanningTools(ctx, { repository, gateway, governance, runtime, registry })
+  ctx.systemPrompt.section({
+    name: 'preplanning-agent',
+    order: 120,
+    text: PREPLANNING_SYSTEM_PROMPT,
+  })
+  ctx.provide('preplanning', Object.freeze({
+    pluginId: 'preplanning-agent',
+    contractVersion: '0.6.0',
+    repository,
+    governance,
+    gateway,
+    registry,
+    runtime,
+    automation,
+    gates,
+    revisions,
+    questions,
+    coordinator,
+    visual,
+    reports,
+  }))
+}
