@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:preplan:runtime:v0.7:workflow-run",
+  "title": "WorkflowRun",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["runId", "projectId", "workflowId", "chapterId", "workItemId", "targetObjectId", "status", "attempt", "updatedAt"],
+  "properties": {
+    "runId": { "type": "string", "minLength": 1 },
+    "projectId": { "type": "string", "minLength": 1 },
+    "workflowId": { "type": "string", "pattern": "^preplan\\.wf\\.0[1-8]\\.[0-9]{2}$" },
+    "chapterId": { "type": "string", "pattern": "^0[1-8]$" },
+    "workItemId": { "type": "string", "pattern": "^0[1-8]-[0-9]{2}$" },
+    "targetObjectId": { "type": "string", "pattern": "^[A-Z]{2}[0-9]{2}$" },
+    "status": { "enum": ["not_started", "ready", "running", "blocked", "pending_review", "confirmed", "not_applicable", "superseded"] },
+    "attempt": { "type": "integer", "minimum": 0 },
+    "proposalId": { "type": "string", "minLength": 1 },
+    "confirmedRevision": { "type": "integer", "minimum": 0 },
+    "blockedReason": { "type": "string", "minLength": 1 },
+    "updatedAt": { "type": "string", "format": "date-time" }
+  }
+}

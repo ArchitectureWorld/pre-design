@@ -1,61 +1,85 @@
-# 前期策划 Agent（DSH 插件基线）
+# DSH 前期策划 Agent
 
-本仓库 `ArchitectureWorld/pre-design` 保存前期策划 Agent 的封版交接资料与可执行技术合同，作为后续 DSH 原生插件开发的稳定输入。它不是已经完成的插件，也不是最终插件代码仓库。
+`@architectureworld/dsh-preplanning-agent` 是运行在 DeepSeek Harness Web Profile 内的原生前期策划插件。`0.7.0` 提供 8 章、57 项完整策划流程，支持人工确认和全自动两种模式，并从同一冻结成果版本交付甲方可直接查看的 HTML、PPTX、PDF。
 
-## 当前稳定基线
+## 兼容与边界
 
-| 项目 | 唯一当前口径 |
-|---|---|
-| 交接包 | `handoff/FINAL_v2.0/` |
-| Canonical 技术合同 | `contracts/v0.6/` |
-| 可执行合同断言 | `949 passed / 0 failed` |
-| 当前阶段 | 专业方法与技术合同已封版；尚未实现可安装 DSH 插件 |
-| 下一阶段 | 按 Handoff 执行 D0 → D1，先确认真实 DSH 环境，再跑通真实模型参与的最小纵向闭环 |
-
-## 仓库与插件身份
-
-两个仓库名称承担不同职责，不得混用：
-
-- 当前基线仓库：`ArchitectureWorld/pre-design`
-- 合同指定的目标实现仓库：`dsh-preplanning-agent`
-- npm 包：`@architectureworld/dsh-preplanning-agent`
+- DeepSeek Harness：`0.1.1-rc.2`
+- DSH 源码基线：`b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`
+- 业务合同：`contracts/v0.6`（57 个状态 Schema、57 个 Workflow、8 个 Gate、47 个原子工具）
+- 治理合同：`contracts/v0.7`（模式、授权、Gate、视觉资产与报告包）
 - 插件 ID：`preplanning-agent`
-- 交付形态：单 DSH Bundle，包含 Host half 与 Browser half
+- npm 包：`@architectureworld/dsh-preplanning-agent`
 
-## 权威顺序
+插件不修改 DSH 核心、不提供第二套独立 Web，也不允许模型直接写 Project State 或自行批准 Gate。人工模式默认启用；全自动模式必须先获得明确的自动化授权。
 
-发生数量、状态或实现边界表述不一致时，按以下顺序判定：
+## 仓库权威顺序
+
+发生数量、状态或实现边界不一致时，按以下顺序判定：
 
 1. `contracts/v0.6/manifest.json`、`contracts/v0.6/plugin.manifest.json` 与现场执行 `contracts/v0.6/tests/test_contracts.py` 的结果；
-2. `handoff/FINAL_v2.0/01_前期策划Agent_DSH插件开发_HANDOFF_FINAL_v2.0.md`；
-3. `handoff/FINAL_v2.0/00_README_START_HERE.md`；
-4. 交接包中的其他 HTML、Markdown 和 TXT 资料。
+2. `contracts/v0.7/manifest.json` 及其治理 Schema；
+3. 当前版本源码、自动化测试与 [验收记录](docs/acceptance.md)；
+4. `docs/superpowers/` 和早期 `evidence/d0-d2/` 仅用于设计与历史追溯，不覆盖当前版本。
 
-`handoff/FINAL_v2.0/06_前期策划_DSH插件技术合同_v0.6.md` 保留了补齐模型工具合同与最终验收断言前的 `797/797` 历史测试口径。该数字仅用于追溯，不能覆盖当前 Canonical 949，也不能作为开发或验收基线。
+`contracts/v0.6` 是保留不改的业务合同基线；新增治理能力进入 `contracts/v0.7`。HTML、PPTX、PDF 只是冻结 Revision 的投影，不是 Project State 的事实源。全自动模式只能执行自然人 `decision_owner` 已明确签发范围的授权，不能把 Agent 或系统服务记为 Gate 批准人。
 
-## 目录职责
+## 主要能力
 
-- `handoff/FINAL_v2.0/`：从原始 FINAL v2.0 ZIP 解出的完整交接快照，保持原文件和哈希不变；
-- `contracts/v0.6/`：从 `CANONICAL_949` 解出的唯一可编码合同快照；
-- `README.md`：仅说明仓库定位、当前状态与权威顺序，不替代合同正文。
+1. 在 DSH 页面创建项目，并选择“人工确认”或“全自动完成”。
+2. 通过数据驱动的合同注册表推进 8 章、57 项工作；中断后可恢复项目、Gate、视觉任务和报告包状态。
+3. 模型只使用 `preplanning_get_context` 与 `preplanning_apply_commands` 两个受控工具。
+4. 项目级视觉子 Agent 固定使用 `spawn / antigravity / gemini-3.1-flash-image`；禁止静默替换模型。
+5. 事实地图、现状照片、红线和统计数据不得由生图模型伪造；AI 图只作概念方向表达。
+6. 同一成果版本原子生成 HTML、PPTX、PDF，并在 DSH 总览中提供浏览与下载入口。
 
-## 快速校验
+诊断和恢复命令：
 
-```bash
-cd contracts/v0.6
-python tests/test_contracts.py
+- `/preplan-new <name>`：创建并绑定项目。
+- `/preplan-open <projectId>`：绑定已有项目。
+- `/preplan-list`：列出项目。
+- `/preplan-status`：查看当前项目、57 项、8 Gate、视觉和报告状态。
+- `/preplan-mode manual|automatic`：切换确认模式。
+- `/preplan-confirm <proposalId>`：人工确认待复核提案。
+- `/preplan-report`：从当前冻结成果版本生成报告包。
+
+## 构建、Golden 成果与测试
+
+```powershell
+pnpm install --frozen-lockfile
+pnpm typecheck
+pnpm test
+pnpm test:built
+pnpm golden:build -- --output C:\temp\dsh-preplanning-golden
 ```
 
-预期结果：
+合同门禁：
 
-```json
-{"total": 949, "passed": 949, "failed": 0}
+```powershell
+Push-Location contracts\v0.6
+python tests\test_contracts.py
+Pop-Location
 ```
 
-## 变更规则
+`golden:build` 生成 57 项已确认、8 Gate 已决定、12 张概念图和 17 张确定性图表的同源 HTML/PPTX/PDF。默认使用本机 Microsoft Edge；可通过 `--browser` 或 `PREPLAN_BROWSER_EXECUTABLE` 指定兼容的 Chromium 可执行文件。
 
-- 不在原位改写 `handoff/FINAL_v2.0/` 或 `contracts/v0.6/`；
-- 新合同必须使用新的版本目录，并同时更新 Manifest、测试结果和仓库 README；
-- D1 通过前，不建设独立 Web、通用 RuntimeAdapter 产品或产品级 Mock Runtime；
-- HTML、PPTX、PDF 只是冻结 Revision 的投影，不能成为 Project State 的事实源；
-- Agent 和系统服务不得批准 Gate，Gate 只能由指定自然人 `decision_owner` 批准。
+## 安装到 DSH Web Profile
+
+先备份 Profile 的 `package.json`、锁文件和 Cordis 配置，再使用官方 CLI：
+
+```powershell
+dsh plugin --profile web remove @architectureworld/dsh-preplanning-agent
+dsh plugin --profile web add .\architectureworld-dsh-preplanning-agent-0.7.0.tgz
+dsh --profile web --dump-config
+dsh --profile web --no-open
+```
+
+不要手工删除 Session、Storage、模型设置或凭据。插件使用用户已在 DSH 中配置的文本模型；视觉路线只记录 provider/model，不读取或输出 API Key。
+
+## 验收证据
+
+- D1：真实 Qwen3.8 27B 人工确认闭环。
+- D2：真实 Gemini 文本模型快速启动闭环。
+- D3：0.7.0 全流程、双模式、视觉治理、三格式报告、重启恢复和发布证据。
+
+详细结果见 [docs/acceptance.md](docs/acceptance.md) 与 `evidence/`。

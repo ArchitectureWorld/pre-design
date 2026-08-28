@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:preplan:runtime:v0.7:project-policy",
+  "title": "ProjectPolicy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["projectId", "mode", "reportDepth", "updatedAt"],
+  "properties": {
+    "projectId": { "type": "string", "minLength": 1 },
+    "mode": { "enum": ["manual", "automatic"] },
+    "reportDepth": { "enum": ["standard", "extended"] },
+    "visualPolicyId": { "type": "string", "minLength": 1 },
+    "automationAuthorizationId": { "type": "string", "minLength": 1 },
+    "updatedAt": { "type": "string", "format": "date-time" }
+  }
+}

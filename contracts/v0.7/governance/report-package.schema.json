@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:preplan:runtime:v0.7:report-package",
+  "title": "ReportPackage",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["packageId", "projectId", "sourceRevision", "status", "sectionIds", "adoptedAssetIds", "warnings", "createdAt"],
+  "properties": {
+    "packageId": { "type": "string", "minLength": 1 },
+    "projectId": { "type": "string", "minLength": 1 },
+    "sourceRevision": { "type": "integer", "minimum": 0 },
+    "status": { "enum": ["staging", "published", "failed"] },
+    "sectionIds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "adoptedAssetIds": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "warnings": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "artifactManifestId": { "type": "string", "minLength": 1 },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "publishedAt": { "type": "string", "format": "date-time" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "published" } }, "required": ["status"] },
+      "then": { "required": ["artifactManifestId", "publishedAt"] }
+    }
+  ]
+}

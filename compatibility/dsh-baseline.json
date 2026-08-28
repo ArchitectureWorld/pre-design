@@ -1,0 +1,45 @@
+{
+  "captured_at": "2026-08-27T22:04:00+08:00",
+  "platform": "win32-x64",
+  "dsh": {
+    "package": "@deepseek-ai/dsh",
+    "version": "0.1.1-rc.2",
+    "cli_path": "C:\\Users\\2899\\AppData\\Roaming\\npm\\dsh.cmd",
+    "cli_sha256": "cee5d416f179f482763e1d5b218de246f9652defb7b0bf67e3bd70d91566287f",
+    "package_json_sha256": "dc930c0b18158f49ae3753ceaf6b1b7ae71dc6c8f45c85a2d679b142024addf7"
+  },
+  "official_source": {
+    "tag": "dsh-v0.1.1-rc.2",
+    "commit": "b150a551b8d465e31e418e1b2eaf5e79bbb7d28e"
+  },
+  "runtime": {
+    "node": "25.4.0",
+    "pnpm": "11.19.0"
+  },
+  "web_profile": {
+    "path": "C:\\Users\\2899\\.dsh\\profiles\\web",
+    "bundles": [
+      "@deepseek-ai/dsh-base",
+      "@deepseek-ai/dsh-web-app"
+    ],
+    "default_model": {
+      "provider": "deepseek-official",
+      "model": "deepseek-v4-flash"
+    },
+    "storage_backend": "json",
+    "install_command": "dsh plugin --profile web add <package>"
+  },
+  "compatibility": {
+    "supported_dsh_versions": [
+      "0.1.1-rc.2"
+    ],
+    "host_plugin_exports": [
+      "name",
+      "inject",
+      "Config",
+      "apply"
+    ],
+    "browser_platform": "web",
+    "profile_bundle_patch": "./cordis.patch.yml"
+  }
+}

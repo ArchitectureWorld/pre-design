@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "golden-preplanning-project-v1",
+  "projectId": "preplan-302341b7-da7e-479b-9fc6-88b8fa7fd1e6",
+  "projectName": "滨江文化活力区前期策划",
+  "revision": 57,
+  "generatedAt": "2026-08-28T12:00:00.000Z",
+  "recommendationId": "recommendation-r57-cultural-riverfront",
+  "recommendation": "采用“文化主轴 + 生态水岸 + 城市客厅”的复合发展方向，以连续公共空间串联文化场馆、滨水活动和社区服务；首期优先启动门户节点、文化核心与慢行示范段。",
+  "decisionItems": [
+    "确认“文化主轴 + 生态水岸 + 城市客厅”为下一阶段总体定位",
+    "确认首期实施边界包含门户节点、文化核心和慢行示范段",
+    "确认 11 张已采用概念图作为方向表达，不作为现状或法定依据",
+    "授权按成果版本 R57 进入概念深化、投资测算和运营专题"
+  ],
+  "workflowStatus": {
+    "total": 57,
+    "confirmed": 57,
+    "blocked": 0
+  },
+  "gateDecisions": [
+    { "gateId": "G1", "decision": "approved", "revision": 57 },
+    { "gateId": "G2", "decision": "approved", "revision": 57 },
+    { "gateId": "G3", "decision": "approved", "revision": 57 },
+    { "gateId": "G4", "decision": "approved", "revision": 57 },
+    { "gateId": "G5", "decision": "approved", "revision": 57 },
+    { "gateId": "G6", "decision": "approved_with_conditions", "revision": 57 },
+    { "gateId": "G7", "decision": "approved", "revision": 57 },
+    { "gateId": "G8", "decision": "approved_with_conditions", "revision": 57 }
+  ],
+  "chapterSummaries": {
+    "01": "项目任务、目标体系、成果边界与证据规则已形成统一启动基线。",
+    "02": "政策、市场、区域资源与场地关系共同支持公共文化和滨水活力复合定位。",
+    "03": "核心约束已转译为可执行设计条件，机会集中在门户、文化核心与连续水岸。",
+    "04": "总体愿景锁定为城市级公共文化客厅，策略强调公共性、全天候使用和运营协同。",
+    "05": "空间骨架采用一轴、两带、三核、多场景的结构，功能组合兼顾公共服务与复合收益。",
+    "06": "交通、慢行、生态和公共空间形成一体化系统，概念图仅用于表达空间方向。",
+    "07": "实施采用示范先行、骨架成网、场景扩展的三阶段路径。",
+    "08": "投入优先保障公共空间和基础设施，风险由审批、投资、运营和生态四类责任闭环管理。"
+  },
+  "visualGovernance": {
+    "provider": "antigravity",
+    "model": "gemini-3.1-flash-image",
+    "api": "openai-completions",
+    "adoptedCount": 11,
+    "recoveredLateCount": 1,
+    "blockedTask": {
+      "taskId": "concept-12",
+      "attempt": 2,
+      "status": "blocked",
+      "reason": "429 QUOTA_EXHAUSTED；未消耗 attempt 3，未静默更换模型"
+    }
+  }
+}

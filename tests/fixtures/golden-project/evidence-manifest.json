@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "golden-visual-evidence-v1",
+  "projectId": "preplan-302341b7-da7e-479b-9fc6-88b8fa7fd1e6",
+  "provider": "antigravity",
+  "model": "gemini-3.1-flash-image",
+  "api": "openai-completions",
+  "assets": [
+    { "assetId": "3cf536a1-67ad-49f8-bc06-d6c46ea089d2", "taskId": "concept-01", "file": "assets/concept-01.jpg", "sha256": "99af96858d34fa167272536ace23d563b3c7bec34bcdbddbeb5362944e133235", "width": 1024, "height": 1024, "status": "adopted", "adoptedRevision": 57, "caption": "概念方向 01｜公共文化主轴与滨水开放空间（AI 生成）" },
+    { "assetId": "d332e8a8-e993-4c15-92ba-ca5275fce459", "taskId": "concept-02", "file": "assets/concept-02.jpg", "sha256": "f5602cb578cd3ddc8533cccfe7aee3d187dc7af57c47939f2484be2b826649da", "width": 1024, "height": 1024, "status": "adopted", "adoptedRevision": 57, "caption": "概念方向 02｜文化场馆群与城市客厅（AI 生成）" },
+    { "assetId": "544ffd7a-2327-4526-9dd4-f88a9845c262", "taskId": "concept-03", "file": "assets/concept-03.jpg", "sha256": "88170c42cb721af13965601f35f974736d14fa574fcacbf0072ac4c657b3ae6c", "width": 1024, "height": 1024, "status": "adopted", "adoptedRevision": 57, "caption": "概念方向 03｜活力水岸与全天候公共场景（AI 生成）" },
+    { "assetId": "823c34a7-d55f-4e68-a7cb-fb757b35492c", "taskId": "concept-04", "file": "assets/concept-04.jpg", "sha256": "05fa509d79e7ae4aed7bb28efc9a6c18142453135c387826be5d4e46df041fbf", "width": 1024, "height": 1024, "status": "adopted", "adoptedRevision": 57, "caption": "概念方向 04｜生态台地与亲水活动界面（AI 生成）" },
+    { "assetId": "d9eff9bf-7531-4050-9e16-682d84fe62ea", "taskId": "concept-05", "file": "assets/concept-05.jpg", "sha256": "903929c6b7249e559fc7bb9d139945aa6551a06d610685b160688f3401d21af7", "width": 1024, "height": 1024, "status": "adopted", "adoptedRevision": 57, "caption": "概念方向 05｜门户广场与公共艺术节点（AI 生成）" },
+    { "assetId": "a39b829c-dbf8-4aba-9617-6cd93b7bc48f", "taskId": "concept-06", "file": "assets/concept-06.jpg", "sha256": "3d8475a3a6566149d02393e86dfed28738b47e77c4dc9a98997b5033fb31f6d0", "width": 1024, "height": 1024, "status": "adopted", "adoptedRevision": 57, "caption": "概念方向 06｜夜间文化活动与滨水灯光（AI 生成）" },
+    { "assetId": "1010aa6d-325d-4244-885b-5d2ff4e17d45", "taskId": "concept-07", "file": "assets/concept-07.jpg", "sha256": "19e661245169a6d34dd2787686a742c011512d4934c2d30ff10b92041510d762", "width": 1024, "height": 1024, "status": "adopted", "adoptedRevision": 57, "caption": "概念方向 07｜连续慢行系统与社区连接（AI 生成）" },
+    { "assetId": "a61a8b61-751d-44fb-ae94-52a674d95636", "taskId": "concept-08", "file": "assets/concept-08.jpg", "sha256": "adaee897d1f5495d97a4603ffa648323c33573c55a9df4994b811be1850a36d6", "width": 1024, "height": 1024, "status": "adopted", "adoptedRevision": 57, "caption": "概念方向 08｜复合商业与文化消费场景（AI 生成）" },
+    { "assetId": "89654316-d099-42f7-a0dd-99307011775d", "taskId": "concept-09", "file": "assets/concept-09.jpg", "sha256": "2ad2339a635c7260c3c783f1f681159507871163e5db32c04b4db28707595a2c", "width": 1024, "height": 1024, "status": "adopted", "adoptedRevision": 57, "caption": "概念方向 09｜亲子、展演与日常休闲共享空间（AI 生成）" },
+    { "assetId": "35be1849-48f0-4195-834b-90b18962f1bf", "taskId": "concept-10", "file": "assets/concept-10.jpg", "sha256": "bf63b5806c00d923976aa060d61dc45dde0c385061153f4bfcd9c490dcb37b70", "width": 1024, "height": 1024, "status": "adopted", "adoptedRevision": 57, "caption": "概念方向 10｜生态基础设施与雨洪花园（AI 生成）" },
+    { "assetId": "206b6cec-1fa4-4d99-82c6-8a6372ca5734", "taskId": "concept-11", "file": "assets/concept-11.jpg", "sha256": "3f64046b49e482ce395bb75cb8da335f0c2fd1b5058f9cbe9d51cc99a1de7191", "width": 1024, "height": 1024, "status": "adopted", "adoptedRevision": 57, "caption": "概念方向 11｜分期生长的公共空间骨架（AI 生成）" },
+    { "assetId": "recovered-concept-02-attempt2-1", "taskId": "concept-02", "attempt": 2, "file": "assets/concept-12-recovered.jpg", "sha256": "a7a70267f717e75916b2864574aeddcd2332162e5d073c53bc006b7f4b8d3857", "width": 1024, "height": 1024, "status": "recovered_after_timeout", "sourceChildId": "preplanning-visual-4f83a365ebc91d727cefed10", "caption": "旧超时任务恢复图｜门户与天际线备选；非 concept-12 采用成果（AI 生成）" }
+  ]
+}
