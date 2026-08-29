@@ -334,11 +334,18 @@ export type ClientMedium = 'html' | 'pptx' | 'pdf'
 export interface ClientPagePlan {
   readonly medium: ClientMedium
   readonly pages: readonly ClientPage[]
+  readonly layoutContract: Readonly<{
+    safeMarginRatio: number
+    minimumTitle: number
+    minimumBody: number
+    minimumCaption: number
+  }>
 }
 
 export interface ClientPage {
   readonly pageId: string
   readonly kind: ClientPageKind
+  readonly layoutVariant: 'full-bleed' | 'split' | 'editorial' | 'data' | 'timeline' | 'summary'
   readonly chapterId: string
   readonly headline: string
   readonly primaryFocus: Readonly<
@@ -353,7 +360,7 @@ export interface ClientPage {
 }
 ```
 
-页面规划器通过 `planClientPages(report, medium)` 返回有序 `ClientPagePlan`。每页只有一个 `primaryFocus`，并声明标题、主要视觉、证据引用和允许的辅助内容。
+页面规划器通过 `planClientPages(report, medium)` 返回有序 `ClientPagePlan`。每页只有一个 `primaryFocus`，并声明标题、主要视觉、证据引用和允许的辅助内容。`kind` 表示业务页面类型，`layoutVariant` 表示实际构图；连续重复规则检查构图而不是把全部专业附录误当成同一版式。
 
 ### 7.2 公开函数边界
 

@@ -217,6 +217,7 @@ export type ClientMedium = 'html' | 'pptx' | 'pdf'
 export interface ClientPage {
   readonly pageId: string
   readonly kind: ClientPageKind
+  readonly layoutVariant: 'full-bleed' | 'split' | 'editorial' | 'data' | 'timeline' | 'summary'
   readonly chapterId: string
   readonly headline: string
   readonly primaryFocus: Readonly<
@@ -233,6 +234,12 @@ export interface ClientPage {
 export interface ClientPagePlan {
   readonly medium: ClientMedium
   readonly pages: readonly ClientPage[]
+  readonly layoutContract: Readonly<{
+    safeMarginRatio: number
+    minimumTitle: number
+    minimumBody: number
+    minimumCaption: number
+  }>
 }
 
 export interface ClientPolicyViolation {
