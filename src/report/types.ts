@@ -90,3 +90,15 @@ export interface RenderedArtifact {
   readonly sha256: string
   readonly bytes: number
 }
+
+export type {
+  ArtifactIdentity,
+  ClientPage,
+  ClientPageKind,
+  ClientPagePlan,
+  ClientPolicyViolation,
+  ClientProjectProfile,
+  ClientRenderContext,
+  ClientReport,
+  ClientReportBundle,
+} from './client-types.ts'

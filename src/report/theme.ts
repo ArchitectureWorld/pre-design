@@ -1,3 +1,49 @@
+import type { ClientTheme, ClientThemeOverrides } from './client-types.ts'
+
+export const DEFAULT_CLIENT_THEME: ClientTheme = Object.freeze({
+  themeId: 'client-editorial-v1',
+  tokens: {
+    colors: {
+      background: 'F5F5F7',
+      surface: 'FFFFFF',
+      ink: '1D1D1F',
+      muted: '6E6E73',
+      primary: '0D5D66',
+      accent: 'B85C3A',
+    },
+    fonts: {
+      display: 'Noto Sans CJK SC',
+      body: 'Noto Sans CJK SC',
+      fallbacks: ['Microsoft YaHei', 'Segoe UI'],
+    },
+    grid: { columns: 12 as const, safeMarginRatio: 0.06, spacingBase: 8 as const },
+    typeScale: {
+      pptxPt: { cover: 64, chapter: 52, title: 34, body: 18, caption: 10 },
+      htmlPx: { cover: 80, chapter: 64, title: 44, body: 18, caption: 14 },
+    },
+    motion: { durationMs: 500, easing: 'ease-out' as const, respectsReducedMotion: true as const },
+  },
+})
+
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
+    for (const child of Object.values(value as Record<string, unknown>)) deepFreeze(child)
+    Object.freeze(value)
+  }
+  return value
+}
+
+export function createClientTheme(overrides: ClientThemeOverrides): ClientTheme {
+  return deepFreeze({
+    themeId: DEFAULT_CLIENT_THEME.themeId,
+    tokens: {
+      ...DEFAULT_CLIENT_THEME.tokens,
+      colors: { ...DEFAULT_CLIENT_THEME.tokens.colors, ...overrides.colors },
+      fonts: { ...DEFAULT_CLIENT_THEME.tokens.fonts, ...overrides.fonts },
+    },
+  })
+}
+
 export const REPORT_THEME = Object.freeze({
   colors: {
     ink: '132A2E',
