@@ -269,8 +269,31 @@ export interface ClientProjectProfile {
   readonly identity: ClientProjectIdentity
   readonly proposition: ClientProposition
   readonly themeOverrides: ClientThemeOverrides
-  readonly chapterOrder: readonly ClientChapter['role'][]
+  readonly chapters: readonly ClientChapterBlueprint[]
+  readonly products: readonly ClientProduct[]
+  readonly evidence: readonly ClientEvidence[]
+  readonly assetBindings: readonly ClientAssetBinding[]
   readonly requiredVisualRoles: readonly ClientVisualAsset['role'][]
+}
+
+export interface ClientChapterBlueprint {
+  readonly id: string
+  readonly role: ClientChapter['role']
+  readonly headline: string
+  readonly claim: string
+  readonly sourceObjectIds: readonly string[]
+  readonly blocks: readonly ClientContentBlock[]
+}
+
+export interface ClientAssetBinding {
+  readonly assetId: string
+  readonly role: ClientVisualAsset['role']
+  readonly chapterId: string
+  readonly productId?: string
+  readonly sha256: string
+  readonly width: number
+  readonly height: number
+  readonly disclosure?: '概念示意'
 }
 
 export interface ClientThemeOverrides {
@@ -279,7 +302,7 @@ export interface ClientThemeOverrides {
 }
 ```
 
-鄂州标杆项目只提供项目名称、价值主张、江湖蓝绿或场地材料色、章节顺序、视觉角色和冻结内容。渲染器不得出现“鄂州”“明塘”“洋澜湖”等字符串判断，也不得根据资产序号决定页面位置。
+鄂州标杆项目只提供项目名称、价值主张、江湖蓝绿或场地材料色、章节蓝图、产品、证据、视觉角色和冻结内容。每个章节蓝图通过 `sourceObjectIds` 声明其治理来源；投影器必须拒绝不存在的对象 ID。渲染器不得出现“鄂州”“明塘”“洋澜湖”等字符串判断，也不得根据资产序号决定页面位置。
 
 后续替换项目必须满足：
 
