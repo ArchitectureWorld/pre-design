@@ -19,7 +19,7 @@ import { GateService } from './runtime/gate-service.ts'
 import { QuestionService } from './runtime/question-service.ts'
 import { registerReportDownloadRoute, type ReportDownloadRegistrar } from './report/download-route.ts'
 import { ReportPackageService } from './report/package-service.ts'
-import { createFrozenProjectInput } from './report/source.ts'
+import { createFrozenProjectInput, loadClientProjectProfile } from './report/source.ts'
 import { RevisionService } from './runtime/revision-service.ts'
 import { WorkflowRuntime } from './runtime/workflow-runtime.ts'
 import { ProjectRepository } from './state/repository.ts'
@@ -115,6 +115,7 @@ export async function apply(ctx: Context): Promise<void> {
     now,
   })
   const reportPackageRoot = join(homedir(), '.dsh', 'preplanning-agent', 'report-packages')
+  const clientProfileRoot = join(homedir(), '.dsh', 'preplanning-agent', 'client-profiles')
   const reports = new ReportPackageService({
     governance,
     packageRoot: reportPackageRoot,
@@ -125,6 +126,7 @@ export async function apply(ctx: Context): Promise<void> {
       registry,
       visualStore,
     }),
+    profile: async projectId => loadClientProjectProfile(clientProfileRoot, projectId),
     createId: () => `report-${randomUUID()}`,
     now,
   })

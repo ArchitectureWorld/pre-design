@@ -1,8 +1,11 @@
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { ContractRegistry } from '../contracts/registry.ts'
 import type { GovernanceRepository } from '../governance/repository.ts'
 import type { GateDecisionRecord } from '../governance/types.ts'
 import type { ProjectRepository } from '../state/repository.ts'
 import type { VisualAssetStore } from '../visual/asset-store.ts'
+import type { ClientProjectProfile } from './client-types.ts'
 import type { FrozenProjectInput, FrozenStateFact, FrozenStateObject, ReportAsset } from './types.ts'
 
 export interface ReportSourceDependencies {
@@ -10,6 +13,29 @@ export interface ReportSourceDependencies {
   readonly governance: Pick<GovernanceRepository, 'readProject'>
   readonly registry: Pick<ContractRegistry, 'workflows'>
   readonly visualStore: Pick<VisualAssetStore, 'resolveAsset'>
+}
+
+export async function loadClientProjectProfile(
+  profileRoot: string,
+  projectId: string,
+): Promise<ClientProjectProfile> {
+  if (!/^[A-Za-z0-9._-]+$/u.test(projectId) || projectId === '.' || projectId === '..') {
+    throw new Error('unsafe project id for client profile')
+  }
+  const parsed = JSON.parse(await readFile(join(profileRoot, `${projectId}.json`), 'utf8')) as unknown
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('client project profile must be an object')
+  }
+  const record = parsed as Record<string, unknown>
+  const identity = record.identity
+  if (identity === null || typeof identity !== 'object' || Array.isArray(identity)
+    || (identity as Record<string, unknown>).projectId !== projectId) {
+    throw new Error('client project profile identity does not match project id')
+  }
+  for (const key of ['chapters', 'products', 'evidence', 'assetBindings', 'requiredVisualRoles']) {
+    if (!Array.isArray(record[key])) throw new Error(`client project profile ${key} must be an array`)
+  }
+  return parsed as ClientProjectProfile
 }
 
 function recordOf(value: unknown): Readonly<Record<string, unknown>> {

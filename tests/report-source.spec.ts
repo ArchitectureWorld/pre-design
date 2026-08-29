@@ -1,7 +1,25 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { createFrozenProjectInput } from '../src/report/source.ts'
+import { createFrozenProjectInput, loadClientProjectProfile } from '../src/report/source.ts'
+import { CLIENT_PROFILE } from './client-report-fixture.ts'
 
 describe('createFrozenProjectInput', () => {
+  it('loads a replaceable client profile by safe project id', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'preplan-profile-'))
+    try {
+      await writeFile(join(root, 'golden-project.json'), JSON.stringify(CLIENT_PROFILE), 'utf8')
+      await expect(loadClientProjectProfile(root, 'golden-project')).resolves.toMatchObject({
+        identity: { projectId: 'golden-project' },
+        proposition: { coreValue: CLIENT_PROFILE.proposition.coreValue },
+      })
+      await expect(loadClientProjectProfile(root, '../escape')).rejects.toThrow(/unsafe project id/u)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it('把冻结状态、Gate 和采用视觉资产转换为同一 Revision 的甲方报告输入', () => {
     const source = createFrozenProjectInput('project-1', 3, {
       repository: {
