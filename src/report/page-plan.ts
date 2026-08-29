@@ -23,7 +23,7 @@ function coverPage(report: ClientReport): ClientPage {
     layoutVariant: 'full-bleed',
     chapterId: 'opening',
     headline: report.identity.reportTitle,
-    primaryFocus: { type: 'claim', statement: report.proposition.coreValue },
+    primaryFocus: { type: 'claim', statement: report.proposition.projectDefinition },
     blockIndexes: [],
     assetIds: report.assets.filter(asset => asset.role === 'hero').map(asset => asset.assetId),
     evidenceIds: [],
@@ -87,7 +87,6 @@ function kindFor(chapter: ClientChapter, block: ClientContentBlock): ClientPageK
   if (chapter.role === 'product') return 'product'
   if (chapter.role === 'spatial') return 'scene'
   if (chapter.role === 'operation' || chapter.role === 'implementation') return 'implementation'
-  if (chapter.role === 'decision') return 'decision'
   return 'evidence'
 }
 
@@ -219,6 +218,16 @@ export function validateClientPagePlan(plan: ClientPagePlan): ClientPolicyViolat
         'LAYOUT_REPETITION',
         'pages[' + String(index - 2) + '..' + String(index) + ']',
         'the same layout variant appears three times in a row',
+      ))
+    }
+  }
+  for (let index = 6; index < plan.pages.length; index += 1) {
+    const run = plan.pages.slice(index - 2, index + 1)
+    if (run[0]?.kind !== 'appendix' && run.every(page => page.kind === run[0]?.kind)) {
+      violations.push(violation(
+        'PAGE_KIND_REPETITION',
+        'pages[' + String(index - 2) + '..' + String(index) + ']',
+        'the same page kind appears three times in a row',
       ))
     }
   }

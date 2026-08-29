@@ -19,6 +19,9 @@ describe('planClientPages', () => {
       minimumBody: 14,
       minimumCaption: 10,
     })
+    const bodyKinds = plan.pages.slice(4).map(page => page.kind)
+    expect(bodyKinds.some((kind, index) =>
+      index >= 2 && kind === bodyKinds[index - 1] && kind === bodyKinds[index - 2])).toBe(false)
     expect(validateClientPagePlan(plan)).toEqual([])
   })
 

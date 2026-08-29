@@ -400,7 +400,7 @@ const addCoverSlide: ClientSlideRenderer = (slide, report, page) => {
     x: SAFE_X, y: 2.95, w: 7.8, h: 0.45, fontFace: report.theme.tokens.fonts.body,
     fontSize: 20, color: 'C9D7D8', margin: 0,
   })
-  slide.addText(report.proposition.coreValue, {
+  slide.addText(report.proposition.projectDefinition, {
     x: SAFE_X, y: 4.0, w: 8.8, h: 1.18, fontFace: report.theme.tokens.fonts.display,
     fontSize: 24, bold: true, color: surface, margin: 0, fit: 'shrink',
   })
@@ -466,14 +466,15 @@ const addOpportunitySlide: ClientSlideRenderer = (slide, report, page) => addEdi
 const addPositioningSlide: ClientSlideRenderer = (slide, report, page) => {
   slide.background = { color: report.theme.tokens.colors.background }
   addClientEyebrow(slide, report, '定位与策略')
-  addClientTitle(slide, report, page.headline, { h: 1.12 })
+  const hasImage = addClientImage(slide, report, page.assetIds[0], { x: 7.25, y: 1.25, w: 5.28, h: 4.9 })
+  addClientTitle(slide, report, page.headline, { w: hasImage ? 5.9 : CONTENT_WIDTH, h: 1.12 })
   slide.addText(report.proposition.positioning, {
-    x: SAFE_X, y: 2.45, w: CONTENT_WIDTH, h: 1.15,
+    x: SAFE_X, y: 2.45, w: hasImage ? 5.9 : CONTENT_WIDTH, h: 1.15,
     fontFace: report.theme.tokens.fonts.display, fontSize: 32, bold: true,
     color: report.theme.tokens.colors.primary, margin: 0, fit: 'shrink',
   })
   slide.addText(blockText(clientBlock(report, page)), {
-    x: SAFE_X, y: 4.35, w: 8.2, h: 1.25, fontFace: report.theme.tokens.fonts.body,
+    x: SAFE_X, y: 4.35, w: hasImage ? 5.9 : 8.2, h: 1.25, fontFace: report.theme.tokens.fonts.body,
     fontSize: 18, color: report.theme.tokens.colors.ink, margin: 0, fit: 'shrink',
   })
 }
@@ -510,9 +511,10 @@ const addSceneSlide: ClientSlideRenderer = (slide, report, page) => {
   addClientTitle(slide, report, page.headline, { w: hasImage ? 5.2 : 10.9, h: 1.25 })
   slide.addText(blockText(clientBlock(report, page)), {
     x: SAFE_X, y: 2.65, w: hasImage ? 5.1 : 8.4, h: 1.5,
-    fontFace: report.theme.tokens.fonts.body, fontSize: 20,
+    fontFace: report.theme.tokens.fonts.body, fontSize: hasImage ? 20 : 28,
     color: report.theme.tokens.colors.primary, margin: 0, fit: 'shrink',
   })
+  if (!hasImage) addClientEvidence(slide, report, page.evidenceIds, { x: SAFE_X, y: 4.35, w: CONTENT_WIDTH, h: 1.75 })
 }
 
 const addImplementationSlide: ClientSlideRenderer = (slide, report, page) => {

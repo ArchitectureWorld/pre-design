@@ -118,7 +118,7 @@ type PageRenderer = (
 
 const renderCover: PageRenderer = (report, page, imageNames) => {
   const hero = page.assetIds.map(assetId => renderAsset(report, assetId, imageNames)).join('')
-  return `<div class="cover-grid"><div class="cover-copy"><p class="eyebrow">前期策划成果提案</p><h1>${escapeHtml(report.identity.reportTitle)}</h1><p class="cover-project">${escapeHtml(report.identity.projectName)}</p><p class="cover-value">${escapeHtml(report.proposition.coreValue)}</p><ul class="keyword-list">${report.proposition.keywords.map(keyword => `<li>${escapeHtml(keyword)}</li>`).join('')}</ul><time>${escapeHtml(displayDate(report.identity.reportDate))}</time></div>${hero}</div>`
+  return `<div class="cover-grid"><div class="cover-copy"><p class="eyebrow">前期策划成果提案</p><h1>${escapeHtml(report.identity.reportTitle)}</h1><p class="cover-project">${escapeHtml(report.identity.projectName)}</p><p class="cover-value">${escapeHtml(report.proposition.projectDefinition)}</p><ul class="keyword-list">${report.proposition.keywords.map(keyword => `<li>${escapeHtml(keyword)}</li>`).join('')}</ul><time>${escapeHtml(displayDate(report.identity.reportDate))}</time></div>${hero}</div>`
 }
 
 const renderOpeningClaim: PageRenderer = (_report, page) => {

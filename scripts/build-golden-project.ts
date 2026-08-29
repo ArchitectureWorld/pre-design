@@ -1,24 +1,32 @@
 import { createHash } from 'node:crypto'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join, relative, resolve } from 'node:path'
 import { ContractRegistry } from '../src/contracts/registry.ts'
 import type { ArtifactManifestRecord } from '../src/governance/types.ts'
-import { buildReportDocument } from '../src/report/build-document.ts'
+import { assertClientReportPolicy } from '../src/report/client-policy.ts'
+import { createClientReportBundle } from '../src/report/client-projection.ts'
+import type { ClientProjectProfile } from '../src/report/client-types.ts'
+import { planClientPages } from '../src/report/page-plan.ts'
 import { renderHtml } from '../src/report/render-html.ts'
 import { renderPdf } from '../src/report/render-pdf.ts'
 import { renderPptx } from '../src/report/render-pptx.ts'
+import { renderPrintHtml } from '../src/report/render-print-html.ts'
 import type { FrozenProjectInput, ReportAsset } from '../src/report/types.ts'
 import { validateAndHashReportArtifacts } from '../src/report/validate-artifacts.ts'
+import { inspectClientArtifacts, type ClientArtifactInspection } from './inspect-client-artifacts.ts'
 
 export interface GoldenProjectResult {
-  readonly project: {
-    readonly currentRevision: number
-    readonly recommendation: string
-  }
+  readonly project: { readonly currentRevision: number; readonly recommendation: string }
   readonly workflowCounts: { readonly total: number; readonly confirmed: number; readonly blocked: number }
   readonly gateCounts: { readonly total: number; readonly decided: number }
   readonly visualCounts: { readonly aiConcepts: number; readonly deterministicCharts: number }
   readonly manifest: ArtifactManifestRecord
+  readonly client: Readonly<{
+    schemaVersion: 'preplan.client-report.v1'
+    pptxPages: number
+    pdfPages: number
+    forbiddenTermHits: ClientArtifactInspection['forbiddenTermHits']
+  }>
 }
 
 interface GoldenBrief {
@@ -54,6 +62,15 @@ async function readJson<T>(path: string): Promise<T> {
   return JSON.parse(await readFile(path, 'utf8')) as T
 }
 
+async function exists(path: string): Promise<boolean> {
+  try {
+    await access(path)
+    return true
+  } catch {
+    return false
+  }
+}
+
 function fixturePath(fixtureRoot: string, path: string): string {
   const root = resolve(fixtureRoot)
   const output = resolve(root, path)
@@ -74,7 +91,7 @@ async function reportAssets(fixtureRoot: string, evidence: GoldenVisualEvidence)
     return {
       assetId: asset.assetId,
       kind: 'concept' as const,
-      caption: asset.caption,
+      caption: asset.caption.replace('（AI 生成）', '').trim(),
       sourcePath,
       mimeType: 'image/jpeg' as const,
     }
@@ -86,9 +103,13 @@ export async function runGoldenProject(
   outputRoot: string,
   options: { readonly browserExecutable: string },
 ): Promise<GoldenProjectResult> {
-  const [brief, evidence, registry] = await Promise.all([
+  if (await exists(join(outputRoot, 'artifact-manifest.json'))) {
+    throw new Error('refusing to overwrite published Golden')
+  }
+  const [brief, evidence, profile, registry] = await Promise.all([
     readJson<GoldenBrief>(join(fixtureRoot, 'project-brief.json')),
     readJson<GoldenVisualEvidence>(join(fixtureRoot, 'evidence-manifest.json')),
+    readJson<ClientProjectProfile>(join(fixtureRoot, 'client-profile.json')),
     ContractRegistry.open(new URL('../contracts/v0.6/', import.meta.url)),
   ])
   const workflows = registry.workflows()
@@ -113,24 +134,31 @@ export async function runGoldenProject(
       chapterId: workflow.chapterId,
       workItemId: workflow.workItemId,
       title: workflow.title,
-      summary: brief.chapterSummaries[workflow.chapterId] ?? '本章成果已确认并纳入汇报。',
-      facts: [
-        { label: '本轮状态', value: '已确认', basis: `成果版本 R${brief.revision}` },
-        { label: '成果用途', value: workflow.purpose, basis: '前期策划任务书与项目资料' },
-      ],
+      summary: brief.chapterSummaries[workflow.chapterId] ?? '本章成果已纳入汇报。',
+      facts: [{ label: '成果用途', value: workflow.purpose, basis: '前期策划任务书与项目资料' }],
     })),
     gates: [...brief.gateDecisions],
     visualAssets,
     adoptedAssetIds,
   }
-  const document = buildReportDocument(input)
-  const deterministicCharts = document.sections.flatMap(section => section.nodes)
-    .filter(node => node.type === 'chart').length
+  const bundle = createClientReportBundle(input, profile)
+  assertClientReportPolicy(bundle.report)
+  const plans = {
+    html: planClientPages(bundle.report, 'html'),
+    pptx: planClientPages(bundle.report, 'pptx'),
+    pdf: planClientPages(bundle.report, 'pdf'),
+  }
+  const contexts = {
+    html: { report: bundle.report, plan: plans.html, identity: bundle.identity },
+    pptx: { report: bundle.report, plan: plans.pptx, identity: bundle.identity },
+    pdf: { report: bundle.report, plan: plans.pdf, identity: bundle.identity },
+  }
   await mkdir(outputRoot, { recursive: true })
-  await renderHtml(document, outputRoot)
+  await renderHtml(contexts.html, outputRoot)
+  const printPath = await renderPrintHtml(contexts.pdf, outputRoot)
   await Promise.all([
-    renderPptx(document, join(outputRoot, 'report.pptx')),
-    renderPdf(join(outputRoot, 'html', 'index.html'), join(outputRoot, 'report.pdf'), options.browserExecutable),
+    renderPptx(contexts.pptx, join(outputRoot, 'report.pptx')),
+    renderPdf(printPath, join(outputRoot, 'report.pdf'), options.browserExecutable),
   ])
   const manifest = await validateAndHashReportArtifacts(outputRoot, {
     manifestId: `manifest-${brief.projectId}-r${brief.revision}`,
@@ -142,11 +170,20 @@ export async function runGoldenProject(
     createdAt: brief.generatedAt,
   })
   await writeFile(join(outputRoot, 'artifact-manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
+  const inspection = await inspectClientArtifacts(outputRoot)
+  await mkdir(join(outputRoot, 'qa'), { recursive: true })
+  await writeFile(join(outputRoot, 'qa', 'client-inspection.json'), `${JSON.stringify(inspection, null, 2)}\n`, 'utf8')
   return {
     project: { currentRevision: brief.revision, recommendation: brief.recommendation },
     workflowCounts: { ...brief.workflowStatus },
     gateCounts: { total: brief.gateDecisions.length, decided: brief.gateDecisions.length },
-    visualCounts: { aiConcepts: visualAssets.length, deterministicCharts },
+    visualCounts: { aiConcepts: visualAssets.length, deterministicCharts: 0 },
     manifest,
+    client: {
+      schemaVersion: bundle.report.schemaVersion,
+      pptxPages: plans.pptx.pages.length,
+      pdfPages: plans.pdf.pages.length,
+      forbiddenTermHits: inspection.forbiddenTermHits,
+    },
   }
 }
