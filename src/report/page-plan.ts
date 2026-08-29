@@ -7,6 +7,7 @@ import type {
   ClientPagePlan,
   ClientPolicyViolation,
   ClientReport,
+  ClientVisualRole,
 } from './client-types.ts'
 
 const LAYOUT_CONTRACT = Object.freeze({
@@ -77,7 +78,27 @@ function assetIds(block: ClientContentBlock): readonly string[] {
   return []
 }
 
-function kindFor(chapter: ClientChapter, block: ClientContentBlock): ClientPageKind {
+type ProfessionalVisualRole = Extract<ClientVisualRole, 'map' | 'diagram' | 'chart'>
+
+const PROFESSIONAL_VISUAL_ROLES = new Set<ClientVisualRole>(['map', 'diagram', 'chart'])
+
+function professionalVisualRole(
+  report: ClientReport,
+  block: ClientContentBlock,
+): ProfessionalVisualRole | undefined {
+  for (const assetId of assetIds(block)) {
+    const role = report.assets.find(asset => asset.assetId === assetId)?.role
+    if (role !== undefined && PROFESSIONAL_VISUAL_ROLES.has(role)) return role as ProfessionalVisualRole
+  }
+  return undefined
+}
+
+function kindFor(
+  chapter: ClientChapter,
+  block: ClientContentBlock,
+  visualRole?: ProfessionalVisualRole,
+): ClientPageKind {
+  if (visualRole !== undefined) return 'visual-evidence'
   if (block.type === 'decision') return 'decision'
   if (block.type === 'product') return 'product'
   if (block.type === 'scene') return 'scene'
@@ -112,6 +133,7 @@ function focusFor(block: ClientContentBlock): ClientPage['primaryFocus'] {
 }
 
 function variantFor(kind: ClientPageKind, index: number): ClientPage['layoutVariant'] {
+  if (kind === 'visual-evidence') return 'editorial'
   if (kind === 'scene') return index % 2 === 0 ? 'split' : 'full-bleed'
   if (kind === 'product' || kind === 'opportunity') return index % 2 === 0 ? 'split' : 'editorial'
   if (kind === 'implementation') return index % 2 === 0 ? 'timeline' : 'data'
@@ -121,17 +143,20 @@ function variantFor(kind: ClientPageKind, index: number): ClientPage['layoutVari
 }
 
 function blockPage(
+  report: ClientReport,
   chapter: ClientChapter,
   block: ClientContentBlock,
   blockIndex: number,
 ): ClientPage {
-  const kind = kindFor(chapter, block)
+  const visualRole = professionalVisualRole(report, block)
+  const kind = kindFor(chapter, block, visualRole)
   return {
     pageId: chapter.id + '-block-' + String(blockIndex + 1).padStart(2, '0'),
     kind,
     layoutVariant: variantFor(kind, blockIndex),
     chapterId: chapter.id,
     headline: headlineFor(block),
+    ...(visualRole === undefined ? {} : { visualRole }),
     primaryFocus: focusFor(block),
     blockIndexes: [blockIndex],
     assetIds: [...assetIds(block)],
@@ -182,7 +207,7 @@ export function planClientPages(report: ClientReport, medium: ClientMedium): Cli
 
   for (const chapter of report.chapters) {
     pages.push(chapterDivider(chapter))
-    chapter.blocks.forEach((block, index) => pages.push(blockPage(chapter, block, index)))
+    chapter.blocks.forEach((block, index) => pages.push(blockPage(report, chapter, block, index)))
   }
 
   if (medium === 'pdf') pages.push(...appendixPages(report))

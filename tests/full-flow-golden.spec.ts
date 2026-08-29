@@ -45,5 +45,6 @@ describe('Golden Project full flow', () => {
     expect(inspection.coreValueOccurrences).toEqual({ html: 1, pptx: 1, pdfSource: 1 })
     expect(inspection.missingAssetIds).toEqual([])
     expect(inspection.forbiddenTermHits).toEqual([])
+    expect(inspection.professionalVisualPages).toEqual({ html: 3, pptx: 3, pdfSource: 3 })
   }, 60_000)
 })

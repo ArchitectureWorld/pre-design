@@ -31,6 +31,7 @@ Reference 根目录：
 - v0.7.0 历史基线（只读）：`C:\Users\2899\Documents\Codex\2026-08-27\yue-du\outputs\dsh-preplanning-0.7.0\golden-project`
 - v0.8 工程 Golden 首轮：`C:\Users\2899\Documents\Codex\2026-08-27\yue-du\outputs\dsh-preplanning-0.8.0\engineering-golden-r1`
 - v0.8 工程 Golden 修正版：`C:\Users\2899\Documents\Codex\2026-08-27\yue-du\outputs\dsh-preplanning-0.8.0\engineering-golden-r2`
+- v0.8 专业视觉页工程 Golden：`C:\Users\2899\Documents\Codex\2026-08-27\yue-du\outputs\dsh-preplanning-0.8.0\engineering-golden-r3`
 - 鄂州标杆成果：`C:\Users\2899\Documents\Codex\2026-08-27\yue-du\outputs\dsh-preplanning-0.8.0\showcase-mingtang-yanglanhu-r1`
 
 每个正式输出目录应包含：
@@ -53,8 +54,9 @@ Reference 根目录：
 | HTML/PPTX/PDF 同源身份与禁词检查 | PASS | r2 `qa/client-inspection.json`：身份一致、禁词 0、缺失采用资产 0 |
 | `pnpm typecheck` | PASS | 2026-08-29 exit 0 |
 | `pnpm build` | PASS | 2026-08-29 exit 0，Host 与 Client 构建完成 |
-| `pnpm exec vitest run --maxWorkers=1` | PASS | 2026-08-29：44 个测试文件、110 项测试、0 失败 |
-| v0.8 工程 Golden 与覆盖保护 | PASS | r1、r2 均独立生成；r1 二次构建被 `refusing to overwrite published Golden` 拒绝 |
+| `pnpm exec vitest run --maxWorkers=1` | PASS | 2026-08-29：44 个测试文件、111 项测试、0 失败 |
+| 专业图件主视觉页 | PASS | r3：HTML/PPTX/PDF 各 3 页 `visual-evidence`；缺少 map、diagram、chart 时发布失败关闭 |
+| v0.8 工程 Golden 与覆盖保护 | PASS | r1、r2、r3 均为独立目录；r1 二次构建被 `refusing to overwrite published Golden` 拒绝 |
 | v0.7.0 Golden 哈希未变化 | PASS | 141 个文件聚合 SHA-256 `88085a8a9039b29dc7a7e5d8b43e2540e40163b722d68238fb733166cc6e7df1` |
 
 ## 全页视觉 QA
@@ -65,13 +67,13 @@ Reference 根目录：
 
 | 项目 | 状态 | 证据路径/说明 |
 |---|---|---|
-| PPTX 36 页全页渲染 | PASS | r2 `qa/ppt-render/`，Microsoft PowerPoint 16.0 导出 36/36 |
-| PPTX montage | PASS | r2 `qa/ppt-montage.png` |
-| PDF 48 页全页渲染 | PASS | r2 `qa/pdf-render/`，PyMuPDF 渲染 48/48 |
-| PDF montage | PASS | r2 `qa/pdf-montage.png` |
-| 至少一次修正闭环 | PASS | r1 发现连续深色决策页和无效右栏；修改源后生成 r2 并复查 |
-| 内容产品性评分 ≥ 85 | FAIL | r2 为 78/100，真实地块内容与产品深度不足 |
-| 苹果式美学评分 ≥ 88 | FAIL | r2 为 76/100，地图/总平面/图表和项目母题不足 |
+| PPTX 36 页全页渲染 | PASS | r3 `qa/ppt-render/`，Microsoft PowerPoint 16.0 导出 36/36 |
+| PPTX montage | PASS | r3 `qa/ppt-montage.png` |
+| PDF 48 页全页渲染 | PASS | r3 `qa/pdf-render/`，PyMuPDF 渲染 48/48 |
+| PDF montage | PASS | r3 `qa/pdf-montage.png` |
+| 至少一次修正闭环 | PASS | r2 发现专业图件被当普通配图；新增 role-aware 主视觉页后生成 r3 并复查 |
+| 内容产品性评分 ≥ 85 | FAIL | r3 为 78/100，真实地块内容与产品深度不足 |
+| 苹果式美学评分 ≥ 88 | FAIL | r3 为 80/100，专业构图已建立，但工程夹具仍缺真实地图/总平面/图表和项目母题 |
 | 真实 Microsoft PowerPoint 字体/错位/溢出检查 | PASS | PowerPoint 16.0 全页导出并检查 montage；未见裁切、越界或拉伸 |
 
 ## 真实 DSH E2E

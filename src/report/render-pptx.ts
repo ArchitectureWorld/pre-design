@@ -272,7 +272,8 @@ function blockText(block?: ClientContentBlock): string {
 }
 
 function clientNotes(context: ClientRenderContext, page: ClientPage): string {
-  return `[PageKind]${page.kind}\n[PreplanIdentity]\nprojectId=${context.identity.projectId}\nsourceRevision=${context.identity.sourceRevision}\nrecommendationId=${context.identity.recommendationId}\nadoptedAssetIds=${[...context.identity.adoptedAssetIds].sort().join(',')}`
+  const visualRole = page.visualRole === undefined ? '' : `\n[VisualRole]${page.visualRole}`
+  return `[PageKind]${page.kind}${visualRole}\n[PreplanIdentity]\nprojectId=${context.identity.projectId}\nsourceRevision=${context.identity.sourceRevision}\nrecommendationId=${context.identity.recommendationId}\nadoptedAssetIds=${[...context.identity.adoptedAssetIds].sort().join(',')}`
 }
 
 function addClientFooter(
@@ -439,6 +440,27 @@ const addChapterDividerSlide: ClientSlideRenderer = (slide, report, page) => {
   })
 }
 
+const CLIENT_VISUAL_ROLE_LABELS = Object.freeze({
+  map: '场地与区位',
+  diagram: '空间逻辑',
+  chart: '数据洞察',
+})
+
+const addVisualEvidenceSlide: ClientSlideRenderer = (slide, report, page) => {
+  const role = page.visualRole ?? 'diagram'
+  slide.background = { color: report.theme.tokens.colors.ink }
+  addClientEyebrow(slide, report, CLIENT_VISUAL_ROLE_LABELS[role])
+  addClientTitle(slide, report, page.headline, {
+    x: SAFE_X, y: 1.15, w: 3.05, h: 1.65, color: report.theme.tokens.colors.surface, size: 30,
+  })
+  slide.addText(blockText(clientBlock(report, page)), {
+    x: SAFE_X, y: 3.2, w: 3.05, h: 1.35,
+    fontFace: report.theme.tokens.fonts.body, fontSize: 16,
+    color: 'C9D7D8', margin: 0, fit: 'shrink',
+  })
+  addClientImage(slide, report, page.assetIds[0], { x: 4.35, y: 0.72, w: 8.18, h: 5.92 })
+}
+
 function addEditorialContent(
   slide: PptxGenJS.Slide,
   report: ClientReport,
@@ -565,6 +587,7 @@ const PPTX_LAYOUTS: Readonly<Record<ClientPageKind, ClientSlideRenderer>> = {
   cover: addCoverSlide,
   'opening-claim': addOpeningClaimSlide,
   'chapter-divider': addChapterDividerSlide,
+  'visual-evidence': addVisualEvidenceSlide,
   evidence: addEvidenceSlide,
   opportunity: addOpportunitySlide,
   positioning: addPositioningSlide,

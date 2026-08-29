@@ -203,6 +203,7 @@ export type ClientPageKind =
   | 'cover'
   | 'opening-claim'
   | 'chapter-divider'
+  | 'visual-evidence'
   | 'evidence'
   | 'opportunity'
   | 'positioning'
@@ -220,6 +221,7 @@ export interface ClientPage {
   readonly layoutVariant: 'full-bleed' | 'split' | 'editorial' | 'data' | 'timeline' | 'summary'
   readonly chapterId: string
   readonly headline: string
+  readonly visualRole?: Extract<ClientVisualRole, 'map' | 'diagram' | 'chart'>
   readonly primaryFocus: Readonly<
     | { type: 'claim'; statement: string }
     | { type: 'asset'; assetId: string }

@@ -53,6 +53,7 @@ export interface ClientArtifactInspection {
   readonly forbiddenTermHits: readonly string[]
   readonly pptxPages: number
   readonly pdfSourcePages: number
+  readonly professionalVisualPages: Readonly<{ html: number; pptx: number; pdfSource: number }>
 }
 
 export async function inspectClientArtifacts(outputRoot: string): Promise<ClientArtifactInspection> {
@@ -96,6 +97,11 @@ export async function inspectClientArtifacts(outputRoot: string): Promise<Client
     forbiddenTermHits,
     pptxPages: pptx.slideCount,
     pdfSourcePages: printHtml.match(/class="print-page/gu)?.length ?? 0,
+    professionalVisualPages: {
+      html: html.match(/data-page-kind="visual-evidence"/gu)?.length ?? 0,
+      pptx: pptx.notesText.match(/\[PageKind\]visual-evidence/gu)?.length ?? 0,
+      pdfSource: printHtml.match(/data-page-kind="visual-evidence"/gu)?.length ?? 0,
+    },
   }
 }
 

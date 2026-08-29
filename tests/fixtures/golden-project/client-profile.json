@@ -127,5 +127,5 @@
     { "assetId": "206b6cec-1fa4-4d99-82c6-8a6372ca5734", "role": "product-scene", "chapterId": "chapter-06", "productId": "product-waterfront-hall", "sha256": "3f64046b49e482ce395bb75cb8da335f0c2fd1b5058f9cbe9d51cc99a1de7191", "width": 1024, "height": 1024, "disclosure": "概念示意" },
     { "assetId": "recovered-concept-02-attempt2-1", "role": "product-scene", "chapterId": "chapter-06", "productId": "product-waterfront-hall", "sha256": "a7a70267f717e75916b2864574aeddcd2332162e5d073c53bc006b7f4b8d3857", "width": 1024, "height": 1024, "disclosure": "概念示意" }
   ],
-  "requiredVisualRoles": ["hero", "product-scene"]
+  "requiredVisualRoles": ["hero", "product-scene", "map", "diagram", "chart"]
 }

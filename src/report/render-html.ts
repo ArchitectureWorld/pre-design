@@ -131,6 +131,17 @@ const renderChapterDivider: PageRenderer = (report, page) => {
   return `<div class="chapter-stage"><p class="eyebrow">成果章节</p><h2>${escapeHtml(page.headline)}</h2><p>${escapeHtml(chapter?.claim ?? page.headline)}</p></div>`
 }
 
+const VISUAL_ROLE_LABELS = Object.freeze({
+  map: '场地与区位',
+  diagram: '空间逻辑',
+  chart: '数据洞察',
+})
+
+const renderVisualEvidence: PageRenderer = (report, page, imageNames) => {
+  const role = page.visualRole ?? 'diagram'
+  return `<div class="visual-evidence-stage" data-visual-role="${role}"><div class="visual-evidence-copy"><p class="eyebrow">${VISUAL_ROLE_LABELS[role]}</p><h2>${escapeHtml(page.headline)}</h2>${renderBlock(report, page)}${evidenceCards(report, page.evidenceIds)}</div><div class="visual-evidence-media">${renderPageAssets(report, page, imageNames)}</div></div>`
+}
+
 const renderEvidence: PageRenderer = (report, page, imageNames) => `<div class="content-grid"><div><p class="eyebrow">事实与判断</p><h2>${escapeHtml(page.headline)}</h2>${renderBlock(report, page)}${evidenceCards(report, page.evidenceIds)}</div><div>${renderPageAssets(report, page, imageNames)}</div></div>`
 
 const renderOpportunity: PageRenderer = (report, page, imageNames) => `<div class="content-grid opportunity-grid"><div><p class="eyebrow">机会识别</p><h2>${escapeHtml(page.headline)}</h2>${renderBlock(report, page)}${evidenceCards(report, page.evidenceIds)}</div><div>${renderPageAssets(report, page, imageNames)}</div></div>`
@@ -163,6 +174,7 @@ const PAGE_RENDERERS: Readonly<Record<ClientPageKind, PageRenderer>> = {
   cover: renderCover,
   'opening-claim': renderOpeningClaim,
   'chapter-divider': renderChapterDivider,
+  'visual-evidence': renderVisualEvidence,
   evidence: renderEvidence,
   opportunity: renderOpportunity,
   positioning: renderPositioning,
@@ -206,7 +218,8 @@ async function renderClientHtml(
     `<a href="#${encodeURIComponent(chapter.id + '-divider')}">${String(index + 1).padStart(2, '0')} ${escapeHtml(chapter.headline)}</a>`).join('')
   const pages = context.plan.pages.map((page, index) => {
     const content = PAGE_RENDERERS[page.kind](context.report, page, imageNames)
-    return `<section class="report-page layout-${page.layoutVariant}" id="${escapeHtml(page.pageId)}" data-page-kind="${page.kind}"><div class="page-count">${String(index + 1).padStart(2, '0')} / ${String(context.plan.pages.length).padStart(2, '0')}</div>${content}</section>`
+    const visualRole = page.visualRole === undefined ? '' : ` data-visual-role="${page.visualRole}"`
+    return `<section class="report-page layout-${page.layoutVariant} kind-${page.kind}" id="${escapeHtml(page.pageId)}" data-page-kind="${page.kind}"${visualRole}><div class="page-count">${String(index + 1).padStart(2, '0')} / ${String(context.plan.pages.length).padStart(2, '0')}</div>${content}</section>`
   }).join('\n')
   const adoptedAssets = [...context.identity.adoptedAssetIds].sort().join(',')
   const html = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="preplan-project-id" content="${escapeHtml(context.identity.projectId)}"><meta name="preplan-source-revision" content="${context.identity.sourceRevision}"><meta name="preplan-recommendation-id" content="${escapeHtml(context.identity.recommendationId)}"><meta name="preplan-adopted-assets" content="${escapeHtml(adoptedAssets)}"><title>${escapeHtml(context.report.identity.reportTitle)}</title><style>${clientThemeCss(context.report)}${CLIENT_REPORT_CSS}</style></head><body><a class="skip-link" href="#report-main">跳至成果正文</a><nav class="report-nav" aria-label="成果章节导航">${navigation}</nav><main id="report-main">${pages}</main><footer class="footer">本成果中的概念示意用于表达空间意向，不替代事实资料与法定依据。</footer><script>document.querySelectorAll('.report-nav a').forEach(link=>link.addEventListener('click',()=>history.replaceState(null,'',link.getAttribute('href'))));</script></body></html>`
