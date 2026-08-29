@@ -2,6 +2,17 @@ import { createHash } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
 import { basename } from 'node:path'
 import PptxGenJS from 'pptxgenjs'
+import { assertClientReportPolicy } from './client-policy.ts'
+import type {
+  ClientContentBlock,
+  ClientPage,
+  ClientPageKind,
+  ClientProduct,
+  ClientRenderContext,
+  ClientReport,
+  ClientVisualAsset,
+} from './client-types.ts'
+import { assertClientPagePlan } from './page-plan.ts'
 import { REPORT_THEME } from './theme.ts'
 import type { RenderedArtifact, ReportDocument, ReportNode, ReportSection } from './types.ts'
 
@@ -147,7 +158,7 @@ function addConceptGallerySlides(pptx: PptxGenJS, document: ReportDocument, star
   return page
 }
 
-export async function renderPptx(document: ReportDocument, outputPath: string): Promise<RenderedArtifact> {
+async function renderLegacyPptx(document: ReportDocument, outputPath: string): Promise<RenderedArtifact> {
   const pptx = new PptxGenJS()
   pptx.layout = 'LAYOUT_WIDE'
   pptx.author = 'ArchitectureWorld 前期策划'
@@ -212,4 +223,401 @@ export async function renderPptx(document: ReportDocument, outputPath: string): 
     format: 'pptx', fileName: basename(outputPath), path: outputPath, bytes,
     sha256: createHash('sha256').update(await readFile(outputPath)).digest('hex'),
   }
+}
+
+const SAFE_X = 0.8
+const SAFE_Y = 0.5
+const CONTENT_RIGHT = 12.533
+const CONTENT_BOTTOM = 6.88
+const CONTENT_WIDTH = CONTENT_RIGHT - SAFE_X
+
+function clientBlock(report: ClientReport, page: ClientPage): ClientContentBlock | undefined {
+  const chapter = report.chapters.find(candidate => candidate.id === page.chapterId)
+  const index = page.blockIndexes[0]
+  return index === undefined ? undefined : chapter?.blocks[index]
+}
+
+function clientProduct(
+  report: ClientReport,
+  page: ClientPage,
+  block?: ClientContentBlock,
+): ClientProduct | undefined {
+  const productId = block?.type === 'product'
+    ? block.productId
+    : block?.type === 'scene'
+      ? block.productIds[0]
+      : page.primaryFocus.type === 'product'
+        ? page.primaryFocus.productId
+        : undefined
+  return productId === undefined
+    ? report.products[0]
+    : report.products.find(product => product.productId === productId)
+}
+
+function blockText(block?: ClientContentBlock): string {
+  if (block === undefined) return ''
+  if (block.type === 'narrative') return block.statement
+  if (block.type === 'metric') return `${block.label}\n${block.value} ${block.unit}`
+  if (block.type === 'comparison') return `当前｜${block.before}\n目标｜${block.after}`
+  if (block.type === 'timeline') {
+    return block.phases.map(phase => `${phase.name}｜${phase.actions.join('；')}`).join('\n')
+  }
+  if (block.type === 'investment') {
+    return block.items.map(item => `${item.name}｜${item.amount} ${item.unit}\n${item.assumption}`).join('\n')
+  }
+  if (block.type === 'decision') return block.asks.join('\n')
+  if (block.type === 'product') return '以核心产品承接项目定位与使用场景'
+  if (block.type === 'scene') return block.headline
+  return block.headline
+}
+
+function clientNotes(context: ClientRenderContext, page: ClientPage): string {
+  return `[PageKind]${page.kind}\n[PreplanIdentity]\nprojectId=${context.identity.projectId}\nsourceRevision=${context.identity.sourceRevision}\nrecommendationId=${context.identity.recommendationId}\nadoptedAssetIds=${[...context.identity.adoptedAssetIds].sort().join(',')}`
+}
+
+function addClientFooter(
+  slide: PptxGenJS.Slide,
+  report: ClientReport,
+  pageNumber: number,
+): void {
+  const { muted, accent } = report.theme.tokens.colors
+  slide.addText('前期策划成果提案', {
+    x: SAFE_X, y: 7.05, w: 3.2, h: 0.2, fontFace: report.theme.tokens.fonts.body,
+    fontSize: 10, color: muted, margin: 0,
+  })
+  slide.addText(String(pageNumber).padStart(2, '0'), {
+    x: 11.75, y: 7.03, w: 0.78, h: 0.22, fontFace: report.theme.tokens.fonts.body,
+    fontSize: 10, bold: true, align: 'right', color: accent, margin: 0,
+  })
+}
+
+function addClientEyebrow(
+  slide: PptxGenJS.Slide,
+  report: ClientReport,
+  text: string,
+  color = report.theme.tokens.colors.accent,
+): void {
+  slide.addText(text, {
+    x: SAFE_X, y: SAFE_Y, w: 4.4, h: 0.24, fontFace: report.theme.tokens.fonts.body,
+    fontSize: 10, bold: true, charSpacing: 1.8, color, margin: 0,
+  })
+}
+
+function addClientTitle(
+  slide: PptxGenJS.Slide,
+  report: ClientReport,
+  headline: string,
+  options: Readonly<{ x?: number; y?: number; w?: number; h?: number; color?: string; size?: number }> = {},
+): void {
+  slide.addText(headline, {
+    x: options.x ?? SAFE_X,
+    y: options.y ?? 0.92,
+    w: options.w ?? CONTENT_WIDTH,
+    h: options.h ?? 1.05,
+    fontFace: report.theme.tokens.fonts.display,
+    fontSize: options.size ?? 30,
+    bold: true,
+    color: options.color ?? report.theme.tokens.colors.ink,
+    margin: 0,
+    valign: 'middle',
+    fit: 'shrink',
+  })
+}
+
+function imageGeometry(
+  asset: ClientVisualAsset,
+  box: Readonly<{ x: number; y: number; w: number; h: number }>,
+): Readonly<{ x: number; y: number; w: number; h: number }> {
+  const ratio = asset.width / asset.height
+  const boxRatio = box.w / box.h
+  if (ratio > boxRatio) {
+    const height = box.w / ratio
+    return { x: box.x, y: box.y + (box.h - height) / 2, w: box.w, h: height }
+  }
+  const width = box.h * ratio
+  return { x: box.x + (box.w - width) / 2, y: box.y, w: width, h: box.h }
+}
+
+function addClientImage(
+  slide: PptxGenJS.Slide,
+  report: ClientReport,
+  assetId: string | undefined,
+  box: Readonly<{ x: number; y: number; w: number; h: number }>,
+): boolean {
+  const asset = report.assets.find(candidate => candidate.assetId === assetId)
+  if (asset === undefined) return false
+  const geometry = imageGeometry(asset, box)
+  slide.addImage({ path: asset.sourcePath, ...geometry, altText: asset.caption })
+  slide.addText(asset.disclosure === undefined ? asset.caption : `${asset.caption}｜${asset.disclosure}`, {
+    x: box.x, y: box.y + box.h + 0.08, w: box.w, h: 0.28,
+    fontFace: report.theme.tokens.fonts.body, fontSize: 10,
+    color: report.theme.tokens.colors.muted, margin: 0, fit: 'shrink',
+  })
+  return true
+}
+
+function addClientEvidence(
+  slide: PptxGenJS.Slide,
+  report: ClientReport,
+  evidenceIds: readonly string[],
+  box: Readonly<{ x: number; y: number; w: number; h: number }>,
+): void {
+  const evidence = evidenceIds.flatMap(id => {
+    const row = report.evidence.find(candidate => candidate.evidenceId === id)
+    return row === undefined ? [] : [row]
+  }).slice(0, 3)
+  if (evidence.length === 0) return
+  const gap = 0.14
+  const height = (box.h - gap * (evidence.length - 1)) / evidence.length
+  evidence.forEach((row, index) => {
+    const y = box.y + index * (height + gap)
+    slide.addText([
+      { text: row.statement, options: { bold: true, breakLine: true } },
+      { text: `${row.sourceLabel} · ${displayDate(row.sourceDate)}`, options: { breakLine: false } },
+    ], {
+      x: box.x, y, w: box.w, h: height,
+      fontFace: report.theme.tokens.fonts.body, fontSize: 14,
+      color: report.theme.tokens.colors.ink, fill: { color: report.theme.tokens.colors.surface },
+      breakLine: false, margin: 0.16, valign: 'middle', fit: 'shrink',
+    })
+  })
+}
+
+type ClientSlideRenderer = (
+  slide: PptxGenJS.Slide,
+  report: ClientReport,
+  page: ClientPage,
+) => void
+
+const addCoverSlide: ClientSlideRenderer = (slide, report, page) => {
+  const { ink, surface, accent } = report.theme.tokens.colors
+  slide.background = { color: ink }
+  addClientEyebrow(slide, report, '前期策划成果提案', accent)
+  addClientTitle(slide, report, report.identity.reportTitle, {
+    x: SAFE_X, y: 1.2, w: 8.5, h: 1.55, color: surface, size: 50,
+  })
+  slide.addText(report.identity.projectName, {
+    x: SAFE_X, y: 2.95, w: 7.8, h: 0.45, fontFace: report.theme.tokens.fonts.body,
+    fontSize: 20, color: 'C9D7D8', margin: 0,
+  })
+  slide.addText(report.proposition.coreValue, {
+    x: SAFE_X, y: 4.0, w: 8.8, h: 1.18, fontFace: report.theme.tokens.fonts.display,
+    fontSize: 24, bold: true, color: surface, margin: 0, fit: 'shrink',
+  })
+  slide.addText(report.proposition.keywords.join('  ·  '), {
+    x: SAFE_X, y: 5.65, w: 8.8, h: 0.32, fontFace: report.theme.tokens.fonts.body,
+    fontSize: 12, color: 'C9D7D8', margin: 0,
+  })
+  addClientImage(slide, report, page.assetIds[0], { x: 9.5, y: 1.25, w: 3.0, h: 4.8 })
+}
+
+const addOpeningClaimSlide: ClientSlideRenderer = (slide, report, page) => {
+  const dark = page.layoutVariant === 'full-bleed'
+  slide.background = { color: dark ? report.theme.tokens.colors.ink : report.theme.tokens.colors.background }
+  addClientEyebrow(slide, report, '核心判断')
+  addClientTitle(slide, report, page.headline, {
+    y: 1.2, w: 10.9, h: 1.1, color: dark ? report.theme.tokens.colors.surface : undefined, size: 34,
+  })
+  const statement = page.primaryFocus.type === 'claim' ? page.primaryFocus.statement : page.headline
+  slide.addText(statement, {
+    x: SAFE_X, y: 3.0, w: 10.9, h: 1.75, fontFace: report.theme.tokens.fonts.display,
+    fontSize: 28, bold: true, color: dark ? 'DCE7E7' : report.theme.tokens.colors.primary,
+    margin: 0, fit: 'shrink',
+  })
+}
+
+const addChapterDividerSlide: ClientSlideRenderer = (slide, report, page) => {
+  slide.background = { color: report.theme.tokens.colors.primary }
+  addClientEyebrow(slide, report, '成果章节', 'E4B29F')
+  addClientTitle(slide, report, page.headline, {
+    y: 1.55, w: 10.7, h: 1.7, color: report.theme.tokens.colors.surface, size: 42,
+  })
+  const chapter = report.chapters.find(candidate => candidate.id === page.chapterId)
+  slide.addText(chapter?.claim ?? page.headline, {
+    x: SAFE_X, y: 4.15, w: 9.6, h: 1.15, fontFace: report.theme.tokens.fonts.body,
+    fontSize: 22, color: 'DCE7E7', margin: 0, fit: 'shrink',
+  })
+}
+
+function addEditorialContent(
+  slide: PptxGenJS.Slide,
+  report: ClientReport,
+  page: ClientPage,
+  label: string,
+): void {
+  slide.background = { color: report.theme.tokens.colors.background }
+  addClientEyebrow(slide, report, label)
+  const imageAdded = addClientImage(slide, report, page.assetIds[0], { x: 7.25, y: 1.35, w: 5.28, h: 4.85 })
+  addClientTitle(slide, report, page.headline, { w: imageAdded ? 5.9 : 10.8, h: 1.18 })
+  const block = clientBlock(report, page)
+  slide.addText(blockText(block), {
+    x: SAFE_X, y: 2.35, w: imageAdded ? 5.9 : 7.2, h: 1.55,
+    fontFace: report.theme.tokens.fonts.body, fontSize: 18,
+    color: report.theme.tokens.colors.ink, margin: 0, valign: 'top', fit: 'shrink',
+  })
+  addClientEvidence(slide, report, page.evidenceIds, {
+    x: SAFE_X, y: 4.15, w: imageAdded ? 5.9 : CONTENT_WIDTH, h: 2.15,
+  })
+}
+
+const addEvidenceSlide: ClientSlideRenderer = (slide, report, page) => addEditorialContent(slide, report, page, '事实与判断')
+const addOpportunitySlide: ClientSlideRenderer = (slide, report, page) => addEditorialContent(slide, report, page, '机会识别')
+
+const addPositioningSlide: ClientSlideRenderer = (slide, report, page) => {
+  slide.background = { color: report.theme.tokens.colors.background }
+  addClientEyebrow(slide, report, '定位与策略')
+  addClientTitle(slide, report, page.headline, { h: 1.12 })
+  slide.addText(report.proposition.positioning, {
+    x: SAFE_X, y: 2.45, w: CONTENT_WIDTH, h: 1.15,
+    fontFace: report.theme.tokens.fonts.display, fontSize: 32, bold: true,
+    color: report.theme.tokens.colors.primary, margin: 0, fit: 'shrink',
+  })
+  slide.addText(blockText(clientBlock(report, page)), {
+    x: SAFE_X, y: 4.35, w: 8.2, h: 1.25, fontFace: report.theme.tokens.fonts.body,
+    fontSize: 18, color: report.theme.tokens.colors.ink, margin: 0, fit: 'shrink',
+  })
+}
+
+const addProductSlide: ClientSlideRenderer = (slide, report, page) => {
+  slide.background = { color: report.theme.tokens.colors.background }
+  addClientEyebrow(slide, report, '核心产品')
+  const block = clientBlock(report, page)
+  const product = clientProduct(report, page, block)
+  addClientTitle(slide, report, product?.name ?? page.headline, { w: 6.05, h: 1.1 })
+  slide.addText(product?.valueProposition ?? blockText(block), {
+    x: SAFE_X, y: 2.25, w: 5.8, h: 1.05, fontFace: report.theme.tokens.fonts.body,
+    fontSize: 18, color: report.theme.tokens.colors.primary, bold: true, margin: 0, fit: 'shrink',
+  })
+  const details = product === undefined ? blockText(block) : [
+    `内容组合｜${product.contents.join(' · ')}`,
+    `使用场景｜${product.usageScenarios.join(' · ')}`,
+    `运营方式｜${product.operatingModel}`,
+  ].join('\n')
+  slide.addText(details, {
+    x: SAFE_X, y: 3.6, w: 5.8, h: 2.2, fontFace: report.theme.tokens.fonts.body,
+    fontSize: 16, color: report.theme.tokens.colors.ink, breakLine: false,
+    margin: 0.12, fit: 'shrink',
+  })
+  if (!addClientImage(slide, report, page.assetIds[0], { x: 7.0, y: 1.25, w: 5.53, h: 5.2 })) {
+    addClientEvidence(slide, report, product?.evidenceIds ?? page.evidenceIds, { x: 7.0, y: 1.55, w: 5.53, h: 4.6 })
+  }
+}
+
+const addSceneSlide: ClientSlideRenderer = (slide, report, page) => {
+  const hasImage = addClientImage(slide, report, page.assetIds[0], { x: 6.45, y: 0.72, w: 6.08, h: 5.9 })
+  slide.background = { color: report.theme.tokens.colors.background }
+  addClientEyebrow(slide, report, '空间场景')
+  addClientTitle(slide, report, page.headline, { w: hasImage ? 5.2 : 10.9, h: 1.25 })
+  slide.addText(blockText(clientBlock(report, page)), {
+    x: SAFE_X, y: 2.65, w: hasImage ? 5.1 : 8.4, h: 1.5,
+    fontFace: report.theme.tokens.fonts.body, fontSize: 20,
+    color: report.theme.tokens.colors.primary, margin: 0, fit: 'shrink',
+  })
+}
+
+const addImplementationSlide: ClientSlideRenderer = (slide, report, page) => {
+  slide.background = { color: report.theme.tokens.colors.background }
+  addClientEyebrow(slide, report, '实施路径')
+  addClientTitle(slide, report, page.headline, { h: 1.08 })
+  slide.addText(blockText(clientBlock(report, page)), {
+    x: SAFE_X, y: 2.25, w: 7.15, h: 3.35,
+    fontFace: report.theme.tokens.fonts.body, fontSize: 18,
+    color: report.theme.tokens.colors.ink, fill: { color: report.theme.tokens.colors.surface },
+    margin: 0.24, valign: 'middle', fit: 'shrink',
+  })
+  addClientEvidence(slide, report, page.evidenceIds, { x: 8.25, y: 2.25, w: 4.28, h: 3.35 })
+}
+
+const addDecisionSlide: ClientSlideRenderer = (slide, report, page) => {
+  slide.background = { color: report.theme.tokens.colors.ink }
+  addClientEyebrow(slide, report, '共同决策')
+  addClientTitle(slide, report, page.headline, { color: report.theme.tokens.colors.surface, h: 1.1 })
+  const block = clientBlock(report, page)
+  const asks = block?.type === 'decision'
+    ? block.asks
+    : page.primaryFocus.type === 'decision'
+      ? page.primaryFocus.asks
+      : []
+  const rows = asks.length === 0 ? ['确认项目定位与首期实施边界'] : asks
+  rows.slice(0, 4).forEach((ask, index) => {
+    slide.addText([
+      { text: String(index + 1).padStart(2, '0'), options: { bold: true } },
+      { text: `  ${ask}`, options: { bold: false } },
+    ], {
+      x: SAFE_X, y: 2.45 + index * 0.88, w: 10.8, h: 0.64,
+      fontFace: report.theme.tokens.fonts.body, fontSize: 20,
+      color: report.theme.tokens.colors.surface, breakLine: false,
+      margin: 0.08, fit: 'shrink',
+    })
+  })
+}
+
+const addAppendixSlide: ClientSlideRenderer = (slide, report, page) => {
+  slide.background = { color: report.theme.tokens.colors.background }
+  addClientEyebrow(slide, report, '依据索引')
+  addClientTitle(slide, report, page.headline, { h: 1.15 })
+  addClientEvidence(slide, report, page.evidenceIds, { x: SAFE_X, y: 2.45, w: CONTENT_WIDTH, h: 3.8 })
+}
+
+const PPTX_LAYOUTS: Readonly<Record<ClientPageKind, ClientSlideRenderer>> = {
+  cover: addCoverSlide,
+  'opening-claim': addOpeningClaimSlide,
+  'chapter-divider': addChapterDividerSlide,
+  evidence: addEvidenceSlide,
+  opportunity: addOpportunitySlide,
+  positioning: addPositioningSlide,
+  product: addProductSlide,
+  scene: addSceneSlide,
+  implementation: addImplementationSlide,
+  decision: addDecisionSlide,
+  appendix: addAppendixSlide,
+}
+
+async function renderClientPptx(
+  context: ClientRenderContext,
+  outputPath: string,
+): Promise<RenderedArtifact> {
+  assertClientReportPolicy(context.report)
+  assertClientPagePlan(context.plan)
+  const pptx = new PptxGenJS()
+  pptx.layout = 'LAYOUT_WIDE'
+  pptx.author = 'ArchitectureWorld 前期策划'
+  pptx.company = 'ArchitectureWorld'
+  pptx.subject = `sourceRevision=${context.identity.sourceRevision};recommendationId=${context.identity.recommendationId};adoptedAssetIds=${[...context.identity.adoptedAssetIds].sort().join(',')}`
+  pptx.title = context.report.identity.reportTitle
+  pptx.theme = {
+    headFontFace: context.report.theme.tokens.fonts.display,
+    bodyFontFace: context.report.theme.tokens.fonts.body,
+  }
+
+  context.plan.pages.forEach((page, index) => {
+    const slide = pptx.addSlide()
+    PPTX_LAYOUTS[page.kind](slide, context.report, page)
+    addClientFooter(slide, context.report, index + 1)
+    slide.addNotes(clientNotes(context, page))
+  })
+
+  await pptx.writeFile({ fileName: outputPath })
+  return {
+    format: 'pptx',
+    fileName: basename(outputPath),
+    path: outputPath,
+    bytes: (await stat(outputPath)).size,
+    sha256: createHash('sha256').update(await readFile(outputPath)).digest('hex'),
+  }
+}
+
+function isClientRenderContext(value: ClientRenderContext | ReportDocument): value is ClientRenderContext {
+  return 'report' in value && 'plan' in value && 'identity' in value
+}
+
+export function renderPptx(context: ClientRenderContext, outputPath: string): Promise<RenderedArtifact>
+export function renderPptx(document: ReportDocument, outputPath: string): Promise<RenderedArtifact>
+export function renderPptx(
+  input: ClientRenderContext | ReportDocument,
+  outputPath: string,
+): Promise<RenderedArtifact> {
+  return isClientRenderContext(input)
+    ? renderClientPptx(input, outputPath)
+    : renderLegacyPptx(input, outputPath)
 }
