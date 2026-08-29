@@ -4,6 +4,7 @@ import { basename, dirname } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { spawn } from 'node:child_process'
 import type { RenderedArtifact } from './types.ts'
+import { readHtmlArtifactIdentity } from './validate-artifacts.ts'
 
 export type BrowserRunner = (executable: string, args: readonly string[]) => Promise<void>
 
@@ -34,16 +35,22 @@ export async function renderPdf(
     pathToFileURL(htmlPath).href,
   ])
   const html = await readFile(htmlPath, 'utf8')
-  const revisionText = html.match(/data-report-revision=["'](\d+)["']/u)?.[1]
-  const recommendationId = html.match(/data-recommendation-id=["']([^"']*)["']/u)?.[1]
-  const adoptedAssetText = html.match(/data-adopted-asset-ids=["']([^"']*)["']/u)?.[1] ?? ''
-  if (revisionText !== undefined && recommendationId !== undefined) {
-    const metadata = {
-      revision: Number(revisionText),
-      recommendationId,
-      adoptedAssetIds: adoptedAssetText === '' ? [] : adoptedAssetText.split(',').filter(Boolean).sort(),
-    }
+  const hasClientIdentity = html.includes('name="preplan-project-id"') || html.includes("name='preplan-project-id'")
+  if (hasClientIdentity) {
+    const metadata = readHtmlArtifactIdentity(html)
     await appendFile(outputPath, `\n%PREPLAN-METADATA:${Buffer.from(JSON.stringify(metadata)).toString('base64url')}\n`)
+  } else {
+    const revisionText = html.match(/data-report-revision=["'](\d+)["']/u)?.[1]
+    const recommendationId = html.match(/data-recommendation-id=["']([^"']*)["']/u)?.[1]
+    const adoptedAssetText = html.match(/data-adopted-asset-ids=["']([^"']*)["']/u)?.[1] ?? ''
+    if (revisionText !== undefined && recommendationId !== undefined) {
+      const metadata = {
+        revision: Number(revisionText),
+        recommendationId,
+        adoptedAssetIds: adoptedAssetText === '' ? [] : adoptedAssetText.split(',').filter(Boolean).sort(),
+      }
+      await appendFile(outputPath, `\n%PREPLAN-METADATA:${Buffer.from(JSON.stringify(metadata)).toString('base64url')}\n`)
+    }
   }
   const content = await readFile(outputPath)
   if (content.subarray(0, 5).toString() !== '%PDF-') throw new Error('browser did not produce a valid PDF artifact')
