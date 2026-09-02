@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { copyFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
 import { assertClientReportPolicy } from './client-policy.ts'
+import { clientTextChunks } from './client-typography.ts'
 import type {
   ClientContentBlock,
   ClientPage,
@@ -11,6 +12,7 @@ import type {
   ClientReport,
 } from './client-types.ts'
 import { assertClientPagePlan } from './page-plan.ts'
+import { renderAnalyticalHtml, renderDecisionConvergenceHtml, renderSitePlanHtml } from './render-analytical-html.ts'
 import { renderChartSvg } from './render-chart.ts'
 import { CLIENT_REPORT_CSS } from './theme.ts'
 import type { RenderedArtifact, ReportDocument, ReportNode } from './types.ts'
@@ -19,6 +21,12 @@ function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/gu, character => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   })[character]!)
+}
+
+function renderClientText(value: string): string {
+  return clientTextChunks(value).map(chunk => chunk === '\n'
+    ? '<br>'
+    : `<span class="client-text-chunk">${escapeHtml(chunk)}</span><wbr>`).join('')
 }
 
 function assetFileName(assetId: string, sourcePath: string): string {
@@ -32,21 +40,21 @@ function assetFileName(assetId: string, sourcePath: string): string {
 
 function displayDate(value: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})/u.exec(value)
-  return match === null ? value : `${match[1]}年${match[2]}月${match[3]}日`
+  return match === null ? value : `${match[1]}-${match[2]}-${match[3]}`
 }
 
 function renderAsset(
   report: ClientReport,
   assetId: string,
   imageNames: ReadonlyMap<string, string>,
+  galleryRank?: 'primary' | 'supporting',
 ): string {
   const asset = report.assets.find(candidate => candidate.assetId === assetId)
   const name = imageNames.get(assetId)
   if (asset === undefined || name === undefined) return ''
-  const disclosure = asset.disclosure === undefined
-    ? ''
-    : `<span class="asset-disclosure">${escapeHtml(asset.disclosure)}</span>`
-  return `<figure class="page-visual"><img src="assets/images/${encodeURIComponent(name)}" alt="${escapeHtml(asset.caption)}"><figcaption>${escapeHtml(asset.caption)}${disclosure}</figcaption></figure>`
+  const visualFit = asset.role === 'map' || asset.role === 'diagram' || asset.role === 'chart' ? 'contain' : 'cover'
+  const rank = galleryRank === undefined ? '' : ` data-gallery-rank="${galleryRank}"`
+  return `<figure class="page-visual" data-visual-role="${asset.role}" data-visual-fit="${visualFit}"${rank}><img src="assets/images/${encodeURIComponent(name)}" alt="${escapeHtml(asset.caption)}"><figcaption>${escapeHtml(asset.caption)}</figcaption></figure>`
 }
 
 function evidenceCards(report: ClientReport, ids: readonly string[]): string {
@@ -54,7 +62,10 @@ function evidenceCards(report: ClientReport, ids: readonly string[]): string {
   const items = ids.flatMap(id => {
     const evidence = report.evidence.find(candidate => candidate.evidenceId === id)
     if (evidence === undefined) return []
-    const measure = evidence.unit === undefined ? '' : `<span>${escapeHtml(evidence.unit)}</span>`
+    const unit = evidence.unit?.trim()
+    const measure = unit === undefined || unit === '' || evidence.statement.includes(unit)
+      ? ''
+      : `<span>${escapeHtml(unit)}</span>`
     return [`<li><strong>${escapeHtml(evidence.statement)}</strong><small>${escapeHtml(evidence.sourceLabel)} · ${escapeHtml(displayDate(evidence.sourceDate))}</small>${measure}</li>`]
   })
   return items.length === 0 ? '' : `<ul class="evidence-list">${items.join('')}</ul>`
@@ -79,10 +90,25 @@ function findProduct(report: ClientReport, page: ClientPage, block?: ClientConte
     : report.products.find(product => product.productId === productId)
 }
 
+function sceneProducts(report: ClientReport, block?: ClientContentBlock): readonly ClientProduct[] {
+  if (block?.type !== 'scene') return []
+  return block.productIds.flatMap(productId => {
+    const product = report.products.find(candidate => candidate.productId === productId)
+    return product === undefined ? [] : [product]
+  })
+}
+
 function renderBlock(report: ClientReport, page: ClientPage): string {
   const block = findBlock(report, page)
   if (block === undefined) return ''
-  if (block.type === 'narrative') return `<p class="lead-copy">${escapeHtml(block.statement)}</p>`
+  if (block.type === 'product' || block.type === 'scene') {
+    const product = findProduct(report, page, block)
+    const copy = product?.valueProposition ?? (block.type === 'scene' ? block.headline : '')
+    return copy === '' ? '' : `<p class="lead-copy">${escapeHtml(copy)}</p>`
+  }
+  if (block.type === 'narrative') {
+    return block.statement === page.headline ? '' : `<p class="lead-copy">${escapeHtml(block.statement)}</p>`
+  }
   if (block.type === 'metric') {
     return `<div class="metric-focus"><span>${escapeHtml(block.label)}</span><strong>${escapeHtml(block.value)}</strong><small>${escapeHtml(block.unit)}</small></div>`
   }
@@ -98,7 +124,9 @@ function renderBlock(report: ClientReport, page: ClientPage): string {
   if (block.type === 'decision') {
     return `<ol class="decision-list">${block.asks.map(ask => `<li>${escapeHtml(ask)}</li>`).join('')}</ol>`
   }
-  if ('headline' in block) return `<p class="lead-copy">${escapeHtml(block.headline)}</p>`
+  if ('headline' in block) {
+    return block.headline === page.headline ? '' : `<p class="lead-copy">${escapeHtml(block.headline)}</p>`
+  }
   return ''
 }
 
@@ -110,6 +138,58 @@ function renderPageAssets(
   return page.assetIds.map(assetId => renderAsset(report, assetId, imageNames)).join('')
 }
 
+function assetLayoutFor(page: ClientPage): NonNullable<ClientPage['assetLayout']> | 'none' {
+  return page.assetLayout ?? 'none'
+}
+
+function mediaPositionFor(page: ClientPage): 'background' | 'left' | 'right' | 'top' | 'bottom' | 'none' {
+  return page.mediaPosition ?? 'none'
+}
+
+function renderVisualEvidenceMedia(
+  report: ClientReport,
+  page: ClientPage,
+  imageNames: ReadonlyMap<string, string>,
+): string {
+  const layout = assetLayoutFor(page)
+  if (layout === 'single') return `<div class="visual-evidence-media">${renderPageAssets(report, page, imageNames)}</div>`
+  const assets = page.assetIds.map((assetId, index) => renderAsset(
+    report,
+    assetId,
+    imageNames,
+    index === 0 ? 'primary' : 'supporting',
+  )).join('')
+  return `<div class="visual-evidence-media"><div class="visual-gallery" data-gallery-layout="${layout}">${assets}</div></div>`
+}
+
+function renderPageBackdrop(
+  report: ClientReport,
+  assetId: string | undefined,
+  imageNames: ReadonlyMap<string, string>,
+): string {
+  if (assetId === undefined) return ''
+  const asset = report.assets.find(candidate => candidate.assetId === assetId)
+  const name = imageNames.get(assetId)
+  if (asset === undefined || name === undefined) return ''
+  return `<div class="page-backdrop" data-backdrop-asset="${escapeHtml(assetId)}" aria-hidden="true"><img src="assets/images/${encodeURIComponent(name)}" alt=""></div>`
+}
+
+function visualContractSummary(report: ClientReport, page: ClientPage): string {
+  const asset = report.assets.find(candidate => candidate.assetId === page.assetIds[0])
+  if (asset === undefined || asset.provenance === undefined) return ''
+  const rows = [`${asset.provenance.sourceLabel} · ${displayDate(asset.provenance.sourceDate)} · ${asset.provenance.locator}`]
+  if (asset.analysisKind !== undefined && asset.cartography !== undefined) {
+    const boundary = asset.cartography.boundary === 'confirmed' ? '项目边界：已由项目资料确认'
+      : asset.cartography.boundary === 'research' ? (asset.cartography.disclosures ?? []).join(' · ')
+        : '项目边界：不适用'
+    rows.push(`${boundary} · 图例 · N · ${asset.cartography.scale.kind === 'nts' ? 'NTS' : asset.cartography.scale.label}`)
+  }
+  if (asset.role === 'chart' && asset.chartContract !== undefined) {
+    rows.push(`单位：${asset.chartContract.unit} · 口径：${asset.chartContract.methodology}`)
+  }
+  return `<p class="visual-contract">${rows.map(escapeHtml).join('<br>')}</p>`
+}
+
 type PageRenderer = (
   report: ClientReport,
   page: ClientPage,
@@ -117,32 +197,48 @@ type PageRenderer = (
 ) => string
 
 const renderCover: PageRenderer = (report, page, imageNames) => {
-  const hero = page.assetIds.map(assetId => renderAsset(report, assetId, imageNames)).join('')
-  return `<div class="cover-grid"><div class="cover-copy"><p class="eyebrow">前期策划成果提案</p><h1>${escapeHtml(report.identity.reportTitle)}</h1><p class="cover-project">${escapeHtml(report.identity.projectName)}</p><p class="cover-value">${escapeHtml(report.proposition.projectDefinition)}</p><ul class="keyword-list">${report.proposition.keywords.map(keyword => `<li>${escapeHtml(keyword)}</li>`).join('')}</ul><time>${escapeHtml(displayDate(report.identity.reportDate))}</time></div>${hero}</div>`
+  const hero = renderPageBackdrop(report, page.assetIds[0], imageNames)
+  return `${hero}<div class="cover-grid"><div class="cover-copy"><p class="eyebrow">前期策划成果提案</p><h1>${escapeHtml(report.identity.reportTitle)}</h1><p class="cover-project">${escapeHtml(report.identity.projectName)}</p><p class="cover-value">${escapeHtml(report.proposition.projectDefinition)}</p><ul class="keyword-list">${report.proposition.keywords.map(keyword => `<li>${escapeHtml(keyword)}</li>`).join('')}</ul><time>${escapeHtml(displayDate(report.identity.reportDate))}</time></div></div>`
 }
 
 const renderOpeningClaim: PageRenderer = (_report, page) => {
   const statement = page.primaryFocus.type === 'claim' ? page.primaryFocus.statement : page.headline
-  return `<div class="claim-stage"><p class="eyebrow">核心判断</p><h2>${escapeHtml(page.headline)}</h2><p class="claim-focus">${escapeHtml(statement)}</p></div>`
+  return `<div class="claim-stage"><p class="eyebrow">核心判断</p><h2>${escapeHtml(page.headline)}</h2><p class="claim-focus">${renderClientText(statement)}</p>${renderAnalyticalHtml(page.analyticalVisual, escapeHtml)}</div>`
 }
 
 const renderChapterDivider: PageRenderer = (report, page) => {
   const chapter = report.chapters.find(candidate => candidate.id === page.chapterId)
-  return `<div class="chapter-stage"><p class="eyebrow">成果章节</p><h2>${escapeHtml(page.headline)}</h2><p>${escapeHtml(chapter?.claim ?? page.headline)}</p></div>`
+  const claim = chapter?.claim ?? page.headline
+  return `<div class="chapter-stage"><p class="eyebrow">成果章节</p><h2>${renderClientText(page.headline)}</h2>${claim === page.headline ? '' : `<p>${renderClientText(claim)}</p>`}</div>`
 }
 
 const VISUAL_ROLE_LABELS = Object.freeze({
   map: '场地与区位',
   diagram: '空间逻辑',
   chart: '数据洞察',
+  gallery: '视觉叙事',
 })
 
 const renderVisualEvidence: PageRenderer = (report, page, imageNames) => {
-  const role = page.visualRole ?? 'diagram'
-  return `<div class="visual-evidence-stage" data-visual-role="${role}"><div class="visual-evidence-copy"><p class="eyebrow">${VISUAL_ROLE_LABELS[role]}</p><h2>${escapeHtml(page.headline)}</h2>${renderBlock(report, page)}${evidenceCards(report, page.evidenceIds)}</div><div class="visual-evidence-media">${renderPageAssets(report, page, imageNames)}</div></div>`
+  const role = page.visualRole ?? 'gallery'
+  const label = `<p class="eyebrow">${VISUAL_ROLE_LABELS[role]}</p>`
+  const title = `<h2>${renderClientText(page.headline)}</h2>`
+  const contract = visualContractSummary(report, page)
+  const media = renderVisualEvidenceMedia(report, page, imageNames)
+  if (page.assetIds.length > 1) {
+    return `<div class="visual-evidence-stage visual-evidence-gallery" data-visual-role="${role}" data-visual-presentation="gallery"><div class="visual-gallery-heading">${label}${title}${contract}</div>${media}</div>`
+  }
+  if (page.layoutVariant === 'full-bleed') {
+    return `<div class="visual-evidence-stage visual-evidence-full-bleed" data-visual-role="${role}" data-visual-presentation="background">${media}<div class="visual-evidence-copy">${label}${title}${renderBlock(report, page)}${contract}</div></div>`
+  }
+  const copy = `${label}${title}${renderBlock(report, page)}${contract}${evidenceCards(report, page.evidenceIds)}`
+  if (page.layoutVariant === 'split') {
+    return `<div class="visual-evidence-stage visual-evidence-split" data-visual-role="${role}" data-visual-presentation="horizontal-split"><div class="visual-evidence-copy">${copy}</div>${media}</div>`
+  }
+  return `<div class="visual-evidence-stage visual-evidence-editorial" data-visual-role="${role}" data-visual-presentation="vertical-stack"><aside class="visual-evidence-copy">${copy}</aside>${media}</div>`
 }
 
-const renderEvidence: PageRenderer = (report, page, imageNames) => `<div class="content-grid"><div><p class="eyebrow">事实与判断</p><h2>${escapeHtml(page.headline)}</h2>${renderBlock(report, page)}${evidenceCards(report, page.evidenceIds)}</div><div>${renderPageAssets(report, page, imageNames)}</div></div>`
+const renderEvidence: PageRenderer = (report, page, imageNames) => `<div class="content-grid"><div><p class="eyebrow">事实与判断</p><h2>${escapeHtml(page.headline)}</h2>${renderBlock(report, page)}${renderAnalyticalHtml(page.analyticalVisual, escapeHtml)}${evidenceCards(report, page.evidenceIds)}</div><div>${renderPageAssets(report, page, imageNames)}</div></div>`
 
 const renderOpportunity: PageRenderer = (report, page, imageNames) => `<div class="content-grid opportunity-grid"><div><p class="eyebrow">机会识别</p><h2>${escapeHtml(page.headline)}</h2>${renderBlock(report, page)}${evidenceCards(report, page.evidenceIds)}</div><div>${renderPageAssets(report, page, imageNames)}</div></div>`
 
@@ -155,15 +251,26 @@ const renderProduct: PageRenderer = (report, page, imageNames) => {
   return `<div class="content-grid product-grid"><div><h2>${escapeHtml(page.headline)}</h2>${productDetails}${evidenceCards(report, product?.evidenceIds ?? page.evidenceIds)}</div><div>${renderPageAssets(report, page, imageNames)}</div></div>`
 }
 
-const renderScene: PageRenderer = (report, page, imageNames) => `<div class="scene-stage"><div><p class="eyebrow">空间场景</p><h2>${escapeHtml(page.headline)}</h2>${renderBlock(report, page)}</div>${renderPageAssets(report, page, imageNames)}</div>`
+const renderScene: PageRenderer = (report, page, imageNames) => {
+  const products = sceneProducts(report, findBlock(report, page))
+  const sequence = page.analyticalVisual !== undefined
+    ? ''
+    : products.length === 0
+    ? renderBlock(report, page)
+    : `<ol class="scene-product-sequence">${products.map((product, index) => `<li><span>${String(index + 1).padStart(2, '0')}</span><strong>${escapeHtml(product.name)}</strong><p>${escapeHtml(product.valueProposition)}</p></li>`).join('')}</ol>`
+  const analysis = page.analyticalVisual === undefined && page.assetIds.length === 0
+    ? renderSitePlanHtml(undefined, escapeHtml)
+    : renderAnalyticalHtml(page.analyticalVisual, escapeHtml)
+  return `<div class="scene-stage"><div><p class="eyebrow">空间场景</p><h2>${escapeHtml(page.headline)}</h2>${sequence}${analysis}</div>${renderPageAssets(report, page, imageNames)}</div>`
+}
 
-const renderImplementation: PageRenderer = (report, page) => `<div class="implementation-stage"><p class="eyebrow">实施路径</p><h2>${escapeHtml(page.headline)}</h2>${renderBlock(report, page)}${evidenceCards(report, page.evidenceIds)}</div>`
+const renderImplementation: PageRenderer = (report, page) => `<div class="implementation-stage"><p class="eyebrow">实施路径</p><h2>${escapeHtml(page.headline)}</h2>${page.analyticalVisual === undefined ? renderBlock(report, page) : ''}${renderAnalyticalHtml(page.analyticalVisual, escapeHtml)}${evidenceCards(report, page.evidenceIds)}</div>`
 
 const renderDecision: PageRenderer = (report, page) => {
   const block = findBlock(report, page)
   const asks = page.primaryFocus.type === 'decision' ? page.primaryFocus.asks : []
   const content = block === undefined
-    ? `<ol class="decision-list">${asks.map(ask => `<li>${escapeHtml(ask)}</li>`).join('')}</ol>`
+    ? renderDecisionConvergenceHtml(asks, escapeHtml)
     : renderBlock(report, page)
   return `<div class="decision-stage"><p class="eyebrow">共同决策</p><h2>${escapeHtml(page.headline)}</h2>${content}${evidenceCards(report, page.evidenceIds)}</div>`
 }
@@ -209,20 +316,29 @@ async function renderClientHtml(
   outputRoot: string,
 ): Promise<RenderedArtifact> {
   assertClientReportPolicy(context.report)
-  assertClientPagePlan(context.plan)
+  assertClientPagePlan(context.plan, context.report)
   const htmlRoot = join(outputRoot, 'html')
   const imageRoot = join(htmlRoot, 'assets', 'images')
   await mkdir(imageRoot, { recursive: true })
   const imageNames = await copyClientAssets(context.report, imageRoot)
+  const navigationLabels = Object.freeze({
+    brief: '项目定义', diagnosis: '核心诊断', opportunity: '机会价值', positioning: '项目定位', strategy: '策略体系',
+    product: '产品体系', spatial: '空间场景', operation: '运营机制', implementation: '实施路径', decision: '决策结论',
+  })
   const navigation = context.report.chapters.map((chapter, index) =>
-    `<a href="#${encodeURIComponent(chapter.id + '-divider')}">${String(index + 1).padStart(2, '0')} ${escapeHtml(chapter.headline)}</a>`).join('')
+    `<a href="#${encodeURIComponent(chapter.id + '-divider')}">${String(index + 1).padStart(2, '0')} ${escapeHtml(navigationLabels[chapter.role])}</a>`).join('')
   const pages = context.plan.pages.map((page, index) => {
     const content = PAGE_RENDERERS[page.kind](context.report, page, imageNames)
     const visualRole = page.visualRole === undefined ? '' : ` data-visual-role="${page.visualRole}"`
-    return `<section class="report-page layout-${page.layoutVariant} kind-${page.kind}" id="${escapeHtml(page.pageId)}" data-page-kind="${page.kind}"${visualRole}><div class="page-count">${String(index + 1).padStart(2, '0')} / ${String(context.plan.pages.length).padStart(2, '0')}</div>${content}</section>`
+    const backdrop = renderPageBackdrop(context.report, page.backdropAssetId, imageNames)
+    const hasBackdrop = page.backdropAssetId === undefined && page.kind !== 'cover' ? '' : ' has-backdrop'
+    const assetLayout = assetLayoutFor(page)
+    const mediaPosition = mediaPositionFor(page)
+    return `<section class="report-page layout-${page.layoutVariant} kind-${page.kind}${hasBackdrop}" id="${escapeHtml(page.pageId)}" data-page-kind="${page.kind}" data-asset-layout="${assetLayout}" data-media-position="${mediaPosition}"${visualRole}>${backdrop}<div class="page-count">${String(index + 1).padStart(2, '0')} / ${String(context.plan.pages.length).padStart(2, '0')}</div>${content}</section>`
   }).join('\n')
   const adoptedAssets = [...context.identity.adoptedAssetIds].sort().join(',')
-  const html = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="preplan-project-id" content="${escapeHtml(context.identity.projectId)}"><meta name="preplan-source-revision" content="${context.identity.sourceRevision}"><meta name="preplan-recommendation-id" content="${escapeHtml(context.identity.recommendationId)}"><meta name="preplan-adopted-assets" content="${escapeHtml(adoptedAssets)}"><title>${escapeHtml(context.report.identity.reportTitle)}</title><style>${clientThemeCss(context.report)}${CLIENT_REPORT_CSS}</style></head><body><a class="skip-link" href="#report-main">跳至成果正文</a><nav class="report-nav" aria-label="成果章节导航">${navigation}</nav><main id="report-main">${pages}</main><footer class="footer">本成果中的概念示意用于表达空间意向，不替代事实资料与法定依据。</footer><script>document.querySelectorAll('.report-nav a').forEach(link=>link.addEventListener('click',()=>history.replaceState(null,'',link.getAttribute('href'))));</script></body></html>`
+  const boundaryMeta = context.identity.siteBoundaryIntegrityDigest === undefined ? '' : `<meta name="preplan-site-boundary-digest" content="${escapeHtml(context.identity.siteBoundaryIntegrityDigest)}">`
+  const html = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="preplan-project-id" content="${escapeHtml(context.identity.projectId)}"><meta name="preplan-source-revision" content="${context.identity.sourceRevision}"><meta name="preplan-recommendation-id" content="${escapeHtml(context.identity.recommendationId)}"><meta name="preplan-adopted-assets" content="${escapeHtml(adoptedAssets)}">${boundaryMeta}<title>${escapeHtml(context.report.identity.reportTitle)}</title><style>${clientThemeCss(context.report)}${CLIENT_REPORT_CSS}</style></head><body><a class="skip-link" href="#report-main">跳至成果正文</a><nav class="report-nav" aria-label="成果章节导航">${navigation}</nav><main id="report-main">${pages}</main><footer class="footer">本成果中的概念示意用于表达空间意向，不替代事实资料与法定依据。</footer><script>document.querySelectorAll('.report-nav a').forEach(link=>link.addEventListener('click',()=>history.replaceState(null,'',link.getAttribute('href'))));</script></body></html>`
   const path = join(htmlRoot, 'index.html')
   await writeFile(path, html, 'utf8')
   return {

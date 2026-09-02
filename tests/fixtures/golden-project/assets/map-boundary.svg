@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" role="img" aria-labelledby="map-boundary-title map-boundary-desc" data-source="示例场地分析资料（待项目实测校核）">
+  <title id="map-boundary-title">示例研究范围图</title>
+  <desc id="map-boundary-desc">研究范围（待核），非法定红线，非测绘成果；正式项目必须由总平图、红线图或坐标资料确认。</desc>
+  <style>
+    text { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; fill: #17323A; }
+    .map-title { font-size: 34px; font-weight: 700; }
+    .map-kicker { font-size: 17px; fill: #8C4B3D; font-weight: 600; }
+    .feature-label { font-size: 16px; font-weight: 700; stroke: none; }
+    .point-label { font-size: 13px; font-weight: 700; fill: #8F3C34; }
+    .legend-title { font-size: 18px; font-weight: 700; }
+    .legend-label { font-size: 15px; font-weight: 600; }
+    .north-label { font-size: 22px; font-weight: 800; }
+    .source-note { font-size: 15px; fill: #7B878A; }
+  </style>
+  <rect width="1200" height="700" fill="#F7F4EE"/>
+  <rect x="36" y="28" width="1128" height="644" rx="18" fill="#FFFEFB" stroke="#DDE3DF"/>
+  <text class="map-title" x="60" y="72">示例研究范围图</text>
+  <text class="map-kicker" x="60" y="106">研究范围（待核） · 非法定红线 · 非测绘成果</text>
+
+  <g class="site-map" aria-label="示例研究范围与周边关系">
+    <rect x="60" y="132" width="830" height="466" rx="18" fill="#EEF2EF" stroke="#D7E0DB"/>
+    <path d="M70 512 C210 470 332 492 442 542 C556 594 724 586 884 512 L884 598 L70 598 Z" fill="#C7DDE4"/>
+    <path d="M84 476 C246 436 352 462 466 514 C584 566 722 552 872 472" fill="none" stroke="#92B5C0" stroke-width="6"/>
+    <path d="M100 180 L848 180" stroke="#81949F" stroke-width="18" stroke-linecap="round"/>
+    <path d="M166 142 L166 572" stroke="#A7B4B9" stroke-width="12" stroke-linecap="round"/>
+    <path d="M804 150 L804 510" stroke="#A7B4B9" stroke-width="10" stroke-linecap="round"/>
+    <g fill="#D9DEDA" stroke="#C4CDC8">
+      <rect x="94" y="216" width="54" height="34" rx="4"/><rect x="94" y="268" width="54" height="42" rx="4"/>
+      <rect x="96" y="334" width="52" height="38" rx="4"/><rect x="820" y="224" width="48" height="38" rx="4"/>
+      <rect x="818" y="284" width="50" height="42" rx="4"/><rect x="820" y="350" width="48" height="36" rx="4"/>
+    </g>
+    <path d="M248 224 L680 210 L758 430 L590 526 L278 458 Z" fill="#DCE8D9" fill-opacity="0.86" stroke="#B9463F" stroke-width="8" stroke-dasharray="20 12" stroke-linejoin="round"/>
+    <g fill="#F5F0E5" stroke="#C9C1B3">
+      <rect x="332" y="282" width="126" height="76" rx="9"/>
+      <rect x="522" y="258" width="118" height="70" rx="9"/>
+      <rect x="476" y="386" width="144" height="74" rx="9"/>
+    </g>
+    <circle cx="588" cy="364" r="22" fill="#D77A45" stroke="#FFFEFB" stroke-width="6"/>
+    <circle cx="278" cy="396" r="12" fill="#C54E45" stroke="#FFFEFB" stroke-width="4"/>
+    <path d="M300 468 C416 492 538 512 666 468" fill="none" stroke="#4F927A" stroke-width="10" stroke-linecap="round"/>
+
+    <text class="feature-label" data-feature="research-boundary" x="308" y="250">研究范围（待核）</text>
+    <text class="feature-label" data-feature="waterfront-edge" x="532" y="552">滨水开放界面</text>
+    <text class="feature-label" data-feature="culture-node" x="616" y="370">公共文化节点</text>
+    <text class="feature-label" data-feature="community-entry" x="202" y="390">社区入口</text>
+    <text class="point-label" x="236" y="216">A</text><text class="point-label" x="688" y="206">B</text>
+    <text class="point-label" x="766" y="438">C</text><text class="point-label" x="582" y="548">D</text><text class="point-label" x="260" y="474">E</text>
+  </g>
+
+  <g class="information-panel">
+    <rect x="914" y="132" width="230" height="466" rx="18" fill="#F5F1E9" stroke="#DED7C9"/>
+    <g class="map-legend" transform="translate(940 176)">
+      <text class="legend-title" x="0" y="0">边界图例</text>
+      <g class="legend-item" transform="translate(0 54)"><line data-swatch="boundary" x1="0" y1="0" x2="54" y2="0" stroke="#B9463F" stroke-width="7" stroke-dasharray="14 8"/><text class="legend-label" x="72" y="5">研究范围</text></g>
+      <g class="legend-item" transform="translate(0 104)"><line data-swatch="road" x1="0" y1="0" x2="54" y2="0" stroke="#81949F" stroke-width="12" stroke-linecap="round"/><text class="legend-label" x="72" y="5">城市道路</text></g>
+      <g class="legend-item" transform="translate(0 154)"><line data-swatch="water" x1="0" y1="0" x2="54" y2="0" stroke="#92B5C0" stroke-width="18" stroke-linecap="round"/><text class="legend-label" x="72" y="5">滨水界面</text></g>
+      <g class="legend-item" transform="translate(0 204)"><circle data-swatch="node" cx="27" cy="0" r="11" fill="#D77A45"/><text class="legend-label" x="72" y="5">公共节点</text></g>
+    </g>
+    <g id="north-arrow" transform="translate(1005 486)">
+      <path d="M24 -46 L39 8 L24 -2 L9 8 Z" fill="#17323A"/>
+      <line x1="24" y1="-2" x2="24" y2="36" stroke="#17323A" stroke-width="3"/>
+      <text class="north-label" x="24" y="-60" text-anchor="middle">N</text>
+    </g>
+    <g id="scale-bar" aria-label="比例尺 0 50 100m" transform="translate(942 548)" stroke="#17323A" stroke-width="3">
+      <line x1="0" y1="0" x2="78" y2="0"/><line x1="78" y1="0" x2="156" y2="0"/>
+      <line x1="0" y1="-8" x2="0" y2="8"/><line x1="78" y1="-8" x2="78" y2="8"/><line x1="156" y1="-8" x2="156" y2="8"/>
+      <text x="0" y="26" fill="#17323A" stroke="none" font-size="13">0</text><text x="70" y="26" fill="#17323A" stroke="none" font-size="13">50</text><text x="136" y="26" fill="#17323A" stroke="none" font-size="13">100m</text>
+    </g>
+  </g>
+
+  <line x1="60" y1="626" x2="1140" y2="626" stroke="#E4E8E5"/>
+  <text class="source-note" x="60" y="658">示例场地分析资料（待项目实测校核）｜正式边界须由总平图、红线图或坐标资料确认</text>
+</svg>

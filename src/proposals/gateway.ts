@@ -171,10 +171,6 @@ export class ProposalGateway {
       status: confirmed ? 'confirmed' : 'provisional',
       revision: context.project.currentRevision + 1,
       updated_at: committedAt,
-      data: {
-        ...payload.data,
-        status: confirmed ? 'confirmed' : 'provisional',
-      },
       approval: confirmed
         ? {
           ...payload.approval,
@@ -235,10 +231,6 @@ export class ProposalGateway {
       status: 'confirmed',
       revision: context.project.currentRevision + 1,
       updated_at: confirmedAt,
-      data: {
-        ...payload.data,
-        status: 'confirmed',
-      },
       approval: {
         ...payload.approval,
         status: 'approved',

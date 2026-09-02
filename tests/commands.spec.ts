@@ -14,6 +14,7 @@ function commandDependencies(overrides: Record<string, unknown> = {}) {
     revisions: {} as never,
     coordinator: {} as never,
     visual: {} as never,
+    boundaries: {} as never,
     reports: {} as never,
     registry: {} as never,
     createId: () => 'project-1',
@@ -23,6 +24,40 @@ function commandDependencies(overrides: Record<string, unknown> = {}) {
 }
 
 describe('preplanning commands', () => {
+  it('provides human-only site boundary registration and independent confirmation commands', async () => {
+    const definitions: CommandDefinition[] = []
+    const registerGeometry = vi.fn(async () => ({ boundaryId: 'boundary-1' }))
+    const confirm = vi.fn(async () => ({ boundaryId: 'boundary-1', status: 'confirmed_formal_boundary' }))
+    const ctx = { commands: { register: (definition: CommandDefinition) => { definitions.push(definition); return () => undefined } } } as unknown as Context
+    registerPreplanningCommands(ctx, commandDependencies({
+      repository: { readContext: vi.fn(() => ({ project: { projectId: 'project-1', name: '测试项目', currentRevision: 7 } })) } as never,
+      boundaries: { registerGeometry, confirm } as never,
+    }) as never)
+
+    const invocation = {
+      agent: {
+        id: 'session-1',
+        session: { header: { version: 0, id: 'session-1', createdAt: 1, delegationDepth: 0 } },
+      },
+    }
+    await expect(definitions.find(row => row.name === 'preplan-boundary-coordinates')?.handler({
+      ...invocation, rawInput: 'EPSG:4490 [[0, 0], [4, 0], [0, 3], [0, 0]]',
+    } as never)).resolves.toMatchObject({ kind: 'success', text: expect.stringContaining('待确认') })
+    await expect(definitions.find(row => row.name === 'preplan-boundary-confirm')?.handler({
+      ...invocation,
+      rawInput: `boundary-1 7 ${'a'.repeat(64)} 该图是本项目采用的总平图或红线图，且图中明确表达项目边界`,
+    } as never)).resolves.toMatchObject({ kind: 'success', text: expect.stringContaining('正式确认') })
+    expect(registerGeometry).toHaveBeenCalledWith('project-1', {
+      crs: 'EPSG:4490', payload: [[0, 0], [4, 0], [0, 3], [0, 0]], submittedRevision: 7, projectName: '测试项目',
+    }, { actor: { actorId: 'dsh-user:session-1', name: 'DSH 用户', role: 'decision_owner' }, channel: 'dsh_human_command' })
+    expect(confirm).toHaveBeenCalledWith('project-1', 'boundary-1', 7, {
+      boundaryId: 'boundary-1', submittedRevision: 7, contentSha256: 'a'.repeat(64),
+      statement: '该图是本项目采用的总平图或红线图，且图中明确表达项目边界',
+    }, expect.objectContaining({
+      channel: 'dsh_human_command', actor: expect.objectContaining({ role: 'decision_owner' }),
+    }))
+  })
+
   it('注册完整全流程命令并提供中文发现文案', () => {
     const definitions: CommandDefinition[] = []
     const ctx = {
@@ -33,7 +68,8 @@ describe('preplanning commands', () => {
     expect(definitions.map(definition => definition.name)).toEqual([
       'preplan-new', 'preplan-open', 'preplan-list', 'preplan-status', 'preplan-confirm',
       'preplan-mode', 'preplan-run', 'preplan-pause', 'preplan-gate', 'preplan-revise',
-      'preplan-visual', 'preplan-visual-adopt', 'preplan-export',
+      'preplan-visual', 'preplan-visual-adopt', 'preplan-visual-replace',
+      'preplan-boundary-asset', 'preplan-boundary-coordinates', 'preplan-boundary-confirm', 'preplan-export',
     ])
     expect(definitions.every(definition => /[\u4e00-\u9fff]/u.test(definition.description))).toBe(true)
   })
@@ -84,7 +120,7 @@ describe('preplanning commands', () => {
         blocked: [],
       })) } as never,
       governance: { createPolicy, readProject: vi.fn(() => ({
-        policy: { mode: 'manual', reportDepth: 'standard' }, gateDecisions: [], visualAssets: [], visualTasks: [], reportPackages: [],
+        policy: { mode: 'manual', reportDepth: 'standard' }, gateDecisions: [], visualAssets: [], visualTasks: [], siteBoundaries: [], reportPackages: [],
       })) } as never,
     }) as never)
 
@@ -248,5 +284,24 @@ describe('preplanning commands', () => {
     expect(generated).toMatchObject({ kind: 'success', text: expect.stringContaining('concept-arrival-1') })
     expect(adopt).toHaveBeenCalledWith('project-1', 'concept-arrival-1', 57)
     expect(adopted).toMatchObject({ kind: 'success', text: expect.stringContaining('已采用') })
+  })
+
+  it('preplan-visual-replace 记录人工拒绝并以同语义已采用资产替代', async () => {
+    const definitions: CommandDefinition[] = []
+    const replace = vi.fn(async () => ({ rejectedAssetId: 'asset-old', replacementAssetId: 'asset-new' }))
+    const ctx = {
+      commands: { register: (definition: CommandDefinition) => { definitions.push(definition); return () => undefined } },
+    } as unknown as Context
+    registerPreplanningCommands(ctx, commandDependencies({
+      repository: { readContext: vi.fn(() => ({ project: { projectId: 'project-1', currentRevision: 57 } })) } as never,
+      visual: { replace } as never,
+    }) as never)
+
+    const result = await definitions.find(row => row.name === 'preplan-visual-replace')?.handler({
+      rawInput: 'asset-old asset-new', agent: { id: 'session-1' },
+    } as never)
+
+    expect(replace).toHaveBeenCalledWith('project-1', 'asset-old', 'asset-new')
+    expect(result).toMatchObject({ kind: 'success', text: expect.stringContaining('asset-new') })
   })
 })

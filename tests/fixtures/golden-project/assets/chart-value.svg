@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" role="img" aria-labelledby="chart-value-title chart-value-desc" data-source="示例研究数据（待项目实测校核）" data-area-scale="36">
+  <title id="chart-value-title">产品组合与价值贡献</title>
+  <desc id="chart-value-desc">示例研究数据（待项目实测校核）。气泡面积代表文化体验、滨水休闲和城市活动的价值指数。</desc>
+  <style>
+    text { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; fill: #17323A; }
+    .chart-title { font-size: 34px; font-weight: 700; letter-spacing: 1px; }
+    .chart-kicker, .methodology { font-size: 17px; fill: #5C7075; }
+    .datum-label { font-size: 15.5px; font-weight: 700; fill: #FFFEFB; }
+    .encoding-note { font-size: 17px; font-weight: 600; fill: #5C7075; }
+    .legend-title { font-size: 17px; font-weight: 700; }
+    .legend-label { font-size: 15px; fill: #5C7075; }
+    .source-note { font-size: 15px; fill: #7B878A; }
+  </style>
+  <rect width="1200" height="700" fill="#F7F4EE"/>
+  <rect x="36" y="28" width="1128" height="644" rx="18" fill="#FFFEFB" stroke="#DDE3DF"/>
+  <text class="chart-title" x="72" y="72">产品组合与价值贡献</text>
+  <text class="chart-kicker" x="72" y="108">产品价值指数 · 单位：价值指数</text>
+  <text class="encoding-note" x="780" y="106">气泡面积代表价值指数</text>
+
+  <rect x="92" y="146" width="806" height="430" rx="18" fill="#F3F7F5" stroke="#DFE7E2"/>
+  <rect x="920" y="146" width="216" height="430" rx="18" fill="#F8F4EC" stroke="#E2D9C9"/>
+
+  <g class="datum" data-category="文化体验" data-value="72" data-unit="价值指数">
+    <circle cx="270" cy="350" r="50.912" fill="#2E7482" opacity="0.94" data-area-value="72"/>
+    <text class="datum-label" x="270" y="356" text-anchor="middle">文化体验 72</text>
+  </g>
+  <g class="datum" data-category="滨水休闲" data-value="88" data-unit="价值指数">
+    <circle cx="520" cy="260" r="56.285" fill="#C5653E" opacity="0.94" data-area-value="88"/>
+    <text class="datum-label" x="520" y="266" text-anchor="middle">滨水休闲 88</text>
+  </g>
+  <g class="datum" data-category="城市活动" data-value="56" data-unit="价值指数">
+    <circle cx="760" cy="420" r="44.900" fill="#5F8B66" opacity="0.94" data-area-value="56"/>
+    <text class="datum-label" x="760" y="426" text-anchor="middle">城市活动 56</text>
+  </g>
+
+  <g class="size-legend" transform="translate(940 174)" data-area-scale="36">
+    <text class="legend-title" x="0" y="0">尺寸图例</text>
+    <text class="legend-label" x="0" y="26">价值指数</text>
+    <g class="size-legend-item" data-value="40" transform="translate(0 80)">
+      <circle cx="40" cy="0" r="37.947" fill="#DDE8E4" stroke="#78938A"/>
+      <text class="legend-label" x="122" y="6">40</text>
+    </g>
+    <g class="size-legend-item" data-value="70" transform="translate(0 200)">
+      <circle cx="40" cy="0" r="50.200" fill="#DDE8E4" stroke="#78938A"/>
+      <text class="legend-label" x="122" y="6">70</text>
+    </g>
+    <g class="size-legend-item" data-value="100" transform="translate(0 330)">
+      <circle cx="40" cy="0" r="60" fill="#DDE8E4" stroke="#78938A"/>
+      <text class="legend-label" x="122" y="6">100</text>
+    </g>
+  </g>
+
+  <text class="methodology" x="72" y="630">口径：按示例研究公共性、吸引力与运营协同三项加权评分，待项目实测校核</text>
+  <line x1="72" y1="648" x2="1128" y2="648" stroke="#E4E8E5"/>
+  <text class="source-note" x="72" y="670">示例研究数据（待项目实测校核）</text>
+</svg>

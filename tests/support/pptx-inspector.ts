@@ -77,6 +77,133 @@ function inspectMinimumText(slides: readonly [string, Buffer][]): string[] {
   return failures
 }
 
+export interface PptxTextObject {
+  readonly slideNumber: number
+  readonly text: string
+  readonly fontSize: number
+  readonly x: number
+  readonly y: number
+  readonly width: number
+  readonly height: number
+  readonly usesNormAutofit: boolean
+  readonly color: string
+  readonly fillColor: string
+}
+
+export interface PptxShapeObject {
+  readonly slideNumber: number
+  readonly name: string
+  readonly text: string
+  readonly x: number
+  readonly y: number
+  readonly width: number
+  readonly height: number
+}
+
+export interface PptxPictureObject {
+  readonly slideNumber: number
+  readonly name: string
+  readonly altText: string
+  readonly x: number
+  readonly y: number
+  readonly width: number
+  readonly height: number
+  readonly sourceCrop: Readonly<{
+    left: number
+    right: number
+    top: number
+    bottom: number
+  }>
+}
+
+function inspectShapeObjects(slides: readonly [string, Buffer][]): PptxShapeObject[] {
+  return slides.flatMap(([, content], slideIndex) => {
+    const xml = content.toString('utf8')
+    return [...xml.matchAll(/<p:sp\b[^>]*>([\s\S]*?)<\/p:sp>/gu)].map(match => {
+      const shape = match[1] ?? ''
+      const metadata = /<p:cNvPr\b([^>]*)\/?>(?:<\/p:cNvPr>)?/u.exec(shape)?.[1] ?? ''
+      const transform = /<a:xfrm[^>]*>[\s\S]*?<a:off x="(\d+)" y="(\d+)"\/?>(?:<\/a:off>)?[\s\S]*?<a:ext cx="(\d+)" cy="(\d+)"\/?>(?:<\/a:ext>)?[\s\S]*?<\/a:xfrm>/u.exec(shape)
+      const [x, y, width, height] = transform === null
+        ? [0, 0, 0, 0]
+        : transform.slice(1).map(value => Number(value) / EMU_PER_INCH)
+      const name = decodeXml(/\bname="([^"]*)"/u.exec(metadata)?.[1] ?? '')
+      return {
+        slideNumber: slideIndex + 1,
+        name,
+        text: xmlText(shape),
+        x: x!,
+        y: y!,
+        width: width!,
+        height: height!,
+      }
+    })
+  })
+}
+
+function inspectTextObjects(slides: readonly [string, Buffer][]): PptxTextObject[] {
+  return slides.flatMap(([, content], slideIndex) => {
+    const xml = content.toString('utf8')
+    return [...xml.matchAll(/<p:sp>([\s\S]*?)<\/p:sp>/gu)].flatMap(match => {
+      const shape = match[1] ?? ''
+      const transform = /<a:xfrm[^>]*>[\s\S]*?<a:off x="(\d+)" y="(\d+)"\/?>(?:<\/a:off>)?[\s\S]*?<a:ext cx="(\d+)" cy="(\d+)"\/?>(?:<\/a:ext>)?[\s\S]*?<\/a:xfrm>/u.exec(shape)
+      const text = xmlText(shape)
+      if (transform === null || text === '') return []
+      const fontSizes = [...shape.matchAll(/<(?:a:rPr|a:defRPr)\b[^>]*\bsz="(\d+)"/gu)]
+        .map(size => Number(size[1]) / 100)
+      const color = /<a:solidFill><a:srgbClr\b[^>]*\bval="([A-Fa-f0-9]{6})"/u.exec(shape)?.[1]?.toUpperCase() ?? ''
+      const shapeProperties = /<p:spPr\b[^>]*>([\s\S]*?)<\/p:spPr>/u.exec(shape)?.[1] ?? ''
+      const fillColor = /<a:solidFill><a:srgbClr\b[^>]*\bval="([A-Fa-f0-9]{6})"/u
+        .exec(shapeProperties)?.[1]?.toUpperCase() ?? ''
+      const [x, y, width, height] = transform.slice(1).map(value => Number(value) / EMU_PER_INCH)
+      return [{
+        slideNumber: slideIndex + 1,
+        text,
+        fontSize: fontSizes.length === 0 ? 0 : Math.min(...fontSizes),
+        x: x!,
+        y: y!,
+        width: width!,
+        height: height!,
+        usesNormAutofit: /<a:normAutofit\b/u.test(shape),
+        color,
+        fillColor,
+      }]
+    })
+  })
+}
+
+function inspectPictureObjects(slides: readonly [string, Buffer][]): PptxPictureObject[] {
+  return slides.flatMap(([, content], slideIndex) => {
+    const xml = content.toString('utf8')
+    return [...xml.matchAll(/<p:pic>([\s\S]*?)<\/p:pic>/gu)].flatMap(match => {
+      const picture = match[1] ?? ''
+      const metadata = /<p:cNvPr\b([^>]*)\/?>(?:<\/p:cNvPr>)?/u.exec(picture)?.[1] ?? ''
+      const sourceRect = /<a:srcRect\b([^>]*)\/?>(?:<\/a:srcRect>)?/u.exec(picture)?.[1] ?? ''
+      const transform = /<a:xfrm[^>]*>[\s\S]*?<a:off x="(\d+)" y="(\d+)"\/?>(?:<\/a:off>)?[\s\S]*?<a:ext cx="(\d+)" cy="(\d+)"\/?>(?:<\/a:ext>)?[\s\S]*?<\/a:xfrm>/u.exec(picture)
+      if (transform === null) return []
+      const attribute = (attributes: string, name: string): string => decodeXml(
+        new RegExp(`\\b${name}="([^"]*)"`, 'u').exec(attributes)?.[1] ?? '',
+      )
+      const crop = (name: string): number => Number(attribute(sourceRect, name) || 0)
+      const [x, y, width, height] = transform.slice(1).map(value => Number(value) / EMU_PER_INCH)
+      return [{
+        slideNumber: slideIndex + 1,
+        name: attribute(metadata, 'name'),
+        altText: attribute(metadata, 'descr'),
+        x: x!,
+        y: y!,
+        width: width!,
+        height: height!,
+        sourceCrop: {
+          left: crop('l'),
+          right: crop('r'),
+          top: crop('t'),
+          bottom: crop('b'),
+        },
+      }]
+    })
+  })
+}
+
 export interface PptxInspection {
   readonly slideCount: number
   readonly slideTexts: readonly string[]
@@ -85,6 +212,9 @@ export interface PptxInspection {
   readonly mediaNames: readonly string[]
   readonly outOfBoundsObjects: readonly string[]
   readonly textBelowMinimum: readonly string[]
+  readonly shapeObjects: readonly PptxShapeObject[]
+  readonly textObjects: readonly PptxTextObject[]
+  readonly pictureObjects: readonly PptxPictureObject[]
 }
 
 export async function inspectPptx(path: string): Promise<PptxInspection> {
@@ -101,5 +231,8 @@ export async function inspectPptx(path: string): Promise<PptxInspection> {
     mediaNames: [...entries.keys()].filter(name => /^ppt\/media\//u.test(name)),
     outOfBoundsObjects: inspectBounds(slides),
     textBelowMinimum: inspectMinimumText(slides),
+    shapeObjects: inspectShapeObjects(slides),
+    textObjects: inspectTextObjects(slides),
+    pictureObjects: inspectPictureObjects(slides),
   }
 }

@@ -62,6 +62,7 @@ export async function inspectPptxArtifact(path: string): Promise<PptxArtifactIns
   const sourceRevision = noteValue(notesText, 'sourceRevision')
   const recommendationId = noteValue(notesText, 'recommendationId')
   const adoptedAssets = noteValue(notesText, 'adoptedAssetIds')
+  const boundaryDigest = noteValue(notesText, 'siteBoundaryIntegrityDigest')
   const identity = projectId === undefined || sourceRevision === undefined || recommendationId === undefined
     ? undefined
     : {
@@ -69,6 +70,7 @@ export async function inspectPptxArtifact(path: string): Promise<PptxArtifactIns
         sourceRevision: Number(sourceRevision),
         recommendationId,
         adoptedAssetIds: adoptedAssets?.split(',').filter(Boolean).sort() ?? [],
+        ...(boundaryDigest === undefined ? {} : { siteBoundaryIntegrityDigest: boundaryDigest }),
       }
   return {
     slideCount: slides.length,

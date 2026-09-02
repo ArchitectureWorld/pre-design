@@ -1,7 +1,9 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { CommandDefinition, CommandInvocation, CommandResult } from '@deepseek-ai/dsh-commands'
+import type { ImageBlock } from '@deepseek-ai/dsh-llm'
 import type { ContractRegistry } from '../contracts/registry.ts'
 import type { GovernanceRepository } from '../governance/repository.ts'
+import type { SiteBoundaryService } from '../governance/site-boundary-service.ts'
 import type { GateDecisionRecord } from '../governance/types.ts'
 import type { ProposalGateway } from '../proposals/gateway.ts'
 import type { ReportPackageService } from '../report/package-service.ts'
@@ -12,6 +14,7 @@ import type { RevisionService } from '../runtime/revision-service.ts'
 import type { WorkflowRuntime } from '../runtime/workflow-runtime.ts'
 import type { ProjectRepository } from '../state/repository.ts'
 import type { VisualAgentService } from '../visual/agent.ts'
+import type { ActorRef } from '../state/types.ts'
 import { buildPreplanningStatus, formatPreplanningStatus } from '../session/events.ts'
 
 export interface CommandDependencies {
@@ -24,10 +27,12 @@ export interface CommandDependencies {
   readonly revisions: RevisionService
   readonly coordinator: AutomationCoordinator
   readonly visual: VisualAgentService
+  readonly boundaries: SiteBoundaryService
   readonly reports: ReportPackageService
   readonly registry: ContractRegistry
   readonly createId: () => string
   readonly now: () => string
+  readonly resolveBoundaryActor?: (invocation: CommandInvocation) => ActorRef | undefined
 }
 
 function actorOf(invocation: CommandInvocation) {
@@ -39,9 +44,66 @@ function guarded(handler: (invocation: CommandInvocation) => Promise<CommandResu
     try {
       return await handler(invocation)
     } catch (error) {
-      return { kind: 'error', text: error instanceof Error ? error.message : '前期策划操作失败' }
+      const message = error instanceof Error ? error.message : '前期策划操作失败'
+      return { kind: 'error', text: /^SITE_BOUNDARY_[A-Z_]+$/u.test(message) ? `${message}：请核对场地边界资料后重试。` : message }
     }
   }
+}
+
+export function resolveSingleUserBoundaryActor(invocation: unknown): ActorRef | undefined {
+  const agent = (invocation as { readonly agent?: unknown } | undefined)?.agent
+  if (agent === null || typeof agent !== 'object') return undefined
+  const id = (agent as { readonly id?: unknown }).id
+  const header = (agent as { readonly session?: { readonly header?: unknown } }).session?.header
+  if (typeof id !== 'string' || id.trim().length === 0 || header === null || typeof header !== 'object') return undefined
+  const candidate = header as {
+    readonly version?: unknown
+    readonly id?: unknown
+    readonly createdAt?: unknown
+    readonly parentSession?: unknown
+    readonly origin?: unknown
+    readonly delegationDepth?: unknown
+  }
+  // DSH marks delegated sessions with a non-empty origin; an authentic top-level Host header leaves it undefined.
+  // This proves only top-level session lineage, not natural-person identity or multi-user authentication.
+  if (!Number.isSafeInteger(candidate.version) || Number(candidate.version) < 0
+    || typeof candidate.id !== 'string' || candidate.id.trim().length === 0 || candidate.id !== id
+    || typeof candidate.createdAt !== 'number' || !Number.isFinite(candidate.createdAt) || candidate.createdAt < 0
+    || candidate.parentSession !== undefined
+    || candidate.origin !== undefined
+    || (candidate.delegationDepth !== undefined && candidate.delegationDepth !== 0)) return undefined
+  return { actorId: `dsh-user:${id}`, name: 'DSH 用户', role: 'decision_owner' }
+}
+
+function boundaryContext(invocation: CommandInvocation, dependencies: CommandDependencies) {
+  const actor = (dependencies.resolveBoundaryActor ?? resolveSingleUserBoundaryActor)(invocation)
+  if (actor === undefined) throw new Error('SITE_BOUNDARY_PERMISSION_DENIED')
+  return { actor, channel: 'dsh_human_command' as const }
+}
+
+function rawAttachments(invocation: CommandInvocation): readonly unknown[] {
+  return (invocation as unknown as { readonly attachments?: readonly unknown[] }).attachments ?? []
+}
+
+function imageAttachments(attachments: readonly unknown[]): readonly ImageBlock[] {
+  return attachments.filter((attachment): attachment is ImageBlock => attachment !== null
+    && typeof attachment === 'object' && (attachment as { readonly type?: unknown }).type === 'image')
+}
+
+function commandSignal(invocation: CommandInvocation): AbortSignal {
+  const supplied = (invocation as unknown as { readonly signal?: AbortSignal }).signal
+  const timeout = AbortSignal.timeout(30_000)
+  if (supplied === undefined) return timeout
+  if (typeof AbortSignal.any === 'function') return AbortSignal.any([supplied, timeout])
+  const controller = new AbortController()
+  const forward = (signal: AbortSignal) => {
+    const abort = () => controller.abort(signal.reason)
+    if (signal.aborted) abort()
+    else signal.addEventListener('abort', abort, { once: true })
+  }
+  forward(supplied)
+  forward(timeout)
+  return controller.signal
 }
 
 function successWithStatus(
@@ -331,6 +393,103 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
           context.project.currentRevision,
         )
         return { kind: 'success', text: `已采用概念表现图 ${asset.assetId}，绑定 Revision ${asset.adoptedRevision}。` }
+      }),
+    },
+    {
+      name: 'preplan-visual-replace',
+      description: '拒绝一个视觉候选，并以同一章节和工作项的已采用资产正式替代',
+      input: { hint: '<拒绝的assetId> <已采用的替代assetId>' },
+      handler: guarded(async (invocation) => {
+        const [rejectedAssetId, replacementAssetId, ...extra] = invocation.rawInput.trim().split(/\s+/u)
+        if (extra.length > 0
+          || rejectedAssetId === undefined || !/^[A-Za-z0-9._-]+$/u.test(rejectedAssetId)
+          || replacementAssetId === undefined || !/^[A-Za-z0-9._-]+$/u.test(replacementAssetId)
+          || rejectedAssetId === replacementAssetId) {
+          return { kind: 'error', text: '请输入两个不同且合法的 assetId：拒绝候选、已采用替代图。' }
+        }
+        const context = repository.readContext(String(invocation.agent.id))
+        const result = await dependencies.visual.replace(
+          context.project.projectId,
+          rejectedAssetId,
+          replacementAssetId,
+        )
+        return {
+          kind: 'success',
+          text: `已拒绝概念表现图 ${result.rejectedAssetId}，并由已采用资产 ${result.replacementAssetId} 替代。`,
+        }
+      }),
+    },
+    {
+      name: 'preplan-boundary-asset',
+      description: '登记一张总平图或红线图，等待项目负责人独立确认',
+      input: { hint: '<approved_site_plan|approved_redline> [assetId]', images: true },
+      recordInput: false,
+      handler: guarded(async (invocation) => {
+        const [source, assetId, ...extra] = invocation.rawInput.trim().split(/\s+/u)
+        if (extra.length > 0 || (source !== 'approved_site_plan' && source !== 'approved_redline')) return { kind: 'error', text: 'SITE_BOUNDARY_SOURCE_INVALID：请输入总平图或红线图类型。' }
+        const context = repository.readContext(String(invocation.agent.id))
+        const suppliedAttachments = rawAttachments(invocation)
+        const attachments = imageAttachments(suppliedAttachments)
+        if (suppliedAttachments.length > 0
+          && (suppliedAttachments.length !== 1 || attachments.length !== 1 || assetId !== undefined)) {
+          return { kind: 'error', text: 'SITE_BOUNDARY_ATTACHMENT_COUNT_INVALID：每次只能提交一张场地边界图，且不能与旧版 assetId 混用。' }
+        }
+        if (attachments.length === 0 && assetId === undefined) return { kind: 'error', text: 'SITE_BOUNDARY_ATTACHMENT_REQUIRED：请附上一张总平图或红线图。' }
+        const signal = commandSignal(invocation)
+        if (signal.aborted) return { kind: 'error', text: 'SITE_BOUNDARY_OPERATION_ABORTED：场地边界提交已取消，未写入任何资料。' }
+        const record = attachments.length === 1
+          ? await dependencies.boundaries.registerImageAttachment(context.project.projectId, {
+            source, block: attachments[0]!, submittedRevision: context.project.currentRevision, signal,
+          }, boundaryContext(invocation, dependencies))
+          : await dependencies.boundaries.registerLegacyAsset(context.project.projectId, {
+            source, assetId: assetId!, submittedRevision: context.project.currentRevision,
+          }, boundaryContext(invocation, dependencies))
+        return { kind: 'success', text: `边界资料 ${record.boundaryId} 已登记为待确认。` }
+      }),
+    },
+    {
+      name: 'preplan-boundary-coordinates',
+      description: '登记 CRS 与闭合红线坐标，等待项目负责人独立确认',
+      input: { hint: '<CRS> <JSON二维闭合坐标>' },
+      recordInput: false,
+      handler: guarded(async (invocation) => {
+        const raw = invocation.rawInput.trim()
+        const separator = raw.search(/\s/u)
+        const crs = separator < 0 ? undefined : raw.slice(0, separator)
+        const rawCoordinates = separator < 0 ? undefined : raw.slice(separator).trim()
+        let coordinates: unknown
+        try { coordinates = rawCoordinates === undefined ? undefined : JSON.parse(rawCoordinates) } catch { coordinates = undefined }
+        if (crs === undefined || (coordinates === null || typeof coordinates !== 'object')) return { kind: 'error', text: 'SITE_BOUNDARY_GEOMETRY_INVALID：请输入 CRS 与闭合坐标或 GeoJSON。' }
+        const context = repository.readContext(String(invocation.agent.id))
+        const record = await dependencies.boundaries.registerGeometry(context.project.projectId, {
+          crs, payload: coordinates, submittedRevision: context.project.currentRevision, projectName: context.project.name,
+        }, boundaryContext(invocation, dependencies))
+        return { kind: 'success', text: `闭合红线 ${record.boundaryId} 已登记为待确认。` }
+      }),
+    },
+    {
+      name: 'preplan-boundary-confirm',
+      description: '由当前项目负责人独立确认已登记的场地边界',
+      input: { hint: '<boundaryId> <submittedRevision> <contentSha256> <确认声明>' },
+      handler: guarded(async (invocation) => {
+        const [boundaryId, rawRevision, contentSha256, ...statementParts] = invocation.rawInput.trim().split(/\s+/u)
+        const submittedRevision = Number(rawRevision)
+        const statement = statementParts.join(' ')
+        if (boundaryId === undefined || !/^[A-Za-z0-9._-]+$/u.test(boundaryId)
+          || !Number.isSafeInteger(submittedRevision) || submittedRevision < 0
+          || contentSha256 === undefined || !/^[a-f0-9]{64}$/u.test(contentSha256)
+          || statement !== '该图是本项目采用的总平图或红线图，且图中明确表达项目边界') {
+          return { kind: 'error', text: 'SITE_BOUNDARY_CONFIRMATION_ACKNOWLEDGEMENT_REQUIRED：请完整提交边界 ID、Revision、内容 SHA 与规范确认声明。' }
+        }
+        const context = repository.readContext(String(invocation.agent.id))
+        const record = await dependencies.boundaries.confirm(
+          context.project.projectId,
+          boundaryId,
+          context.project.currentRevision,
+          { boundaryId, submittedRevision, contentSha256, statement },
+          boundaryContext(invocation, dependencies),
+        )
+        return { kind: 'success', text: `场地边界 ${record.boundaryId} 已正式确认。` }
       }),
     },
     {

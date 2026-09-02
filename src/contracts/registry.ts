@@ -75,6 +75,7 @@ export class ContractRegistry {
   private constructor(
     private readonly stateValidators: ReadonlyMap<string, ValidateFunction>,
     private readonly stateSchemas: ReadonlyMap<string, Readonly<Record<string, unknown>>>,
+    private readonly stateExamples: ReadonlyMap<string, Readonly<Record<string, unknown>>>,
     private readonly workflowDescriptors: readonly WorkflowDescriptor[],
     private readonly workflowById: ReadonlyMap<string, WorkflowDescriptor>,
     private readonly gateDescriptors: readonly GateDescriptor[],
@@ -98,6 +99,13 @@ export class ContractRegistry {
       const schema = Object.freeze(await readJson<Record<string, unknown>>(new URL(file, stateRoot)))
       stateSchemas.set(objectId, schema)
       stateValidators.set(objectId, ajv.compile(schema))
+    }
+    const stateExamples = new Map<string, Readonly<Record<string, unknown>>>()
+    const exampleRoot = new URL('tests/fixtures/valid/', root)
+    for (const objectId of stateSchemas.keys()) {
+      stateExamples.set(objectId, Object.freeze(await readJson<Record<string, unknown>>(
+        new URL(`${objectId}.json`, exampleRoot),
+      )))
     }
 
     const workflowRoot = new URL('workflows/', root)
@@ -179,6 +187,7 @@ export class ContractRegistry {
     return new ContractRegistry(
       stateValidators,
       stateSchemas,
+      stateExamples,
       Object.freeze(workflowDescriptors),
       workflowById,
       Object.freeze(gateDescriptors),
@@ -232,6 +241,12 @@ export class ContractRegistry {
     const schema = this.stateSchemas.get(objectId)
     if (schema === undefined) throw new Error(`unknown state object contract: ${objectId}`)
     return schema
+  }
+
+  stateExample(objectId: string): Readonly<Record<string, unknown>> {
+    const example = this.stateExamples.get(objectId)
+    if (example === undefined) throw new Error(`unknown state object example: ${objectId}`)
+    return example
   }
 
   modelToolNames(): readonly string[] {

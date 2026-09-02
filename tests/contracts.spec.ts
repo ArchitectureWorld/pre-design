@@ -76,4 +76,23 @@ describe('ContractRegistry', () => {
     expect(() => registry.gate('missing')).toThrow('unknown gate contract: missing')
     expect(() => registry.dependents('missing')).toThrow('unknown dependency object: missing')
   })
+
+  it('serves a schema-valid structural payload example for every workflow target', async () => {
+    const registry = await ContractRegistry.open(contractRoot)
+
+    for (const descriptor of registry.workflows()) {
+      const example = registry.stateExample(descriptor.targetObjectId)
+      expect(registry.validateStateObject(descriptor.targetObjectId, example), descriptor.targetObjectId)
+        .toEqual({ valid: true, errors: [] })
+    }
+    expect(registry.stateExample('PS04')).toMatchObject({
+      object_id: 'PS04',
+      data: {
+        actors: expect.any(Array),
+        roles: expect.any(Array),
+        decision_edges: expect.any(Array),
+      },
+    })
+    expect(() => registry.stateExample('missing')).toThrow('unknown state object example: missing')
+  })
 })

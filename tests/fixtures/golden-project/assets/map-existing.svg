@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" role="img" aria-labelledby="map-existing-title map-existing-desc" data-source="示例场地分析资料（待项目实测校核）">
+  <title id="map-existing-title">现状用地、建筑与功能分布图</title>
+  <desc id="map-existing-desc">示例现状空间构成，不代表真实测绘成果；建筑、公共服务、开放空间与断点位置均待现场与总平资料校核。</desc>
+  <style>
+    text { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; fill: #17323A; }
+    .map-title { font-size: 34px; font-weight: 700; }
+    .map-kicker { font-size: 17px; fill: #5C7075; }
+    .feature-label { font-size: 16px; font-weight: 700; stroke: none; }
+    .minor-label { font-size: 13px; fill: #60757B; }
+    .legend-title { font-size: 18px; font-weight: 700; }
+    .legend-label { font-size: 15px; font-weight: 600; }
+    .north-label { font-size: 22px; font-weight: 800; }
+    .source-note { font-size: 15px; fill: #7B878A; }
+  </style>
+  <rect width="1200" height="700" fill="#F7F4EE"/>
+  <rect x="36" y="28" width="1128" height="644" rx="18" fill="#FFFEFB" stroke="#DDE3DF"/>
+  <text class="map-title" x="60" y="72">现状用地、建筑与功能分布图</text>
+  <text class="map-kicker" x="60" y="106">示例现状肌理 · 功能关系与空间断点待现场踏勘校核</text>
+
+  <g class="site-map" aria-label="示例现状功能底图">
+    <rect x="60" y="132" width="830" height="466" rx="18" fill="#EEF2EF" stroke="#D7E0DB"/>
+    <path d="M80 528 C206 482 326 510 434 550 C566 600 730 582 884 510 L884 598 L80 598 Z" fill="#C8DDE4"/>
+    <path d="M84 474 C222 436 348 458 470 510 C594 562 728 542 874 462" fill="none" stroke="#8FB4BF" stroke-width="7"/>
+    <path d="M96 188 H854" stroke="#7F919A" stroke-width="18" stroke-linecap="round"/>
+    <path d="M148 150 V526" stroke="#A8B5BA" stroke-width="11" stroke-linecap="round"/>
+    <path d="M752 154 V498" stroke="#A8B5BA" stroke-width="10" stroke-linecap="round"/>
+    <path d="M164 402 C302 382 440 404 560 458 C650 498 724 494 800 452" fill="none" stroke="#D4C9B7" stroke-width="16" stroke-linecap="round"/>
+    <path d="M214 238 L712 226 L730 430 L584 510 L236 438 Z" fill="none" stroke="#9AA8A8" stroke-width="3" stroke-dasharray="10 8"/>
+    <g fill="#AFC3CD" stroke="#829BA7" stroke-width="2">
+      <rect x="252" y="268" width="122" height="76" rx="8"/>
+      <rect x="404" y="252" width="86" height="62" rx="8"/>
+      <rect x="390" y="344" width="144" height="84" rx="8"/>
+    </g>
+    <g fill="#D9B46C" stroke="#B88A3E" stroke-width="2">
+      <rect x="566" y="268" width="112" height="72" rx="8"/>
+      <circle cx="622" cy="384" r="32"/>
+    </g>
+    <path d="M548 438 C610 408 680 418 716 466 C676 514 602 532 526 510 Z" fill="#95B78E" stroke="#6D966C" stroke-width="2"/>
+    <path d="M532 452 C578 432 636 440 684 474" fill="none" stroke="#F7F1E5" stroke-width="8" stroke-linecap="round"/>
+    <circle cx="516" cy="454" r="30" fill="#C95046" fill-opacity="0.14" stroke="#C95046" stroke-width="4" stroke-dasharray="8 6"/>
+    <path d="M495 438 L537 470 M537 438 L495 470" stroke="#C95046" stroke-width="5" stroke-linecap="round"/>
+
+    <text class="feature-label" data-feature="existing-building" x="276" y="258">存量建筑</text>
+    <text class="feature-label" data-feature="public-service" x="560" y="252">公共服务</text>
+    <text class="feature-label" data-feature="open-space" x="620" y="548">开放空间</text>
+    <text class="feature-label" data-feature="spatial-break" x="444" y="506">空间断点</text>
+    <text class="minor-label" x="182" y="214">示例研究范围</text>
+    <text class="minor-label" x="706" y="580">滨水界面</text>
+  </g>
+
+  <g class="information-panel">
+    <rect x="914" y="132" width="230" height="466" rx="18" fill="#F5F1E9" stroke="#DED7C9"/>
+    <g class="map-legend" transform="translate(940 176)">
+      <text class="legend-title" x="0" y="0">现状图例</text>
+      <g class="legend-item" transform="translate(0 54)"><rect data-swatch="building" x="0" y="-12" width="54" height="24" rx="4" fill="#AFC3CD" stroke="#829BA7"/><text class="legend-label" x="72" y="5">存量建筑</text></g>
+      <g class="legend-item" transform="translate(0 104)"><rect data-swatch="service" x="0" y="-12" width="54" height="24" rx="4" fill="#D9B46C" stroke="#B88A3E"/><text class="legend-label" x="72" y="5">公共服务</text></g>
+      <g class="legend-item" transform="translate(0 154)"><rect data-swatch="open" x="0" y="-12" width="54" height="24" rx="4" fill="#95B78E" stroke="#6D966C"/><text class="legend-label" x="72" y="5">开放空间</text></g>
+      <g class="legend-item" transform="translate(0 204)"><circle data-swatch="break" cx="27" cy="0" r="12" fill="#C95046" fill-opacity="0.18" stroke="#C95046" stroke-width="3"/><text class="legend-label" x="72" y="5">空间断点</text></g>
+    </g>
+    <g id="north-arrow" transform="translate(1005 486)">
+      <path d="M24 -46 L39 8 L24 -2 L9 8 Z" fill="#17323A"/>
+      <line x1="24" y1="-2" x2="24" y2="36" stroke="#17323A" stroke-width="3"/>
+      <text class="north-label" x="24" y="-60" text-anchor="middle">N</text>
+    </g>
+    <g id="scale-bar" aria-label="比例尺 0 50 100m" transform="translate(942 548)" stroke="#17323A" stroke-width="3">
+      <line x1="0" y1="0" x2="78" y2="0"/><line x1="78" y1="0" x2="156" y2="0"/>
+      <line x1="0" y1="-8" x2="0" y2="8"/><line x1="78" y1="-8" x2="78" y2="8"/><line x1="156" y1="-8" x2="156" y2="8"/>
+      <text x="0" y="26" fill="#17323A" stroke="none" font-size="13">0</text><text x="70" y="26" fill="#17323A" stroke="none" font-size="13">50</text><text x="136" y="26" fill="#17323A" stroke="none" font-size="13">100m</text>
+    </g>
+  </g>
+
+  <line x1="60" y1="626" x2="1140" y2="626" stroke="#E4E8E5"/>
+  <text class="source-note" x="60" y="658">示例场地分析资料（待项目实测校核）</text>
+</svg>

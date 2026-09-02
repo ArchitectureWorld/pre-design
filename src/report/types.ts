@@ -28,10 +28,17 @@ export interface ReportSection {
 
 export interface ReportAsset {
   readonly assetId: string
+  readonly taskId?: string
+  readonly chapterId?: string
+  readonly workItemId?: string
   readonly kind: 'concept' | 'evidence' | 'deterministic'
   readonly caption: string
   readonly sourcePath: string
   readonly mimeType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/svg+xml'
+  readonly sha256?: string
+  readonly boundaryGeometrySha256?: string
+  readonly width?: number
+  readonly height?: number
 }
 
 export interface ReportDocument {
@@ -65,6 +72,33 @@ export interface FrozenStateObject {
   readonly facts: readonly FrozenStateFact[]
 }
 
+export type FrozenSiteBoundary =
+  | { readonly status: 'not_provided' }
+  | {
+    readonly status: 'pending_confirmation'
+    readonly boundaryId: string
+    readonly source: import('../governance/types.ts').SiteBoundarySource
+  }
+  | {
+    readonly status: 'synthetic_research'
+    readonly boundaryId: string
+    readonly source: import('../governance/types.ts').SiteBoundarySource
+    readonly declarations: readonly ['研究范围（待核）', '非法定红线', '非测绘成果']
+    readonly assetId?: string
+    readonly assetSha256?: string
+  }
+  | {
+    readonly status: 'confirmed'
+    readonly boundaryId: string
+    readonly assetId: string
+    readonly confirmedRevision: number
+    readonly source: import('../governance/types.ts').SiteBoundarySource
+    readonly sourceSha256?: string
+    readonly geometrySha256?: string
+    readonly assetSha256: string
+    readonly integrityDigest: string
+  }
+
 export interface FrozenProjectInput {
   readonly projectId: string
   readonly projectName: string
@@ -81,6 +115,7 @@ export interface FrozenProjectInput {
   }[]
   readonly visualAssets: readonly ReportAsset[]
   readonly adoptedAssetIds?: readonly string[]
+  readonly siteBoundary?: FrozenSiteBoundary
 }
 
 export interface RenderedArtifact {
@@ -93,6 +128,8 @@ export interface RenderedArtifact {
 
 export type {
   ArtifactIdentity,
+  ClientAssetLayout,
+  ClientMediaPosition,
   ClientPage,
   ClientPageKind,
   ClientPagePlan,

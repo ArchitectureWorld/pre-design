@@ -25,6 +25,84 @@ function jsonSnapshot(value: unknown): JsonValue {
   return JSON.parse(JSON.stringify(value)) as JsonValue
 }
 
+const PROPOSAL_ENVELOPE_PARAMETER = {
+  type: 'object',
+  additionalProperties: false,
+  required: true,
+  description: '符合 v0.6 合同的 ProposalEnvelope JSON 对象；字段值必须来自 preplanning_get_context，不得传 JSON 字符串。',
+  properties: {
+    proposal_id: { type: 'string', required: true },
+    project_id: { type: 'string', required: true },
+    workflow_id: { type: 'string', required: true },
+    target_object_id: { type: 'string', required: true },
+    target_schema_id: { type: 'string', required: true },
+    expected_revision: { type: 'integer', required: true },
+    actor: {
+      type: 'object',
+      additionalProperties: true,
+      required: true,
+      properties: {
+        actor_id: { type: 'string', required: true },
+        name: { type: 'string', required: true },
+        role: { type: 'string', enum: ['agent'], required: true },
+        authority_scope: { type: 'array', items: { type: 'string' } },
+      },
+    },
+    created_at: { type: 'string', required: true },
+    change_set: {
+      type: 'object',
+      additionalProperties: false,
+      required: true,
+      properties: {
+        operation: {
+          type: 'string',
+          enum: ['create', 'replace', 'merge_patch', 'supersede'],
+          required: true,
+        },
+        payload: { type: 'object', additionalProperties: true, required: true },
+        semantic_paths: { type: 'array', items: { type: 'string' }, required: true },
+        editorial_only: { type: 'boolean' },
+      },
+    },
+    evidence_refs: {
+      type: 'array',
+      required: true,
+      items: {
+        type: 'object',
+        additionalProperties: true,
+        properties: {
+          evidence_id: { type: 'string', required: true },
+          asset_id: { type: 'string', required: true },
+          version_id: { type: 'string', required: true },
+          claim_class: {
+            type: 'string',
+            enum: ['fact', 'source_conclusion', 'user_statement', 'agent_inference', 'assumption', 'decision', 'missing'],
+            required: true,
+          },
+          locator: { type: 'object', additionalProperties: true, required: true },
+        },
+      },
+    },
+    assumptions: {
+      type: 'array',
+      required: true,
+      items: {
+        type: 'object',
+        additionalProperties: true,
+        properties: {
+          id: { type: 'string', required: true },
+          name: { type: 'string', required: true },
+          description: { type: 'string' },
+          status: { type: 'string' },
+        },
+      },
+    },
+    validation_intent: { type: 'string', enum: ['human_review'], required: true },
+    requested_state: { type: 'string', enum: ['pending_review'], required: true },
+    idempotency_key: { type: 'string', required: true },
+  },
+} as const
+
 export function registerPreplanningTools(ctx: Context, dependencies: ToolDependencies): void {
   ctx.tools.register(defineTool({
     name: 'preplanning_get_context',
@@ -42,12 +120,7 @@ export function registerPreplanningTools(ctx: Context, dependencies: ToolDepende
     name: 'preplanning_apply_commands',
     description: '提交 ProposalEnvelope 供合同、权限和人工复核网关验证；不直接写入 Project State。',
     parameters: {
-      envelope: {
-        type: 'object',
-        additionalProperties: true,
-        required: true,
-        description: '符合 v0.6 合同的 ProposalEnvelope JSON 对象；不得传 JSON 字符串。',
-      },
+      envelope: PROPOSAL_ENVELOPE_PARAMETER,
     },
     output: {
       schema: { type: 'json' },

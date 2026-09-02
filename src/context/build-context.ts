@@ -81,8 +81,11 @@ export function buildControlledContext(
   }
   if (dependencies === undefined) return base
   const governance = dependencies.governance.readProject(context.project.projectId)
-  const workflow = dependencies.runtime.nextReady(context.project.projectId)
   const snapshot = dependencies.runtime.snapshot(context.project.projectId)
+  const running = snapshot.runs.find(run => run.status === 'running')
+  const workflow = running === undefined
+    ? dependencies.runtime.nextReady(context.project.projectId)
+    : dependencies.registry.workflow(running.workflowId)
   const stateByObject = new Map(context.stateObjects.map(record => [record.objectId, record]))
   return {
     ...base,
@@ -90,6 +93,7 @@ export function buildControlledContext(
     authorization: governance.authorizations.find(row => row.status === 'active') ?? null,
     nextWorkflow: workflow ?? null,
     targetSchema: workflow === undefined ? null : dependencies.registry.stateSchema(workflow.targetObjectId),
+    targetPayloadExample: workflow === undefined ? null : dependencies.registry.stateExample(workflow.targetObjectId),
     upstreamSnapshot: workflow === undefined
       ? []
       : workflow.requiredUpstream.map(objectId => objectId === 'ProjectSeed'

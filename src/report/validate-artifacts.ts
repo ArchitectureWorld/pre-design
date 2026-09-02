@@ -2,10 +2,18 @@ import { createHash } from 'node:crypto'
 import { access, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ArtifactManifestRecord, ArtifactRecord } from '../governance/types.ts'
-import type { ArtifactIdentity } from './client-types.ts'
+import {
+  assertPublishableClientReportBundle,
+  isAuthenticClientResearchPreviewBundle,
+} from './client-projection.ts'
+import type {
+  ArtifactIdentity,
+  ClientResearchPreviewBundle,
+  ClientReportBundle,
+} from './client-types.ts'
 import { inspectPptxArtifact } from './inspect-pptx.ts'
 
-const FORBIDDEN_VISIBLE = /\b(?:Gate|Workflow|Revision)\b|工作项|完成度|artifact-manifest|[A-Z]:[\\/]/iu
+const FORBIDDEN_VISIBLE = /\b(?:Gate|Workflow|Revision|SHA(?:-?256)?|attachment\s*ID|asset\s*ID|boundary\s*ID)\b|附件\s*ID|内部资产\s*ID|边界\s*ID|确认日志|工作项|完成度|artifact-manifest|[A-Z]:[\\/]/iu
 
 export interface ArtifactManifestIdentity {
   readonly manifestId: string
@@ -15,6 +23,29 @@ export interface ArtifactManifestIdentity {
   readonly createdAt: string
   readonly recommendationId?: string
   readonly adoptedAssetIds?: readonly string[]
+  readonly siteBoundaryIntegrityDigest?: string
+}
+
+export interface ArtifactValidationSensitiveValues {
+  readonly siteBoundary?: Readonly<{ readonly boundaryId: string; readonly assetId: string }>
+}
+
+export interface ResearchPreviewEvidenceIdentity {
+  readonly projectId: string
+  readonly sourceRevision: number
+  readonly createdAt: string
+}
+
+export interface ResearchPreviewEvidence {
+  readonly kind: 'research_preview_evidence'
+  readonly publishable: false
+  readonly projectId: string
+  readonly sourceRevision: number
+  readonly createdAt: string
+  readonly recommendationId: string
+  readonly adoptedAssetIds: readonly string[]
+  readonly researchBoundary: ClientResearchPreviewBundle['researchBoundary']
+  readonly artifacts: readonly ArtifactRecord[]
 }
 
 function requiredMeta(html: string, name: string): string {
@@ -31,11 +62,13 @@ export function readHtmlArtifactIdentity(html: string): ArtifactIdentity {
   if (!Number.isInteger(sourceRevision) || sourceRevision < 0) {
     throw new Error('HTML artifact source revision identity is invalid')
   }
+  const boundary = html.match(/<meta\s+[^>]*name=["']preplan-site-boundary-digest["'][^>]*content=["']([^"']*)["'][^>]*>/iu)?.[1]
   return {
     projectId: requiredMeta(html, 'preplan-project-id'),
     sourceRevision,
     recommendationId: requiredMeta(html, 'preplan-recommendation-id'),
     adoptedAssetIds: requiredMeta(html, 'preplan-adopted-assets').split(',').filter(Boolean).sort(),
+    ...(boundary === undefined ? {} : { siteBoundaryIntegrityDigest: boundary }),
   }
 }
 
@@ -48,9 +81,19 @@ function visibleHtmlText(html: string): string {
     .replace(/&amp;/gu, '&')
 }
 
-function assertVisiblePolicy(label: string, text: string): void {
+function assertVisiblePolicy(
+  label: string,
+  text: string,
+  sensitive?: ArtifactValidationSensitiveValues,
+): void {
   const match = text.match(FORBIDDEN_VISIBLE)
   if (match !== null) throw new Error(`${label} contains forbidden client-visible term ${match[0]}`)
+  const governedIds = sensitive?.siteBoundary === undefined
+    ? []
+    : [sensitive.siteBoundary.boundaryId, sensitive.siteBoundary.assetId]
+  if (governedIds.some(value => value.trim() !== '' && text.includes(value))) {
+    throw new Error(`${label} contains forbidden client-visible term governed boundary identity`)
+  }
 }
 
 function sorted(values: readonly string[]): readonly string[] {
@@ -71,6 +114,9 @@ function assertIdentity(
     && JSON.stringify(sorted(actual.adoptedAssetIds)) !== JSON.stringify(sorted(expected.adoptedAssetIds))) {
     throw new Error(`${label} adopted asset identity does not match`)
   }
+  if (expected.siteBoundaryIntegrityDigest !== undefined && actual.siteBoundaryIntegrityDigest !== expected.siteBoundaryIntegrityDigest) {
+    throw new Error(`${label} site boundary identity does not match`)
+  }
 }
 
 function readPdfIdentity(content: Buffer): ArtifactIdentity | undefined {
@@ -84,6 +130,7 @@ function readPdfIdentity(content: Buffer): ArtifactIdentity | undefined {
     sourceRevision: parsed.sourceRevision,
     recommendationId: parsed.recommendationId,
     adoptedAssetIds: parsed.adoptedAssetIds.filter((value): value is string => typeof value === 'string').sort(),
+    ...(typeof parsed.siteBoundaryIntegrityDigest === 'string' ? { siteBoundaryIntegrityDigest: parsed.siteBoundaryIntegrityDigest } : {}),
   }
 }
 
@@ -115,10 +162,12 @@ async function artifact(
   }
 }
 
-export async function validateAndHashReportArtifacts(
+async function validateArtifactFiles(
   stagingRoot: string,
   identity: ArtifactManifestIdentity,
-): Promise<ArtifactManifestRecord> {
+  sensitive?: ArtifactValidationSensitiveValues,
+  formats: readonly ArtifactRecord['format'][] = ['html', 'pptx', 'pdf'],
+): Promise<readonly ArtifactRecord[]> {
   if (!Number.isInteger(identity.sourceRevision) || identity.sourceRevision < 0) {
     throw new Error('report source revision must be a non-negative integer')
   }
@@ -127,22 +176,26 @@ export async function validateAndHashReportArtifacts(
   const isClientReport = htmlText.includes('preplan-project-id')
   if (isClientReport) {
     assertIdentity('HTML artifact', readHtmlArtifactIdentity(htmlText), identity)
-    assertVisiblePolicy('HTML artifact', visibleHtmlText(htmlText))
-    const printPath = join(stagingRoot, 'print', 'index.html')
-    if (!await exists(printPath)) throw new Error('print HTML artifact is missing')
-    const printHtml = await readFile(printPath, 'utf8')
-    assertIdentity('print HTML artifact', readHtmlArtifactIdentity(printHtml), identity)
-    assertVisiblePolicy('print HTML artifact', visibleHtmlText(printHtml))
+    assertVisiblePolicy('HTML artifact', visibleHtmlText(htmlText), sensitive)
+    if (formats.includes('pdf')) {
+      const printPath = join(stagingRoot, 'print', 'index.html')
+      if (!await exists(printPath)) throw new Error('print HTML artifact is missing')
+      const printHtml = await readFile(printPath, 'utf8')
+      assertIdentity('print HTML artifact', readHtmlArtifactIdentity(printHtml), identity)
+      assertVisiblePolicy('print HTML artifact', visibleHtmlText(printHtml), sensitive)
 
-    const pptx = await inspectPptxArtifact(join(stagingRoot, 'report.pptx'))
-    if (pptx.identity === undefined) throw new Error('PPTX artifact identity is missing')
-    assertIdentity('PPTX artifact', pptx.identity, identity)
-    assertVisiblePolicy('PPTX artifact', pptx.visibleText)
+      const pdfContent = await readFile(join(stagingRoot, 'report.pdf'))
+      const pdfIdentity = readPdfIdentity(pdfContent)
+      if (pdfIdentity === undefined) throw new Error('PDF artifact identity is missing')
+      assertIdentity('PDF artifact', pdfIdentity, identity)
+    }
 
-    const pdfContent = await readFile(join(stagingRoot, 'report.pdf'))
-    const pdfIdentity = readPdfIdentity(pdfContent)
-    if (pdfIdentity === undefined) throw new Error('PDF artifact identity is missing')
-    assertIdentity('PDF artifact', pdfIdentity, identity)
+    if (formats.includes('pptx')) {
+      const pptx = await inspectPptxArtifact(join(stagingRoot, 'report.pptx'))
+      if (pptx.identity === undefined) throw new Error('PPTX artifact identity is missing')
+      assertIdentity('PPTX artifact', pptx.identity, identity)
+      assertVisiblePolicy('PPTX artifact', pptx.visibleText, sensitive)
+    }
   } else {
     const revision = htmlText.match(/data-report-revision=["'](\d+)["']/u)?.[1]
     if (revision !== String(identity.sourceRevision)) {
@@ -150,14 +203,57 @@ export async function validateAndHashReportArtifacts(
     }
   }
 
-  const artifacts = await Promise.all([
-    artifact(stagingRoot, 'html', 'html/index.html'),
-    artifact(stagingRoot, 'pptx', 'report.pptx', Buffer.from('PK')),
-    artifact(stagingRoot, 'pdf', 'report.pdf', Buffer.from('%PDF-')),
-  ])
+  const artifactInputs: Readonly<Record<ArtifactRecord['format'], readonly [string, Buffer?]>> = {
+    html: ['html/index.html'],
+    pptx: ['report.pptx', Buffer.from('PK')],
+    pdf: ['report.pdf', Buffer.from('%PDF-')],
+  }
+  return Promise.all(formats.map(format => artifact(stagingRoot, format, ...artifactInputs[format])))
+}
+
+export async function validateAndHashReportArtifacts(
+  stagingRoot: string,
+  identity: ArtifactManifestIdentity,
+  sensitive: ArtifactValidationSensitiveValues | undefined,
+  bundle: ClientReportBundle,
+): Promise<ArtifactManifestRecord> {
+  assertPublishableClientReportBundle(bundle)
+  const artifacts = await validateArtifactFiles(stagingRoot, identity, sensitive)
   return {
     ...identity,
     ...(identity.adoptedAssetIds === undefined ? {} : { adoptedAssetIds: [...identity.adoptedAssetIds] }),
+    ...(identity.siteBoundaryIntegrityDigest === undefined ? {} : { siteBoundaryIntegrityDigest: identity.siteBoundaryIntegrityDigest }),
+    artifacts,
+  }
+}
+
+export async function validateAndHashResearchPreviewArtifacts(
+  stagingRoot: string,
+  identity: ResearchPreviewEvidenceIdentity,
+  bundle: ClientResearchPreviewBundle,
+  formats: readonly ArtifactRecord['format'][] = ['html'],
+): Promise<ResearchPreviewEvidence> {
+  if (!isAuthenticClientResearchPreviewBundle(bundle)) {
+    throw new Error('SITE_BOUNDARY_RESEARCH_PREVIEW_CONFLICT：研究预览证据必须来自受控 preview projection。')
+  }
+  if (identity.projectId !== bundle.identity.projectId || identity.sourceRevision !== bundle.identity.sourceRevision) {
+    throw new Error('SITE_BOUNDARY_RESEARCH_PREVIEW_CONFLICT：研究预览证据与冻结项目身份不一致。')
+  }
+  const expected: ArtifactManifestIdentity = {
+    manifestId: 'research-preview-evidence',
+    packageId: 'research-preview-evidence',
+    ...identity,
+    recommendationId: bundle.identity.recommendationId,
+    adoptedAssetIds: bundle.identity.adoptedAssetIds,
+  }
+  const artifacts = await validateArtifactFiles(stagingRoot, expected, undefined, formats)
+  return {
+    kind: 'research_preview_evidence',
+    publishable: false,
+    ...identity,
+    recommendationId: bundle.identity.recommendationId,
+    adoptedAssetIds: [...bundle.identity.adoptedAssetIds],
+    researchBoundary: { ...bundle.researchBoundary },
     artifacts,
   }
 }

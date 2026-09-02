@@ -16,6 +16,7 @@ describe('AutomationCoordinator', () => {
     ]
     let cursor = 0
     const runtime = {
+      current: vi.fn(() => undefined),
       nextReady: vi.fn(() => descriptors[cursor]),
       transition: vi.fn(async () => undefined),
       snapshot: vi.fn(() => ({ blocked: [] })),
@@ -50,6 +51,7 @@ describe('AutomationCoordinator', () => {
     const turn = deferred()
     let blocked = false
     const runtime = {
+      current: vi.fn(() => undefined),
       nextReady: vi.fn(() => ({ workflowId: 'preplan.wf.01.01', targetObjectId: 'PS01', title: '项目身份' })),
       transition: vi.fn(async () => undefined),
       snapshot: vi.fn(() => ({ blocked: blocked ? [{ workflowId: 'preplan.wf.01.01' }] : [] })),
@@ -62,5 +64,34 @@ describe('AutomationCoordinator', () => {
     turn.resolve()
     await vi.waitFor(() => expect(coordinator.isRunning('project-1')).toBe(false))
     expect(agent.followup).toHaveBeenCalledTimes(1)
+  })
+
+  it('resumes a persisted running workflow after restart without repeating its transition', async () => {
+    const turn = deferred()
+    const descriptor = {
+      workflowId: 'preplan.wf.01.05', targetObjectId: 'PS05', title: '已定条件与待验证前提',
+    }
+    const runtime = {
+      current: vi.fn(() => descriptor),
+      nextReady: vi.fn(() => undefined),
+      transition: vi.fn(async () => undefined),
+      snapshot: vi.fn(() => ({ blocked: [] })),
+    }
+    const followups: Array<{ readonly content: readonly { readonly type: string; readonly text?: string }[] }> = []
+    const agent = {
+      followup: vi.fn(async (message: { readonly content: readonly { readonly type: string; readonly text?: string }[] }) => {
+        followups.push(message)
+      }),
+      whenIdle: vi.fn(() => turn.promise),
+    }
+    const coordinator = new AutomationCoordinator(runtime as never)
+
+    await coordinator.start(agent, 'project-1')
+    await vi.waitFor(() => expect(agent.followup).toHaveBeenCalledTimes(1))
+    expect(runtime.transition).not.toHaveBeenCalled()
+    expect(followups[0]?.content[0]?.text).toContain('preplan.wf.01.05')
+
+    await coordinator.pause('project-1')
+    turn.resolve()
   })
 })

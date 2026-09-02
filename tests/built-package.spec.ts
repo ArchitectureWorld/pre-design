@@ -4,6 +4,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import vm from 'node:vm'
 import { describe, expect, it } from 'vitest'
 import * as react from 'react'
+import * as reactDom from 'react-dom'
 import * as jsxRuntime from 'react/jsx-runtime'
 
 interface ClientRow {
@@ -39,12 +40,17 @@ describe('built npm package', () => {
     })
 
     expect(row?.id).toBe('@architectureworld/dsh-preplanning-agent')
+    const requestedExternals = new Set<string>()
     const browser = row!.factory((specifier) => {
+      requestedExternals.add(specifier)
       if (specifier === 'react') return react
       if (specifier === 'react/jsx-runtime') return jsxRuntime
+      if (specifier === 'react-dom') return reactDom
       throw new Error(`unexpected client external: ${specifier}`)
     })
     expect(browser.inject).toEqual(['conversationEvents', 'remote', 'remote.commands', 'sessions', 'slots'])
     expect(typeof browser.apply).toBe('function')
+    expect([...requestedExternals].sort()).toEqual(['react', 'react-dom', 'react/jsx-runtime'].sort())
+    expect(Buffer.byteLength(source, 'utf8')).toBeLessThan(100_000)
   })
 })

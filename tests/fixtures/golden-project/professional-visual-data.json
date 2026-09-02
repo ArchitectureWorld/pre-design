@@ -1,0 +1,139 @@
+{
+  "schemaVersion": "professional-visual-research-v1",
+  "disclosure": "示例研究数据（待项目实测校核）",
+  "canvas": {
+    "width": 1200,
+    "height": 700,
+    "viewBox": "0 0 1200 700"
+  },
+  "evidenceSources": [
+    { "evidenceId": "evidence-1", "sourceLabel": "项目策划示例资料（待项目实测校核）", "statement": "项目目标覆盖公共文化、生态水岸与城市生活三类价值。" },
+    { "evidenceId": "evidence-2", "sourceLabel": "项目策划示例资料（待项目实测校核）", "statement": "现有资源需要通过连续公共界面建立整体识别。" },
+    { "evidenceId": "evidence-3", "sourceLabel": "示例场地观察（待项目实测校核）", "statement": "门户、文化核心与水岸之间仍缺少连续步行体验。" },
+    { "evidenceId": "evidence-4", "sourceLabel": "示例使用观察（待项目实测校核）", "statement": "公共活动与日常使用尚未形成稳定的时段组合。" },
+    { "evidenceId": "evidence-5", "sourceLabel": "示例案例研究（待项目实测校核）", "statement": "高识别门户能够提升首访吸引力并组织后续游线。" },
+    { "evidenceId": "evidence-6", "sourceLabel": "示例案例研究（待项目实测校核）", "statement": "弹性公共空间能够兼容日常休闲与主题活动。" },
+    { "evidenceId": "evidence-7", "sourceLabel": "示例规划摘要（待项目实测校核）", "statement": "连续慢行与开放空间是滨水公共价值实现的重要载体。" },
+    { "evidenceId": "evidence-8", "sourceLabel": "示例运营假设（待项目实测校核）", "statement": "公共服务与轻量经营可以共享客流和空间基础设施。" },
+    { "evidenceId": "evidence-9", "sourceLabel": "示例人群观察（待项目实测校核）", "statement": "家庭、青年与社区居民对全天候共享场景具有重叠需求。" },
+    { "evidenceId": "evidence-10", "sourceLabel": "示例生态策略摘要（待项目实测校核）", "statement": "生态设施应与公共空间和景观体验一体设计。" },
+    { "evidenceId": "evidence-11", "sourceLabel": "示例实施假设（待项目实测校核）", "statement": "示范先行有利于在扩大建设前验证空间与运营模型。" },
+    { "evidenceId": "evidence-12", "sourceLabel": "示例测算假设（待项目实测校核）", "statement": "示范先行、骨架成网与场景扩展的示例投资分别为 1200、2800、4500 万元。" }
+  ],
+  "charts": [
+    {
+      "id": "chart-existing",
+      "chartTopic": "existing-condition",
+      "title": "现状空间构成",
+      "dataSource": "示例研究数据（待项目实测校核）",
+      "unit": "%",
+      "methodology": "按示例研究空间分类面积占比汇总，待项目实测校核",
+      "upperBound": 100,
+      "axisTicks": [0, 25, 50, 75, 100],
+      "data": [
+        { "category": "公共服务", "value": 28, "unit": "%", "directLabel": "28%" },
+        { "category": "存量建筑", "value": 42, "unit": "%", "directLabel": "42%" },
+        { "category": "开放空间", "value": 30, "unit": "%", "directLabel": "30%" }
+      ]
+    },
+    {
+      "id": "chart-audience",
+      "chartTopic": "audience-demand",
+      "chartType": "bar",
+      "title": "客群与时段使用需求",
+      "dataSource": "示例研究数据（待项目实测校核）",
+      "unit": "人次/日",
+      "methodology": "按示例研究典型日分时到访需求估算，待项目实测校核",
+      "upperBound": 5000,
+      "axisTicks": [0, 1250, 2500, 3750, 5000],
+      "data": [
+        { "category": "工作日上午", "value": 1200, "unit": "人次/日", "directLabel": "1200人次/日" },
+        { "category": "工作日午间", "value": 1800, "unit": "人次/日", "directLabel": "1800人次/日" },
+        { "category": "工作日傍晚", "value": 3200, "unit": "人次/日", "directLabel": "3200人次/日" },
+        { "category": "工作日夜间", "value": 2800, "unit": "人次/日", "directLabel": "2800人次/日" },
+        { "category": "周末峰值", "value": 4600, "unit": "人次/日", "directLabel": "4600人次/日" }
+      ]
+    },
+    {
+      "id": "chart-access",
+      "chartTopic": "accessibility",
+      "title": "交通可达性与步行服务半径",
+      "dataSource": "示例研究数据（待项目实测校核）",
+      "unit": "万人",
+      "methodology": "按示例研究步行等时圈覆盖人口估算，待项目实测校核",
+      "upperBound": 5,
+      "axisTicks": [0, 1, 2, 3, 4, 5],
+      "data": [
+        { "category": "5分钟", "value": 0.8, "unit": "万人", "directLabel": "5分钟　0.8万人" },
+        { "category": "10分钟", "value": 2.4, "unit": "万人", "directLabel": "10分钟　2.4万人" },
+        { "category": "15分钟", "value": 4.7, "unit": "万人", "directLabel": "15分钟　4.7万人" }
+      ]
+    },
+    {
+      "id": "chart-operation",
+      "chartTopic": "operation-investment",
+      "title": "运营收入与成本投入结构",
+      "dataSource": "示例研究数据（待项目实测校核）",
+      "unit": "万元/年",
+      "methodology": "按示例研究分阶段运营收支估算，待项目实测校核",
+      "upperBound": 800,
+      "axisTicks": [0, 200, 400, 600, 800],
+      "stages": ["启动期", "培育期", "稳定期"],
+      "series": [
+        { "id": "income", "name": "运营收入", "color": "#247A74" },
+        { "id": "cost", "name": "运营成本", "color": "#C5653E" }
+      ],
+      "data": [
+        { "category": "启动期", "series": "income", "value": 180, "unit": "万元/年", "directLabel": "180万元/年" },
+        { "category": "培育期", "series": "income", "value": 420, "unit": "万元/年", "directLabel": "420万元/年" },
+        { "category": "稳定期", "series": "income", "value": 760, "unit": "万元/年", "directLabel": "760万元/年" },
+        { "category": "启动期", "series": "cost", "value": 320, "unit": "万元/年", "directLabel": "320万元/年" },
+        { "category": "培育期", "series": "cost", "value": 390, "unit": "万元/年", "directLabel": "390万元/年" },
+        { "category": "稳定期", "series": "cost", "value": 520, "unit": "万元/年", "directLabel": "520万元/年" }
+      ]
+    },
+    {
+      "id": "chart-phasing",
+      "chartTopic": "implementation-phasing",
+      "title": "分期建设与投资节奏",
+      "dataSource": "示例研究数据（待项目实测校核）",
+      "unit": "万元",
+      "methodology": "按示例研究建设包估算投资节奏，待项目实测校核",
+      "upperBound": 5000,
+      "axisTicks": [0, 1000, 2000, 3000, 4000, 5000],
+      "data": [
+        { "category": "示范先行", "value": 1200, "unit": "万元", "directLabel": "1200万元" },
+        { "category": "骨架成网", "value": 2800, "unit": "万元", "directLabel": "2800万元" },
+        { "category": "场景扩展", "value": 4500, "unit": "万元", "directLabel": "4500万元" }
+      ]
+    },
+    {
+      "id": "chart-value",
+      "chartTopic": "product-value",
+      "title": "产品组合与价值贡献",
+      "dataSource": "示例研究数据（待项目实测校核）",
+      "unit": "价值指数",
+      "methodology": "按示例研究公共性、吸引力与运营协同三项加权评分，待项目实测校核",
+      "visualEncoding": "气泡面积代表价值指数",
+      "areaScale": 36,
+      "sizeLegend": [40, 70, 100],
+      "data": [
+        { "category": "文化体验", "value": 72, "unit": "价值指数", "directLabel": "文化体验 72" },
+        { "category": "滨水休闲", "value": 88, "unit": "价值指数", "directLabel": "滨水休闲 88" },
+        { "category": "城市活动", "value": 56, "unit": "价值指数", "directLabel": "城市活动 56" }
+      ]
+    }
+  ],
+  "map": {
+    "id": "map-circulation",
+    "title": "人行、车行、后勤与关键流线分析图",
+    "dataSource": "示例研究数据（待项目实测校核）",
+    "scale": "NTS",
+    "northLabel": "N",
+    "routes": [
+      { "id": "pedestrian", "name": "人行流线", "color": "#C85D3F", "strokeWidth": 16, "dashArray": "" },
+      { "id": "vehicle", "name": "车行流线", "color": "#2E6F8E", "strokeWidth": 12, "dashArray": "" },
+      { "id": "service", "name": "后勤流线", "color": "#4E8B68", "strokeWidth": 10, "dashArray": "20 12" }
+    ]
+  }
+}

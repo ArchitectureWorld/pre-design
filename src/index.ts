@@ -11,6 +11,8 @@ import z from '@deepseek-ai/schemastery'
 import { registerPreplanningCommands } from './commands/register.ts'
 import { ContractRegistry } from './contracts/registry.ts'
 import { GovernanceRepository } from './governance/repository.ts'
+import { SiteBoundaryAssetStore } from './governance/site-boundary-asset-store.ts'
+import { SiteBoundaryService } from './governance/site-boundary-service.ts'
 import { PREPLANNING_SYSTEM_PROMPT } from './prompts/preplanning-system.ts'
 import { ProposalGateway } from './proposals/gateway.ts'
 import { AutomationService } from './runtime/automation-service.ts'
@@ -42,6 +44,7 @@ interface PreplanningHost {
   readonly questions: QuestionService
   readonly coordinator: AutomationCoordinator
   readonly visual: VisualAgentService
+  readonly siteBoundaryAssets: SiteBoundaryAssetStore
   readonly reports: ReportPackageService
 }
 
@@ -83,7 +86,12 @@ export async function apply(ctx: Context): Promise<void> {
   const questions = new QuestionService(repository, runtime, now)
   const coordinator = new AutomationCoordinator(runtime)
   const gateway = new ProposalGateway(repository, registry, now, governance)
-  const visualStore = new VisualAssetStore(join(homedir(), '.dsh', 'preplanning-agent', 'visual-assets'))
+  const visualAssetRoot = join(homedir(), '.dsh', 'preplanning-agent', 'visual-assets')
+  const visualStore = new VisualAssetStore(visualAssetRoot)
+  const siteBoundaryAssets = new SiteBoundaryAssetStore(visualAssetRoot, {
+    readImage: (ref, signal) => ctx.attachments.readImage(ref, signal),
+  }, now)
+  const boundaries = new SiteBoundaryService(governance, siteBoundaryAssets, now, () => `boundary-${randomUUID()}`)
   const visualCollector = new SessionImageCollector({
     sessions: { get: id => ctx.sessions.get(id as never) },
     attachments: { readImage: (ref, signal) => ctx.attachments.readImage(ref as never, signal) },
@@ -118,6 +126,7 @@ export async function apply(ctx: Context): Promise<void> {
   const clientProfileRoot = join(homedir(), '.dsh', 'preplanning-agent', 'client-profiles')
   const reports = new ReportPackageService({
     governance,
+    boundaryIntegrity: boundaries,
     packageRoot: reportPackageRoot,
     browserExecutable: browserExecutable(),
     source: async (projectId, revision) => createFrozenProjectInput(projectId, revision, {
@@ -126,7 +135,7 @@ export async function apply(ctx: Context): Promise<void> {
       registry,
       visualStore,
     }),
-    profile: async projectId => loadClientProjectProfile(clientProfileRoot, projectId),
+    profile: async (projectId, input) => loadClientProjectProfile(clientProfileRoot, projectId, input),
     createId: () => `report-${randomUUID()}`,
     now,
   })
@@ -145,6 +154,7 @@ export async function apply(ctx: Context): Promise<void> {
     revisions,
     coordinator,
     visual,
+    boundaries,
     registry,
     reports,
     createId: () => `preplan-${randomUUID()}`,
@@ -170,6 +180,7 @@ export async function apply(ctx: Context): Promise<void> {
     questions,
     coordinator,
     visual,
+    siteBoundaryAssets,
     reports,
   }))
 }

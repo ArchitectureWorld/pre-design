@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:preplan:runtime:v0.7:site-boundary",
+  "title": "SiteBoundary",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["boundaryId", "projectId", "submittedRevision", "status", "source", "origin", "submissionChannel", "submittedBy", "submittedAt"],
+  "properties": {
+    "boundaryId": { "type": "string", "minLength": 1 },
+    "projectId": { "type": "string", "minLength": 1 },
+    "submittedRevision": { "type": "integer", "minimum": 0 },
+    "status": { "enum": ["pending_confirmation", "confirmed_formal_boundary"] },
+    "source": { "enum": ["approved_site_plan", "approved_redline", "closed_coordinates", "geojson"] },
+    "origin": { "enum": ["user_image", "user_coordinates", "user_geojson", "synthetic"] },
+    "submissionChannel": { "enum": ["dsh_human_command", "synthetic_fixture"] },
+    "sourceAsset": {
+      "type": "object", "additionalProperties": false,
+      "required": ["assetId", "fileName", "sha256"],
+      "properties": {
+        "assetId": { "type": "string", "minLength": 1 },
+        "fileName": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+        "attachment": {
+          "type": "object", "additionalProperties": false,
+          "required": ["origin", "attachmentId", "mediaType", "bytes", "width", "height", "storageSha256", "submittedBy", "submittedRevision"],
+          "properties": {
+            "origin": { "const": "user_image" },
+            "attachmentId": { "type": "string", "minLength": 1 },
+            "mediaType": { "enum": ["image/png", "image/jpeg", "image/webp"] },
+            "displayName": { "type": "string", "minLength": 1 },
+            "bytes": { "type": "integer", "minimum": 1 },
+            "width": { "type": "integer", "minimum": 1 },
+            "height": { "type": "integer", "minimum": 1 },
+            "storageSha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+            "submittedBy": {
+              "type": "object", "additionalProperties": false,
+              "required": ["actorId", "name", "role"],
+              "properties": {
+                "actorId": { "type": "string", "minLength": 1 },
+                "name": { "type": "string", "minLength": 1 },
+                "role": { "type": "string", "minLength": 1 }
+              }
+            },
+            "submittedRevision": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "geometry": {
+      "type": "object", "additionalProperties": false,
+      "required": ["crs", "coordinates", "sha256", "derivedAssetId", "derivedFileName", "derivedSha256"],
+      "properties": {
+        "crs": { "type": "string", "minLength": 1 },
+        "coordinates": {
+          "type": "array", "minItems": 4,
+          "items": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } }
+        },
+        "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+        "derivedAssetId": { "type": "string", "minLength": 1 },
+        "derivedFileName": { "type": "string", "minLength": 1 },
+        "derivedSha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" }
+      }
+    },
+    "submittedBy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["actorId", "name", "role"],
+      "properties": {
+        "actorId": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "role": { "type": "string", "minLength": 1 }
+      }
+    },
+    "submittedAt": { "type": "string", "format": "date-time" },
+    "confirmedBy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["actorId", "name", "role"],
+      "properties": {
+        "actorId": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "role": { "type": "string", "minLength": 1 }
+      }
+    },
+    "confirmedAt": { "type": "string", "format": "date-time" },
+    "confirmedRevision": { "type": "integer", "minimum": 0 },
+    "confirmationChannel": { "enum": ["dsh_human_command", "synthetic_fixture"] },
+    "confirmationStatement": { "type": "string", "minLength": 1 },
+    "confirmationSourceSha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" }
+  },
+  "allOf": [
+    {
+      "if": { "required": ["origin"], "properties": { "origin": { "const": "user_image" } } },
+      "then": {
+        "required": ["sourceAsset"],
+        "not": { "required": ["geometry"] },
+        "properties": {
+          "source": { "enum": ["approved_site_plan", "approved_redline"] },
+          "submissionChannel": { "const": "dsh_human_command" },
+          "sourceAsset": { "required": ["attachment"] }
+        }
+      }
+    },
+    {
+      "if": { "required": ["origin"], "properties": { "origin": { "const": "user_coordinates" } } },
+      "then": {
+        "required": ["geometry"],
+        "not": { "required": ["sourceAsset"] },
+        "properties": { "source": { "const": "closed_coordinates" }, "submissionChannel": { "const": "dsh_human_command" } }
+      }
+    },
+    {
+      "if": { "required": ["origin"], "properties": { "origin": { "const": "user_geojson" } } },
+      "then": {
+        "required": ["geometry"],
+        "not": { "required": ["sourceAsset"] },
+        "properties": { "source": { "const": "geojson" }, "submissionChannel": { "const": "dsh_human_command" } }
+      }
+    },
+    {
+      "if": { "required": ["origin"], "properties": { "origin": { "const": "synthetic" } } },
+      "then": {
+        "properties": {
+          "submissionChannel": { "const": "synthetic_fixture" }
+        },
+        "oneOf": [
+          {
+            "required": ["sourceAsset"],
+            "not": { "required": ["geometry"] },
+            "properties": {
+              "source": { "enum": ["approved_site_plan", "approved_redline"] },
+              "sourceAsset": { "required": ["attachment"] }
+            }
+          },
+          {
+            "required": ["geometry"],
+            "not": { "required": ["sourceAsset"] },
+            "properties": { "source": { "enum": ["closed_coordinates", "geojson"] } }
+          }
+        ]
+      }
+    },
+    {
+      "if": { "required": ["status"], "properties": { "status": { "const": "confirmed_formal_boundary" } } },
+      "then": {
+        "required": ["confirmedBy", "confirmedAt", "confirmedRevision", "confirmationChannel", "confirmationStatement", "confirmationSourceSha256"],
+        "properties": {
+          "submissionChannel": { "const": "dsh_human_command" },
+          "confirmationChannel": { "const": "dsh_human_command" },
+          "confirmationStatement": { "const": "该图是本项目采用的总平图或红线图，且图中明确表达项目边界" },
+          "confirmedBy": { "properties": { "role": { "const": "decision_owner" } } }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["origin", "status"],
+        "properties": { "origin": { "const": "synthetic" }, "status": { "const": "confirmed_formal_boundary" } }
+      },
+      "then": false
+    }
+  ]
+}

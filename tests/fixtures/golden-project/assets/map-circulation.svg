@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" role="img" aria-labelledby="map-circulation-title map-circulation-desc" data-source="示例研究数据（待项目实测校核）">
+  <title id="map-circulation-title">人行、车行、后勤与关键流线分析图</title>
+  <desc id="map-circulation-desc">示例研究数据（待项目实测校核）。三类路线均以直接标签、独立线样与方向箭头表达；比例为 NTS。</desc>
+  <defs>
+    <marker id="pedestrian-arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M1 1 L11 6 L1 11 Z" fill="#C85D3F"/>
+    </marker>
+    <marker id="vehicle-arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M1 1 L11 6 L1 11 Z" fill="#2E6F8E"/>
+    </marker>
+    <marker id="service-arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M1 1 L11 6 L1 11 Z" fill="#4E8B68"/>
+    </marker>
+  </defs>
+  <style>
+    text { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; fill: #17323A; }
+    .map-title { font-size: 34px; font-weight: 700; letter-spacing: 1px; }
+    .map-kicker { font-size: 17px; fill: #5C7075; }
+    .feature-label { font-size: 14px; font-weight: 700; fill: #52696F; stroke: none; }
+    .route-label { font-size: 17px; font-weight: 700; }
+    .legend-title { font-size: 18px; font-weight: 700; }
+    .legend-label { font-size: 17px; font-weight: 600; }
+    .north-label { font-size: 22px; font-weight: 800; }
+    .scale-note { font-size: 17px; font-weight: 700; fill: #5C7075; }
+    .source-note { font-size: 15px; fill: #7B878A; }
+  </style>
+  <rect width="1200" height="700" fill="#F7F4EE"/>
+  <rect x="36" y="28" width="1128" height="644" rx="18" fill="#FFFEFB" stroke="#DDE3DF"/>
+  <text class="map-title" x="60" y="72">人行、车行、后勤与关键流线分析图</text>
+  <text class="map-kicker" x="60" y="106">流线分工、方向与关键节点 · 非测绘比例</text>
+
+  <g class="site-diagram" aria-label="示例场地关系底图">
+    <rect x="60" y="132" width="842" height="466" rx="18" fill="#EDF2EF" stroke="#D7E0DB"/>
+    <path d="M82 510 C210 430 246 288 352 220 C478 140 612 208 726 162 C798 133 850 148 884 176 L884 580 L82 580 Z" fill="#D9E8E0"/>
+    <path d="M82 170 C250 238 396 178 520 236 C646 296 734 254 884 316" fill="none" stroke="#C4D7DC" stroke-width="46" opacity="0.75"/>
+    <rect x="160" y="206" width="118" height="74" rx="10" fill="#F7F1E5" stroke="#CFC5B2"/>
+    <rect x="430" y="350" width="150" height="92" rx="10" fill="#F7F1E5" stroke="#CFC5B2"/>
+    <rect x="690" y="214" width="126" height="84" rx="10" fill="#F7F1E5" stroke="#CFC5B2"/>
+    <circle cx="238" cy="438" r="34" fill="#B9D3C2"/>
+    <circle cx="650" cy="494" r="42" fill="#B9D3C2"/>
+    <text class="feature-label" data-feature="culture-hall" x="183" y="250">文化场馆</text>
+    <text class="feature-label" data-feature="shared-lawn" x="618" y="488">共享草坪</text>
+    <text class="feature-label" data-feature="waterfront-edge" x="704" y="336">滨水界面</text>
+    <text class="feature-label" data-feature="service-entry" x="742" y="574">后勤入口</text>
+  </g>
+
+  <g class="route" data-route="pedestrian">
+    <path class="route-path" d="M120 500 C252 444 294 272 430 236 C562 200 676 310 852 194" fill="none" stroke="#C85D3F" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pedestrian-arrow)"/>
+    <rect x="356" y="190" width="112" height="34" rx="17" fill="#FFFEFB" opacity="0.92"/>
+    <text class="route-label" x="412" y="213" text-anchor="middle">人行流线</text>
+  </g>
+  <g class="route" data-route="vehicle">
+    <path class="route-path" d="M104 258 C260 322 338 510 520 468 C664 434 728 336 862 474" fill="none" stroke="#2E6F8E" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#vehicle-arrow)"/>
+    <rect x="505" y="424" width="112" height="34" rx="17" fill="#FFFEFB" opacity="0.92"/>
+    <text class="route-label" x="561" y="447" text-anchor="middle">车行流线</text>
+  </g>
+  <g class="route" data-route="service">
+    <path class="route-path" d="M184 566 C356 534 526 570 690 526 C750 510 808 516 862 542" fill="none" stroke="#4E8B68" stroke-width="10" stroke-dasharray="20 12" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#service-arrow)"/>
+    <rect x="558" y="510" width="112" height="34" rx="17" fill="#FFFEFB" opacity="0.92"/>
+    <text class="route-label" x="614" y="533" text-anchor="middle">后勤流线</text>
+  </g>
+
+  <g class="information-panel">
+    <rect x="926" y="132" width="220" height="466" rx="18" fill="#F5F1E9" stroke="#DED7C9"/>
+    <g class="route-legend" transform="translate(956 180)">
+      <text class="legend-title" x="0" y="0">流线图例</text>
+      <g class="legend-item" data-route="pedestrian" transform="translate(0 58)">
+        <line data-swatch="pedestrian" x1="0" y1="0" x2="62" y2="0" stroke="#C85D3F" stroke-width="16" stroke-linecap="round"/>
+        <text class="legend-label" x="92" y="6">人行流线</text>
+      </g>
+      <g class="legend-item" data-route="vehicle" transform="translate(0 120)">
+        <line data-swatch="vehicle" x1="0" y1="0" x2="62" y2="0" stroke="#2E6F8E" stroke-width="12" stroke-linecap="round"/>
+        <text class="legend-label" x="92" y="6">车行流线</text>
+      </g>
+      <g class="legend-item" data-route="service" transform="translate(0 182)">
+        <line data-swatch="service" x1="0" y1="0" x2="62" y2="0" stroke="#4E8B68" stroke-width="10" stroke-dasharray="20 12" stroke-linecap="round"/>
+        <text class="legend-label" x="92" y="6">后勤流线</text>
+      </g>
+    </g>
+
+    <g id="north-arrow" transform="translate(1012 490)">
+      <path d="M24 -50 L40 10 L24 0 L8 10 Z" fill="#17323A"/>
+      <line x1="24" y1="0" x2="24" y2="42" stroke="#17323A" stroke-width="3"/>
+      <text class="north-label" x="24" y="-64" text-anchor="middle">N</text>
+    </g>
+    <text class="scale-note" x="1036" y="570" text-anchor="middle">NTS</text>
+  </g>
+
+  <line x1="60" y1="626" x2="1140" y2="626" stroke="#E4E8E5"/>
+  <text class="source-note map-source" data-source="示例研究数据（待项目实测校核）" x="60" y="658">示例研究数据（待项目实测校核）</text>
+</svg>

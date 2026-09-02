@@ -27,7 +27,7 @@ const DEFAULT_PROJECT_VISUAL_STYLE = `统一项目视觉风格：现代东方建
 export interface VisualAgentDependencies {
   readonly governance: GovernanceRepository
   readonly llm: Pick<LlmRuntime, 'listModels'>
-  readonly subagents: Pick<SubagentRuntime, 'startContinuable'>
+  readonly subagents: Pick<SubagentRuntime, 'startContinuable' | 'interrupt'>
   readonly collector: SessionImageCollector
   readonly store: VisualAssetStore
   readonly now?: () => string
@@ -162,9 +162,25 @@ export class VisualAgentService {
       await this.dependencies.governance.putVisualTask(starting)
       const childId = await this.startTaskAgent(parent, task, attempt, signal)
       const running: VisualTaskRecord = { ...starting, childId: childId as SessionId, updatedAt: this.now() }
-      await this.dependencies.governance.putVisualTask(running)
-      const image = await this.dependencies.collector.waitForImage(childId, 0, signal)
-      return await this.recordCandidate(task, running, image)
+      let interrupted = false
+      const interruptChild = () => {
+        if (interrupted) return
+        interrupted = true
+        try {
+          this.dependencies.subagents.interrupt(childId as SessionId, { kind: 'ancestor', agent: parent })
+        } catch {
+          // The caller deadline remains the governed visual failure when child interruption is rejected.
+        }
+      }
+      signal.addEventListener('abort', interruptChild, { once: true })
+      if (signal.aborted) interruptChild()
+      try {
+        await this.dependencies.governance.putVisualTask(running)
+        const image = await this.dependencies.collector.waitForImage(childId, 0, signal)
+        return await this.recordCandidate(task, running, image)
+      } finally {
+        signal.removeEventListener('abort', interruptChild)
+      }
     } catch (error) {
       const latest = this.dependencies.governance.readProject(task.projectId).visualTasks
         .find(row => row.taskId === task.taskId) ?? queued
@@ -225,5 +241,38 @@ export class VisualAgentService {
       await this.dependencies.governance.putVisualTask({ ...adoptedTask, status: 'adopted', updatedAt: this.now() })
     }
     return adopted
+  }
+
+  async replace(
+    projectId: string,
+    rejectedAssetId: string,
+    replacementAssetId: string,
+  ): Promise<{ readonly rejectedAssetId: string; readonly replacementAssetId: string }> {
+    const project = this.dependencies.governance.readProject(projectId)
+    const rejectedAsset = project.visualAssets.find(row => row.assetId === rejectedAssetId)
+    const replacementAsset = project.visualAssets.find(row => row.assetId === replacementAssetId)
+    if (rejectedAsset === undefined || rejectedAsset.status !== 'candidate') {
+      throw new Error(`visual candidate '${rejectedAssetId}' is not available for replacement`)
+    }
+    if (replacementAsset === undefined || replacementAsset.status !== 'adopted') {
+      throw new Error(`adopted replacement visual '${replacementAssetId}' not found`)
+    }
+    const rejectedTask = project.visualTasks.find(row => row.taskId === rejectedAsset.taskId)
+    const replacementTask = project.visualTasks.find(row => row.taskId === replacementAsset.taskId)
+    if (rejectedTask === undefined || replacementTask === undefined
+      || rejectedTask.chapterId !== replacementTask.chapterId
+      || rejectedTask.workItemId !== replacementTask.workItemId
+      || rejectedTask.kind !== replacementTask.kind) {
+      throw new Error('replacement visual does not match the rejected visual brief')
+    }
+    await this.dependencies.governance.putVisualAsset({ ...rejectedAsset, status: 'rejected' })
+    await this.dependencies.governance.putVisualTask({
+      ...rejectedTask,
+      required: false,
+      status: 'failed',
+      blockedReason: `已由采用资产 ${replacementAssetId} 替代`,
+      updatedAt: this.now(),
+    })
+    return { rejectedAssetId, replacementAssetId }
   }
 }

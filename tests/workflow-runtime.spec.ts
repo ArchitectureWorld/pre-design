@@ -45,6 +45,10 @@ describe('WorkflowRuntime', () => {
     expect(snapshot.chapters.map(chapter => chapter.total)).toEqual([7, 8, 6, 6, 7, 7, 8, 8])
     expect(snapshot.runs.filter(run => run.status === 'ready')).toHaveLength(1)
     expect(runtime.nextReady('project-1')?.workflowId).toBe('preplan.wf.01.01')
+    expect(runtime.current('project-1')).toBeUndefined()
+
+    await runtime.transition('project-1', 'preplan.wf.01.01', { to: 'running' })
+    expect(runtime.current('project-1')?.workflowId).toBe('preplan.wf.01.01')
   })
 
   it('unlocks downstream work from confirmed objects and persists blockers', async () => {

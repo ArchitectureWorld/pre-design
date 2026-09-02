@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" role="img" aria-labelledby="chart-existing-title chart-existing-desc" data-source="示例研究数据（待项目实测校核）">
+  <title id="chart-existing-title">现状空间构成</title>
+  <desc id="chart-existing-desc">示例研究数据（待项目实测校核）。按空间分类面积占比展示公共服务、存量建筑与开放空间的研究样本。</desc>
+  <style>
+    text { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; fill: #17323A; }
+    .chart-title { font-size: 34px; font-weight: 700; letter-spacing: 1px; }
+    .chart-kicker, .axis-label, .methodology { font-size: 17px; fill: #5C7075; }
+    .tick-label { font-size: 15px; fill: #718287; }
+    .category-label { font-size: 19px; font-weight: 600; }
+    .datum-label { font-size: 22px; font-weight: 700; }
+    .source-note { font-size: 15px; fill: #7B878A; }
+  </style>
+  <rect width="1200" height="700" fill="#F7F4EE"/>
+  <rect x="36" y="28" width="1128" height="644" rx="18" fill="#FFFEFB" stroke="#DDE3DF"/>
+  <text class="chart-title" x="72" y="72">现状空间构成</text>
+  <text class="chart-kicker" x="72" y="108">空间分类面积占比 · 单位：%</text>
+
+  <g class="axis" aria-label="占比量轴">
+    <g class="axis-tick" data-value="0"><line x1="170" y1="560" x2="1100" y2="560" stroke="#9DAAA9" stroke-width="2"/><text class="tick-label" x="150" y="566" text-anchor="end">0</text></g>
+    <g class="axis-tick" data-value="25"><line x1="170" y1="460" x2="1100" y2="460" stroke="#DFE5E2"/><text class="tick-label" x="150" y="466" text-anchor="end">25</text></g>
+    <g class="axis-tick" data-value="50"><line x1="170" y1="360" x2="1100" y2="360" stroke="#DFE5E2"/><text class="tick-label" x="150" y="366" text-anchor="end">50</text></g>
+    <g class="axis-tick" data-value="75"><line x1="170" y1="260" x2="1100" y2="260" stroke="#DFE5E2"/><text class="tick-label" x="150" y="266" text-anchor="end">75</text></g>
+    <g class="axis-tick" data-value="100"><line x1="170" y1="160" x2="1100" y2="160" stroke="#DFE5E2"/><text class="tick-label" x="150" y="166" text-anchor="end">100</text></g>
+    <text class="axis-label" x="110" y="360" text-anchor="middle" transform="rotate(-90 110 360)">面积占比（%）</text>
+  </g>
+
+  <g class="datum" data-category="公共服务" data-value="28" data-unit="%">
+    <rect x="260" y="448" width="170" height="112" rx="8" fill="#2E7482"/>
+    <text class="datum-label" x="345" y="430" text-anchor="middle">28%</text>
+    <text class="category-label" x="345" y="595" text-anchor="middle">公共服务</text>
+  </g>
+  <g class="datum" data-category="存量建筑" data-value="42" data-unit="%">
+    <rect x="520" y="392" width="170" height="168" rx="8" fill="#C5653E"/>
+    <text class="datum-label" x="605" y="374" text-anchor="middle">42%</text>
+    <text class="category-label" x="605" y="595" text-anchor="middle">存量建筑</text>
+  </g>
+  <g class="datum" data-category="开放空间" data-value="30" data-unit="%">
+    <rect x="780" y="440" width="170" height="120" rx="8" fill="#5F8B66"/>
+    <text class="datum-label" x="865" y="422" text-anchor="middle">30%</text>
+    <text class="category-label" x="865" y="595" text-anchor="middle">开放空间</text>
+  </g>
+
+  <text class="methodology" x="72" y="630">口径：按示例研究空间分类面积占比汇总，待项目实测校核</text>
+  <line x1="72" y1="648" x2="1128" y2="648" stroke="#E4E8E5"/>
+  <text class="source-note" x="72" y="670">示例研究数据（待项目实测校核）</text>
+</svg>
