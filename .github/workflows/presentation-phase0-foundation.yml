@@ -7,7 +7,11 @@ on:
   pull_request:
     paths:
       - 'src/presentation/**'
+      - 'src/index.ts'
+      - 'src/report/browser-executable.ts'
+      - 'src/report/render-pdf.ts'
       - 'tests/presentation-*.spec.ts'
+      - 'tests/browser-executable.spec.ts'
       - 'docs/version-matrix.json'
       - 'docs/VERSIONING.md'
       - 'docs/implementation/**'
@@ -50,7 +54,7 @@ jobs:
         run: pnpm verify:alignment-versions
 
       - name: Run Phase 0 foundation tests
-        run: pnpm exec vitest run tests/presentation-*.spec.ts --maxWorkers=1
+        run: pnpm exec vitest run tests/presentation-*.spec.ts tests/browser-executable.spec.ts --maxWorkers=1
 
       - name: Typecheck
         run: pnpm typecheck
