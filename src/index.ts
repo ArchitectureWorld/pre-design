@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto'
-import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
@@ -15,13 +14,14 @@ import { SiteBoundaryAssetStore } from './governance/site-boundary-asset-store.t
 import { SiteBoundaryService } from './governance/site-boundary-service.ts'
 import { PREPLANNING_SYSTEM_PROMPT } from './prompts/preplanning-system.ts'
 import { ProposalGateway } from './proposals/gateway.ts'
+import { resolveBrowserExecutable } from './report/browser-executable.ts'
+import { registerReportDownloadRoute, type ReportDownloadRegistrar } from './report/download-route.ts'
+import { ReportPackageService } from './report/package-service.ts'
+import { createFrozenProjectInput, loadClientProjectProfile } from './report/source.ts'
 import { AutomationService } from './runtime/automation-service.ts'
 import { AutomationCoordinator } from './runtime/coordinator.ts'
 import { GateService } from './runtime/gate-service.ts'
 import { QuestionService } from './runtime/question-service.ts'
-import { registerReportDownloadRoute, type ReportDownloadRegistrar } from './report/download-route.ts'
-import { ReportPackageService } from './report/package-service.ts'
-import { createFrozenProjectInput, loadClientProjectProfile } from './report/source.ts'
 import { RevisionService } from './runtime/revision-service.ts'
 import { WorkflowRuntime } from './runtime/workflow-runtime.ts'
 import { ProjectRepository } from './state/repository.ts'
@@ -62,17 +62,6 @@ export const inject = [
   'attachments', 'commands', 'llm', 'sessions', 'storage', 'storageDomain', 'subagents', 'systemPrompt', 'tools', 'webServer',
 ]
 export const Config: z<ConfigShape> = z.object({})
-
-function browserExecutable(): string {
-  const configured = process.env.PREPLANNING_BROWSER_EXECUTABLE?.trim()
-  if (configured !== undefined && configured !== '') return configured
-  const candidates = [
-    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-  ]
-  return candidates.find(candidate => existsSync(candidate)) ?? 'msedge'
-}
 
 export async function apply(ctx: Context): Promise<void> {
   const now = () => new Date().toISOString()
@@ -128,7 +117,7 @@ export async function apply(ctx: Context): Promise<void> {
     governance,
     boundaryIntegrity: boundaries,
     packageRoot: reportPackageRoot,
-    browserExecutable: browserExecutable(),
+    browserExecutable: resolveBrowserExecutable(),
     source: async (projectId, revision) => createFrozenProjectInput(projectId, revision, {
       repository,
       governance,

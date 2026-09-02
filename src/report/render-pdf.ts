@@ -3,6 +3,7 @@ import { appendFile, mkdir, readFile, stat } from 'node:fs/promises'
 import { basename, dirname } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { spawn } from 'node:child_process'
+import { resolveBrowserExecutable } from './browser-executable.ts'
 import type { RenderedArtifact } from './types.ts'
 import { readHtmlArtifactIdentity } from './validate-artifacts.ts'
 
@@ -27,7 +28,7 @@ export async function renderPdf(
   runner: BrowserRunner = defaultRunner,
 ): Promise<RenderedArtifact> {
   await mkdir(dirname(outputPath), { recursive: true })
-  await runner(browserExecutable, [
+  await runner(resolveBrowserExecutable(browserExecutable), [
     '--headless=new',
     '--disable-gpu',
     '--no-pdf-header-footer',
