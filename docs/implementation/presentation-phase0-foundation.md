@@ -113,6 +113,14 @@ canonical Presentation project files
 - PDF rendering resolves the executable at call time, so a package built on Windows can run on Linux without retaining a Windows browser path.
 - Browser-resolution tests are part of the fast Phase 0 CI gate.
 
+### 2.10 Large PNG integrity performance
+
+- PNG chunk integrity still uses CRC32 and therefore keeps the existing fail-closed validation semantics.
+- The former per-byte/per-bit CRC32 loop has been replaced by a deterministic 256-entry lookup-table implementation.
+- The existing 16 MiB concurrent asset-reuse test remains under its original five-second timeout.
+- The reproduced failing duration was approximately `5030 ms`; after the implementation change, the dedicated CI run completed the same test in approximately `1321 ms`.
+- The test timeout was not increased and the concurrent reuse behavior was not weakened.
+
 ## 3. Verification snapshot
 
 The Phase 0 workflow executes a fast targeted gate followed by the complete repository regression gate.
@@ -166,9 +174,10 @@ The latest successful `Presentation Phase 0 Foundation` workflow for the impleme
 - No Layout generation.
 - No package-version bump, Tag or Release.
 
-## 5. Remaining non-blocking risk
+## 5. Remaining non-blocking risks
 
-The existing large site-boundary asset concurrency test processes a 16 MiB payload and can approach its five-second test threshold on slower CI runners. It currently passes, but the bit-by-bit CRC32 implementation remains a performance-flakiness risk. Any optimization must be introduced with a dedicated failing performance/behavior test rather than by silently increasing the timeout.
+- GitHub Actions currently reports that some third-party actions still target the deprecated Node.js 20 action runtime and are being forced onto Node.js 24. The project test runtime itself remains explicitly configured as Node.js `20.20.2`; this is workflow-maintenance debt rather than a plugin runtime failure.
+- The Phase 0 implementation intentionally stops before the Presentation Contract boundary. Canonical files, final stable IDs and project-directory creation cannot be completed until the Contract Lock is accepted.
 
 ## 6. Next gate
 
