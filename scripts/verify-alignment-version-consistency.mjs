@@ -6,6 +6,10 @@ const read = path => readFileSync(resolve(root, path), 'utf8')
 const matrix = JSON.parse(read('docs/version-matrix.json'))
 const pkg = JSON.parse(read('package.json'))
 const lockfile = read('pnpm-lock.yaml')
+const failures = []
+const requireCondition = (condition, message) => {
+  if (!condition) failures.push(message)
+}
 
 const normativeFiles = [
   'README.md',
@@ -16,7 +20,6 @@ const normativeFiles = [
   'docs/superpowers/specs/2026-09-02-pre-design-presentation-content-baseline-v2.0.0.md',
   'docs/superpowers/plans/2026-09-02-pre-design-presentation-project-alignment-v2.0.0.md',
 ]
-
 const phase0Files = [
   'src/presentation/contract-port.ts',
   'src/presentation/types.ts',
@@ -35,19 +38,14 @@ const phase0Files = [
   'tests/presentation-update-plan.spec.ts',
   'tests/presentation-material-plan.spec.ts',
 ]
-
 const docs = Object.fromEntries(normativeFiles.map(path => [path, read(path)]))
-const failures = []
-const requireCondition = (condition, message) => {
-  if (!condition) failures.push(message)
-}
 
 requireCondition(matrix.schemaVersion === 2,
   'version matrix schemaVersion must be 2')
 requireCondition(matrix.branch === 'architecture/presentation-project-alignment-v2.0.0',
   'alignment branch must match the frozen baseline branch')
 requireCondition(matrix.implementationBranch === 'feature/presentation-phase0-foundation-v2.0.0',
-  'implementation branch must match the Phase 0 development branch')
+  'implementation branch must match the Phase 0 branch')
 requireCondition(matrix.alignmentBaseline?.version === '2.0.0',
   'alignment baseline version must be 2.0.0')
 requireCondition(matrix.alignmentBaseline?.label === 'v2.0.0',
@@ -82,14 +80,10 @@ const lockPath = resolve(root, presentation?.lockFile ?? '')
 if (presentation?.contractLockStatus === 'pending') {
   requireCondition(!existsSync(lockPath),
     'Contract Lock file must not exist while lock status is pending')
-  requireCondition(presentation.standardVersion === null,
-    'standardVersion must be null while Contract Lock is pending')
-  requireCondition(presentation.packageName === null,
-    'packageName must be null while Contract Lock is pending')
-  requireCondition(presentation.packageVersion === null,
-    'packageVersion must be null while Contract Lock is pending')
-  requireCondition(presentation.schemaSetSha256 === null,
-    'schemaSetSha256 must be null while Contract Lock is pending')
+  for (const field of ['standardVersion', 'packageName', 'packageVersion', 'schemaSetSha256']) {
+    requireCondition(presentation[field] === null,
+      `${field} must be null while Contract Lock is pending`)
+  }
 } else {
   requireCondition(existsSync(lockPath),
     'Contract Lock file must exist when lock status is locked')
@@ -121,7 +115,7 @@ requireCondition(
   implementation?.contractDependentIntegration?.productionCodeChanged === false,
   'Contract-dependent integration must not claim production code changes')
 requireCondition(implementation?.productionCodeChangedForAlignment === true,
-  'version matrix must acknowledge Phase 0 production-source changes')
+  'version matrix must acknowledge Phase 0 source changes')
 requireCondition(implementation?.packageReleaseStatus === 'not-authorized',
   'package release must remain unauthorized')
 requireCondition(implementation?.planReady === true,
@@ -143,10 +137,10 @@ for (const path of phase0Files) {
     `required Phase 0 file is missing: ${path}`)
 }
 
-const historyHandoffPath = resolve(root, 'HANDOFF_HISTORY.md')
-requireCondition(existsSync(historyHandoffPath),
+const historyPath = resolve(root, 'HANDOFF_HISTORY.md')
+requireCondition(existsSync(historyPath),
   'HANDOFF_HISTORY.md must preserve a non-authoritative history index')
-if (existsSync(historyHandoffPath)) {
+if (existsSync(historyPath)) {
   const history = read('HANDOFF_HISTORY.md')
   requireCondition(history.includes('Status: `superseded-history`'),
     'HANDOFF_HISTORY.md must be explicitly non-authoritative')
@@ -154,15 +148,16 @@ if (existsSync(historyHandoffPath)) {
     'HANDOFF_HISTORY.md must not contain a current authority claim')
 }
 
+const positiveReleaseClaim = /(?:Git Tag|GitHub Release|Release)\s*(?:为|=|:|：)\s*`?v?2\.0\.0/iu
 for (const [path, text] of Object.entries(docs)) {
   requireCondition(!text.includes('V2.0.0'),
-    `${path} uses prohibited uppercase V2.0.0`)
-  requireCondition(!/插件(?:包)?版本[^。\n]*2\.0\.0/u.test(text),
+    `${path} uses the prohibited uppercase alignment label`)
+  requireCondition(!/插件(?:包)?版本\s*(?:为|=|:|：)\s*`?2\.0\.0/iu.test(text),
     `${path} mislabels alignment 2.0.0 as a plugin/package version`)
-  requireCondition(!/(?:Git Tag|GitHub Release|Release)[^。\n]*2\.0\.0/u.test(text),
+  requireCondition(!positiveReleaseClaim.test(text),
     `${path} mislabels alignment 2.0.0 as a release`)
   requireCondition(!text.includes('awaiting-final-presentation-contract'),
-    `${path} contains the deprecated implementation status`)
+    `${path} contains a deprecated implementation status`)
 }
 
 const frontmatterFiles = normativeFiles.filter(path => path.startsWith('docs/superpowers/'))
@@ -201,7 +196,7 @@ requireCondition(docs['docs/VERSIONING.md'].includes('Phase 0 foundation | `impl
 requireCondition(
   docs['docs/implementation/presentation-phase0-foundation.md']
     .includes('Tests: 36 passed'),
-  'Phase 0 implementation record must include the targeted test evidence',
+  'Phase 0 record must include the targeted test evidence',
 )
 
 const packageText = JSON.stringify(pkg)

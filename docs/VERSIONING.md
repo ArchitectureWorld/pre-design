@@ -37,7 +37,7 @@
 
 1. 机器字段中的 SemVer 使用 `2.0.0`、`0.7.0`，不加前缀。
 2. 人类标签、分支名、文件名和 Git Tag 使用小写 `v`，例如 `v2.0.0`。
-3. 当前规范性文件禁止使用大写 `V2.0.0`。
+3. 当前规范性文件禁止使用大写 V 前缀表达对齐版本。
 4. 不得将对齐基线描述为插件或包版本。
 5. 不得在 Contract Lock 前写死 Presentation 的 `standardVersion`、包名、包版本、分支或 Hash。
 6. 预留锁文件路径为 `docs/contracts/presentation-standard-project-v1-lock.json`。该文件名是对齐基线中的内部占位路径，不构成对最终 Presentation 标准版本或包版本的声明。
