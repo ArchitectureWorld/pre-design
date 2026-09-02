@@ -4,7 +4,7 @@
 
 **Goal:** 让 `pre-design` 在创建项目时自行生成并维护符合 `presentation-tools` 权威格式的标准项目目录，输出项目基本信息、大纲、逐页草案、讲解稿、原始资料和正式素材，同时不承担排版，也不依赖 Presentation 的内容治理或 Revision 系统。
 
-**Architecture:** 保持两个独立 DSH 插件。`presentation-tools` 发布只读、版本化的格式 Contract、类型、Fixture 和验证器；`pre-design` 负责项目创建、目录生命周期、资料导入、素材采用、专业内容投影以及外部修改检测。标准文件是中立载体，人或当前 DSH Agent 通过工具继续修改；`pre-design` 只在未检测到外部修改时更新自己曾输出的对象。
+**Architecture:** 保持两个独立 DSH 插件。`presentation-tools` 发布只读、版本化的格式 Contract、类型、Fixture、稳定 ID Factory 和验证器；`pre-design` 负责项目创建、双项目身份映射、目录生命周期、资料导入、素材采用、专业内容投影以及外部修改检测。标准文件是中立载体，人或当前 DSH Agent 通过工具继续修改；`pre-design` 只在未检测到外部修改时更新自己曾输出的对象。
 
 **Tech Stack:** TypeScript 5.9、Node.js 20+、DSH Storage Domain、Vitest、Ajv 8、现有 `pre-design` Repository / Governance / Workflow Runtime、`presentation-tools` 最终发布的精确版本 Contract。
 
@@ -20,9 +20,11 @@
 - 不修改 `presentation-tools` UI 或交互。
 - `presentation-tools` 是标准格式唯一权威。
 - `pre-design` 不复制后独立修改 Presentation Schema。
+- `preDesignProjectId` 与 `presentationProjectId` 是两个不同身份，必须显式映射。
+- Presentation 稳定 ID 只能由官方 ID Factory 生成。
 - 项目创建、staging、回滚、恢复和 DSH 项目记录均由 `pre-design` 执行。
-- Presentation Contract 只提供格式、类型、Fixture、验证器和稳定错误代码。
-- 默认项目位置是 `<DSH 当前工作区>/projects/<projectId>-<projectSlug>/`。
+- Presentation Contract 只提供格式、类型、ID Factory、Fixture、验证器和稳定错误代码。
+- 默认项目位置是 `<DSH 当前工作区>/projects/<presentationProjectId>-<projectSlug>/`。
 - 项目创建失败不得返回成功。
 - Canonical JSON 和 Manifest 不保存绝对路径。
 - 原始资料默认复制，不移动、不软链接，并按 SHA-256 去重。
@@ -43,7 +45,7 @@ src/presentation/
 ├─ contract-adapter.ts           对最终官方 Contract 的窄适配
 ├─ contract-lock.ts              精确版本与 Schema Set Hash 校验
 ├─ types.ts                      pre-design 自身绑定和输出结果类型
-├─ project-binding.ts            项目目录绑定与上次输出 Hash
+├─ project-binding.ts            双项目 ID、目录绑定与上次输出 Hash
 ├─ project-directory.ts          目录创建、staging、验证、rename 和补偿
 ├─ recovery.ts                   pre-design 创建残留恢复
 ├─ source-materials.ts           原始资料复制、分类和 Hash 去重
@@ -53,7 +55,7 @@ src/presentation/
 │  ├─ outline.ts                 8 类主题与大纲投影
 │  ├─ pages.ts                   页面拆分与稳定 ID
 │  ├─ drafts.ts                  五类内容块和讲解稿
-│  └─ identifiers.ts             稳定 ID 保留与新对象生成
+│  └─ identifiers.ts             官方 ID Factory 与对象身份保留
 ├─ export-ledger.ts              pre-design 上次输出对象 Hash
 └─ update-service.ts             标准文件更新与外部修改检测
 
@@ -90,7 +92,7 @@ tests/
 - Test: `tests/presentation-contract-lock.spec.ts`
 
 **Interfaces:**
-- Consumes: Presentation 正式反馈中的包名、精确版本、Schema Set SHA-256、类型入口和验证器入口。
+- Consumes: Presentation 正式反馈中的包名、精确版本、Schema Set SHA-256、类型入口、ID Factory 入口和验证器入口。
 - Produces:
 
 ```ts
@@ -114,6 +116,7 @@ packageName
 packageVersion
 schemaSetSha256
 typesEntry
+idFactoryEntry
 documentValidatorEntry
 projectValidatorEntry
 minimalFixturePath
@@ -139,6 +142,7 @@ commitSHA
 - package version 与 Lock 不一致时失败；
 - standardVersion 与 Lock 不一致时失败；
 - Schema Set SHA-256 不一致时失败；
+- ID Factory 入口缺失或生成结果不符合 Schema 时失败；
 - 类型或验证器入口缺失时失败。
 
 - [ ] **Step 5: 运行测试并确认失败**
@@ -174,7 +178,7 @@ git commit -m "build: pin presentation project contract"
 - Test: `tests/presentation-contract-adapter.spec.ts`
 
 **Interfaces:**
-- Consumes: Task 0 锁定的官方类型和验证器。
+- Consumes: Task 0 锁定的官方类型、ID Factory 和验证器。
 - Produces:
 
 ```ts
@@ -186,6 +190,24 @@ export type PresentationDocumentKind =
   | 'draft-page'
   | 'source-material-manifest'
   | 'asset-manifest'
+
+export type PresentationIdKind =
+  | 'project'
+  | 'rules'
+  | 'outline'
+  | 'outline-node'
+  | 'page'
+  | 'draft'
+  | 'content-block'
+  | 'list-item'
+  | 'metric'
+  | 'table-row'
+  | 'table-column'
+  | 'table-cell'
+  | 'script-block'
+  | 'page-asset'
+  | 'source-material'
+  | 'asset'
 
 export interface PresentationValidationIssue {
   readonly code: string
@@ -205,8 +227,10 @@ export interface MinimalPresentationDocuments {
 export interface PresentationFormatContract {
   readonly standardVersion: string
   readonly schemaSetSha256: string
+  createId(kind: PresentationIdKind): string
   createMinimalDocuments(input: {
-    readonly projectId: string
+    readonly presentationProjectId: string
+    readonly preDesignProjectId: string
     readonly projectSlug: string
     readonly projectName: string
     readonly createdAt: string
@@ -228,6 +252,7 @@ export interface PresentationFormatContract {
 - 不暴露 Presentation UI、Layout、Head、Revision 或同步接口；
 - 不重新定义 Canonical Schema；
 - 版本或 Hash 不匹配时拒绝启动；
+- ID Factory 生成结果必须通过对应 ID Schema；
 - 验证错误保留稳定错误代码。
 
 - [ ] **Step 2: 运行测试并确认失败**
@@ -240,8 +265,9 @@ pnpm vitest run tests/presentation-contract-adapter.spec.ts
 
 要求：
 
-- 从官方包读取类型和验证器；
+- 从官方包读取类型、ID Factory 和验证器；
 - `createMinimalDocuments` 只能调用官方纯文档工厂或从官方最小 Fixture 读取并替换允许的项目字段；
+- 所有 Presentation 稳定 ID 通过官方 ID Factory 生成；
 - 不调用 Presentation 项目生命周期或 Revision API；
 - 不重命名官方 Canonical 字段。
 
@@ -281,7 +307,8 @@ export type PresentationDirectoryState =
   | 'recovery_required'
 
 export interface PresentationProjectBindingRecord {
-  readonly projectId: string
+  readonly preDesignProjectId: string
+  readonly presentationProjectId: string
   readonly directoryRoot: string
   readonly standardVersion: string
   readonly state: PresentationDirectoryState
@@ -301,7 +328,7 @@ putPresentationProjectBinding(
 ): Promise<PresentationProjectBindingRecord>
 
 readPresentationProjectBinding(
-  projectId: string,
+  preDesignProjectId: string,
 ): PresentationProjectBindingRecord | undefined
 
 listPresentationProjectBindingsByState(
@@ -313,7 +340,8 @@ listPresentationProjectBindingsByState(
 
 覆盖：
 
-- 绑定记录创建和读取；
+- 双项目 ID 映射的创建和读取；
+- 两种 ID 格式互不假定；
 - `directoryRoot` 是绝对路径；
 - 绝对路径不进入专业 Revision Snapshot；
 - Hash 键为稳定 Presentation 对象 ID；
@@ -363,7 +391,7 @@ git commit -m "feat: persist presentation directory bindings"
 
 ```ts
 export interface CreatePresentationProjectDirectoryInput {
-  readonly projectId: string
+  readonly preDesignProjectId: string
   readonly projectName: string
   readonly createdAt: string
   readonly workspaceRoot: string
@@ -371,7 +399,8 @@ export interface CreatePresentationProjectDirectoryInput {
 }
 
 export interface PresentationProjectDirectoryResult {
-  readonly projectId: string
+  readonly preDesignProjectId: string
+  readonly presentationProjectId: string
   readonly directoryRoot: string
   readonly standardVersion: string
   readonly recovered: boolean
@@ -390,12 +419,14 @@ export class PresentationProjectDirectoryService {
 
 覆盖：
 
-- 默认目录；
+- 默认目录使用 `<presentationProjectId>-<projectSlug>`；
+- `presentationProjectId` 由官方 ID Factory 生成；
+- `createdBy.sourceProjectId` 记录 `preDesignProjectId`；
 - 同文件系统 staging；
 - `pre-design` 自己创建所有目录；
 - 使用官方文档工厂写六份 JSON；
 - 完整验证后才 rename；
-- 同 `projectId` 的合法目录恢复；
+- 同 `presentationProjectId` 的合法目录恢复；
 - 同名不同身份拒绝覆盖；
 - 初始化、写文件、验证、rename 和绑定记录失败均不返回成功；
 - `layouts/` 创建为空；
@@ -412,8 +443,9 @@ pnpm vitest run tests/presentation-project-directory.spec.ts tests/presentation-
 ```text
 creating 绑定记录
 → 同父目录 staging
+→ 生成 presentationProjectId
 → 创建固定目录
-→ 写六份最小文档
+→ 写六份最小文档并写入双 ID 来源关系
 → 官方完整验证
 → 原子 rename
 → ready 绑定记录
@@ -463,7 +495,7 @@ git commit -m "feat: create presentation project directories"
 
 ```ts
 export interface ImportSourceMaterialInput {
-  readonly projectId: string
+  readonly preDesignProjectId: string
   readonly sourcePath: string
   readonly importedAt: string
 }
@@ -481,6 +513,7 @@ export interface ImportSourceMaterialResult {
 
 覆盖：
 
+- 通过 `preDesignProjectId` 查找 Presentation 项目绑定；
 - 原文件保留；
 - 正确分类；
 - 相同 Hash 去重；
@@ -499,7 +532,7 @@ pnpm vitest run tests/presentation-source-materials.spec.ts
 - [ ] **Step 3: 实现导入**
 
 ```text
-读取和 Hash
+读取绑定和 Hash
 → 检查现有 Manifest
 → staging copy
 → 复核字节数和 Hash
@@ -556,7 +589,7 @@ export type PresentationAssetOrigin =
   | { readonly kind: 'human_added' }
 
 export interface AdoptPresentationAssetInput {
-  readonly projectId: string
+  readonly preDesignProjectId: string
   readonly sourcePath: string
   readonly category: string
   readonly semanticRole: string
@@ -569,6 +602,7 @@ export interface AdoptPresentationAssetInput {
 
 覆盖：
 
+- 通过 `preDesignProjectId` 查找 Presentation 项目绑定；
 - 原始资料原件保留；
 - 派生素材进入正确目录；
 - 未采用候选不能进入正式 Manifest；
@@ -621,7 +655,8 @@ git commit -m "feat: adopt presentation assets"
 
 ```ts
 export interface PresentationProjectionInput {
-  readonly projectId: string
+  readonly preDesignProjectId: string
+  readonly presentationProjectId: string
   readonly preDesignRevision: number
   readonly generatedAt: string
 }
@@ -644,13 +679,15 @@ export interface PresentationProjection {
 
 覆盖：
 
+- 双项目 ID 使用正确；
 - 8 类默认骨架；
 - 不适用章节省略；
 - 章节合并和拆分；
 - 多个专业对象汇聚；
 - 不生成 57 页工作流目录；
 - 具体案例词不进入默认骨架；
-- `sourceRefs` 可追溯；
+- `sourceRefs.sourceProjectId` 使用 `preDesignProjectId`；
+- 本地文档 `projectId` 使用 `presentationProjectId`；
 - 稳定 `outlineNodeId` 保留。
 
 - [ ] **Step 2: 写草案失败测试**
@@ -679,7 +716,7 @@ pnpm vitest run tests/presentation-outline-projector.spec.ts tests/presentation-
 
 - 不读取 UI、DOM、Layout 或 legacy page-plan；
 - 相同冻结输入产生稳定内容；
-- ID 只在语义新对象产生时生成；
+- ID 只在语义新对象产生时通过官方 ID Factory 生成；
 - 内容 Hash 使用固定 Canonical JSON；
 - 不写文件系统。
 
@@ -713,7 +750,8 @@ git commit -m "feat: project predesign content to presentation format"
 
 ```ts
 export interface PresentationFileUpdateResult {
-  readonly projectId: string
+  readonly preDesignProjectId: string
+  readonly presentationProjectId: string
   readonly preDesignRevision: number
   readonly createdIds: readonly string[]
   readonly updatedIds: readonly string[]
@@ -747,7 +785,7 @@ pnpm vitest run tests/presentation-update-service.spec.ts
 - [ ] **Step 3: 实现更新流程**
 
 ```text
-读取 ready 绑定
+读取 ready 双 ID 绑定
 → 读取冻结 pre-design Revision
 → 构建 Projection
 → 读取当前标准文件
@@ -762,7 +800,7 @@ pnpm vitest run tests/presentation-update-service.spec.ts
 
 - [ ] **Step 4: 增加显式输出命令**
 
-命令属于 `pre-design` 插件，返回对象数量和 `reviewRequiredIds`，不要求 Presentation 增加 UI。
+命令属于 `pre-design` 插件，返回双项目 ID、对象数量和 `reviewRequiredIds`，不要求 Presentation 增加 UI。
 
 - [ ] **Step 5: 运行测试**
 
@@ -797,8 +835,9 @@ git commit -m "feat: update presentation files safely"
 
 ```text
 全新 DSH Storage 和临时工作区
-→ /preplan-new
-→ pre-design 创建标准目录
+→ /preplan-new 生成 preDesignProjectId
+→ 官方 ID Factory 生成 presentationProjectId
+→ pre-design 创建标准目录并保存双 ID 映射
 → 验证最小空项目
 → 导入文档、图片、视频和重复文件
 → 采用一张原始图片
@@ -819,6 +858,7 @@ git commit -m "feat: update presentation files safely"
 至少覆盖：
 
 - Contract 版本或 Hash 不一致；
+- ID Factory 输出无效；
 - 文档工厂失败；
 - Schema 验证失败；
 - staging 写入失败；
@@ -851,6 +891,7 @@ Expected:
 记录：
 
 - Presentation Contract 精确版本和 Hash；
+- 双项目 ID 映射；
 - E2E 测试数量；
 - 创建、资料、素材、草案和外部修改保护证据；
 - legacy 回归结果；
