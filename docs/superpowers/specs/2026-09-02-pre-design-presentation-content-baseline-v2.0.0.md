@@ -62,6 +62,25 @@ language: zh-CN
 
 ---
 
+## 1.1 双项目身份
+
+`pre-design` 专业项目与 Presentation 项目拥有不同身份：
+
+```text
+preDesignProjectId      现有 pre-design 专业项目 ID
+presentationProjectId   ProjectManifest.projectId
+```
+
+固定规则：
+
+- 两者通过 `pre-design` 的项目目录绑定记录映射；
+- 不能假定两种 ID 的前缀、UUID 版本或校验规则相同；
+- Presentation 项目 ID 由官方 Contract 的 ID Factory 生成；
+- `sourceRefs.sourceProjectId` 记录 `preDesignProjectId`；
+- 草案和素材中的本地 `projectId` 记录 `presentationProjectId`。
+
+---
+
 ## 2. 内容生成总流程
 
 ```text
@@ -338,7 +357,7 @@ content
 
 ```text
 provider
-sourceProjectId
+sourceProjectId        使用 preDesignProjectId
 sourceRevision
 objectIds
 evidenceIds
@@ -451,6 +470,7 @@ HTML CSS
 - 内容性质正确；
 - 页面只引用正式素材；
 - 内容和素材具有可追溯来源；
+- preDesignProjectId 与 presentationProjectId 使用明确；
 - 不包含排版字段；
 - 外部修改不被静默覆盖；
 - Presentation 不需要理解专业对象；
@@ -462,6 +482,7 @@ HTML CSS
 
 已冻结：
 
+- 双项目身份映射；
 - 默认骨架和项目自适应；
 - 57 项基础映射与受约束调整；
 - 单页单核心结论；
@@ -477,7 +498,7 @@ HTML CSS
 待 Presentation 最终确认：
 
 - 七类 Schema 字段；
-- ID 正式格式；
+- ID 正式格式与 ID Factory；
 - 内容性质字段；
 - sourceRefs 字段；
 - TypeScript 类型；
