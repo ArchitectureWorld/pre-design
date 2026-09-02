@@ -8,6 +8,12 @@ on:
     paths:
       - 'src/presentation/**'
       - 'tests/presentation-*.spec.ts'
+      - 'docs/version-matrix.json'
+      - 'docs/VERSIONING.md'
+      - 'docs/implementation/**'
+      - 'README.md'
+      - 'HANDOFF.md'
+      - 'scripts/verify-alignment-version-consistency.mjs'
       - '.github/workflows/presentation-phase0-foundation.yml'
       - 'package.json'
       - 'pnpm-lock.yaml'
@@ -20,7 +26,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  phase0-foundation:
+  phase0-targeted:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -40,8 +46,41 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify version authority
+        run: pnpm verify:alignment-versions
+
       - name: Run Phase 0 foundation tests
         run: pnpm exec vitest run tests/presentation-*.spec.ts --maxWorkers=1
 
       - name: Typecheck
         run: pnpm typecheck
+
+  full-regression:
+    needs: phase0-targeted
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run full build and test suite
+        run: pnpm test
+
+      - name: Test built package
+        run: pnpm test:built
+
+      - name: Check diff hygiene
+        run: git diff --check

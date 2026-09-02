@@ -1,7 +1,8 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "updatedAt": "2026-09-02",
   "branch": "architecture/presentation-project-alignment-v2.0.0",
+  "implementationBranch": "feature/presentation-phase0-foundation-v2.0.0",
   "alignmentBaseline": {
     "name": "Pre-design × Presentation project alignment",
     "version": "2.0.0",
@@ -24,10 +25,10 @@
   },
   "presentationStandard": {
     "name": "Presentation Standard Project Directory",
-    "majorLine": "v1",
-    "standardVersion": "1.0.0",
     "authorityRepository": "ArchitectureWorld/presentation-tools",
     "contractLockStatus": "pending",
+    "lockFile": "docs/contracts/presentation-standard-project-v1-lock.json",
+    "standardVersion": null,
     "packageName": null,
     "packageVersion": null,
     "schemaSetSha256": null
@@ -52,8 +53,25 @@
     }
   },
   "implementation": {
-    "status": "blocked-by-contract-lock",
-    "productionCodeChangedForAlignment": false,
+    "phase0Foundation": {
+      "status": "implemented",
+      "verificationStatus": "targeted-tests-and-typecheck-passed",
+      "scope": [
+        "contract-port",
+        "project-binding",
+        "canonical-json-and-path-policy",
+        "atomic-filesystem",
+        "contract-neutral-narrative-projection",
+        "external-change-protection",
+        "material-and-asset-import-planning"
+      ]
+    },
+    "contractDependentIntegration": {
+      "status": "blocked-by-contract-lock",
+      "productionCodeChanged": false
+    },
+    "productionCodeChangedForAlignment": true,
+    "packageReleaseStatus": "not-authorized",
     "planReady": true
   },
   "authority": {
