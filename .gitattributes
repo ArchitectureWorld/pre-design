@@ -8,6 +8,7 @@
 *.sh text eol=lf
 *.bat text eol=crlf
 *.html text eol=lf
+*.svg text eol=lf
 *.zip binary
 
 # 封版快照必须保持逐字节不变，不参与换行符规范化。
