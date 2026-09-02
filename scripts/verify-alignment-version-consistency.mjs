@@ -29,14 +29,20 @@ const phase0Files = [
   'src/presentation/path-policy.ts',
   'src/presentation/filesystem.ts',
   'src/presentation/projector/index.ts',
+  'src/presentation/projector/frozen-project-adapter.ts',
   'src/presentation/update-plan.ts',
   'src/presentation/material-plan.ts',
+  'src/report/browser-executable.ts',
   'tests/presentation-phase0-foundation.spec.ts',
   'tests/presentation-binding-repository.spec.ts',
+  'tests/presentation-host-binding.spec.ts',
   'tests/presentation-filesystem.spec.ts',
   'tests/presentation-projection.spec.ts',
+  'tests/presentation-frozen-project-adapter.spec.ts',
   'tests/presentation-update-plan.spec.ts',
   'tests/presentation-material-plan.spec.ts',
+  'tests/presentation-build-toolchain.spec.ts',
+  'tests/browser-executable.spec.ts',
 ]
 const docs = Object.fromEntries(normativeFiles.map(path => [path, read(path)]))
 
@@ -193,11 +199,14 @@ requireCondition(docs['docs/VERSIONING.md'].includes('Presentation Contract ç‰ˆæ
   'VERSIONING must leave the Presentation version unlocked')
 requireCondition(docs['docs/VERSIONING.md'].includes('Phase 0 foundation | `implemented`'),
   'VERSIONING must state the implemented Phase 0 status')
-requireCondition(
-  docs['docs/implementation/presentation-phase0-foundation.md']
-    .includes('Tests: 36 passed'),
-  'Phase 0 record must include the targeted test evidence',
-)
+const phase0Record = docs['docs/implementation/presentation-phase0-foundation.md']
+requireCondition(phase0Record.includes('Test Files: 10 passed')
+  && phase0Record.includes('Tests: 46 passed')
+  && phase0Record.includes('TypeScript: PASS')
+  && phase0Record.includes('Full build and repository test suite: PASS')
+  && phase0Record.includes('Built-package regression: PASS')
+  && phase0Record.includes('Diff hygiene: PASS'),
+'Phase 0 record must include the current targeted and full-regression evidence')
 
 const packageText = JSON.stringify(pkg)
 requireCondition(!packageText.includes('@architectureworld/presentation-contracts'),
