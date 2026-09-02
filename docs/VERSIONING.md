@@ -44,14 +44,14 @@ For version questions on this branch, use:
 6. `HANDOFF.md` as the current operational handoff summary;
 7. `HANDOFF_HISTORY.md`, `contracts/v0.6`, `contracts/v0.7`, historical evidence and old release notes only as historical records.
 
-`HANDOFF_HISTORY.md` contains dated development snapshots, local paths, historical candidates and withdrawn assessments. Any embedded claim such as “current”, “only branch” or “unique authority” is scoped to its original date and is superseded by the matrix above.
+`HANDOFF_HISTORY.md` is a non-authoritative index that points to the last Git commit and blob containing the former long-form handoff. The conflicting historical prose is no longer present in the current authority tree.
 
 ## 4. Historical labels
 
 - `docs/acceptance.md` is historical acceptance evidence for the published `0.7.0` package line.
 - `docs/acceptance-v0.8.md` records an unreleased client-report candidate line named `v0.8`; it is not a package version, Git tag, GitHub Release or alignment baseline.
 - `handoff/FINAL_v2.0/` uses an old bundle label. It is historical archive material and has no SemVer authority.
-- `HANDOFF_HISTORY.md` is superseded history. Its internal branch names, candidate numbers and version statements are evidence only.
+- `HANDOFF_HISTORY.md` is a superseded-history index. The full former text remains available only through the Git commit and blob recorded there.
 
 ## 5. Contract-lock transition
 

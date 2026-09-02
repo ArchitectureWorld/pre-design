@@ -56,7 +56,14 @@ requireCondition(matrix.historicalLabels?.legacyHandoff?.path === 'HANDOFF_HISTO
 const lockPath = resolve(root, 'docs/contracts/presentation-standard-project-v1-lock.json')
 const historyHandoffPath = resolve(root, 'HANDOFF_HISTORY.md')
 requireCondition(existsSync(historyHandoffPath),
-  'HANDOFF_HISTORY.md must preserve the previous historical handoff')
+  'HANDOFF_HISTORY.md must provide the non-authoritative history index')
+const historyHandoff = read('HANDOFF_HISTORY.md')
+requireCondition(historyHandoff.includes('Status: `superseded-history`'),
+  'HANDOFF_HISTORY.md must be explicitly non-authoritative')
+requireCondition(!historyHandoff.includes('唯一权威'),
+  'HANDOFF_HISTORY.md must not retain conflicting authority claims')
+requireCondition(historyHandoff.includes('13b1e51b9378ce1436327afef5aa139f8b6b7be1'),
+  'HANDOFF_HISTORY.md must record the last full historical handoff commit')
 if (matrix.presentationStandard.contractLockStatus === 'pending') {
   requireCondition(!existsSync(lockPath),
     'Contract Lock file must not exist while contractLockStatus is pending')

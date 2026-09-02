@@ -75,11 +75,11 @@ Before the lock is accepted:
 
 ## 5. Historical handoff
 
-The previous long-form product-report and visual-first handoff has been preserved verbatim as:
+The previous long-form handoff has been removed from the current authority tree and replaced by a non-authoritative history index:
 
 [`HANDOFF_HISTORY.md`](HANDOFF_HISTORY.md)
 
-It contains dated worktrees, local paths, withdrawn assessments, historical candidate labels and former branch snapshots. Any internal “current”, “only branch” or “unique authority” statement is superseded by `docs/version-matrix.json`. It is evidence and history only. It does not define the current branch, current package version, current Contract status or current implementation gate.
+The index records the last commit and blob containing the full historical text. Git history remains the evidence source. No dated “current”, “only branch” or “unique authority” statement is retained in the current authority tree.
 
 The frozen directory `handoff/FINAL_v2.0/` is also historical material. Its `v2.0` name is not the current alignment SemVer and must not be used as a version authority.
 
