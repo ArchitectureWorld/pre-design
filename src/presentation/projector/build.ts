@@ -82,11 +82,11 @@ function createId(factory: ProjectionIdFactory, kind: ProjectionIdKind): string 
   )
 }
 
-function validateScalar(value: ProjectionScalar, field: string): ProjectionScalar {
+function validateScalar<T extends ProjectionScalar>(value: T, field: string): T {
   if (typeof value === 'number' && !Number.isFinite(value)) {
     fail('PRESENTATION_PROJECTION_SCALAR_INVALID', `${field} must be finite`)
   }
-  return typeof value === 'string' ? value.normalize('NFC') : value
+  return (typeof value === 'string' ? value.normalize('NFC') : value) as T
 }
 
 function buildSourceRef(
