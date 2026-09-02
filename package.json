@@ -43,7 +43,8 @@
     "golden:build": "tsx scripts/build-golden-project-cli.ts",
     "golden:build-v080": "tsx scripts/build-golden-project-cli.ts --profile client-v080",
     "golden:inspect-v080": "tsx scripts/inspect-client-artifacts.ts",
-    "test": "pnpm build && vitest run --maxWorkers=1",
+    "verify:alignment-versions": "node scripts/verify-alignment-version-consistency.mjs",
+    "test": "pnpm verify:alignment-versions && pnpm build && vitest run --maxWorkers=1",
     "test:built": "vitest run tests/built-package.spec.ts",
     "typecheck": "tsc -p tsconfig.json"
   },

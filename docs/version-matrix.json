@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-09-02",
+  "branch": "architecture/presentation-project-alignment-v2.0.0",
+  "alignmentBaseline": {
+    "name": "Pre-design × Presentation project alignment",
+    "version": "2.0.0",
+    "label": "v2.0.0",
+    "status": "frozen"
+  },
+  "executablePackage": {
+    "name": "@architectureworld/dsh-preplanning-agent",
+    "version": "0.7.0",
+    "versionBumpAuthorized": false
+  },
+  "publishedRelease": {
+    "tag": "v0.7.0",
+    "status": "historical-published-baseline"
+  },
+  "legacyContracts": {
+    "business": "v0.6",
+    "governance": "v0.7",
+    "status": "retained-historical-contract-lines"
+  },
+  "presentationStandard": {
+    "name": "Presentation Standard Project Directory",
+    "majorLine": "v1",
+    "standardVersion": "1.0.0",
+    "authorityRepository": "ArchitectureWorld/presentation-tools",
+    "contractLockStatus": "pending",
+    "packageName": null,
+    "packageVersion": null,
+    "schemaSetSha256": null
+  },
+  "historicalLabels": {
+    "clientReportCandidate": {
+      "label": "v0.8",
+      "status": "unreleased-historical-candidate-line",
+      "authority": false,
+      "evidencePath": "docs/acceptance-v0.8.md"
+    },
+    "handoffBundle": {
+      "label": "FINAL_v2.0",
+      "status": "historical-archive-label",
+      "authority": false,
+      "path": "handoff/FINAL_v2.0/"
+    },
+    "legacyHandoff": {
+      "status": "superseded-history",
+      "authority": false,
+      "path": "HANDOFF_HISTORY.md"
+    }
+  },
+  "implementation": {
+    "status": "blocked-by-contract-lock",
+    "productionCodeChangedForAlignment": false,
+    "planReady": true
+  },
+  "authority": {
+    "machine": "docs/version-matrix.json",
+    "human": "docs/VERSIONING.md"
+  }
+}
