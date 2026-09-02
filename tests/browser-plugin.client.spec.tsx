@@ -20,6 +20,7 @@ const fullStatus = {
   })),
   blocked: 0,
   visual: { candidates: 0, adopted: 0, blocked: 0 },
+  boundary: { kind: 'not_provided' as const, label: '尚未提供场地边界', nextAction: '请提供总平图、红线图或闭合红线坐标。' },
   modelRoute: { primary: '当前 DSH Session 所选模型', visual: 'antigravity / gemini-3.1-flash-image' },
 }
 

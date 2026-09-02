@@ -44,18 +44,28 @@ export function PreplanningProjectForm({ start, onClose }: PreplanningProjectFor
   }
 
   const fieldStyle = { display: 'grid', fontSize: 12, gap: 5 } as const
+  const controlStyle = {
+    background: 'var(--dsw-specific-input-major, #fff)',
+    border: '1px solid var(--dsw-alias-border-l2, #c7c9cc)',
+    borderRadius: 8,
+    color: 'var(--dsw-alias-label-primary, #1f2328)',
+    font: 'inherit',
+    padding: 9,
+  } as const
   return (
     <form
       aria-label="新建前期策划项目"
       onSubmit={submit}
       style={{
-        background: 'var(--dsh-color-background, #fff)',
-        border: '1px solid color-mix(in srgb, currentColor 18%, transparent)',
+        background: 'var(--dsw-alias-bg-layer-1, #fff)',
+        border: '1px solid var(--dsw-alias-border-l2, rgb(0 0 0 / 18%))',
         borderRadius: 14,
-        boxShadow: '0 14px 38px rgb(0 0 0 / 18%)',
-        color: 'var(--dsh-color-foreground, inherit)',
-        display: 'grid', gap: 12, padding: 16, position: 'absolute', right: 0,
-        top: 'calc(100% + 8px)', width: 'min(420px, calc(100vw - 32px))', zIndex: 40,
+        boxShadow: 'var(--dsw-shadow-lv3, 0 14px 38px rgb(0 0 0 / 18%))',
+        boxSizing: 'border-box',
+        color: 'var(--dsw-alias-label-primary, #1f2328)',
+        display: 'grid', gap: 12, maxHeight: 'calc(100dvh - 32px)', overflowY: 'auto',
+        padding: 16, position: 'fixed', right: 16, top: 16,
+        width: 'min(420px, calc(100vw - 32px))', zIndex: 2_147_483_000,
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
@@ -77,7 +87,7 @@ export function PreplanningProjectForm({ start, onClose }: PreplanningProjectFor
           }}
           placeholder="例如：新建滨江文化活力区并完成全流程前期策划"
           rows={3}
-          style={{ borderRadius: 8, font: 'inherit', padding: 9, resize: 'vertical' }}
+          style={{ ...controlStyle, resize: 'vertical' }}
           value={statement}
         />
       </label>
@@ -87,7 +97,7 @@ export function PreplanningProjectForm({ start, onClose }: PreplanningProjectFor
           aria-label="识别的项目名称"
           disabled={submitState === 'running'}
           onChange={event => { setNameEdited(true); setProjectName(event.target.value) }}
-          style={{ borderRadius: 8, font: 'inherit', padding: 9 }}
+          style={controlStyle}
           value={projectName}
         />
       </label>
@@ -106,7 +116,7 @@ export function PreplanningProjectForm({ start, onClose }: PreplanningProjectFor
         <input
           aria-label="概念图预算上限"
           max={20} min={0} onChange={event => setVisualBudget(event.target.valueAsNumber)}
-          style={{ borderRadius: 8, font: 'inherit', padding: 9 }} type="number" value={visualBudget}
+          style={controlStyle} type="number" value={visualBudget}
         />
       </label>
       <small style={{ opacity: 0.68 }}>

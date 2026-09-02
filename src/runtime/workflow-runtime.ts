@@ -58,6 +58,12 @@ export class WorkflowRuntime {
     return ready === undefined ? undefined : this.registry.workflow(ready.workflowId)
   }
 
+  current(projectId: string): WorkflowDescriptor | undefined {
+    const running = this.governance.readProject(projectId).workflowRuns
+      .find(run => run.status === 'running')
+    return running === undefined ? undefined : this.registry.workflow(running.workflowId)
+  }
+
   async transition(
     projectId: string,
     workflowId: string,

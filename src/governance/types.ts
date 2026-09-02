@@ -121,11 +121,77 @@ export interface VisualAssetRecord {
   readonly mimeType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/svg+xml'
   readonly fileName: string
   readonly sha256: string
+  readonly boundaryGeometrySha256?: string
+  readonly boundaryEvidence?: SiteBoundaryAttachmentEvidence
   readonly width: number
   readonly height: number
   readonly quality?: VisualQualityRecord
   readonly createdAt: string
   readonly adoptedRevision?: number
+}
+
+export type SiteBoundaryStatus = 'pending_confirmation' | 'confirmed_formal_boundary'
+export type SiteBoundarySource = 'approved_site_plan' | 'approved_redline' | 'closed_coordinates' | 'geojson'
+export type SiteBoundaryOrigin =
+  | 'user_image'
+  | 'user_coordinates'
+  | 'user_geojson'
+  | 'synthetic'
+export type SiteBoundarySubmissionChannel =
+  | 'dsh_human_command'
+  | 'synthetic_fixture'
+
+export interface SiteBoundaryAttachmentEvidence {
+  readonly origin: 'user_image'
+  readonly attachmentId: string
+  readonly mediaType: 'image/png' | 'image/jpeg' | 'image/webp'
+  readonly displayName?: string
+  readonly bytes: number
+  readonly width: number
+  readonly height: number
+  readonly storageSha256: string
+  readonly submittedBy: ActorRef
+  readonly submittedRevision: number
+}
+
+export interface SiteBoundaryGeometryRecord {
+  readonly crs: string
+  readonly coordinates: readonly (readonly [number, number])[]
+  readonly sha256: string
+  readonly derivedAssetId: string
+  readonly derivedFileName: string
+  readonly derivedSha256: string
+}
+
+export type SiteBoundaryStateSummary =
+  | { readonly kind: 'not_provided'; readonly label: '尚未提供场地边界'; readonly nextAction: string }
+  | { readonly kind: 'pending_confirmation'; readonly boundaryId: string; readonly source: SiteBoundarySource; readonly label: string; readonly nextAction: string }
+  | { readonly kind: 'confirmed_formal_boundary'; readonly boundaryId: string; readonly source: SiteBoundarySource; readonly label: string; readonly nextAction: string }
+  | { readonly kind: 'synthetic_research'; readonly boundaryId: string; readonly source: SiteBoundarySource; readonly label: '模拟研究范围（不可正式确认）'; readonly nextAction: string }
+
+export interface SiteBoundaryRecord {
+  readonly boundaryId: string
+  readonly projectId: string
+  readonly submittedRevision: number
+  readonly status: SiteBoundaryStatus
+  readonly source: SiteBoundarySource
+  readonly origin: SiteBoundaryOrigin
+  readonly submissionChannel: SiteBoundarySubmissionChannel
+  readonly sourceAsset?: Readonly<{
+    assetId: string
+    fileName: string
+    sha256: string
+    attachment?: SiteBoundaryAttachmentEvidence
+  }>
+  readonly geometry?: SiteBoundaryGeometryRecord
+  readonly submittedBy: ActorRef
+  readonly submittedAt: string
+  readonly confirmedBy?: ActorRef
+  readonly confirmedAt?: string
+  readonly confirmedRevision?: number
+  readonly confirmationChannel?: SiteBoundarySubmissionChannel
+  readonly confirmationStatement?: string
+  readonly confirmationSourceSha256?: string
 }
 
 export interface ReportPackageRecord {
@@ -157,6 +223,7 @@ export interface ArtifactManifestRecord {
   readonly adoptedAssetIds?: readonly string[]
   readonly artifacts: readonly ArtifactRecord[]
   readonly createdAt: string
+  readonly siteBoundaryIntegrityDigest?: string
 }
 
 export interface GovernanceProjectContext {
@@ -168,5 +235,6 @@ export interface GovernanceProjectContext {
   readonly visualPolicies: readonly VisualGenerationPolicyRecord[]
   readonly visualTasks: readonly VisualTaskRecord[]
   readonly visualAssets: readonly VisualAssetRecord[]
+  readonly siteBoundaries: readonly SiteBoundaryRecord[]
   readonly reportPackages: readonly ReportPackageRecord[]
 }

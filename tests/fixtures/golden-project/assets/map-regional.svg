@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" role="img" aria-labelledby="map-regional-title map-regional-desc" data-source="示例场地分析资料（待项目实测校核）">
+  <title id="map-regional-title">城市区位与区域关系图</title>
+  <desc id="map-regional-desc">示例城市空间关系，不代表真实测绘成果；城市、水系、道路与研究范围位置均待项目资料校核。</desc>
+  <defs>
+    <marker id="regional-axis-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#D56B3F"/>
+    </marker>
+  </defs>
+  <style>
+    text { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; fill: #17323A; }
+    .map-title { font-size: 34px; font-weight: 700; }
+    .map-kicker { font-size: 17px; fill: #5C7075; }
+    .feature-label { font-size: 16px; font-weight: 700; stroke: none; }
+    .minor-label { font-size: 14px; fill: #60757B; }
+    .legend-title { font-size: 18px; font-weight: 700; }
+    .legend-label { font-size: 15px; font-weight: 600; }
+    .north-label { font-size: 22px; font-weight: 800; }
+    .scale-note { font-size: 15px; font-weight: 700; fill: #5C7075; }
+    .source-note { font-size: 15px; fill: #7B878A; }
+  </style>
+  <rect width="1200" height="700" fill="#F7F4EE"/>
+  <rect x="36" y="28" width="1128" height="644" rx="18" fill="#FFFEFB" stroke="#DDE3DF"/>
+  <text class="map-title" x="60" y="72">城市区位与区域关系图</text>
+  <text class="map-kicker" x="60" y="106">示例区域结构 · 城市、水系与研究范围关系待项目资料校核</text>
+
+  <g class="regional-map" aria-label="示例城市区位底图">
+    <rect x="60" y="132" width="830" height="466" rx="18" fill="#EEF2EF" stroke="#D7E0DB"/>
+    <path d="M70 222 C190 176 286 202 382 266 C476 328 558 314 650 252 C728 198 804 190 884 236" fill="none" stroke="#BDD7E0" stroke-width="66" opacity="0.92"/>
+    <path d="M108 566 C214 470 250 378 332 310 C430 226 566 184 712 160 C786 148 844 152 878 166" fill="none" stroke="#81949F" stroke-width="18" stroke-linecap="round"/>
+    <path d="M108 470 C248 438 366 448 474 500 C586 552 730 552 866 474" fill="none" stroke="#A8B6BC" stroke-width="10" stroke-linecap="round"/>
+    <path d="M194 154 C300 250 378 338 490 392 C600 446 708 420 856 328" fill="none" stroke="#D56B3F" stroke-width="12" stroke-linecap="round" marker-end="url(#regional-axis-arrow)"/>
+    <g fill="#D9DEDA" stroke="#C7CFCA">
+      <rect x="128" y="270" width="58" height="34" rx="5"/><rect x="202" y="292" width="66" height="42" rx="5"/>
+      <rect x="292" y="190" width="74" height="44" rx="5"/><rect x="374" y="174" width="54" height="34" rx="5"/>
+      <rect x="520" y="188" width="68" height="38" rx="5"/><rect x="606" y="162" width="60" height="38" rx="5"/>
+      <rect x="652" y="338" width="72" height="44" rx="5"/><rect x="742" y="366" width="66" height="38" rx="5"/>
+      <rect x="338" y="500" width="72" height="38" rx="5"/><rect x="430" y="526" width="64" height="36" rx="5"/>
+    </g>
+    <circle cx="500" cy="390" r="46" fill="#C54E45" stroke="#FFFEFB" stroke-width="8"/>
+    <circle cx="500" cy="390" r="68" fill="none" stroke="#C54E45" stroke-width="2" stroke-dasharray="8 8" opacity="0.7"/>
+
+    <text class="feature-label" data-feature="city-center" x="704" y="180">示例城市中心方向</text>
+    <text class="feature-label" data-feature="waterfront-axis" x="222" y="370">示例滨水联系轴</text>
+    <text class="feature-label" data-feature="research-center" x="526" y="378">研究范围中心</text>
+    <text class="feature-label" data-feature="arterial-road" x="620" y="518">城市主干路</text>
+    <text class="minor-label" x="112" y="252">示例城市建设区</text>
+  </g>
+
+  <g class="information-panel">
+    <rect x="914" y="132" width="230" height="466" rx="18" fill="#F5F1E9" stroke="#DED7C9"/>
+    <g class="map-legend" transform="translate(940 176)">
+      <text class="legend-title" x="0" y="0">区域关系图例</text>
+      <g class="legend-item" transform="translate(0 54)"><line data-swatch="axis" x1="0" y1="0" x2="54" y2="0" stroke="#D56B3F" stroke-width="10" stroke-linecap="round"/><text class="legend-label" x="72" y="5">滨水联系轴</text></g>
+      <g class="legend-item" transform="translate(0 104)"><line data-swatch="road" x1="0" y1="0" x2="54" y2="0" stroke="#81949F" stroke-width="12" stroke-linecap="round"/><text class="legend-label" x="72" y="5">城市主干路</text></g>
+      <g class="legend-item" transform="translate(0 154)"><circle data-swatch="site" cx="27" cy="0" r="12" fill="#C54E45"/><text class="legend-label" x="72" y="5">研究范围</text></g>
+      <g class="legend-item" transform="translate(0 204)"><line data-swatch="water" x1="0" y1="0" x2="54" y2="0" stroke="#BDD7E0" stroke-width="18" stroke-linecap="round"/><text class="legend-label" x="72" y="5">示例水系</text></g>
+    </g>
+    <g id="north-arrow" transform="translate(1005 498)">
+      <path d="M24 -48 L39 8 L24 -2 L9 8 Z" fill="#17323A"/>
+      <line x1="24" y1="-2" x2="24" y2="38" stroke="#17323A" stroke-width="3"/>
+      <text class="north-label" x="24" y="-62" text-anchor="middle">N</text>
+    </g>
+    <text class="scale-note" x="1029" y="566" text-anchor="middle">NTS · 非测绘比例</text>
+  </g>
+
+  <line x1="60" y1="626" x2="1140" y2="626" stroke="#E4E8E5"/>
+  <text class="source-note" x="60" y="658">示例场地分析资料（待项目实测校核）</text>
+</svg>

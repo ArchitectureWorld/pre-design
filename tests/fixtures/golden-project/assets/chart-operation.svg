@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" role="img" aria-labelledby="chart-operation-title chart-operation-desc" data-source="示例研究数据（待项目实测校核）">
+  <title id="chart-operation-title">运营收入与成本投入结构</title>
+  <desc id="chart-operation-desc">示例研究数据（待项目实测校核）。按启动期、培育期与稳定期比较运营收入和运营成本。</desc>
+  <style>
+    text { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; fill: #17323A; }
+    .chart-title { font-size: 34px; font-weight: 700; letter-spacing: 1px; }
+    .chart-kicker, .axis-label, .methodology { font-size: 17px; fill: #5C7075; }
+    .tick-label { font-size: 15px; fill: #718287; }
+    .stage-label, .legend-label { font-size: 18px; font-weight: 600; }
+    .datum-label { font-size: 16px; font-weight: 700; }
+    .source-note { font-size: 15px; fill: #7B878A; }
+  </style>
+  <rect width="1200" height="700" fill="#F7F4EE"/>
+  <rect x="36" y="28" width="1128" height="644" rx="18" fill="#FFFEFB" stroke="#DDE3DF"/>
+  <text class="chart-title" x="72" y="72">运营收入与成本投入结构</text>
+  <text class="chart-kicker" x="72" y="108">分阶段运营收支 · 单位：万元/年</text>
+
+  <g class="series-legend" transform="translate(806 74)">
+    <g class="legend-item" data-series="income" transform="translate(0 0)">
+      <line data-swatch="true" x1="0" y1="0" x2="42" y2="0" stroke="#247A74" stroke-width="8" stroke-linecap="round"/>
+      <text class="legend-label" x="56" y="6">运营收入</text>
+    </g>
+    <g class="legend-item" data-series="cost" transform="translate(170 0)">
+      <line data-swatch="true" x1="0" y1="0" x2="42" y2="0" stroke="#C5653E" stroke-width="8" stroke-linecap="round"/>
+      <text class="legend-label" x="56" y="6">运营成本</text>
+    </g>
+  </g>
+
+  <g class="axis" aria-label="运营收支量轴">
+    <g class="axis-tick" data-value="0"><line x1="170" y1="560" x2="1100" y2="560" stroke="#9DAAA9" stroke-width="2"/><text class="tick-label" x="150" y="566" text-anchor="end">0</text></g>
+    <g class="axis-tick" data-value="200"><line x1="170" y1="460" x2="1100" y2="460" stroke="#DFE5E2"/><text class="tick-label" x="150" y="466" text-anchor="end">200</text></g>
+    <g class="axis-tick" data-value="400"><line x1="170" y1="360" x2="1100" y2="360" stroke="#DFE5E2"/><text class="tick-label" x="150" y="366" text-anchor="end">400</text></g>
+    <g class="axis-tick" data-value="600"><line x1="170" y1="260" x2="1100" y2="260" stroke="#DFE5E2"/><text class="tick-label" x="150" y="266" text-anchor="end">600</text></g>
+    <g class="axis-tick" data-value="800"><line x1="170" y1="160" x2="1100" y2="160" stroke="#DFE5E2"/><text class="tick-label" x="150" y="166" text-anchor="end">800</text></g>
+    <text class="axis-label" x="102" y="360" text-anchor="middle" transform="rotate(-90 102 360)">金额（万元/年）</text>
+  </g>
+
+  <path d="M310 470 L620 350 L930 180" fill="none" stroke="#247A74" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M310 400 L620 365 L930 300" fill="none" stroke="#C5653E" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <g class="datum" data-category="启动期" data-series="income" data-value="180" data-unit="万元/年">
+    <circle cx="310" cy="470" r="10" fill="#FFFEFB" stroke="#247A74" stroke-width="6"/>
+    <text class="datum-label" x="310" y="500" text-anchor="middle" fill="#247A74">180万元/年</text>
+  </g>
+  <g class="datum" data-category="培育期" data-series="income" data-value="420" data-unit="万元/年">
+    <circle cx="620" cy="350" r="10" fill="#FFFEFB" stroke="#247A74" stroke-width="6"/>
+    <text class="datum-label" x="620" y="326" text-anchor="middle" fill="#247A74">420万元/年</text>
+  </g>
+  <g class="datum" data-category="稳定期" data-series="income" data-value="760" data-unit="万元/年">
+    <circle cx="930" cy="180" r="10" fill="#FFFEFB" stroke="#247A74" stroke-width="6"/>
+    <text class="datum-label" x="930" y="158" text-anchor="middle" fill="#247A74">760万元/年</text>
+  </g>
+  <g class="datum" data-category="启动期" data-series="cost" data-value="320" data-unit="万元/年">
+    <circle cx="310" cy="400" r="10" fill="#FFFEFB" stroke="#C5653E" stroke-width="6"/>
+    <text class="datum-label" x="310" y="376" text-anchor="middle" fill="#A34B31">320万元/年</text>
+  </g>
+  <g class="datum" data-category="培育期" data-series="cost" data-value="390" data-unit="万元/年">
+    <circle cx="620" cy="365" r="10" fill="#FFFEFB" stroke="#C5653E" stroke-width="6"/>
+    <text class="datum-label" x="620" y="397" text-anchor="middle" fill="#A34B31">390万元/年</text>
+  </g>
+  <g class="datum" data-category="稳定期" data-series="cost" data-value="520" data-unit="万元/年">
+    <circle cx="930" cy="300" r="10" fill="#FFFEFB" stroke="#C5653E" stroke-width="6"/>
+    <text class="datum-label" x="930" y="332" text-anchor="middle" fill="#A34B31">520万元/年</text>
+  </g>
+
+  <text class="stage-label" data-category="启动期" x="310" y="594" text-anchor="middle">启动期</text>
+  <text class="stage-label" data-category="培育期" x="620" y="594" text-anchor="middle">培育期</text>
+  <text class="stage-label" data-category="稳定期" x="930" y="594" text-anchor="middle">稳定期</text>
+  <text class="methodology" x="72" y="630">口径：按示例研究分阶段运营收支估算，待项目实测校核</text>
+  <line x1="72" y1="648" x2="1128" y2="648" stroke="#E4E8E5"/>
+  <text class="source-note" x="72" y="670">示例研究数据（待项目实测校核）</text>
+</svg>

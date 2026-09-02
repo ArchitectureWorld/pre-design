@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" role="img" aria-labelledby="chart-phasing-title chart-phasing-desc" data-source="示例研究数据（待项目实测校核）">
+  <title id="chart-phasing-title">分期建设与投资节奏</title>
+  <desc id="chart-phasing-desc">示例研究数据（待项目实测校核）。按示范先行、骨架成网与场景扩展三类建设包展示投资节奏。</desc>
+  <style>
+    text { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; fill: #17323A; }
+    .chart-title { font-size: 34px; font-weight: 700; letter-spacing: 1px; }
+    .chart-kicker, .axis-label, .methodology { font-size: 17px; fill: #5C7075; }
+    .tick-label { font-size: 15px; fill: #718287; }
+    .category-label { font-size: 19px; font-weight: 600; }
+    .datum-label { font-size: 20px; font-weight: 700; }
+    .source-note { font-size: 15px; fill: #7B878A; }
+  </style>
+  <rect width="1200" height="700" fill="#F7F4EE"/>
+  <rect x="36" y="28" width="1128" height="644" rx="18" fill="#FFFEFB" stroke="#DDE3DF"/>
+  <text class="chart-title" x="72" y="72">分期建设与投资节奏</text>
+  <text class="chart-kicker" x="72" y="108">建设包投资估算 · 单位：万元</text>
+
+  <g class="axis" aria-label="投资量轴">
+    <g class="axis-tick" data-value="0"><line x1="170" y1="560" x2="1100" y2="560" stroke="#9DAAA9" stroke-width="2"/><text class="tick-label" x="150" y="566" text-anchor="end">0</text></g>
+    <g class="axis-tick" data-value="1000"><line x1="170" y1="480" x2="1100" y2="480" stroke="#DFE5E2"/><text class="tick-label" x="150" y="486" text-anchor="end">1000</text></g>
+    <g class="axis-tick" data-value="2000"><line x1="170" y1="400" x2="1100" y2="400" stroke="#DFE5E2"/><text class="tick-label" x="150" y="406" text-anchor="end">2000</text></g>
+    <g class="axis-tick" data-value="3000"><line x1="170" y1="320" x2="1100" y2="320" stroke="#DFE5E2"/><text class="tick-label" x="150" y="326" text-anchor="end">3000</text></g>
+    <g class="axis-tick" data-value="4000"><line x1="170" y1="240" x2="1100" y2="240" stroke="#DFE5E2"/><text class="tick-label" x="150" y="246" text-anchor="end">4000</text></g>
+    <g class="axis-tick" data-value="5000"><line x1="170" y1="160" x2="1100" y2="160" stroke="#DFE5E2"/><text class="tick-label" x="150" y="166" text-anchor="end">5000</text></g>
+    <text class="axis-label" x="102" y="360" text-anchor="middle" transform="rotate(-90 102 360)">投资估算（万元）</text>
+  </g>
+
+  <g class="datum" data-category="示范先行" data-value="1200" data-unit="万元">
+    <rect x="250" y="464" width="180" height="96" rx="8" fill="#C5653E"/>
+    <text class="datum-label" x="340" y="446" text-anchor="middle">1200万元</text>
+    <text class="category-label" x="340" y="595" text-anchor="middle">示范先行</text>
+  </g>
+  <g class="datum" data-category="骨架成网" data-value="2800" data-unit="万元">
+    <rect x="510" y="336" width="180" height="224" rx="8" fill="#397C8A"/>
+    <text class="datum-label" x="600" y="318" text-anchor="middle">2800万元</text>
+    <text class="category-label" x="600" y="595" text-anchor="middle">骨架成网</text>
+  </g>
+  <g class="datum" data-category="场景扩展" data-value="4500" data-unit="万元">
+    <rect x="770" y="200" width="180" height="360" rx="8" fill="#5F8B66"/>
+    <text class="datum-label" x="860" y="182" text-anchor="middle">4500万元</text>
+    <text class="category-label" x="860" y="595" text-anchor="middle">场景扩展</text>
+  </g>
+
+  <text class="methodology" x="72" y="630">口径：按示例研究建设包估算投资节奏，待项目实测校核</text>
+  <line x1="72" y1="648" x2="1128" y2="648" stroke="#E4E8E5"/>
+  <text class="source-note" x="72" y="670">示例研究数据（待项目实测校核）</text>
+</svg>

@@ -6,6 +6,7 @@
     { "id": "gate-decision", "file": "governance/gate-decision.schema.json" },
     { "id": "project-policy", "file": "governance/project-policy.schema.json" },
     { "id": "report-package", "file": "governance/report-package.schema.json" },
+    { "id": "site-boundary", "file": "governance/site-boundary.schema.json" },
     { "id": "visual-asset-manifest", "file": "governance/visual-asset-manifest.schema.json" },
     { "id": "visual-generation-policy", "file": "governance/visual-generation-policy.schema.json" },
     { "id": "workflow-run", "file": "governance/workflow-run.schema.json" }

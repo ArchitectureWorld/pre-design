@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" role="img" aria-labelledby="map-access-title map-access-desc" data-source="示例场地分析资料（待项目实测校核）">
+  <title id="map-access-title">对外交通、主要入口与可达性分析图</title>
+  <desc id="map-access-desc">示例交通关系与入口组织，不代表真实道路或客流数据；正式项目须由道路、公交、步行与入口资料校核。</desc>
+  <defs>
+    <marker id="access-walk-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#D56B3F"/></marker>
+  </defs>
+  <style>
+    text { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; fill: #17323A; }
+    .map-title { font-size: 34px; font-weight: 700; }
+    .map-kicker { font-size: 17px; fill: #5C7075; }
+    .feature-label { font-size: 16px; font-weight: 700; stroke: none; }
+    .minor-label { font-size: 13px; fill: #60757B; }
+    .legend-title { font-size: 18px; font-weight: 700; }
+    .legend-label { font-size: 15px; font-weight: 600; }
+    .north-label { font-size: 22px; font-weight: 800; }
+    .scale-note { font-size: 15px; font-weight: 700; fill: #5C7075; }
+    .source-note { font-size: 15px; fill: #7B878A; }
+  </style>
+  <rect width="1200" height="700" fill="#F7F4EE"/>
+  <rect x="36" y="28" width="1128" height="644" rx="18" fill="#FFFEFB" stroke="#DDE3DF"/>
+  <text class="map-title" x="60" y="72">对外交通、主要入口与可达性分析图</text>
+  <text class="map-kicker" x="60" y="106">示例交通网络 · 到达方式、入口与滨水慢行关系待项目资料校核</text>
+
+  <g class="site-map" aria-label="示例对外交通与入口关系">
+    <rect x="60" y="132" width="830" height="466" rx="18" fill="#EEF3F4" stroke="#D7E0DB"/>
+    <path d="M76 536 C222 486 336 512 458 554 C586 598 742 574 886 500 L886 598 L76 598 Z" fill="#C7DDE4"/>
+    <path d="M84 482 C220 448 356 464 474 516 C602 572 736 548 878 458" fill="none" stroke="#8EB5C1" stroke-width="7"/>
+    <path d="M102 520 C264 430 372 340 484 374 C602 410 700 338 862 206" fill="none" stroke="#3E7894" stroke-width="24" stroke-linecap="round"/>
+    <path d="M116 220 C286 242 436 212 566 230 C680 246 756 286 858 350" fill="none" stroke="#87A0AA" stroke-width="16" stroke-linecap="round"/>
+    <path d="M248 142 C288 260 354 334 454 398 C560 466 656 494 806 512" fill="none" stroke="#A9B7BC" stroke-width="11" stroke-linecap="round"/>
+    <path d="M292 264 L682 252 L742 440 L580 522 L314 438 Z" fill="#DCE8DD" fill-opacity="0.72" stroke="#9AA8A8" stroke-width="3" stroke-dasharray="10 8"/>
+    <circle cx="516" cy="388" r="142" fill="none" stroke="#D56B3F" stroke-width="3" stroke-dasharray="12 10" opacity="0.45"/>
+    <circle cx="516" cy="388" r="82" fill="none" stroke="#D56B3F" stroke-width="3" stroke-dasharray="8 8" opacity="0.7"/>
+    <path d="M218 202 C300 252 346 318 414 360" fill="none" stroke="#D56B3F" stroke-width="10" stroke-linecap="round" marker-end="url(#access-walk-arrow)"/>
+    <path d="M814 446 C744 430 688 432 628 454" fill="none" stroke="#4F927A" stroke-width="10" stroke-linecap="round" marker-end="url(#access-walk-arrow)"/>
+    <circle cx="416" cy="362" r="18" fill="#C54E45" stroke="#FFFEFB" stroke-width="6"/>
+    <circle cx="626" cy="454" r="13" fill="#4F927A" stroke="#FFFEFB" stroke-width="5"/>
+    <g transform="translate(216 202)"><circle r="18" fill="#F1C561" stroke="#17323A" stroke-width="2"/><text x="0" y="6" text-anchor="middle" font-size="14" font-weight="800">B</text></g>
+
+    <text class="feature-label" data-feature="arterial-road" x="620" y="306">城市主干路</text>
+    <text class="feature-label" data-feature="transit-arrival" x="136" y="188">公交到达</text>
+    <text class="feature-label" data-feature="main-entry" x="356" y="342">主要入口</text>
+    <text class="feature-label" data-feature="waterfront-path" x="676" y="486">滨水步道</text>
+    <text class="minor-label" x="488" y="278">10 分钟示意圈</text>
+    <text class="minor-label" x="486" y="326">5 分钟示意圈</text>
+  </g>
+
+  <g class="information-panel">
+    <rect x="914" y="132" width="230" height="466" rx="18" fill="#F5F1E9" stroke="#DED7C9"/>
+    <g class="map-legend" transform="translate(940 176)">
+      <text class="legend-title" x="0" y="0">可达性图例</text>
+      <g class="legend-item" transform="translate(0 54)"><line data-swatch="arterial" x1="0" y1="0" x2="54" y2="0" stroke="#3E7894" stroke-width="14" stroke-linecap="round"/><text class="legend-label" x="72" y="5">车行主路</text></g>
+      <g class="legend-item" transform="translate(0 104)"><line data-swatch="walk" x1="0" y1="0" x2="54" y2="0" stroke="#D56B3F" stroke-width="9" stroke-linecap="round"/><text class="legend-label" x="72" y="5">步行联系</text></g>
+      <g class="legend-item" transform="translate(0 154)"><circle data-swatch="entry" cx="27" cy="0" r="11" fill="#C54E45"/><text class="legend-label" x="72" y="5">主要入口</text></g>
+      <g class="legend-item" transform="translate(0 204)"><line data-swatch="waterfront" x1="0" y1="0" x2="54" y2="0" stroke="#4F927A" stroke-width="9" stroke-linecap="round"/><text class="legend-label" x="72" y="5">滨水步道</text></g>
+    </g>
+    <g id="north-arrow" transform="translate(1005 498)">
+      <path d="M24 -48 L39 8 L24 -2 L9 8 Z" fill="#17323A"/><line x1="24" y1="-2" x2="24" y2="38" stroke="#17323A" stroke-width="3"/>
+      <text class="north-label" x="24" y="-62" text-anchor="middle">N</text>
+    </g>
+    <text class="scale-note" x="1029" y="566" text-anchor="middle">NTS · 非测绘比例</text>
+  </g>
+
+  <line x1="60" y1="626" x2="1140" y2="626" stroke="#E4E8E5"/>
+  <text class="source-note" x="60" y="658">示例场地分析资料（待项目实测校核）</text>
+</svg>

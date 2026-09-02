@@ -1,10 +1,24 @@
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
 import { z } from 'zod'
+import type { SiteBoundaryRecord } from './types.ts'
 
 const actorSchema = z.object({
   actorId: z.string().min(1),
   name: z.string().min(1),
   role: z.string().min(1),
+}).strict()
+
+const siteBoundaryAttachmentEvidenceSchema = z.object({
+  origin: z.literal('user_image'),
+  attachmentId: z.string().min(1),
+  mediaType: z.enum(['image/png', 'image/jpeg', 'image/webp']),
+  displayName: z.string().min(1).optional(),
+  bytes: z.number().int().positive(),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  storageSha256: z.string().regex(/^[a-fA-F0-9]{64}$/),
+  submittedBy: actorSchema,
+  submittedRevision: z.number().int().nonnegative(),
 }).strict()
 
 const projectPolicySchema = z.object({
@@ -111,6 +125,8 @@ const visualAssetSchema = z.object({
   mimeType: z.enum(['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']),
   fileName: z.string().min(1),
   sha256: z.string().regex(/^[a-fA-F0-9]{64}$/),
+  boundaryGeometrySha256: z.string().regex(/^[a-fA-F0-9]{64}$/).optional(),
+  boundaryEvidence: siteBoundaryAttachmentEvidenceSchema.optional(),
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   quality: z.object({
@@ -124,7 +140,121 @@ const visualAssetSchema = z.object({
   if (record.status === 'adopted' && record.adoptedRevision === undefined) {
     context.addIssue({ code: 'custom', message: 'adopted asset requires adoptedRevision' })
   }
+  if (record.boundaryGeometrySha256 !== undefined && record.kind === 'concept') {
+    context.addIssue({ code: 'custom', message: 'boundary geometry lineage requires evidence or deterministic asset' })
+  }
 })
+
+const siteBoundarySchema = z.object({
+  boundaryId: z.string().min(1),
+  projectId: z.string().min(1),
+  submittedRevision: z.number().int().nonnegative(),
+  status: z.enum(['pending_confirmation', 'confirmed_formal_boundary']),
+  source: z.enum(['approved_site_plan', 'approved_redline', 'closed_coordinates', 'geojson']),
+  origin: z.enum(['user_image', 'user_coordinates', 'user_geojson', 'synthetic']),
+  submissionChannel: z.enum(['dsh_human_command', 'synthetic_fixture']),
+  sourceAsset: z.object({
+    assetId: z.string().min(1),
+    fileName: z.string().min(1),
+    sha256: z.string().regex(/^[a-fA-F0-9]{64}$/),
+    attachment: siteBoundaryAttachmentEvidenceSchema.optional(),
+  }).strict().optional(),
+  geometry: z.object({
+    crs: z.string().min(1),
+    coordinates: z.array(z.tuple([z.number().finite(), z.number().finite()])).min(4),
+    sha256: z.string().regex(/^[a-fA-F0-9]{64}$/),
+    derivedAssetId: z.string().min(1).optional(),
+    derivedFileName: z.string().min(1).optional(),
+    derivedSha256: z.string().regex(/^[a-fA-F0-9]{64}$/).optional(),
+  }).strict().optional(),
+  submittedBy: actorSchema,
+  submittedAt: z.string().min(1),
+  confirmedBy: actorSchema.optional(),
+  confirmedAt: z.string().min(1).optional(),
+  confirmedRevision: z.number().int().nonnegative().optional(),
+  confirmationChannel: z.enum(['dsh_human_command', 'synthetic_fixture']).optional(),
+  confirmationStatement: z.string().min(1).optional(),
+  confirmationSourceSha256: z.string().regex(/^[a-fA-F0-9]{64}$/).optional(),
+}).strict().superRefine((record, context) => {
+  const needsAsset = record.source === 'approved_site_plan' || record.source === 'approved_redline'
+  const hasCompleteGeometry = record.geometry !== undefined
+    && record.geometry.derivedAssetId !== undefined
+    && record.geometry.derivedFileName !== undefined
+    && record.geometry.derivedSha256 !== undefined
+  const originMatchesSource = record.origin === 'synthetic'
+    || (record.origin === 'user_image' && needsAsset)
+    || (record.origin === 'user_coordinates' && record.source === 'closed_coordinates')
+    || (record.origin === 'user_geojson' && record.source === 'geojson')
+  const payloadMatchesSource = needsAsset
+    ? record.sourceAsset?.attachment !== undefined && record.geometry === undefined
+    : hasCompleteGeometry && record.sourceAsset === undefined
+  const expectedSubmissionChannel = record.origin === 'synthetic'
+    ? 'synthetic_fixture'
+    : 'dsh_human_command'
+
+  if (record.submissionChannel !== expectedSubmissionChannel) {
+    context.addIssue({ code: 'custom', message: 'site boundary origin and submission channel mismatch' })
+  }
+  if (!originMatchesSource || !payloadMatchesSource) {
+    context.addIssue({ code: 'custom', message: 'site boundary origin/source/payload mismatch' })
+  }
+  if (needsAsset && record.sourceAsset === undefined) context.addIssue({ code: 'custom', message: 'formal file boundary requires adopted source asset' })
+  if ((record.source === 'closed_coordinates' || record.source === 'geojson') && record.geometry === undefined) context.addIssue({ code: 'custom', message: 'geometry boundary requires geometry' })
+  if (record.geometry !== undefined
+    && (record.geometry.derivedAssetId === undefined || record.geometry.derivedFileName === undefined || record.geometry.derivedSha256 === undefined)) {
+    context.addIssue({ code: 'custom', message: 'geometry boundary requires derived map identity' })
+  }
+  if (record.origin === 'user_image' && record.sourceAsset?.attachment === undefined) {
+    context.addIssue({ code: 'custom', message: 'image boundary requires attachment evidence' })
+  }
+  if ((record.origin === 'user_coordinates' || record.origin === 'user_geojson')
+    && (record.geometry === undefined || record.geometry.derivedAssetId === undefined || record.geometry.derivedFileName === undefined || record.geometry.derivedSha256 === undefined)) {
+    context.addIssue({ code: 'custom', message: 'geometry boundary requires derived map identity' })
+  }
+  if (record.status === 'confirmed_formal_boundary'
+    && record.origin === 'synthetic') {
+    context.addIssue({ code: 'custom', message: 'synthetic boundary cannot be formal' })
+  }
+  if (record.status === 'confirmed_formal_boundary'
+    && record.confirmedRevision !== undefined
+    && record.confirmedRevision < record.submittedRevision) {
+    context.addIssue({ code: 'custom', message: 'confirmedRevision must be greater than or equal to submittedRevision' })
+  }
+  if (record.status === 'confirmed_formal_boundary'
+    && (record.submissionChannel !== 'dsh_human_command'
+      || record.confirmationChannel !== 'dsh_human_command'
+      || record.confirmedBy?.role !== 'decision_owner'
+      || record.confirmedAt === undefined
+      || record.confirmedRevision === undefined
+      || record.confirmationStatement !== '该图是本项目采用的总平图或红线图，且图中明确表达项目边界'
+      || record.confirmationSourceSha256 !== (record.sourceAsset?.sha256 ?? record.geometry?.sha256))) {
+    context.addIssue({ code: 'custom', message: 'formal boundary requires dsh_human_command confirmation' })
+  }
+})
+
+export type SiteBoundaryStorageRecord = z.infer<typeof siteBoundarySchema>
+
+const syntheticBoundaryFingerprintSchema = z.object({
+  fingerprint: z.string().regex(/^(?:image|geometry):[a-f0-9]{64}$/u),
+  boundaryId: z.string().min(1),
+  createdAt: z.string().min(1),
+}).strict()
+
+export type SyntheticBoundaryFingerprintStorageRecord = z.infer<typeof syntheticBoundaryFingerprintSchema>
+
+export const preplanningSyntheticBoundaryFingerprintDomainSpec = defineDomain({
+  name: 'preplanning_synthetic_boundary_fingerprints',
+  version: 1,
+  tables: {
+    fingerprints: domainTable<string, SyntheticBoundaryFingerprintStorageRecord>(syntheticBoundaryFingerprintSchema),
+  },
+})
+
+export function validateSiteBoundaryRecord(record: unknown): SiteBoundaryRecord {
+  const result = siteBoundarySchema.safeParse(record)
+  if (!result.success) throw new Error(result.error.issues.map(issue => issue.message).join('; '))
+  return result.data as SiteBoundaryRecord
+}
 
 const reportPackageSchema = z.object({
   packageId: z.string().min(1),
@@ -154,6 +284,7 @@ export const preplanningGovernanceDomainSpec = defineDomain({
     visual_policies: domainTable<string, z.infer<typeof visualPolicySchema>>(visualPolicySchema),
     visual_tasks: domainTable<string, z.infer<typeof visualTaskSchema>>(visualTaskSchema),
     visual_assets: domainTable<string, z.infer<typeof visualAssetSchema>>(visualAssetSchema),
+    site_boundaries: domainTable<string, z.infer<typeof siteBoundarySchema>>(siteBoundarySchema),
     report_packages: domainTable<string, z.infer<typeof reportPackageSchema>>(reportPackageSchema),
   },
 })

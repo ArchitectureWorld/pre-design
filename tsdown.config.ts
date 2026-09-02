@@ -4,6 +4,7 @@ const PACKAGE_NAME = '@architectureworld/dsh-preplanning-agent'
 const hostExternal = /^@deepseek-ai\/(cordis|schemastery)(\/|$)/
 const clientExternals = new Set([
   'react',
+  'react-dom',
   'react/jsx-runtime',
   '@deepseek-ai/cordis',
   '@deepseek-ai/dsh-client-runtime/client',

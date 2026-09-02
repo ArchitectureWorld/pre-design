@@ -53,7 +53,7 @@ async function openHarness() {
   return { gateway, governance, registry, repository }
 }
 
-async function envelopeFor(descriptor: WorkflowDescriptor) {
+async function envelopeFor(descriptor: WorkflowDescriptor, expectedRevision = 0) {
   const payload = JSON.parse(await readFile(
     new URL(`tests/fixtures/valid/${descriptor.targetObjectId}.json`, contractRoot),
     'utf8',
@@ -66,7 +66,7 @@ async function envelopeFor(descriptor: WorkflowDescriptor) {
     workflow_id: descriptor.workflowId,
     target_object_id: descriptor.targetObjectId,
     target_schema_id: descriptor.targetSchemaId,
-    expected_revision: 0,
+    expected_revision: expectedRevision,
     actor: agentActor,
     created_at: '2026-08-28T08:05:00.000Z',
     change_set: { operation: 'create', payload, semantic_paths: ['/data'] },
@@ -188,7 +188,7 @@ describe('ProposalGateway 57-item matrix', () => {
       objectId: 'PS01',
       value: {
         status: 'confirmed',
-        data: { status: 'confirmed' },
+        data: { status: 'provisional' },
         approval: {
           status: 'approved',
           approver: {
@@ -200,4 +200,48 @@ describe('ProposalGateway 57-item matrix', () => {
       },
     })
   })
+
+  it('automatically commits every schema-valid workflow payload without injecting unsupported data fields', async () => {
+    const { gateway, governance, registry, repository } = await openHarness()
+    await governance.createPolicy({
+      projectId,
+      mode: 'automatic',
+      reportDepth: 'standard',
+      automationAuthorizationId: 'authorization-all',
+      updatedAt: '2026-08-28T08:00:00.000Z',
+    })
+    await governance.putAuthorization({
+      authorizationId: 'authorization-all',
+      projectId,
+      grantedBy: { actorId: 'user-1', name: '策划负责人', role: 'decision_owner' },
+      startingRevision: 0,
+      scope: {
+        chapterIds: registry.gates().map(gate => gate.chapterId),
+        workflowIds: registry.workflowIds(),
+        gateIds: registry.gates().map(gate => gate.gateId),
+        maxVisualGenerations: 20,
+        maxModelTurns: 120,
+        stopOnBlocking: true,
+      },
+      status: 'active',
+      grantedAt: '2026-08-28T08:00:00.000Z',
+    })
+
+    let revision = 0
+    for (const descriptor of registry.workflows()) {
+      const envelope = await envelopeFor(descriptor, revision)
+      await gateway.submitProposal(envelope, sessionId)
+      const result = await gateway.commitProposal(envelope.proposal_id, {
+        source: 'automation_authorization',
+        authorizationId: 'authorization-all',
+        actor: { actorId: 'system-1', name: '前期策划运行时', role: 'system_service' },
+      }, sessionId)
+      revision += 1
+      expect(result.revision, descriptor.targetObjectId).toBe(revision)
+      const committed = repository.readContext(sessionId).stateObjects
+        .find(row => row.objectId === descriptor.targetObjectId)
+      expect(registry.validateStateObject(descriptor.targetObjectId, committed?.value), descriptor.targetObjectId)
+        .toEqual({ valid: true, errors: [] })
+    }
+  }, 30_000)
 })

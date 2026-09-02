@@ -1,4 +1,6 @@
 import type { GovernanceRepository } from '../governance/repository.ts'
+import { deriveSiteBoundaryState } from '../governance/site-boundary-status.ts'
+import type { SiteBoundarySource, SiteBoundaryStateSummary } from '../governance/types.ts'
 import type { WorkflowRuntime } from '../runtime/workflow-runtime.ts'
 import type { ProjectContext } from '../state/types.ts'
 import { reportLinks, type ReportPackageLinks } from '../client/report-links.ts'
@@ -8,6 +10,13 @@ export interface PreplanningChapterStatus {
   readonly completed: number
   readonly total: number
   readonly gateStatus: string
+}
+
+export interface PreplanningBoundaryStatus {
+  readonly kind: SiteBoundaryStateSummary['kind']
+  readonly label: string
+  readonly source?: SiteBoundarySource
+  readonly nextAction: string
 }
 
 export interface PreplanningStatusEventData {
@@ -24,6 +33,7 @@ export interface PreplanningStatusEventData {
   readonly chapters: readonly PreplanningChapterStatus[]
   readonly blocked: number
   readonly visual: { readonly candidates: number; readonly adopted: number; readonly blocked: number }
+  readonly boundary: PreplanningBoundaryStatus
   readonly modelRoute: { readonly primary: string; readonly visual: string }
   readonly reportPackage?: ReportPackageLinks
 }
@@ -36,6 +46,18 @@ export interface PreplanningStatusDependencies {
 const CHAPTER_TOTALS = [7, 8, 6, 6, 7, 7, 8, 8] as const
 const PRIMARY_MODEL_ROUTE = '当前 DSH Session 所选模型'
 const VISUAL_MODEL_ROUTE = 'antigravity / gemini-3.1-flash-image'
+
+function statusBoundary(records: Parameters<typeof deriveSiteBoundaryState>[0], revision: number): PreplanningBoundaryStatus {
+  const state = deriveSiteBoundaryState(records, revision)
+  const { kind, label, nextAction } = state
+  return 'source' in state
+    ? { kind, label, source: state.source, nextAction }
+    : { kind, label, nextAction }
+}
+
+function defaultBoundary(revision = 0): PreplanningBoundaryStatus {
+  return statusBoundary([], revision)
+}
 
 function defaultChapters(): PreplanningChapterStatus[] {
   return CHAPTER_TOTALS.map((total, index) => ({
@@ -70,6 +92,7 @@ export function buildPreplanningStatus(
     ...base,
     mode: 'manual', reportDepth: 'standard', chapters: defaultChapters(), blocked: 0,
     visual: { candidates: 0, adopted: 0, blocked: 0 },
+    boundary: defaultBoundary(context.project.currentRevision),
     modelRoute: { primary: PRIMARY_MODEL_ROUTE, visual: VISUAL_MODEL_ROUTE },
   }
   const governed = dependencies.governance.readProject(context.project.projectId)
@@ -101,6 +124,7 @@ export function buildPreplanningStatus(
       adopted: governed.visualAssets.filter(row => row.status === 'adopted').length,
       blocked: governed.visualTasks.filter(row => row.status === 'blocked').length,
     },
+    boundary: statusBoundary(governed.siteBoundaries, context.project.currentRevision),
     modelRoute: { primary: PRIMARY_MODEL_ROUTE, visual: VISUAL_MODEL_ROUTE },
     ...(latestPackage === undefined ? {} : { reportPackage: reportLinks(latestPackage.packageId) }),
   }
@@ -113,12 +137,13 @@ export function formatPreplanningStatus(status: PreplanningStatusEventData): str
     .map(chapter => `${chapter.id}=${chapter.completed}/${chapter.total}/${chapter.gateStatus}`)
     .join(',')
   const report = status.reportPackage?.id ?? 'none'
-  const detail = `前期策划全流程：模式 ${status.mode}；报告 ${status.reportDepth}；阻断 ${status.blocked}；视觉 ${status.visual.candidates}/${status.visual.adopted}/${status.visual.blocked}；章节 ${chapters}；成果 ${report}；主模型 ${JSON.stringify(status.modelRoute.primary)}；视觉模型 ${JSON.stringify(status.modelRoute.visual)}。`
+  const source = status.boundary.source === undefined ? '' : `（来源 ${JSON.stringify(status.boundary.source)}）`
+  const detail = `前期策划全流程：模式 ${status.mode}；报告 ${status.reportDepth}；阻断 ${status.blocked}；视觉 ${status.visual.candidates}/${status.visual.adopted}/${status.visual.blocked}；章节 ${chapters}；成果 ${report}；主模型 ${JSON.stringify(status.modelRoute.primary)}；视觉模型 ${JSON.stringify(status.modelRoute.visual)}；场地边界 ${JSON.stringify(status.boundary.label)}${source}；下一步 ${JSON.stringify(status.boundary.nextAction)}。`
   return `${base}\n${detail}`
 }
 
 const STATUS_PATTERN = /(?:^|\n)前期策划状态：项目 ("(?:\\.|[^"\\])*")（([^）\r\n]+)），revision (\d+)，阶段 ([^，\r\n]+)，待确认 (\d+) 项，开放问题 (\d+) 项(?:，待确认提案 ("(?:\\.|[^"\\])*"))?。(?:$|\n)/u
-const DETAIL_PATTERN = /(?:^|\n)前期策划全流程：模式 (manual|automatic)；报告 (standard|extended)；阻断 (\d+)；视觉 (\d+)\/(\d+)\/(\d+)；章节 ([^；\r\n]+)；成果 ([A-Za-z0-9._-]+|none)；主模型 ("(?:\\.|[^"\\])*")；视觉模型 ("(?:\\.|[^"\\])*")。(?:$|\n)/u
+const DETAIL_PATTERN = /(?:^|\n)前期策划全流程：模式 (manual|automatic)；报告 (standard|extended)；阻断 (\d+)；视觉 (\d+)\/(\d+)\/(\d+)；章节 ([^；\r\n]+)；成果 ([A-Za-z0-9._-]+|none)；主模型 ("(?:\\.|[^"\\])*")；视觉模型 ("(?:\\.|[^"\\])*")(?:；场地边界 ("(?:\\.|[^"\\])*")(?:（来源 ("(?:\\.|[^"\\])*")）)?；下一步 ("(?:\\.|[^"\\])*"))?。(?:$|\n)/u
 
 function parseChapters(text: string): PreplanningChapterStatus[] | undefined {
   const chapters = text.split(',').map(value => {
@@ -127,6 +152,54 @@ function parseChapters(text: string): PreplanningChapterStatus[] | undefined {
     return { id: match[1]!, completed: Number(match[2]), total: Number(match[3]), gateStatus: match[4]! }
   })
   return chapters.some(chapter => chapter === undefined) ? undefined : chapters as PreplanningChapterStatus[]
+}
+
+function parseBoundary(
+  encodedLabel: string | undefined,
+  encodedSource: string | undefined,
+  encodedNextAction: string | undefined,
+): PreplanningBoundaryStatus | undefined {
+  if (encodedLabel === undefined || encodedNextAction === undefined) return defaultBoundary()
+  const label = JSON.parse(encodedLabel) as string
+  const nextAction = JSON.parse(encodedNextAction) as string
+  if (label === '尚未提供场地边界') return { kind: 'not_provided', label, nextAction }
+  const source = encodedSource === undefined ? undefined : JSON.parse(encodedSource) as SiteBoundarySource
+  if (source === undefined) return undefined
+  if (label === '场地边界待项目负责人确认') return { kind: 'pending_confirmation', label, source, nextAction }
+  if (label === '场地边界已正式确认') return { kind: 'confirmed_formal_boundary', label, source, nextAction }
+  if (label === '模拟研究范围（不可正式确认）') return { kind: 'synthetic_research', label, source, nextAction }
+  return undefined
+}
+
+function normalizedBoundary(value: unknown, revision: number): PreplanningBoundaryStatus {
+  const fallback = defaultBoundary(revision)
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return fallback
+  const boundary = value as Record<string, unknown>
+  const kind = boundary.kind
+  if (kind === 'not_provided'
+    && boundary.label === '尚未提供场地边界'
+    && boundary.nextAction === '请提供总平图、红线图或闭合红线坐标。') {
+    return { kind, label: boundary.label, nextAction: boundary.nextAction }
+  }
+  const source = boundary.source
+  if (source !== 'approved_site_plan' && source !== 'approved_redline'
+    && source !== 'closed_coordinates' && source !== 'geojson') return fallback
+  if (kind === 'pending_confirmation'
+    && boundary.label === '场地边界待项目负责人确认'
+    && boundary.nextAction === '请项目负责人确认采用当前边界表达。') {
+    return { kind, label: boundary.label, source, nextAction: boundary.nextAction }
+  }
+  if (kind === 'confirmed_formal_boundary'
+    && boundary.label === '场地边界已正式确认'
+    && boundary.nextAction === '可作为正式边界用于后续工作。') {
+    return { kind, label: boundary.label, source, nextAction: boundary.nextAction }
+  }
+  if (kind === 'synthetic_research'
+    && boundary.label === '模拟研究范围（不可正式确认）'
+    && boundary.nextAction === '请提供真实总平图、红线图或带 CRS 的闭合几何') {
+    return { kind, label: boundary.label, source, nextAction: boundary.nextAction }
+  }
+  return fallback
 }
 
 export function parsePreplanningStatus(text: string): PreplanningStatusEventData | undefined {
@@ -154,10 +227,13 @@ export function parsePreplanningStatus(text: string): PreplanningStatusEventData
     ...base,
     mode: 'manual', reportDepth: 'standard', chapters: defaultChapters(), blocked: 0,
     visual: { candidates: 0, adopted: 0, blocked: 0 },
+    boundary: defaultBoundary(revision),
     modelRoute: { primary: PRIMARY_MODEL_ROUTE, visual: VISUAL_MODEL_ROUTE },
   }
   const chapters = parseChapters(detail[7]!)
   if (chapters === undefined) return undefined
+  const boundary = parseBoundary(detail[11], detail[12], detail[13])
+  if (boundary === undefined) return undefined
   const packageId = detail[8]!
   return {
     ...base,
@@ -167,6 +243,7 @@ export function parsePreplanningStatus(text: string): PreplanningStatusEventData
     visual: { candidates: Number(detail[4]), adopted: Number(detail[5]), blocked: Number(detail[6]) },
     chapters,
     modelRoute: { primary: JSON.parse(detail[9]!) as string, visual: JSON.parse(detail[10]!) as string },
+    boundary,
     ...(packageId === 'none' ? {} : { reportPackage: reportLinks(packageId) }),
   }
 }
@@ -180,12 +257,16 @@ export function normalizePreplanningStatus(value: unknown): PreplanningStatusEve
     || (record.status !== 'active' && record.status !== 'attention_required' && record.status !== 'pending_review')
     || typeof record.pendingProposalCount !== 'number' || !Number.isSafeInteger(record.pendingProposalCount)
     || typeof record.openQuestionCount !== 'number' || !Number.isSafeInteger(record.openQuestionCount)) return undefined
-  const base = record as unknown as Omit<PreplanningStatusEventData, 'mode' | 'reportDepth' | 'chapters' | 'blocked' | 'visual' | 'modelRoute'>
+  const base = record as unknown as Omit<PreplanningStatusEventData, 'mode' | 'reportDepth' | 'chapters' | 'blocked' | 'visual' | 'modelRoute' | 'boundary'>
   const rich = record.mode === 'manual' || record.mode === 'automatic'
   if (!rich) return {
     ...base, mode: 'manual', reportDepth: 'standard', chapters: defaultChapters(), blocked: 0,
     visual: { candidates: 0, adopted: 0, blocked: 0 },
+    boundary: defaultBoundary(record.revision),
     modelRoute: { primary: PRIMARY_MODEL_ROUTE, visual: VISUAL_MODEL_ROUTE },
   }
-  return value as PreplanningStatusEventData
+  return {
+    ...(value as Omit<PreplanningStatusEventData, 'boundary'>),
+    boundary: normalizedBoundary(record.boundary, record.revision),
+  }
 }

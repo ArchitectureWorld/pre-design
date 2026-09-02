@@ -10,6 +10,13 @@ const panel = {
   padding: 12,
 } as const
 
+const boundarySources = {
+  approved_site_plan: '已批总平图',
+  approved_redline: '已批红线图',
+  closed_coordinates: '闭合坐标',
+  geojson: 'GeoJSON',
+} as const
+
 export function PreplanningDashboard({ status }: PreplanningDashboardProps) {
   const total = status.chapters.reduce((sum, chapter) => sum + chapter.total, 0)
   const completed = status.chapters.reduce((sum, chapter) => sum + chapter.completed, 0)
@@ -27,6 +34,12 @@ export function PreplanningDashboard({ status }: PreplanningDashboardProps) {
         <strong>模型路由</strong>
         <span>主流程：{status.modelRoute.primary}</span>
         <span>概念表现图：{status.modelRoute.visual}</span>
+      </div>
+      <div style={{ ...panel, display: 'grid', gap: 6 }}>
+        <strong>场地边界</strong>
+        <span>{status.boundary.label}</span>
+        {status.boundary.source === undefined ? null : <span>来源：{boundarySources[status.boundary.source]}</span>}
+        <span>{status.boundary.nextAction}</span>
       </div>
       <div aria-label="章节进度" style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))' }}>
         {status.chapters.map(chapter => (

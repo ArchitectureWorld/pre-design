@@ -19,6 +19,32 @@
     "mimeType": { "enum": ["image/png", "image/jpeg", "image/webp", "image/svg+xml"] },
     "fileName": { "type": "string", "minLength": 1 },
     "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+    "boundaryGeometrySha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+    "boundaryEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["origin", "attachmentId", "mediaType", "bytes", "width", "height", "storageSha256", "submittedBy", "submittedRevision"],
+      "properties": {
+        "origin": { "const": "user_image" },
+        "attachmentId": { "type": "string", "minLength": 1 },
+        "mediaType": { "enum": ["image/png", "image/jpeg", "image/webp"] },
+        "displayName": { "type": "string", "minLength": 1 },
+        "bytes": { "type": "integer", "minimum": 1 },
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 },
+        "storageSha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+        "submittedBy": {
+          "type": "object", "additionalProperties": false,
+          "required": ["actorId", "name", "role"],
+          "properties": {
+            "actorId": { "type": "string", "minLength": 1 },
+            "name": { "type": "string", "minLength": 1 },
+            "role": { "type": "string", "minLength": 1 }
+          }
+        },
+        "submittedRevision": { "type": "integer", "minimum": 0 }
+      }
+    },
     "width": { "type": "integer", "minimum": 1 },
     "height": { "type": "integer", "minimum": 1 },
     "quality": {
@@ -38,6 +64,17 @@
     {
       "if": { "properties": { "status": { "const": "adopted" } }, "required": ["status"] },
       "then": { "required": ["adoptedRevision"] }
+    },
+    {
+      "if": {
+        "required": ["taskId", "kind", "mimeType"],
+        "properties": {
+          "taskId": { "const": "site-boundary-geometry" },
+          "kind": { "const": "deterministic" },
+          "mimeType": { "const": "image/svg+xml" }
+        }
+      },
+      "then": { "required": ["boundaryGeometrySha256"] }
     }
   ]
 }

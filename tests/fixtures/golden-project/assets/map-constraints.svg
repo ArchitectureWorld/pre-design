@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" role="img" aria-labelledby="map-constraints-title map-constraints-desc" data-source="示例场地分析资料（待项目实测校核）">
+  <title id="map-constraints-title">场地资源、核心问题与限制条件分析图</title>
+  <desc id="map-constraints-desc">示例资源与限制叠加分析，不代表真实测绘或工程结论；水系、噪声、退界、建筑与易涝范围均待专题资料校核。</desc>
+  <defs>
+    <pattern id="noise-hatch" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+      <line x1="0" y1="0" x2="0" y2="12" stroke="#C5653E" stroke-width="4" opacity="0.45"/>
+    </pattern>
+  </defs>
+  <style>
+    text { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; fill: #17323A; }
+    .map-title { font-size: 34px; font-weight: 700; }
+    .map-kicker { font-size: 17px; fill: #5C7075; }
+    .feature-label { font-size: 16px; font-weight: 700; stroke: none; }
+    .minor-label { font-size: 13px; fill: #60757B; }
+    .legend-title { font-size: 18px; font-weight: 700; }
+    .legend-label { font-size: 15px; font-weight: 600; }
+    .north-label { font-size: 22px; font-weight: 800; }
+    .scale-note { font-size: 15px; font-weight: 700; fill: #5C7075; }
+    .source-note { font-size: 15px; fill: #7B878A; }
+  </style>
+  <rect width="1200" height="700" fill="#F7F4EE"/>
+  <rect x="36" y="28" width="1128" height="644" rx="18" fill="#FFFEFB" stroke="#DDE3DF"/>
+  <text class="map-title" x="60" y="72">场地资源、核心问题与限制条件分析图</text>
+  <text class="map-kicker" x="60" y="106">示例约束叠加 · 资源、风险与建设边界待专题资料校核</text>
+
+  <g class="site-map" aria-label="示例资源限制叠加底图">
+    <rect x="60" y="132" width="830" height="466" rx="18" fill="#EEF2EF" stroke="#D7E0DB"/>
+    <path d="M76 520 C226 468 350 502 468 548 C592 598 738 572 886 492 L886 598 L76 598 Z" fill="#C7DDE4"/>
+    <path d="M84 466 C224 432 350 450 474 506 C606 566 740 534 878 450" fill="none" stroke="#82AEBB" stroke-width="16" opacity="0.88"/>
+    <path d="M98 188 H856" stroke="#84969E" stroke-width="22" stroke-linecap="round"/>
+    <path d="M98 202 H856 V276 H98 Z" fill="url(#noise-hatch)" opacity="0.86"/>
+    <path d="M212 248 L704 232 L766 432 L590 532 L236 446 Z" fill="#E3EBDD" fill-opacity="0.62" stroke="#815C74" stroke-width="6" stroke-dasharray="14 10"/>
+    <path d="M248 278 L668 266 L718 414 L570 488 L278 420 Z" fill="none" stroke="#A88BA0" stroke-width="3" stroke-dasharray="8 8"/>
+    <rect x="354" y="306" width="140" height="86" rx="8" fill="#AFC3CD" stroke="#6F8C99" stroke-width="3"/>
+    <path d="M500 420 C566 374 652 386 716 448 C664 514 570 542 486 508 Z" fill="#7BA58E" fill-opacity="0.45" stroke="#4F8B68" stroke-width="3" stroke-dasharray="10 8"/>
+    <circle cx="628" cy="464" r="44" fill="#6E9CB0" fill-opacity="0.22" stroke="#4E8298" stroke-width="3" stroke-dasharray="8 6"/>
+
+    <text class="feature-label" data-feature="water-resource" x="612" y="558">滨水生态资源</text>
+    <text class="feature-label" data-feature="noise-band" x="576" y="220">噪声影响带</text>
+    <text class="feature-label" data-feature="setback" x="654" y="324">建设退界</text>
+    <text class="feature-label" data-feature="retained-building" x="372" y="354">保留建筑</text>
+    <text class="feature-label" data-feature="flood-risk" x="590" y="470">易涝关注区</text>
+    <text class="minor-label" x="252" y="260">示例研究范围</text>
+  </g>
+
+  <g class="information-panel">
+    <rect x="914" y="132" width="230" height="466" rx="18" fill="#F5F1E9" stroke="#DED7C9"/>
+    <g class="map-legend" transform="translate(940 176)">
+      <text class="legend-title" x="0" y="0">资源限制图例</text>
+      <g class="legend-item" transform="translate(0 54)"><line data-swatch="water" x1="0" y1="0" x2="54" y2="0" stroke="#82AEBB" stroke-width="14" stroke-linecap="round"/><text class="legend-label" x="72" y="5">水系资源</text></g>
+      <g class="legend-item" transform="translate(0 104)"><rect data-swatch="noise" x="0" y="-12" width="54" height="24" fill="url(#noise-hatch)" stroke="#C5653E"/><text class="legend-label" x="72" y="5">噪声限制</text></g>
+      <g class="legend-item" transform="translate(0 154)"><line data-swatch="setback" x1="0" y1="0" x2="54" y2="0" stroke="#815C74" stroke-width="6" stroke-dasharray="12 8"/><text class="legend-label" x="72" y="5">建设退界</text></g>
+      <g class="legend-item" transform="translate(0 204)"><rect data-swatch="retained" x="0" y="-12" width="54" height="24" rx="4" fill="#AFC3CD" stroke="#6F8C99"/><text class="legend-label" x="72" y="5">保留建筑</text></g>
+    </g>
+    <g id="north-arrow" transform="translate(1005 498)">
+      <path d="M24 -48 L39 8 L24 -2 L9 8 Z" fill="#17323A"/><line x1="24" y1="-2" x2="24" y2="38" stroke="#17323A" stroke-width="3"/>
+      <text class="north-label" x="24" y="-62" text-anchor="middle">N</text>
+    </g>
+    <text class="scale-note" x="1029" y="566" text-anchor="middle">NTS · 非测绘比例</text>
+  </g>
+
+  <line x1="60" y1="626" x2="1140" y2="626" stroke="#E4E8E5"/>
+  <text class="source-note" x="60" y="658">示例场地分析资料（待项目实测校核）</text>
+</svg>

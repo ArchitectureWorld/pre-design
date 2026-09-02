@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { DirectStartInput } from './direct-start.ts'
 import { PreplanningProjectForm } from './PreplanningProjectForm.tsx'
 
@@ -32,7 +33,10 @@ export function PreplanningLauncher({ start }: PreplanningLauncherProps) {
       >
         前期策划
       </button>
-      {open && <PreplanningProjectForm onClose={() => setOpen(false)} start={start} />}
+      {open && typeof document !== 'undefined' && createPortal(
+        <PreplanningProjectForm onClose={() => setOpen(false)} start={start} />,
+        document.body,
+      )}
     </div>
   )
 }

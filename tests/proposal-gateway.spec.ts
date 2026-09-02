@@ -152,7 +152,7 @@ describe('ProposalGateway', () => {
         status: 'confirmed',
         revision: 1,
         updated_at: '2026-08-27T16:10:00.000Z',
-        data: { status: 'confirmed' },
+        data: { status: 'pending_review' },
         approval: {
           status: 'approved',
           approver: {

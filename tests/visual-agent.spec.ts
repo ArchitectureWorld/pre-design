@@ -9,6 +9,7 @@ interface StartSpec {
 
 function fixture(options: {
   startError?: Error
+  waitUntilAborted?: boolean
   existingChild?: boolean
   existingChildId?: string
   existingAttempts?: number
@@ -35,6 +36,7 @@ function fixture(options: {
   const startContinuable = options.startError === undefined
     ? vi.fn(async (spec: StartSpec) => ({ childId: spec.childId, messageId: 'message-1' }))
     : vi.fn(async () => { throw options.startError })
+  const interrupt = vi.fn()
   const service = new VisualAgentService({
     governance: {
       readProject: vi.fn(() => ({ visualTasks, visualAssets })),
@@ -49,6 +51,7 @@ function fixture(options: {
     llm: { listModels: vi.fn(async () => [{ id: 'gemini-3.1-flash-image' }]) } as never,
     subagents: {
       startContinuable,
+      interrupt,
     } as never,
     collector: {
       findExistingImage: vi.fn(async () => options.lateImage ? ({
@@ -56,6 +59,11 @@ function fixture(options: {
       }) : undefined),
       waitForImage: vi.fn(async (_childId, _afterSeq, signal: AbortSignal) => {
         if (signal.aborted) throw signal.reason
+        if (options.waitUntilAborted) {
+          await new Promise<void>((_resolve, reject) => {
+            signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+          })
+        }
         return ({
           mimeType: 'image/png', data: new Uint8Array([1, 2, 3]), width: 1600, height: 900,
         })
@@ -70,7 +78,7 @@ function fixture(options: {
     } as never,
     now: () => '2026-08-28T08:30:00.000Z',
   })
-  return { service, visualTasks, visualAssets, putVisualTask, startContinuable }
+  return { service, visualTasks, visualAssets, putVisualTask, startContinuable, interrupt }
 }
 
 describe('VisualAgentService', () => {
@@ -106,7 +114,7 @@ describe('VisualAgentService', () => {
   })
 
   it('blocks the governed visual task when the exact route cannot start and never substitutes a model', async () => {
-    const { service, visualTasks, startContinuable } = fixture({ startError: new Error('model not found') })
+    const { service, visualTasks, startContinuable, interrupt } = fixture({ startError: new Error('model not found') })
     const task = {
       taskId: 'task-1', projectId: 'project-1', chapterId: '03', workItemId: '03-06',
       kind: 'concept' as const, required: true, prompt: '滨水公共文化空间概念表现图',
@@ -116,6 +124,7 @@ describe('VisualAgentService', () => {
       expect.objectContaining<Partial<VisualAgentError>>({ code: 'visual-model-unavailable' }),
     )
     expect(startContinuable).toHaveBeenCalledOnce()
+    expect(interrupt).not.toHaveBeenCalled()
     expect(visualTasks[0]).toMatchObject({
       status: 'blocked', blockedReason: expect.stringContaining('gemini-3.1-flash-image'),
     })
@@ -143,6 +152,58 @@ describe('VisualAgentService', () => {
     })
     expect(visualTasks[0]).toMatchObject({ status: 'adopted' })
     expect(visualTasks[0]).not.toHaveProperty('blockedReason')
+  })
+
+  it('interrupts the accepted child when the caller deadline aborts image collection', async () => {
+    const { service, visualTasks, visualAssets, startContinuable, interrupt } = fixture({ waitUntilAborted: true })
+    const parent = { id: 'parent-1' }
+    const task = {
+      taskId: 'task-1', projectId: 'project-1', chapterId: '03', workItemId: '03-06',
+      kind: 'concept' as const, required: true, prompt: '滨水公共文化空间概念表现图',
+    }
+    const controller = new AbortController()
+    const generated = service.generate(parent as never, task, controller.signal)
+
+    await vi.waitFor(() => expect(startContinuable).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(interrupt).not.toHaveBeenCalled())
+    controller.abort(new Error('visual task deadline exceeded'))
+
+    await expect(generated).rejects.toEqual(expect.objectContaining<Partial<VisualAgentError>>({
+      code: 'visual-generation-failed',
+    }))
+    expect(interrupt).toHaveBeenCalledOnce()
+    expect(interrupt).toHaveBeenCalledWith(expect.stringMatching(/^preplanning-visual-/u), {
+      kind: 'ancestor', agent: parent,
+    })
+    expect(visualTasks[0]).toMatchObject({ status: 'blocked' })
+    expect(visualAssets).toHaveLength(0)
+  })
+
+  it('supersedes a rejected candidate only with an adopted replacement for the same visual brief', async () => {
+    const { service, visualTasks, visualAssets } = fixture()
+    const task = {
+      taskId: 'task-1', projectId: 'project-1', chapterId: '03', workItemId: '03-06',
+      kind: 'concept' as const, required: true, prompt: '滨水公共文化空间概念表现图',
+    }
+    await service.generate({ id: 'parent-1' } as never, task, AbortSignal.timeout(1000))
+    visualTasks.push({
+      taskId: 'task-2', projectId: 'project-1', chapterId: '03', workItemId: '03-06',
+      kind: 'concept', required: true, status: 'adopted', attempts: 1, updatedAt: '2026-08-28T08:35:00.000Z',
+    })
+    visualAssets.push({
+      assetId: 'asset-2', taskId: 'task-2', projectId: 'project-1', kind: 'concept', required: true,
+      status: 'adopted', mimeType: 'image/png', fileName: 'project-1/candidates/asset-2.png',
+      sha256: 'b'.repeat(64), width: 1600, height: 900, createdAt: '2026-08-28T08:35:00.000Z',
+      adoptedRevision: 12, quality: { accepted: true, score: 100, issues: [] },
+    })
+
+    await expect(service.replace('project-1', 'asset-1', 'asset-2')).resolves.toMatchObject({
+      rejectedAssetId: 'asset-1', replacementAssetId: 'asset-2',
+    })
+    expect(visualAssets.find(asset => asset.assetId === 'asset-1')).toMatchObject({ status: 'rejected' })
+    expect(visualTasks.find(row => row.taskId === 'task-1')).toMatchObject({
+      required: false, status: 'failed', blockedReason: '已由采用资产 asset-2 替代',
+    })
   })
 
   it('starts a fresh task attempt instead of reusing a restored child with image history', async () => {

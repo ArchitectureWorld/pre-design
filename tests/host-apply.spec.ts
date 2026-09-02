@@ -10,6 +10,7 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createD1ProposalExample, PREPLANNING_SYSTEM_PROMPT } from '../src/prompts/preplanning-system.ts'
 import * as HostPlugin from '../src/index.ts'
+import { SiteBoundaryService } from '../src/governance/site-boundary-service.ts'
 import { ReportPackageService } from '../src/report/package-service.ts'
 import { VisualAgentService } from '../src/visual/agent.ts'
 
@@ -22,7 +23,7 @@ afterEach(async () => {
 })
 
 describe('Host apply composition', () => {
-  it('在真实 Storage Domain 上提供全流程 Host、十三命令、两工具和系统提示', async () => {
+  it('在真实 Storage Domain 上提供全流程 Host、十七命令、两工具和系统提示', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-preplanning-host-'))
     roots.push(root)
     const ctx = new Context()
@@ -59,12 +60,16 @@ describe('Host apply composition', () => {
     await vi.waitFor(() => expect(ctx.get('preplanning')).toBeDefined())
     expect(ctx.get('preplanning')?.visual).toBeInstanceOf(VisualAgentService)
     expect(ctx.get('preplanning')?.reports).toBeInstanceOf(ReportPackageService)
+    const reportOptions = Reflect.get(ctx.get('preplanning')!.reports, 'options') as { readonly boundaryIntegrity?: unknown }
+    expect(reportOptions.boundaryIntegrity).toBeInstanceOf(SiteBoundaryService)
     expect(routes).toEqual([expect.objectContaining({ kind: 'prefix', path: '/preplan-export' })])
 
     expect(commands.map(definition => definition.name)).toEqual([
       'preplan-new', 'preplan-open', 'preplan-list', 'preplan-status', 'preplan-confirm',
       'preplan-mode', 'preplan-run', 'preplan-pause', 'preplan-gate', 'preplan-revise',
-      'preplan-visual', 'preplan-visual-adopt', 'preplan-export',
+      'preplan-visual', 'preplan-visual-adopt', 'preplan-visual-replace',
+      'preplan-boundary-asset', 'preplan-boundary-coordinates', 'preplan-boundary-confirm',
+      'preplan-export',
     ])
     expect(tools.map(definition => definition.name)).toEqual([
       'preplanning_get_context', 'preplanning_apply_commands',
@@ -81,6 +86,7 @@ describe('Host apply composition', () => {
     } as never)
     expect(created?.kind).toBe('success')
     if (created?.kind !== 'success') throw new Error('preplan-new did not create the test project')
+    expect(created.text).toContain('尚未提供场地边界')
     const envelope = createD1ProposalExample({
       projectId: 'preplan-test-project',
       projectName: '鄂州体育中心项目',

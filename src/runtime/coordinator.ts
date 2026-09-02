@@ -29,10 +29,14 @@ export class AutomationCoordinator {
 
   private async run(agent: CoordinatorAgent, projectId: string, token: symbol): Promise<void> {
     try {
+      let resumed = this.runtime.current(projectId)
       while (this.running.get(projectId) === token) {
-        const next = this.runtime.nextReady(projectId)
+        const next = resumed ?? this.runtime.nextReady(projectId)
         if (next === undefined) return
-        await this.runtime.transition(projectId, next.workflowId, { to: 'running' })
+        if (resumed === undefined) {
+          await this.runtime.transition(projectId, next.workflowId, { to: 'running' })
+        }
+        resumed = undefined
         const text = [
           '继续前期策划全流程。只处理 nextWorkflow，不得猜测其他工作项或 Schema。',
           `nextWorkflow: ${next.workflowId}`,
@@ -51,6 +55,7 @@ export class AutomationCoordinator {
         }))
         await agent.whenIdle()
         if (this.runtime.snapshot(projectId).blocked.length > 0) return
+        if (this.runtime.current(projectId)?.workflowId === next.workflowId) return
       }
     } finally {
       if (this.running.get(projectId) === token) this.running.delete(projectId)

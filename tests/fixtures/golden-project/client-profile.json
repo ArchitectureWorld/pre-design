@@ -1,0 +1,147 @@
+{
+  "identity": {
+    "projectId": "preplan-302341b7-da7e-479b-9fc6-88b8fa7fd1e6",
+    "projectName": "滨江文化活力区前期策划",
+    "reportTitle": "滨江文化活力区价值重构提案",
+    "reportDate": "2026-08-29",
+    "audience": "executive-and-professional",
+    "locale": "zh-CN"
+  },
+  "proposition": {
+    "projectDefinition": "面向城市更新与滨水生活方式升级的复合型公共项目",
+    "urgency": "存量提质阶段需要尽快把滨水资源转化为可使用、可运营的城市界面",
+    "coreValue": "以公共文化主轴串联滨水开放空间，形成持续发生的城市生活目的地",
+    "positioning": "城市滨水文化生活新客厅",
+    "keywords": ["滨水开放", "文化体验", "复合运营", "分期实施"]
+  },
+  "themeOverrides": { "colors": { "primary": "0D5D66", "accent": "B85C3A" } },
+  "visualContractVersion": "architectural-v1",
+  "chapters": [
+    {
+      "id": "chapter-01", "role": "brief", "headline": "滨江更新从单点改造转向城市价值重构", "claim": "以城市公共价值统领项目定义、服务对象与成果边界。", "sourceObjectIds": ["PS01"],
+      "blocks": [
+        { "type": "evidence", "headline": "城市区位关系明确项目所处的区域网络", "evidenceIds": ["evidence-1"], "assetIds": ["map-regional"] },
+        { "type": "comparison", "headline": "示例研究范围明确本次分析边界", "before": "空间节点彼此分散，使用时段和人群覆盖有限", "after": "公共文化主轴串联水岸、场馆和社区服务", "evidenceIds": ["evidence-2"], "assetIds": ["map-boundary"] }
+      ]
+    },
+    {
+      "id": "chapter-02", "role": "diagnosis", "headline": "空间割裂与活力不足是当前核心矛盾", "claim": "现状资源具有城市级潜力，但仍缺少连续开放、全天候使用和运营协同。", "sourceObjectIds": ["BL01"],
+      "blocks": [
+        { "type": "evidence", "headline": "现状功能分布揭示空间断点", "evidenceIds": ["evidence-3"], "assetIds": ["map-existing"] },
+        { "type": "comparison", "headline": "可达性组织城市网络", "before": "场馆、绿地和水岸各自运行", "after": "慢行、活动和服务共同组织城市客流", "evidenceIds": ["evidence-4"], "assetIds": ["map-access"] }
+      ]
+    },
+    {
+      "id": "chapter-03", "role": "opportunity", "headline": "滨水公共界面能够转化为持续运营的城市资产", "claim": "门户、文化核心与连续水岸是最具杠杆效应的三类机会。", "sourceObjectIds": ["DG01"],
+      "blocks": [
+        { "type": "evidence", "headline": "关键流线组织门户与水岸", "evidenceIds": ["evidence-5"], "assetIds": ["map-circulation"] },
+        { "type": "comparison", "headline": "资源与限制条件指导空间骨架", "before": "活动依赖临时组织并相互干扰", "after": "弹性场地支撑日常休闲与城市节庆", "evidenceIds": ["evidence-6"], "assetIds": ["map-constraints"] }
+      ]
+    },
+    {
+      "id": "chapter-04", "role": "positioning", "headline": "以文化主轴建立可传播的滨江项目身份", "claim": "项目定位为城市滨水文化生活新客厅。", "sourceObjectIds": ["OB01"],
+      "blocks": [
+        { "type": "evidence", "headline": "现状空间构成支撑定位判断", "evidenceIds": ["evidence-7"], "assetIds": ["chart-existing"] },
+        { "type": "comparison", "headline": "复合客群支撑全天候目的地", "before": "到访理由单一且停留时间有限", "after": "文化、休闲、社交与轻消费形成全天组合", "evidenceIds": ["evidence-8"], "assetIds": ["chart-audience"] }
+      ]
+    },
+    {
+      "id": "chapter-05", "role": "strategy", "headline": "公共价值与经营活力必须由同一策略统筹", "claim": "公共服务保底、主题内容引流、轻量经营补充运营。", "sourceObjectIds": ["OP01"],
+      "blocks": [
+        { "type": "evidence", "headline": "可达性数据支撑共享场景", "evidenceIds": ["evidence-9"], "assetIds": ["chart-access"] },
+        { "type": "comparison", "headline": "运营投入兼顾体验与韧性", "before": "工程设施与公共活动空间相互分离", "after": "雨洪花园、生态台地和亲水界面一体组织", "evidenceIds": ["evidence-10"], "assetIds": ["chart-operation"] }
+      ]
+    },
+    {
+      "id": "chapter-06", "role": "product", "headline": "三类核心产品共同支撑全天候滨水体验", "claim": "滨水文化生活客厅是统领内容、空间与运营的首要产品。", "sourceObjectIds": ["PG01"],
+      "blocks": [
+        { "type": "product", "productId": "product-waterfront-hall", "assetIds": ["chart-phasing"] },
+        { "type": "evidence", "headline": "产品组合形成明确价值贡献", "evidenceIds": ["evidence-11"], "assetIds": ["chart-value"] }
+      ]
+    },
+    {
+      "id": "chapter-07", "role": "spatial", "headline": "连续空间让产品、活动与人流真正发生", "claim": "一轴、两带、三核与多场景共同形成可步行、可停留的空间骨架。", "sourceObjectIds": ["SP01"],
+      "blocks": [
+        { "type": "narrative", "statement": "空间骨架优先连接门户、文化核心、生态水岸与社区入口。", "evidenceIds": ["evidence-3"] },
+        { "type": "metric", "label": "连续开放界面", "value": "一体化", "unit": "空间系统", "evidenceIds": ["evidence-7"] }
+      ]
+    },
+    {
+      "id": "chapter-08", "role": "operation", "headline": "公益服务与市场运营形成可持续组合", "claim": "公共服务保底、主题内容引流、轻量经营补充运营。", "sourceObjectIds": ["IM05"],
+      "blocks": [
+        { "type": "narrative", "statement": "建设、内容策划和运营团队需要在首期同步介入。", "evidenceIds": ["evidence-8"] },
+        { "type": "evidence", "headline": "多时段内容组合提升设施与空间使用效率", "evidenceIds": ["evidence-9"], "assetIds": [] }
+      ]
+    },
+    {
+      "id": "chapter-09", "role": "implementation", "headline": "首期启动区优先验证公共界面与运营模型", "claim": "以示范先行、骨架成网、场景扩展的路径降低一次性投入风险。", "sourceObjectIds": ["IM07"],
+      "blocks": [
+        { "type": "timeline", "headline": "三阶段把共同判断转化为连续行动", "phases": [
+          { "phaseId": "phase-1", "name": "示范先行", "actions": ["启动门户节点与慢行示范段"], "prerequisites": ["确认首期边界"] },
+          { "phaseId": "phase-2", "name": "骨架成网", "actions": ["贯通文化核心与生态水岸"], "prerequisites": ["完成专项深化"] },
+          { "phaseId": "phase-3", "name": "场景扩展", "actions": ["导入复合内容与持续活动"], "prerequisites": ["验证运营模型"] }
+        ], "evidenceIds": ["evidence-11"] },
+        { "type": "investment", "headline": "首期投入优先保障公共空间与基础设施", "items": [
+          { "name": "示范先行", "amount": "1200", "unit": "万元", "assumption": "测试阶段示例测算，待项目清单与造价校核" },
+          { "name": "骨架成网", "amount": "2800", "unit": "万元", "assumption": "测试阶段示例测算，待项目清单与造价校核" },
+          { "name": "场景扩展", "amount": "4500", "unit": "万元", "assumption": "测试阶段示例测算，待项目清单与造价校核" }
+        ], "evidenceIds": ["evidence-12"] }
+      ]
+    },
+    {
+      "id": "chapter-10", "role": "decision", "headline": "锁定定位、首期边界与实施机制", "claim": "三项共同决策是进入概念深化与专题测算的前提。", "sourceObjectIds": ["IM08"],
+      "blocks": [
+        { "type": "narrative", "statement": "总体定位、首期边界与建设运营协同机制需要同步确定。", "evidenceIds": ["evidence-11"] },
+        { "type": "evidence", "headline": "分期实施与运营前置共同降低项目不确定性", "evidenceIds": ["evidence-11"], "assetIds": [] },
+        { "type": "decision", "headline": "形成三项可执行决策", "asks": ["确认总体定位", "确认首期启动边界", "确认建设与运营协同机制"], "rationaleEvidenceIds": ["evidence-12"] }
+      ]
+    }
+  ],
+  "products": [
+    {
+      "productId": "product-waterfront-hall", "name": "滨水文化生活客厅", "valueProposition": "把公共开放空间转化为全天候文化、社交与轻消费目的地", "audiences": ["周边居民", "城市家庭", "青年客群"], "contents": ["公共展演", "滨水休闲", "文化零售"], "usageScenarios": ["日常休闲", "周末活动", "城市节庆"], "spatialCarrier": "滨水首层公共界面与连续步行空间", "operatingModel": "公共服务保底、主题活动引流、轻商业补充运营", "valueContribution": "提升公共空间使用率并建立项目持续传播能力", "evidenceIds": ["evidence-6", "evidence-7"]
+    }
+  ],
+  "evidence": [
+    { "evidenceId": "evidence-1", "kind": "fact", "statement": "项目目标覆盖公共文化、生态水岸与城市生活三类价值。", "sourceLabel": "项目策划示例资料（待项目实测校核）", "sourceDate": "2026-08-28", "locator": "项目简报·目标体系" },
+    { "evidenceId": "evidence-2", "kind": "fact", "statement": "现有资源需要通过连续公共界面建立整体识别。", "sourceLabel": "项目策划示例资料（待项目实测校核）", "sourceDate": "2026-08-28", "locator": "项目简报·成果边界" },
+    { "evidenceId": "evidence-3", "kind": "observation", "statement": "门户、文化核心与水岸之间仍缺少连续步行体验。", "sourceLabel": "示例场地观察（待项目实测校核）", "sourceDate": "2026-08-28", "locator": "场地观察·空间联系" },
+    { "evidenceId": "evidence-4", "kind": "observation", "statement": "公共活动与日常使用尚未形成稳定的时段组合。", "sourceLabel": "示例使用观察（待项目实测校核）", "sourceDate": "2026-08-28", "locator": "使用观察·时段特征" },
+    { "evidenceId": "evidence-5", "kind": "case", "statement": "高识别门户能够提升首访吸引力并组织后续游线。", "sourceLabel": "示例案例研究（待项目实测校核）", "sourceDate": "2026-08-28", "locator": "案例摘要·门户节点" },
+    { "evidenceId": "evidence-6", "kind": "case", "statement": "弹性公共空间能够兼容日常休闲与主题活动。", "sourceLabel": "示例案例研究（待项目实测校核）", "sourceDate": "2026-08-28", "locator": "案例摘要·弹性场地" },
+    { "evidenceId": "evidence-7", "kind": "policy", "statement": "连续慢行与开放空间是滨水公共价值实现的重要载体。", "sourceLabel": "示例规划摘要（待项目实测校核）", "sourceDate": "2026-08-28", "locator": "规划摘要·公共空间" },
+    { "evidenceId": "evidence-8", "kind": "assumption", "statement": "公共服务与轻量经营可以共享客流和空间基础设施。", "sourceLabel": "示例运营假设（待项目实测校核）", "sourceDate": "2026-08-28", "locator": "运营假设·协同机制" },
+    { "evidenceId": "evidence-9", "kind": "observation", "statement": "家庭、青年与社区居民对全天候共享场景具有重叠需求。", "sourceLabel": "示例人群观察（待项目实测校核）", "sourceDate": "2026-08-28", "locator": "人群观察·使用需求" },
+    { "evidenceId": "evidence-10", "kind": "policy", "statement": "生态设施应与公共空间和景观体验一体设计。", "sourceLabel": "示例生态策略摘要（待项目实测校核）", "sourceDate": "2026-08-28", "locator": "生态摘要·韧性系统" },
+    { "evidenceId": "evidence-11", "kind": "assumption", "statement": "示范先行有利于在扩大建设前验证空间与运营模型。", "sourceLabel": "示例实施假设（待项目实测校核）", "sourceDate": "2026-08-28", "locator": "实施假设·分期路径" },
+    { "evidenceId": "evidence-12", "kind": "calculation", "statement": "示范先行、骨架成网与场景扩展的示例投资分别为 1200、2800、4500 万元。", "sourceLabel": "示例测算假设（待项目实测校核）", "sourceDate": "2026-08-28", "locator": "测算口径·分期投资", "unit": "万元", "assumption": "测试阶段自定义示例数据；正式金额须由项目清单、造价与实施边界校核" }
+  ],
+  "assetBindings": [
+    { "assetId": "hero-concept", "role": "hero", "chapterId": "chapter-07", "sha256": "99af96858d34fa167272536ace23d563b3c7bec34bcdbddbeb5362944e133235", "width": 1024, "height": 1024 },
+    { "assetId": "map-regional", "role": "map", "analysisKind": "regional-context", "chapterId": "chapter-01", "sha256": "e79da2e13ca35b89696371f359f3753605ad66100aedf571240b888682a7addb", "width": 1200, "height": 700, "provenance": {"sourceLabel":"示例场地分析资料（待项目实测校核）","sourceDate":"2026-08-28","locator":"城市区位","sourceFileSha256":"e79da2e13ca35b89696371f359f3753605ad66100aedf571240b888682a7addb","evidenceIds":["evidence-1"]}, "cartography":{"boundary":"not-applicable","legend":"present","northArrow":"present","scale":{"kind":"nts"}} },
+    { "assetId": "map-boundary", "role": "map", "analysisKind": "site-boundary", "chapterId": "chapter-01", "sha256": "319cbb51bab59ad4ef24700bcee5184303d3f4830c890de83d9e862ed64065e6", "width": 1200, "height": 700, "provenance": {"sourceLabel":"示例场地分析资料（待项目实测校核）","sourceDate":"2026-08-28","locator":"研究范围","sourceFileSha256":"319cbb51bab59ad4ef24700bcee5184303d3f4830c890de83d9e862ed64065e6","evidenceIds":["evidence-2"]}, "cartography":{"boundary":"research","disclosures":["研究范围（待核）","非法定红线","非测绘成果"],"legend":"present","northArrow":"present","scale":{"kind":"scale-bar","label":"0 50 100m"}} },
+    { "assetId": "map-existing", "role": "map", "analysisKind": "existing-condition", "chapterId": "chapter-02", "sha256": "3970972c86da2d2ff6008bb61ba6137fd729610c0adde24e2cded91c92a37e04", "width": 1200, "height": 700, "provenance": {"sourceLabel":"示例场地分析资料（待项目实测校核）","sourceDate":"2026-08-28","locator":"现状分布","sourceFileSha256":"3970972c86da2d2ff6008bb61ba6137fd729610c0adde24e2cded91c92a37e04","evidenceIds":["evidence-3"]}, "cartography":{"boundary":"not-applicable","legend":"present","northArrow":"present","scale":{"kind":"scale-bar","label":"0 50 100m"}} },
+    { "assetId": "map-access", "role": "diagram", "analysisKind": "accessibility", "chapterId": "chapter-02", "sha256": "ca22f65c9172e201d8f60346deabe7c0afc08af932c48e9b651d88481e747626", "width": 1200, "height": 700, "provenance": {"sourceLabel":"示例场地分析资料（待项目实测校核）","sourceDate":"2026-08-28","locator":"交通可达","sourceFileSha256":"ca22f65c9172e201d8f60346deabe7c0afc08af932c48e9b651d88481e747626","evidenceIds":["evidence-4"]}, "cartography":{"boundary":"not-applicable","legend":"present","northArrow":"present","scale":{"kind":"nts"}} },
+    { "assetId": "map-circulation", "role": "diagram", "analysisKind": "circulation", "chapterId": "chapter-03", "sha256": "4482185d6370b1c9a6e8b5cb0cbde8aa2743f79c687e38b396878cf3337a7f86", "width": 1200, "height": 700, "provenance": {"sourceLabel":"示例研究数据（待项目实测校核）","sourceDate":"2026-08-28","locator":"内部流线","sourceFileSha256":"4482185d6370b1c9a6e8b5cb0cbde8aa2743f79c687e38b396878cf3337a7f86","evidenceIds":["evidence-5"]}, "cartography":{"boundary":"not-applicable","legend":"present","northArrow":"present","scale":{"kind":"nts"}} },
+    { "assetId": "map-constraints", "role": "diagram", "analysisKind": "constraints", "chapterId": "chapter-03", "sha256": "50d3ff205421a7cb4416d3f6bf2a8387a47b4d7e74907cbf93bf1c0c60b6b6d9", "width": 1200, "height": 700, "provenance": {"sourceLabel":"示例场地分析资料（待项目实测校核）","sourceDate":"2026-08-28","locator":"资源限制","sourceFileSha256":"50d3ff205421a7cb4416d3f6bf2a8387a47b4d7e74907cbf93bf1c0c60b6b6d9","evidenceIds":["evidence-6"]}, "cartography":{"boundary":"not-applicable","legend":"present","northArrow":"present","scale":{"kind":"nts"}} },
+    { "assetId": "3cf536a1-67ad-49f8-bc06-d6c46ea089d2", "role": "material", "chapterId": "chapter-01", "sha256": "99af96858d34fa167272536ace23d563b3c7bec34bcdbddbeb5362944e133235", "width": 1024, "height": 1024 },
+    { "assetId": "d332e8a8-e993-4c15-92ba-ca5275fce459", "role": "material", "chapterId": "chapter-01", "sha256": "f5602cb578cd3ddc8533cccfe7aee3d187dc7af57c47939f2484be2b826649da", "width": 1024, "height": 1024 },
+    { "assetId": "544ffd7a-2327-4526-9dd4-f88a9845c262", "role": "material", "chapterId": "chapter-02", "sha256": "88170c42cb721af13965601f35f974736d14fa574fcacbf0072ac4c657b3ae6c", "width": 1024, "height": 1024 },
+    { "assetId": "823c34a7-d55f-4e68-a7cb-fb757b35492c", "role": "material", "chapterId": "chapter-02", "sha256": "05fa509d79e7ae4aed7bb28efc9a6c18142453135c387826be5d4e46df041fbf", "width": 1024, "height": 1024 },
+    { "assetId": "d9eff9bf-7531-4050-9e16-682d84fe62ea", "role": "material", "chapterId": "chapter-03", "sha256": "903929c6b7249e559fc7bb9d139945aa6551a06d610685b160688f3401d21af7", "width": 1024, "height": 1024 },
+    { "assetId": "a39b829c-dbf8-4aba-9617-6cd93b7bc48f", "role": "material", "chapterId": "chapter-03", "sha256": "3d8475a3a6566149d02393e86dfed28738b47e77c4dc9a98997b5033fb31f6d0", "width": 1024, "height": 1024 },
+    { "assetId": "chart-existing", "role": "chart", "chartTopic": "existing-condition", "chapterId": "chapter-04", "sha256": "e8448fb380cb1353e0d86cfb3fa1a4bd8fc5d3c1fd9a30cadf9af60bd5039531", "width": 1200, "height": 700, "provenance":{"sourceLabel":"示例研究数据（待项目实测校核）","sourceDate":"2026-08-28","locator":"现状空间构成","sourceFileSha256":"e8448fb380cb1353e0d86cfb3fa1a4bd8fc5d3c1fd9a30cadf9af60bd5039531","evidenceIds":["evidence-7"]},"chartContract":{"unit":"%","methodology":"按示例研究空间分类面积占比汇总，待项目实测校核"}},
+    { "assetId": "chart-audience", "role": "chart", "chartTopic": "audience-demand", "chapterId": "chapter-04", "sha256": "418b66e1914e39f55a99da2eb28b7a6ebf273f427409cfe22b2607c2cea04de7", "width": 1200, "height": 700, "provenance":{"sourceLabel":"示例研究数据（待项目实测校核）","sourceDate":"2026-08-28","locator":"客群与时段需求","sourceFileSha256":"418b66e1914e39f55a99da2eb28b7a6ebf273f427409cfe22b2607c2cea04de7","evidenceIds":["evidence-8"]},"chartContract":{"unit":"人次/日","methodology":"按示例研究典型日分时到访需求估算，待项目实测校核"}},
+    { "assetId": "chart-access", "role": "chart", "chartTopic": "accessibility", "chapterId": "chapter-05", "sha256": "9fd3756f9f6986c7ef71913cd41a689b55fea7e67120567ff3c9f05ef26fdef7", "width": 1200, "height": 700, "provenance":{"sourceLabel":"示例研究数据（待项目实测校核）","sourceDate":"2026-08-28","locator":"步行服务半径","sourceFileSha256":"9fd3756f9f6986c7ef71913cd41a689b55fea7e67120567ff3c9f05ef26fdef7","evidenceIds":["evidence-9"]},"chartContract":{"unit":"万人","methodology":"按示例研究步行等时圈覆盖人口估算，待项目实测校核"}},
+    { "assetId": "chart-operation", "role": "chart", "chartTopic": "operation-investment", "chapterId": "chapter-05", "sha256": "bce2df4256dcfd8fdeefb4a69e2f471455a289d1f203aea1f447c11c6102aa47", "width": 1200, "height": 700, "provenance":{"sourceLabel":"示例研究数据（待项目实测校核）","sourceDate":"2026-08-28","locator":"运营收支结构","sourceFileSha256":"bce2df4256dcfd8fdeefb4a69e2f471455a289d1f203aea1f447c11c6102aa47","evidenceIds":["evidence-10"]},"chartContract":{"unit":"万元/年","methodology":"按示例研究分阶段运营收支估算，待项目实测校核"}},
+    { "assetId": "chart-phasing", "role": "chart", "chartTopic": "implementation-phasing", "chapterId": "chapter-06", "sha256": "24254ca37c91d30f8afc671157f7f04ca86854ac1de6484c40d05096db1331e9", "width": 1200, "height": 700, "provenance":{"sourceLabel":"示例研究数据（待项目实测校核）","sourceDate":"2026-08-28","locator":"分期建设节奏","sourceFileSha256":"24254ca37c91d30f8afc671157f7f04ca86854ac1de6484c40d05096db1331e9","evidenceIds":["evidence-11"]},"chartContract":{"unit":"万元","methodology":"按示例研究建设包估算投资节奏，待项目实测校核"}},
+    { "assetId": "chart-value", "role": "chart", "chartTopic": "product-value", "chapterId": "chapter-06", "sha256": "a8565f3327e672ee64f86de15e67352a810fc60fac95a2249b21c911f392ef9d", "width": 1200, "height": 700, "provenance":{"sourceLabel":"示例研究数据（待项目实测校核）","sourceDate":"2026-08-28","locator":"产品价值贡献","sourceFileSha256":"a8565f3327e672ee64f86de15e67352a810fc60fac95a2249b21c911f392ef9d","evidenceIds":["evidence-11"]},"chartContract":{"unit":"价值指数","methodology":"按示例研究公共性、吸引力与运营协同三项加权评分，待项目实测校核"}},
+    { "assetId": "1010aa6d-325d-4244-885b-5d2ff4e17d45", "role": "material", "chapterId": "chapter-04", "sha256": "19e661245169a6d34dd2787686a742c011512d4934c2d30ff10b92041510d762", "width": 1024, "height": 1024 },
+    { "assetId": "a61a8b61-751d-44fb-ae94-52a674d95636", "role": "material", "chapterId": "chapter-04", "sha256": "adaee897d1f5495d97a4603ffa648323c33573c55a9df4994b811be1850a36d6", "width": 1024, "height": 1024 },
+    { "assetId": "89654316-d099-42f7-a0dd-99307011775d", "role": "material", "chapterId": "chapter-05", "sha256": "2ad2339a635c7260c3c783f1f681159507871163e5db32c04b4db28707595a2c", "width": 1024, "height": 1024 },
+    { "assetId": "35be1849-48f0-4195-834b-90b18962f1bf", "role": "material", "chapterId": "chapter-05", "sha256": "bf63b5806c00d923976aa060d61dc45dde0c385061153f4bfcd9c490dcb37b70", "width": 1024, "height": 1024 },
+    { "assetId": "206b6cec-1fa4-4d99-82c6-8a6372ca5734", "role": "material", "chapterId": "chapter-06", "sha256": "3f64046b49e482ce395bb75cb8da335f0c2fd1b5058f9cbe9d51cc99a1de7191", "width": 1024, "height": 1024 },
+    { "assetId": "recovered-concept-02-attempt2-1", "role": "material", "chapterId": "chapter-06", "sha256": "a7a70267f717e75916b2864574aeddcd2332162e5d073c53bc006b7f4b8d3857", "width": 1024, "height": 1024 }
+  ],
+  "requiredVisualRoles": ["hero", "map", "diagram", "chart"]
+}
