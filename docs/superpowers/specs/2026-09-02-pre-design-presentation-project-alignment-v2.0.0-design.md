@@ -76,7 +76,7 @@ DSH Harness
 ### 2.2 `presentation-tools` 负责
 
 - 定义并维护 Presentation 标准项目格式；
-- 发布版本化 Schema、类型、Fixture、示例和验证器；
+- 发布版本化 Schema、类型、Fixture、示例、稳定 ID Factory 和验证器；
 - 读取标准项目文件；
 - 将大纲、草案、素材和排版可视化；
 - 供人或当前 DSH Agent 编辑和操作；
@@ -115,7 +115,7 @@ DSH Harness
 ```text
 <DSH 当前工作区>/
 └─ projects/
-   └─ <projectId>-<projectSlug>/
+   └─ <presentationProjectId>-<projectSlug>/
       ├─ project.json
       ├─ rules.json
       ├─ outline.json
@@ -146,7 +146,9 @@ DSH Harness
 
 固定规则：
 
-- `projectId` 是永久身份；
+- `preDesignProjectId` 是 `pre-design` 专业项目身份；
+- `Presentation ProjectManifest.projectId` 是独立的 `presentationProjectId`；
+- 两者通过 `PresentationProjectBindingRecord` 显式映射，不能假定格式相同；
 - `projectSlug` 只用于可读性；
 - 项目内只保存相对路径；
 - 项目绝对路径只保存在 `pre-design` 的受控绑定记录中；
@@ -164,6 +166,7 @@ Presentation Contract 只需要提供：
 
 - 版本化 Schema；
 - TypeScript 类型；
+- 稳定 ID Factory；
 - 最小合法实例或纯文档工厂；
 - 单文档验证器；
 - 完整项目验证器；
@@ -190,15 +193,16 @@ pre-design 项目状态 ready
 ### 4.2 创建流程
 
 ```text
-1. 生成 pre-design projectId 和安全 projectSlug
-2. 检查目标项目根、目录冲突和已有绑定
-3. 在同一文件系统创建 `.creating-*` staging 目录
-4. 根据官方 Schema 和最小文档工厂写入固定目录和六份初始 JSON
-5. 调用官方验证器验证整个目录
-6. 原子 rename staging 到最终目录
-7. 写入或完成 pre-design 项目记录与目录绑定记录
-8. 标记 ready
-9. 仅在全部完成后向用户返回成功
+1. 生成 `preDesignProjectId`
+2. 调用 Presentation Contract 的 ID Factory 生成 `presentationProjectId`
+3. 生成安全 `projectSlug`，检查目标项目根、目录冲突和已有绑定
+4. 在同一文件系统创建 `.creating-*` staging 目录
+5. 根据官方 Schema 和最小文档工厂写入固定目录和六份初始 JSON
+6. 调用官方验证器验证整个目录
+7. 原子 rename staging 到最终目录
+8. 写入或完成 pre-design 项目记录与双 ID 目录绑定
+9. 标记 ready
+10. 仅在全部完成后向用户返回成功
 ```
 
 ### 4.3 失败与恢复
@@ -207,7 +211,7 @@ pre-design 项目状态 ready
 - 失败时清理本次 staging 和尚未确认的最终目录；
 - 无法完成清理时记录 `recovery_required`；
 - 插件启动时处理自身留下的 `.creating-*`；
-- 同一 `projectId` 已存在且目录合法时执行恢复或打开；
+- 同一 `presentationProjectId` 已存在且目录合法时执行恢复或打开；
 - 同名目录内部身份不一致时拒绝覆盖；
 - 不设计跨两个插件的分布式事务；
 - 一致性范围限定为 `pre-design` 自身项目记录和项目目录。
@@ -326,7 +330,7 @@ pre-design 不生成
 
 | Presentation 对象 | `pre-design` 来源 |
 |---|---|
-| ProjectManifest | Project + ProjectBrief |
+| ProjectManifest | 新生成的 Presentation 项目身份 + Project + ProjectBrief；`createdBy.sourceProjectId` 记录 preDesignProjectId |
 | ProjectRulesDocument | 受众、用途、语言、真实性和专业表达要求 |
 | OutlineDocument | 57 项专业成果的汇报叙事投影 |
 | PageManifest | 大纲到逐页草案的页面拆分 |
@@ -379,7 +383,8 @@ pre-design 上一次输出时记录的 Hash
 `pre-design` 控制记录至少保存：
 
 ```text
-projectId
+preDesignProjectId
+presentationProjectId
 projectDirectory
 standardVersion
 state
@@ -430,6 +435,7 @@ standardVersion
 schemaSetSha256
 JSON Schema
 TypeScript types
+stable ID factory
 minimal fixture or document factory
 document validator
 project validator
@@ -459,7 +465,7 @@ stable error codes
 - 完整未排版示例；
 - 单文档验证器；
 - 项目验证器；
-- 稳定 ID 规则；
+- 稳定 ID 规则和 ID Factory；
 - `sourceRefs` 与素材 lineage；
 - 精确版本和 Schema Set Hash；
 - 可重复执行的验证结果。
@@ -472,6 +478,7 @@ stable error codes
 - `pre-design` 被正确定位为可执行插件，Skill 是其内部能力；
 - DSH Harness 是唯一 Agent Runtime；
 - 项目创建由 `pre-design` 执行；
+- pre-design 项目 ID 与 Presentation 项目 ID 显式映射；
 - 目录创建失败不返回成功；
 - 最小空项目合法；
 - 原始资料和正式素材分离；
@@ -492,6 +499,7 @@ stable error codes
 
 - 架构关系：已修正并冻结；
 - pre-design 插件与内置 Skill 的关系：已修正；
+- 双项目 ID 映射：已补充；
 - 标准项目目录消费目标：已冻结；
 - 项目创建执行责任：已归属 pre-design；
 - 原始资料与正式素材边界：已冻结；
