@@ -4,7 +4,7 @@
 > 初始交接：2026-08-28（Asia/Shanghai）
 > 汇总更新：2026-09-02（Asia/Shanghai）
 > 适用范围：DSH 前期策划插件、自动化报告生成、甲方版 HTML/PPTX/PDF、概念视觉及产品级质量验收
-> 当前基线：包版本仍为 v0.7.0；功能代码已提交为 `a1faf2c`（`feat: finalize visual-first preplanning workflow`），2026-09-02 新鲜验证为 56/56 个测试文件、466/466 项测试通过，`pnpm typecheck` 与构建产物测试 2/2 通过。当前正在把有效开发线归并到唯一 `main` 并清理旧分支；最终 Git 状态见 0.13。R15 仅保留为历史 HTML-first 过程候选，正式项目仍缺真实总平/红线输入、正确的 R16 全页视觉 QA、真实 DSH 生图—采纳—发布—下载—重启恢复 E2E 与甲方验收，因此客户成果状态仍为 `PARTIAL / publishable:false`，不得因工程测试通过而宣称正式交付完成
+> 当前基线：包版本仍为 v0.7.0；有效开发线已归并到唯一 `main`，功能与测试收束点为 `730b1e1`，本地/远端均只保留 `main`，只剩一个主工作树且 `git status` 干净。最终 HANDOFF 作为独立文档提交追加，当前远端 SHA 应以 `git rev-parse main` 与 `git rev-parse origin/main` 的相等结果为准。2026-09-02 合并后新鲜验证为 56/56 个测试文件、466/466 项测试通过，`pnpm typecheck` 与构建产物测试 2/2 通过；详细 Git 收束与恢复信息见 0.13。R15 仅保留为历史 HTML-first 过程候选，正式项目仍缺真实总平/红线输入、正确的 R16 全页视觉 QA、真实 DSH 生图—采纳—发布—下载—重启恢复 E2E 与甲方验收，因此客户成果状态仍为 `PARTIAL / publishable:false`，不得因工程测试通过而宣称正式交付完成
 > 最高原则：最终交付必须是甲方可直接汇报、传阅和决策的正式产品；内部运行证据不能冒充客户成果。
 
 ---
@@ -462,6 +462,19 @@ R15 是当前可直接展示的 HTML-first“修改后测试成果”，但整�
 - 不得在未调查 `validation_intent` 根因前放宽 ProposalEnvelope 验证。
 - 不得覆盖用户 Profile、Session、Storage、模型设置或凭据；安装前必须备份，且不能泄露认证内容。
 - 不得升版、发布或创建 Release，除非用户另行明确授权。
+
+#### G. 2026-09-02 Git 收束最终状态
+
+- 权威仓库：`https://github.com/ArchitectureWorld/pre-design.git`。
+- 唯一分支：本地 `main` 与远端 `origin/main`；功能与测试收束点为 `730b1e12b8adff5d7c5ac8e05f6b94f4be47f7ee`，随后只追加本 HANDOFF 文档提交。最终 SHA 不在文档内自引用，接棒时用 `git rev-parse main` 与 `git rev-parse origin/main` 核对，二者必须相等。
+- 主线归并提交：`2db4504 merge: consolidate visual-first preplanning into main`。
+- Windows 跨工作树稳定性修复：`f6ea74d fix: pin svg fixtures to lf bytes`；全新 `core.autocrlf=true` clone 中 12 个 SVG 均为 `w/lf`，关键 SHA 与 manifest 一致。
+- 测试隔离修复：`730b1e1 fix: isolate vitest from sibling worktrees`；完整测试不再扫描 `.worktrees/r070/tests`。
+- 已删除远端 `bootstrap/baseline-v2.0`、`release/dsh-preplanning-0.7.0`；已删除本地 `feat/client-report-v0.8.0`、`release/dsh-preplanning-0.7.0`、`feat/d1-vertical-slice`。
+- `feat/d1-vertical-slice` 没有直接合并：它来自不连续历史，直接合并会删除冻结基线；其有效能力已由 v0.7 发布线进入主线。删除前已把全部 refs 做成完整 Git bundle，避免不可恢复丢失。
+- 归档 bundle：`C:\Users\2899\Documents\Codex\2026-08-27\yue-du\outputs\dsh-preplanning-0.8.0\git-consolidation-20260902-1327\pre-design-before-main-consolidation.bundle`；15,469,780 bytes；SHA-256 `7690a6f42dfc18149239183d9551bd2cd63c99d3315187156d96c3df6fc06af9`；`git bundle verify` 已通过并确认记录完整历史。
+- 已移除 r070 Git worktree 注册及其残留目录；当前 `git worktree list` 只显示主仓库。旧 `work/` 内的运行日志与 Profile 备份没有删除，已通过 `.gitignore` 排除，不影响仓库干净状态。
+- 合并后新鲜验证：`pnpm test` 为 56/56 files、466/466 tests；`pnpm typecheck` 退出码 0；`pnpm test:built` 为 2/2；`git diff --check` 退出码 0。
 
 ---
 
