@@ -5,7 +5,7 @@ const packageFile = (path: string): string => fileURLToPath(new URL(path, import
 
 export default defineConfig({
   test: {
-    exclude: [...configDefaults.exclude, '**/.superpowers/**'],
+    exclude: [...configDefaults.exclude, '**/.superpowers/**', '**/.worktrees/**'],
   },
   resolve: {
     alias: [
