@@ -7,7 +7,7 @@ on:
   pull_request:
     paths:
       - 'src/presentation/**'
-      - 'tests/presentation-phase0-foundation.spec.ts'
+      - 'tests/presentation-*.spec.ts'
       - '.github/workflows/presentation-phase0-foundation.yml'
       - 'package.json'
       - 'pnpm-lock.yaml'
@@ -41,7 +41,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run Phase 0 foundation tests
-        run: pnpm exec vitest run tests/presentation-phase0-foundation.spec.ts --maxWorkers=1
+        run: pnpm exec vitest run tests/presentation-*.spec.ts --maxWorkers=1
 
       - name: Typecheck
         run: pnpm typecheck
