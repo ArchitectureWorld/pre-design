@@ -39,7 +39,7 @@
     }
   },
   "scripts": {
-    "build": "tsdown && tsc -p tsconfig.build.json",
+    "build": "tsdown --config-loader tsx && tsc -p tsconfig.build.json",
     "golden:build": "tsx scripts/build-golden-project-cli.ts",
     "golden:build-v080": "tsx scripts/build-golden-project-cli.ts --profile client-v080",
     "golden:inspect-v080": "tsx scripts/inspect-client-artifacts.ts",
