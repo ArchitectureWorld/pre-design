@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { win32 } from 'node:path'
+import { posix, win32 } from 'node:path'
 
 export interface BrowserExecutableResolutionOptions {
   readonly platform?: NodeJS.Platform
@@ -54,6 +54,15 @@ function configuredValue(
   return undefined
 }
 
+function isForeignWindowsAbsolutePath(
+  value: string,
+  platform: NodeJS.Platform,
+): boolean {
+  return platform !== 'win32'
+    && win32.isAbsolute(value)
+    && !posix.isAbsolute(value)
+}
+
 export function resolveBrowserExecutable(
   requested?: string,
   options: BrowserExecutableResolutionOptions = {},
@@ -63,9 +72,8 @@ export function resolveBrowserExecutable(
   const exists = options.exists ?? existsSync
   const configured = configuredValue(requested, env)
 
-  if (configured !== undefined) {
-    const foreignWindowsPath = platform !== 'win32' && win32.isAbsolute(configured)
-    if (!foreignWindowsPath) return configured
+  if (configured !== undefined && !isForeignWindowsAbsolutePath(configured, platform)) {
+    return configured
   }
 
   return candidatesFor(platform).find(candidate => exists(candidate))
