@@ -1,81 +1,180 @@
-# Pre-design Presentation Project Alignment v2.0.0 Implementation Plan
+# Pre-design Presentation Project Alignment V2.0.0 Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 让 `pre-design` 在创建项目时强一致地生成符合 `presentation-tools` 权威标准的项目目录，并按标准写入项目基本对象、大纲、逐页草案、原始资料和正式素材，不生成排版数据。
+**Goal:** 让 `pre-design` 在创建项目时自行生成并维护符合 `presentation-tools` 权威格式的标准项目目录，输出项目基本信息、大纲、逐页草案、讲解稿、原始资料和正式素材，同时不承担排版，也不依赖 Presentation 的内容治理或 Revision 系统。
 
-**Architecture:** 保持 `pre-design` 与 `presentation-tools` 两个独立 DSH 插件。`presentation-tools` 提供版本化目录、Schema、初始化器和验证器；`pre-design` 通过窄适配口消费这些标准，管理项目目录生命周期、原始资料导入、正式素材采用、专业内容投影和节点同步。现有 legacy HTML/PPTX/PDF 路径保留但不再作为新架构事实源扩张。
+**Architecture:** 保持两个独立 DSH 插件。`presentation-tools` 发布只读、版本化的格式 Contract、类型、Fixture 和验证器；`pre-design` 负责项目创建、目录生命周期、资料导入、素材采用、专业内容投影以及外部修改检测。标准文件是中立载体，人或当前 DSH Agent 通过工具继续修改；`pre-design` 只在未检测到外部修改时更新自己曾输出的对象。
 
-**Tech Stack:** TypeScript 5.9、Node.js 20+、DSH Storage Domain、Vitest、现有 `pre-design` Repository / Governance / Workflow Runtime、`presentation-tools` 提供的标准契约与验证实现。
+**Tech Stack:** TypeScript 5.9、Node.js 20+、DSH Storage Domain、Vitest、Ajv 8、现有 `pre-design` Repository / Governance / Workflow Runtime、`presentation-tools` 最终发布的精确版本 Contract。
 
 **Spec:** `docs/superpowers/specs/2026-09-02-pre-design-presentation-project-alignment-v2.0.0-design.md`
 
+**Content Baseline:** `docs/superpowers/specs/2026-09-02-pre-design-presentation-content-baseline-v2.0.0.md`
+
 ## Global Constraints
 
-- `presentation-tools` 是标准项目目录和 Canonical Schema 的唯一权威。
-- 在标准契约、最小实例、初始化器和验证器未交付前，不开始生产代码实现。
-- 第一版继续保持两个独立 DSH 插件，不合并仓库。
-- 不要求、也不修改 `presentation-tools` 的 UI 或交互功能。
-- 本计划不得把 `package.json`、Git Tag 或 Release 提升为正式 `2.0.0`。
+- `pre-design` 是可执行 DSH 插件，前期策划 Skill 是插件内部能力。
+- DSH Harness 是唯一 Agent Runtime。
+- 第一版继续保持两个独立 DSH 插件。
+- 不修改 `presentation-tools` UI 或交互。
+- `presentation-tools` 是标准格式唯一权威。
+- `pre-design` 不复制后独立修改 Presentation Schema。
+- 项目创建、staging、回滚、恢复和 DSH 项目记录均由 `pre-design` 执行。
+- Presentation Contract 只提供格式、类型、Fixture、验证器和稳定错误代码。
 - 默认项目位置是 `<DSH 当前工作区>/projects/<projectId>-<projectSlug>/`。
-- 项目创建必须具备用户可观察的强一致性；失败不留下可见半成品。
-- Canonical JSON 和 Manifest 中禁止保存绝对路径。
+- 项目创建失败不得返回成功。
+- Canonical JSON 和 Manifest 不保存绝对路径。
 - 原始资料默认复制，不移动、不软链接，并按 SHA-256 去重。
 - 草案只通过稳定 `assetId` 引用正式素材。
-- `pre-design` 不生成 `LayoutPageDocument`，`layouts/` 初始为空。
-- 现有 legacy 报告代码第一版不删除。
+- `pre-design` 不生成或修改 `layouts/` 内容。
+- 第一版不依赖 Presentation Head、CAS、Revision 映射、自动刷新或内容所有权。
+- 外部修改由 `pre-design` 自身保存的上次输出 Hash 检测。
+- 现有 legacy HTML/PPTX/PDF 路径不删除。
+- 当前计划在最终 Presentation Contract 通过审查后执行；正式包坐标和 Schema Set Hash 通过单独的 Contract Lock 提交进入仓库。
 
 ---
 
 ## File Structure
 
-第一版建议新增和修改的文件如下：
-
 ```text
 src/presentation/
-├─ standard-port.ts              Presentation 权威标准的本地窄适配口
-├─ standard-adapter.ts           对接 presentation-tools 正式契约实现
-├─ project-binding.ts            项目目录控制记录类型与纯校验
-├─ project-directory.ts          staging、初始化、验证、rename 和回滚
-├─ recovery.ts                   崩溃后孤立目录与创建记录恢复
+├─ contract-port.ts              pre-design 需要的最小格式 Contract 接口
+├─ contract-adapter.ts           对最终官方 Contract 的窄适配
+├─ contract-lock.ts              精确版本与 Schema Set Hash 校验
+├─ types.ts                      pre-design 自身绑定和输出结果类型
+├─ project-binding.ts            项目目录绑定与上次输出 Hash
+├─ project-directory.ts          目录创建、staging、验证、rename 和补偿
+├─ recovery.ts                   pre-design 创建残留恢复
 ├─ source-materials.ts           原始资料复制、分类和 Hash 去重
 ├─ asset-library.ts              正式素材采用、分类和 lineage
-├─ projector.ts                  57 项专业成果到 Canonical 内容的投影
-├─ sync-service.ts               节点提交、冲突检测和 Revision 映射
-└─ types.ts                      pre-design 自身的绑定、导入、同步结果类型
+├─ projector/
+│  ├─ index.ts                   组合完整 Presentation 输出
+│  ├─ outline.ts                 8 类主题与大纲投影
+│  ├─ pages.ts                   页面拆分与稳定 ID
+│  ├─ drafts.ts                  五类内容块和讲解稿
+│  └─ identifiers.ts             稳定 ID 保留与新对象生成
+├─ export-ledger.ts              pre-design 上次输出对象 Hash
+└─ update-service.ts             标准文件更新与外部修改检测
 
 src/state/
-├─ domain.ts                     新增 presentation_project_bindings 控制表
-├─ repository.ts                 控制记录的创建、读取、状态转换和恢复查询
-└─ types.ts                      PresentationProjectBindingRecord
+├─ domain.ts                     PresentationProjectBindingRecord 表
+├─ repository.ts                 绑定记录读写
+└─ types.ts                      绑定记录类型
 
-src/commands/register.ts          新建项目、资料导入和显式同步命令接入
-src/client/direct-start.ts        保持现有入口语义，并把目录初始化纳入创建成功条件
-src/index.ts                      装配 standard adapter、目录服务、恢复器和同步服务
+src/commands/register.ts          创建项目、导入资料、采用素材、输出汇报
+src/client/direct-start.ts        目录 ready 后才继续启动
+src/index.ts                      服务装配与恢复
 
 tests/
-├─ presentation-standard-adapter.spec.ts
+├─ presentation-contract-adapter.spec.ts
+├─ presentation-contract-lock.spec.ts
 ├─ presentation-project-directory.spec.ts
 ├─ presentation-project-recovery.spec.ts
 ├─ presentation-source-materials.spec.ts
 ├─ presentation-asset-library.spec.ts
-├─ presentation-projector.spec.ts
-├─ presentation-sync.spec.ts
+├─ presentation-outline-projector.spec.ts
+├─ presentation-draft-projector.spec.ts
+├─ presentation-update-service.spec.ts
 └─ presentation-project-e2e.spec.ts
 ```
 
 ---
 
-### Task 1: 建立 Presentation 标准适配口
+### Task 0: 接受并锁定最终 Presentation Contract
 
 **Files:**
-- Create: `src/presentation/standard-port.ts`
-- Create: `src/presentation/standard-adapter.ts`
-- Create: `src/presentation/types.ts`
-- Test: `tests/presentation-standard-adapter.spec.ts`
+- Create: `docs/contracts/presentation-standard-project-v1-lock.json`
+- Create: `scripts/verify-presentation-contract-lock.ts`
+- Modify: `package.json`
+- Test: `tests/presentation-contract-lock.spec.ts`
 
 **Interfaces:**
-- Consumes: `presentation-tools` 交付的正式目录版本、Canonical Schema、初始化器和验证器。
+- Consumes: Presentation 正式反馈中的包名、精确版本、Schema Set SHA-256、类型入口和验证器入口。
+- Produces:
+
+```ts
+export interface PresentationContractLock {
+  readonly standardName: string
+  readonly standardVersion: string
+  readonly packageName: string
+  readonly packageVersion: string
+  readonly schemaSetSha256: string
+}
+```
+
+- [ ] **Step 1: 在开始编码前审查正式反馈**
+
+确认反馈同时提供：
+
+```text
+standardName
+standardVersion
+packageName
+packageVersion
+schemaSetSha256
+typesEntry
+documentValidatorEntry
+projectValidatorEntry
+minimalFixturePath
+fullExamplePath
+validationCommand
+commitSHA
+```
+
+若任一字段缺失，停止执行后续任务，不自行猜测。
+
+- [ ] **Step 2: 写入精确 Contract Lock**
+
+`presentation-standard-project-v1-lock.json` 必须使用反馈中的真实值，不允许版本范围、分支名或浮动 Tag。
+
+- [ ] **Step 3: 精确安装官方包**
+
+使用 `pnpm add --save-exact` 安装 Lock 指定的包和版本，并提交 `pnpm-lock.yaml` 的 integrity。
+
+- [ ] **Step 4: 写失败测试**
+
+测试内容：
+
+- package version 与 Lock 不一致时失败；
+- standardVersion 与 Lock 不一致时失败；
+- Schema Set SHA-256 不一致时失败；
+- 类型或验证器入口缺失时失败。
+
+- [ ] **Step 5: 运行测试并确认失败**
+
+```bash
+pnpm vitest run tests/presentation-contract-lock.spec.ts
+```
+
+- [ ] **Step 6: 实现校验脚本并运行**
+
+```bash
+pnpm tsx scripts/verify-presentation-contract-lock.ts
+pnpm vitest run tests/presentation-contract-lock.spec.ts
+pnpm typecheck
+```
+
+- [ ] **Step 7: 提交**
+
+```bash
+git add package.json pnpm-lock.yaml docs/contracts/presentation-standard-project-v1-lock.json scripts/verify-presentation-contract-lock.ts tests/presentation-contract-lock.spec.ts
+git commit -m "build: pin presentation project contract"
+```
+
+---
+
+### Task 1: 建立最小 Contract Adapter
+
+**Files:**
+- Create: `src/presentation/contract-port.ts`
+- Create: `src/presentation/contract-adapter.ts`
+- Create: `src/presentation/contract-lock.ts`
+- Create: `src/presentation/types.ts`
+- Test: `tests/presentation-contract-adapter.spec.ts`
+
+**Interfaces:**
+- Consumes: Task 0 锁定的官方类型和验证器。
 - Produces:
 
 ```ts
@@ -88,140 +187,138 @@ export type PresentationDocumentKind =
   | 'source-material-manifest'
   | 'asset-manifest'
 
-export interface InitializePresentationProjectInput {
-  readonly root: string
-  readonly projectId: string
-  readonly projectSlug: string
-  readonly projectName: string
-  readonly createdAt: string
-  readonly sourceProvider: 'pre-design'
-}
-
-export interface InitializedPresentationProject {
-  readonly standardVersion: string
-  readonly root: string
-  readonly projectId: string
-  readonly files: readonly string[]
-}
-
 export interface PresentationValidationIssue {
   readonly code: string
   readonly path: string
   readonly message: string
 }
 
-export interface PresentationProjectStandard {
-  readonly version: string
-  initialize(input: InitializePresentationProjectInput): Promise<InitializedPresentationProject>
+export interface MinimalPresentationDocuments {
+  readonly project: unknown
+  readonly rules: unknown
+  readonly outline: unknown
+  readonly pageManifest: unknown
+  readonly sourceMaterialManifest: unknown
+  readonly assetManifest: unknown
+}
+
+export interface PresentationFormatContract {
+  readonly standardVersion: string
+  readonly schemaSetSha256: string
+  createMinimalDocuments(input: {
+    readonly projectId: string
+    readonly projectSlug: string
+    readonly projectName: string
+    readonly createdAt: string
+    readonly sourceProvider: 'pre-design'
+  }): MinimalPresentationDocuments
+  validateDocument(
+    kind: PresentationDocumentKind,
+    value: unknown,
+  ): readonly PresentationValidationIssue[]
   validateProject(root: string): Promise<readonly PresentationValidationIssue[]>
-  validateDocument(kind: PresentationDocumentKind, value: unknown): readonly PresentationValidationIssue[]
 }
 ```
 
-- [ ] **Step 1: 写失败测试，锁定窄适配口行为**
+- [ ] **Step 1: 写失败测试**
 
-测试必须验证：
+验证 Adapter：
 
-```ts
-it('delegates initialization and validation without redefining canonical schemas', async () => {
-  const official = fakeOfficialPresentationStandard('presentation-project.v1')
-  const adapter = createPresentationStandardAdapter(official)
-
-  const result = await adapter.initialize({
-    root: '/workspace/projects/.creating-project_001',
-    projectId: 'project_001',
-    projectSlug: 'wuhan-cultural-center',
-    projectName: '武汉文化中心',
-    createdAt: '2026-09-02T08:00:00.000Z',
-    sourceProvider: 'pre-design',
-  })
-
-  expect(result.standardVersion).toBe('presentation-project.v1')
-  expect(official.initialize).toHaveBeenCalledOnce()
-  expect(adapter.validateDocument('project', {})).toEqual([
-    expect.objectContaining({ code: 'SCHEMA_INVALID' }),
-  ])
-})
-```
+- 只暴露上述最小能力；
+- 不暴露 Presentation UI、Layout、Head、Revision 或同步接口；
+- 不重新定义 Canonical Schema；
+- 版本或 Hash 不匹配时拒绝启动；
+- 验证错误保留稳定错误代码。
 
 - [ ] **Step 2: 运行测试并确认失败**
 
-Run:
-
 ```bash
-pnpm vitest run tests/presentation-standard-adapter.spec.ts
+pnpm vitest run tests/presentation-contract-adapter.spec.ts
 ```
 
-Expected: FAIL，原因是适配口和实现尚不存在。
-
-- [ ] **Step 3: 实现最小适配口**
+- [ ] **Step 3: 实现 Adapter**
 
 要求：
 
-- 不在 `pre-design` 内复制 Presentation JSON Schema；
-- 不重命名 Canonical 字段；
-- `standard-adapter.ts` 只把官方实现收窄为本项目需要的接口；
-- 官方实现缺少版本、初始化器或验证器时，插件启动直接失败，不使用宽松降级。
+- 从官方包读取类型和验证器；
+- `createMinimalDocuments` 只能调用官方纯文档工厂或从官方最小 Fixture 读取并替换允许的项目字段；
+- 不调用 Presentation 项目生命周期或 Revision API；
+- 不重命名官方 Canonical 字段。
 
-- [ ] **Step 4: 运行测试并确认通过**
-
-Run:
+- [ ] **Step 4: 运行测试**
 
 ```bash
-pnpm vitest run tests/presentation-standard-adapter.spec.ts
+pnpm vitest run tests/presentation-contract-adapter.spec.ts tests/presentation-contract-lock.spec.ts
 pnpm typecheck
 ```
-
-Expected: PASS。
 
 - [ ] **Step 5: 提交**
 
 ```bash
-git add src/presentation/standard-port.ts src/presentation/standard-adapter.ts src/presentation/types.ts tests/presentation-standard-adapter.spec.ts
-git commit -m "feat: add presentation standard adapter"
+git add src/presentation/contract-port.ts src/presentation/contract-adapter.ts src/presentation/contract-lock.ts src/presentation/types.ts tests/presentation-contract-adapter.spec.ts
+git commit -m "feat: consume presentation format contract"
 ```
 
 ---
 
-### Task 2: 增加项目目录控制记录
+### Task 2: 增加项目目录绑定和输出账本
 
 **Files:**
 - Modify: `src/state/types.ts`
 - Modify: `src/state/domain.ts`
 - Modify: `src/state/repository.ts`
 - Create: `src/presentation/project-binding.ts`
+- Create: `src/presentation/export-ledger.ts`
 - Test: `tests/presentation-project-directory.spec.ts`
 
 **Interfaces:**
-- Consumes: Task 1 的 `PresentationProjectStandard.version`。
 - Produces:
 
 ```ts
-export type PresentationDirectoryState = 'creating' | 'ready' | 'recovery_required'
+export type PresentationDirectoryState =
+  | 'creating'
+  | 'ready'
+  | 'recovery_required'
 
 export interface PresentationProjectBindingRecord {
   readonly projectId: string
   readonly directoryRoot: string
   readonly standardVersion: string
   readonly state: PresentationDirectoryState
+  readonly lastExportedPreDesignRevision?: number
+  readonly lastExportedAt?: string
+  readonly lastExportedObjectHashes: Readonly<Record<string, string>>
   readonly createdAt: string
   readonly updatedAt: string
-  readonly lastSyncedPreDesignRevision?: number
-  readonly lastPresentationRevision?: number
 }
 ```
 
-Repository 方法：
+Repository methods:
 
 ```ts
-putPresentationProjectBinding(record: PresentationProjectBindingRecord): Promise<PresentationProjectBindingRecord>
-readPresentationProjectBinding(projectId: string): PresentationProjectBindingRecord | undefined
-listPresentationProjectBindingsByState(state: PresentationDirectoryState): readonly PresentationProjectBindingRecord[]
+putPresentationProjectBinding(
+  record: PresentationProjectBindingRecord,
+): Promise<PresentationProjectBindingRecord>
+
+readPresentationProjectBinding(
+  projectId: string,
+): PresentationProjectBindingRecord | undefined
+
+listPresentationProjectBindingsByState(
+  state: PresentationDirectoryState,
+): readonly PresentationProjectBindingRecord[]
 ```
 
 - [ ] **Step 1: 写失败测试**
 
-测试创建、更新、按状态读取，以及绝对目录只存在控制记录中，不进入项目 State Snapshot。
+覆盖：
+
+- 绑定记录创建和读取；
+- `directoryRoot` 是绝对路径；
+- 绝对路径不进入专业 Revision Snapshot；
+- Hash 键为稳定 Presentation 对象 ID；
+- SHA-256 为小写 64 位十六进制；
+- 不包含 Presentation Revision、Head 或内容所有权字段。
 
 - [ ] **Step 2: 运行测试并确认失败**
 
@@ -229,23 +326,11 @@ listPresentationProjectBindingsByState(state: PresentationDirectoryState): reado
 pnpm vitest run tests/presentation-project-directory.spec.ts
 ```
 
-- [ ] **Step 3: 实现控制表和 Repository 方法**
+- [ ] **Step 3: 实现类型、Schema 和 Repository**
 
-`src/state/domain.ts` 新增：
+`ready` 只允许目录服务在完整验证通过后写入。
 
-```ts
-presentation_project_bindings: domainTable<string, PresentationProjectBindingRecord>(presentationProjectBindingSchema)
-```
-
-Schema 必须验证：
-
-- `projectId` 非空；
-- `directoryRoot` 为绝对路径；
-- `standardVersion` 非空；
-- Revision 为非负整数；
-- `ready` 状态只能由目录服务在验证通过后写入。
-
-- [ ] **Step 4: 运行测试与类型检查**
+- [ ] **Step 4: 运行测试**
 
 ```bash
 pnpm vitest run tests/presentation-project-directory.spec.ts
@@ -255,13 +340,13 @@ pnpm typecheck
 - [ ] **Step 5: 提交**
 
 ```bash
-git add src/state src/presentation/project-binding.ts tests/presentation-project-directory.spec.ts
-git commit -m "feat: persist presentation project bindings"
+git add src/state src/presentation/project-binding.ts src/presentation/export-ledger.ts tests/presentation-project-directory.spec.ts
+git commit -m "feat: persist presentation directory bindings"
 ```
 
 ---
 
-### Task 3: 实现强一致项目目录初始化与恢复
+### Task 3: 由 `pre-design` 实现项目目录创建与恢复
 
 **Files:**
 - Create: `src/presentation/project-directory.ts`
@@ -273,7 +358,7 @@ git commit -m "feat: persist presentation project bindings"
 - Test: `tests/presentation-project-recovery.spec.ts`
 
 **Interfaces:**
-- Consumes: `PresentationProjectStandard`、`ProjectRepository`、Task 2 控制记录。
+- Consumes: `PresentationFormatContract` 和 `PresentationProjectBindingRecord`。
 - Produces:
 
 ```ts
@@ -293,21 +378,28 @@ export interface PresentationProjectDirectoryResult {
 }
 
 export class PresentationProjectDirectoryService {
-  create(input: CreatePresentationProjectDirectoryInput): Promise<PresentationProjectDirectoryResult>
+  create(
+    input: CreatePresentationProjectDirectoryInput,
+  ): Promise<PresentationProjectDirectoryResult>
+
   recoverPending(): Promise<readonly PresentationProjectDirectoryResult[]>
 }
 ```
 
-- [ ] **Step 1: 写失败测试覆盖成功和冲突路径**
+- [ ] **Step 1: 写失败测试**
 
-必须覆盖：
+覆盖：
 
-- 默认目录 `<workspace>/projects/<projectId>-<slug>/`；
-- staging 与最终目录位于同一父目录；
-- 初始化、验证、rename、控制记录全部完成后才返回成功；
-- 同 `projectId` 合法目录返回 `recovered: true`；
-- 同名目录但不同 `projectId` 返回 `PRESENTATION_PROJECT_DIRECTORY_CONFLICT`；
-- 初始化器失败、验证失败、rename 失败和项目记录失败均不留下可见半成品。
+- 默认目录；
+- 同文件系统 staging；
+- `pre-design` 自己创建所有目录；
+- 使用官方文档工厂写六份 JSON；
+- 完整验证后才 rename；
+- 同 `projectId` 的合法目录恢复；
+- 同名不同身份拒绝覆盖；
+- 初始化、写文件、验证、rename 和绑定记录失败均不返回成功；
+- `layouts/` 创建为空；
+- 不调用 Presentation Revision 或项目生命周期 API。
 
 - [ ] **Step 2: 运行测试并确认失败**
 
@@ -315,43 +407,35 @@ export class PresentationProjectDirectoryService {
 pnpm vitest run tests/presentation-project-directory.spec.ts tests/presentation-project-recovery.spec.ts
 ```
 
-- [ ] **Step 3: 实现 staging 与补偿**
-
-创建顺序固定为：
+- [ ] **Step 3: 实现创建流程**
 
 ```text
-creating 控制记录
-→ 同文件系统 staging
-→ official initialize
-→ official validateProject
-→ atomic rename
-→ ready 控制记录
+creating 绑定记录
+→ 同父目录 staging
+→ 创建固定目录
+→ 写六份最小文档
+→ 官方完整验证
+→ 原子 rename
+→ ready 绑定记录
 → 返回成功
 ```
 
-任何异常：
+- [ ] **Step 4: 实现补偿和恢复**
+
+异常时：
 
 ```text
-删除 staging / final
-→ 删除或标记 creating 控制记录
-→ 若无法完成补偿，写 recovery_required
-→ 抛出原始错误与恢复状态
+删除 staging / 尚未确认最终目录
+→ 恢复或删除 creating 记录
+→ 无法补偿则写 recovery_required
+→ 抛出结构化错误
 ```
 
-- [ ] **Step 4: 将 `/preplan-new` 纳入同一成功条件**
+- [ ] **Step 5: 接入 `/preplan-new`**
 
-要求：
+`/preplan-new` 只有在专业项目记录和标准目录均 ready 后才返回成功。
 
-- 项目状态和标准目录必须同时 ready；
-- 目录创建失败时，不返回“已创建项目”；
-- `startDirectPreplanning()` 只能在目录初始化成功后继续切换模式或启动流程；
-- 允许通过 pre-design 配置或受控命令参数传入 `projectRootOverride`，不把该绝对路径写入 Canonical JSON。
-
-- [ ] **Step 5: 装配启动恢复**
-
-插件 `apply()` 初始化后、注册可写命令前执行 `recoverPending()`；恢复失败的项目保持不可写并给出结构化诊断。
-
-- [ ] **Step 6: 运行专项与现有回归**
+- [ ] **Step 6: 运行专项和回归**
 
 ```bash
 pnpm vitest run tests/presentation-project-directory.spec.ts tests/presentation-project-recovery.spec.ts tests/direct-start.client.spec.ts tests/commands.spec.ts
@@ -362,12 +446,12 @@ pnpm typecheck
 
 ```bash
 git add src/presentation/project-directory.ts src/presentation/recovery.ts src/commands/register.ts src/client/direct-start.ts src/index.ts tests
-git commit -m "feat: initialize presentation project directories"
+git commit -m "feat: create presentation project directories"
 ```
 
 ---
 
-### Task 4: 实现原始资料复制、分类和 Hash 去重
+### Task 4: 实现原始资料导入
 
 **Files:**
 - Create: `src/presentation/source-materials.ts`
@@ -375,19 +459,9 @@ git commit -m "feat: initialize presentation project directories"
 - Test: `tests/presentation-source-materials.spec.ts`
 
 **Interfaces:**
-- Consumes: ready 的 `PresentationProjectBindingRecord` 和官方 `SourceMaterialManifest` Schema。
 - Produces:
 
 ```ts
-export type SourceMaterialCategory =
-  | 'documents'
-  | 'drawings'
-  | 'images'
-  | 'videos'
-  | 'data'
-  | 'models'
-  | 'other'
-
 export interface ImportSourceMaterialInput {
   readonly projectId: string
   readonly sourcePath: string
@@ -396,7 +470,7 @@ export interface ImportSourceMaterialInput {
 
 export interface ImportSourceMaterialResult {
   readonly sourceMaterialId: string
-  readonly category: SourceMaterialCategory
+  readonly category: string
   readonly relativePath: string
   readonly sha256: string
   readonly deduplicated: boolean
@@ -408,12 +482,13 @@ export interface ImportSourceMaterialResult {
 覆盖：
 
 - 原文件保留；
-- 文件复制到正确分类；
-- 相同 Hash 二次导入不复制；
+- 正确分类；
+- 相同 Hash 去重；
 - 同名不同内容安全改名；
-- Manifest 更新后通过官方验证器；
-- Manifest 不含绝对源路径；
-- 中途失败不留下文件有记录无、记录有文件无的状态。
+- Manifest 无绝对源路径；
+- 文件与 Manifest 一致；
+- 更新后通过官方验证器；
+- 中途失败可补偿。
 
 - [ ] **Step 2: 运行测试并确认失败**
 
@@ -421,22 +496,21 @@ export interface ImportSourceMaterialResult {
 pnpm vitest run tests/presentation-source-materials.spec.ts
 ```
 
-- [ ] **Step 3: 实现导入服务**
-
-写入顺序：
+- [ ] **Step 3: 实现导入**
 
 ```text
-读取并计算 Hash
-→ 检查 Manifest Hash 索引
+读取和 Hash
+→ 检查现有 Manifest
 → staging copy
-→ 校验字节数与 Hash
-→ 原子落入分类目录
-→ 原子替换 manifest.json
+→ 复核字节数和 Hash
+→ 原子落盘
+→ 原子替换 Manifest
+→ 完整验证
 ```
 
-- [ ] **Step 4: 增加 pre-design 受控导入入口**
+- [ ] **Step 4: 接入受控命令**
 
-入口只负责调用服务并返回结果，不将导入资料直接判定为正式采用素材。
+命令只导入原始资料，不自动采用为正式素材。
 
 - [ ] **Step 5: 运行测试**
 
@@ -454,36 +528,37 @@ git commit -m "feat: import presentation source materials"
 
 ---
 
-### Task 5: 实现正式素材采用与来源链
+### Task 5: 实现正式素材采用和来源链
 
 **Files:**
 - Create: `src/presentation/asset-library.ts`
+- Modify: `src/commands/register.ts`
 - Test: `tests/presentation-asset-library.spec.ts`
 
 **Interfaces:**
-- Consumes: source material、现有 `GovernanceRepository.visualAssets`、官方 `AssetManifest` Schema。
 - Produces:
 
 ```ts
-export type PresentationAssetCategory =
-  | 'images'
-  | 'videos'
-  | 'charts'
-  | 'diagrams'
-  | 'audio'
-  | 'other'
-
 export type PresentationAssetOrigin =
   | { readonly kind: 'source_material'; readonly sourceMaterialId: string }
-  | { readonly kind: 'derived_source_material'; readonly sourceMaterialId: string; readonly operation: string }
-  | { readonly kind: 'pre_design_generated'; readonly sourceRevision: number; readonly objectIds: readonly string[]; readonly evidenceIds: readonly string[] }
+  | {
+      readonly kind: 'derived_source_material'
+      readonly sourceMaterialId: string
+      readonly operation: string
+    }
+  | {
+      readonly kind: 'pre_design_generated'
+      readonly sourceRevision: number
+      readonly objectIds: readonly string[]
+      readonly evidenceIds: readonly string[]
+    }
   | { readonly kind: 'external_tool'; readonly provider: string }
   | { readonly kind: 'human_added' }
 
 export interface AdoptPresentationAssetInput {
   readonly projectId: string
   readonly sourcePath: string
-  readonly category: PresentationAssetCategory
+  readonly category: string
   readonly semanticRole: string
   readonly origin: PresentationAssetOrigin
   readonly adoptedAt: string
@@ -494,13 +569,14 @@ export interface AdoptPresentationAssetInput {
 
 覆盖：
 
-- 原始资料采用后原件仍在 `source-materials/`；
-- 派生素材进入正确 `assets/<category>/`；
+- 原始资料原件保留；
+- 派生素材进入正确目录；
+- 未采用候选不能进入正式 Manifest；
+- 同一 `assetId` 不指向不同内容；
 - 页面只需 `assetId`；
-- Manifest 保留来源对象、证据、Revision 和 Hash；
-- 未采用候选不能写入正式 Manifest；
-- 同一 `assetId` 不得指向不同内容；
-- Manifest 和文件更新具备失败补偿。
+- lineage 保留专业对象、证据和 Revision；
+- 文件和 Manifest 更新失败可补偿；
+- 完整项目通过官方验证器。
 
 - [ ] **Step 2: 运行测试并确认失败**
 
@@ -510,32 +586,37 @@ pnpm vitest run tests/presentation-asset-library.spec.ts
 
 - [ ] **Step 3: 实现素材采用服务**
 
-素材文件和 Manifest 使用 staging + Hash 校验 + 原子替换；不得修改已有原始资料字节。
+使用 staging、Hash 复核和原子 Manifest 替换，不修改原始资料字节。
 
-- [ ] **Step 4: 运行测试与类型检查**
+- [ ] **Step 4: 运行测试**
 
 ```bash
-pnpm vitest run tests/presentation-asset-library.spec.ts
+pnpm vitest run tests/presentation-asset-library.spec.ts tests/commands.spec.ts
 pnpm typecheck
 ```
 
 - [ ] **Step 5: 提交**
 
 ```bash
-git add src/presentation/asset-library.ts tests/presentation-asset-library.spec.ts
-git commit -m "feat: adopt presentation assets with lineage"
+git add src/presentation/asset-library.ts src/commands/register.ts tests/presentation-asset-library.spec.ts
+git commit -m "feat: adopt presentation assets"
 ```
 
 ---
 
-### Task 6: 实现专业成果到 Canonical 大纲和草案的投影
+### Task 6: 实现大纲、页面和草案投影
 
 **Files:**
-- Create: `src/presentation/projector.ts`
-- Test: `tests/presentation-projector.spec.ts`
+- Create: `src/presentation/projector/index.ts`
+- Create: `src/presentation/projector/outline.ts`
+- Create: `src/presentation/projector/pages.ts`
+- Create: `src/presentation/projector/drafts.ts`
+- Create: `src/presentation/projector/identifiers.ts`
+- Test: `tests/presentation-outline-projector.spec.ts`
+- Test: `tests/presentation-draft-projector.spec.ts`
 
 **Interfaces:**
-- Consumes: `ProjectRevisionSnapshot`、当前 Revision 的 Gate、Evidence、已采用素材，以及官方 Canonical 类型。
+- Consumes: 同一冻结 `pre-design` Revision 的项目、专业对象、Evidence、Assumption、Decision、Gate 和正式素材。
 - Produces:
 
 ```ts
@@ -551,97 +632,94 @@ export interface PresentationProjection {
   readonly outline: unknown
   readonly pageManifest: unknown
   readonly drafts: ReadonlyMap<string, unknown>
+  readonly sourceMaterialManifest: unknown
   readonly assetManifest: unknown
-  readonly sourceObjectIds: readonly string[]
+  readonly objectHashes: Readonly<Record<string, string>>
 }
 ```
 
-`unknown` 表示本地服务不重新定义 Canonical 类型；实际值由官方 `presentation-tools` 类型和 Schema 约束。
+`unknown` 表示 `pre-design` 不复制官方 Canonical 类型；实际值由 Contract Adapter 验证。
 
-- [ ] **Step 1: 写失败测试**
+- [ ] **Step 1: 写大纲失败测试**
 
-必须验证：
+覆盖：
 
-- 多个专业 State Object 能汇聚为一个大纲节点或页面；
-- 一个复杂结论可以拆分为多页；
-- 不出现 57 个对象机械对应 57 页；
-- 页面具有稳定 ID；
-- 页面主标题、核心结论、正文、列表、指标、表格、讲解稿和素材引用符合官方 Schema；
-- 每个 `pre-design` 生成内容块保留通用 `sourceRefs`；
-- 不产生任何 `x/y/w/h`、字体、主题或版式字段；
-- 投影结果全部通过官方文档验证器。
+- 8 类默认骨架；
+- 不适用章节省略；
+- 章节合并和拆分；
+- 多个专业对象汇聚；
+- 不生成 57 页工作流目录；
+- 具体案例词不进入默认骨架；
+- `sourceRefs` 可追溯；
+- 稳定 `outlineNodeId` 保留。
 
-- [ ] **Step 2: 运行测试并确认失败**
+- [ ] **Step 2: 写草案失败测试**
 
-```bash
-pnpm vitest run tests/presentation-projector.spec.ts
-```
+覆盖：
 
-- [ ] **Step 3: 实现项目级投影器**
+- 单页单核心结论；
+- 页面主标题唯一；
+- 核心结论唯一；
+- 五类内容块；
+- 独立讲解稿；
+- 内容性质；
+- assetId 引用；
+- 不产生任何排版字段；
+- 所有文档通过官方验证器。
 
-职责拆分为纯函数：
-
-```ts
-projectProjectManifest(...)
-projectProjectRules(...)
-projectOutline(...)
-projectPages(...)
-projectDrafts(...)
-projectAssets(...)
-```
-
-禁止读取 DOM、UI 状态或 legacy 页面规划结果；输入必须来自冻结的 `pre-design` Revision。
-
-- [ ] **Step 4: 运行测试与类型检查**
+- [ ] **Step 3: 运行测试并确认失败**
 
 ```bash
-pnpm vitest run tests/presentation-projector.spec.ts
+pnpm vitest run tests/presentation-outline-projector.spec.ts tests/presentation-draft-projector.spec.ts
+```
+
+- [ ] **Step 4: 实现纯投影函数**
+
+要求：
+
+- 不读取 UI、DOM、Layout 或 legacy page-plan；
+- 相同冻结输入产生稳定内容；
+- ID 只在语义新对象产生时生成；
+- 内容 Hash 使用固定 Canonical JSON；
+- 不写文件系统。
+
+- [ ] **Step 5: 运行测试**
+
+```bash
+pnpm vitest run tests/presentation-outline-projector.spec.ts tests/presentation-draft-projector.spec.ts
 pnpm typecheck
 ```
 
-- [ ] **Step 5: 提交**
+- [ ] **Step 6: 提交**
 
 ```bash
-git add src/presentation/projector.ts tests/presentation-projector.spec.ts
-git commit -m "feat: project predesign content to presentation canonical model"
+git add src/presentation/projector tests/presentation-outline-projector.spec.ts tests/presentation-draft-projector.spec.ts
+git commit -m "feat: project predesign content to presentation format"
 ```
 
 ---
 
-### Task 7: 实现节点同步、冲突检测和 Revision 映射
+### Task 7: 实现标准文件更新和外部修改检测
 
 **Files:**
-- Create: `src/presentation/sync-service.ts`
-- Modify: `src/state/types.ts`
+- Create: `src/presentation/update-service.ts`
+- Modify: `src/presentation/export-ledger.ts`
 - Modify: `src/state/repository.ts`
 - Modify: `src/commands/register.ts`
-- Test: `tests/presentation-sync.spec.ts`
+- Test: `tests/presentation-update-service.spec.ts`
 
 **Interfaces:**
-- Consumes: Task 6 Projection、官方标准验证器、当前 Presentation Head / Revision 契约。
 - Produces:
 
 ```ts
-export type PresentationSyncTrigger =
-  | { readonly kind: 'gate_approved'; readonly gateId: string }
-  | { readonly kind: 'explicit'; readonly actorId: string }
-
-export interface PresentationSyncConflict {
-  readonly objectType: string
-  readonly objectId: string
-  readonly reason: 'presentation_modified' | 'base_revision_changed' | 'source_identity_changed'
-}
-
-export interface PresentationSyncResult {
+export interface PresentationFileUpdateResult {
   readonly projectId: string
   readonly preDesignRevision: number
-  readonly presentationBaseRevision: number
-  readonly presentationRevision?: number
   readonly createdIds: readonly string[]
   readonly updatedIds: readonly string[]
   readonly unchangedIds: readonly string[]
-  readonly conflicts: readonly PresentationSyncConflict[]
-  readonly status: 'committed' | 'conflicted' | 'failed'
+  readonly reviewRequiredIds: readonly string[]
+  readonly status: 'updated' | 'review_required' | 'failed'
 }
 ```
 
@@ -649,58 +727,60 @@ export interface PresentationSyncResult {
 
 覆盖：
 
-- Gate 未批准且无显式触发时拒绝正式同步；
-- 同一 `pre-design` Revision 重试不生成重复 Revision；
-- 同步基于冻结 Revision；
-- Presentation 已人工修改同一内容对象时返回冲突，不静默覆盖；
-- 无冲突对象可以按标准允许的原子提交协议落盘；
-- 同步后保存 `pre-design Revision → Presentation Revision` 映射；
-- `layouts/` 不被创建或修改；
-- 同步失败后当前正式 Presentation Head 不变化。
+- Gate、用户或已授权 Agent 触发；
+- 同一专业 Revision 重试不重复写入；
+- 当前对象 Hash 等于上次输出 Hash 时允许更新；
+- 当前对象 Hash 不等时返回 `review_required`；
+- 不判断修改者是人、Agent 还是其他工具；
+- 无冲突对象可以更新；
+- `review_required` 对象不被覆盖；
+- `layouts/` 不创建新内容、不修改既有内容；
+- 失败后输出账本不前进；
+- 不依赖 Presentation Revision、Head、CAS 或 UpstreamSyncRecord。
 
 - [ ] **Step 2: 运行测试并确认失败**
 
 ```bash
-pnpm vitest run tests/presentation-sync.spec.ts
+pnpm vitest run tests/presentation-update-service.spec.ts
 ```
 
-- [ ] **Step 3: 实现同步服务**
-
-固定流程：
+- [ ] **Step 3: 实现更新流程**
 
 ```text
 读取 ready 绑定
 → 读取冻结 pre-design Revision
 → 构建 Projection
-→ 读取 Presentation baseRevision
-→ 比较 sourceRefs 与 lastModifiedRevision
-→ 生成 ChangeSet / 冲突清单
-→ 官方 Schema 验证
-→ 按 Presentation 原子提交协议提交
-→ 更新 Revision 映射
+→ 读取当前标准文件
+→ 按稳定 ID 计算当前语义 Hash
+→ 与上次输出账本比较
+→ 生成 created / updated / unchanged / review_required
+→ 将可更新文件写入 staging
+→ 官方完整验证
+→ 原子替换可更新文件和 Manifest
+→ 更新输出账本
 ```
 
-- [ ] **Step 4: 增加显式同步命令**
+- [ ] **Step 4: 增加显式输出命令**
 
-命令只属于 `pre-design` 插件；不得要求修改 Presentation UI。命令返回新增、修改、未变和冲突数量及对象 ID。
+命令属于 `pre-design` 插件，返回对象数量和 `reviewRequiredIds`，不要求 Presentation 增加 UI。
 
 - [ ] **Step 5: 运行测试**
 
 ```bash
-pnpm vitest run tests/presentation-sync.spec.ts tests/commands.spec.ts
+pnpm vitest run tests/presentation-update-service.spec.ts tests/commands.spec.ts
 pnpm typecheck
 ```
 
 - [ ] **Step 6: 提交**
 
 ```bash
-git add src/presentation/sync-service.ts src/state src/commands/register.ts tests/presentation-sync.spec.ts
-git commit -m "feat: sync predesign revisions to presentation projects"
+git add src/presentation/update-service.ts src/presentation/export-ledger.ts src/state/repository.ts src/commands/register.ts tests/presentation-update-service.spec.ts
+git commit -m "feat: update presentation files safely"
 ```
 
 ---
 
-### Task 8: 完成真实项目纵向 E2E 与 legacy 兼容验证
+### Task 8: 完成真实纵向 E2E 和 legacy 回归
 
 **Files:**
 - Create: `tests/presentation-project-e2e.spec.ts`
@@ -708,44 +788,50 @@ git commit -m "feat: sync predesign revisions to presentation projects"
 - Modify: `HANDOFF.md`
 
 **Interfaces:**
-- Consumes: Tasks 1–7 全部能力。
-- Produces: 一条无需 Presentation UI 改动的完整 `pre-design` 项目目录生成证据。
+- Consumes: Tasks 0–7。
+- Produces: 不依赖 Presentation UI 的完整 `pre-design` 标准项目输出证据。
 
 - [ ] **Step 1: 写 E2E 测试**
 
-场景固定为：
+固定场景：
 
 ```text
-全新 DSH Storage / 临时工作区
-→ /preplan-new 创建项目
-→ 自动生成完整标准目录
-→ 校验最小合法 JSON
+全新 DSH Storage 和临时工作区
+→ /preplan-new
+→ pre-design 创建标准目录
+→ 验证最小空项目
 → 导入文档、图片、视频和重复文件
 → 采用一张原始图片
-→ 生成并采用一张图表/分析图
-→ 提交若干专业状态并通过章节 Gate
-→ 显式同步大纲和草案
-→ 校验所有 Canonical 文件
+→ 生成并采用一张图表
+→ 提交若干专业状态并通过 Gate
+→ 输出大纲、页面和草案
+→ 验证全部结构文件
 → 确认 layouts/ 为空
-→ 重启 Repository 与插件服务
-→ 恢复项目并再次幂等同步
+→ 模拟外部修改一段草案
+→ 再次输出并得到 review_required
+→ 确认外部修改未被覆盖
+→ 重启插件
+→ 恢复项目绑定和输出账本
 ```
 
-- [ ] **Step 2: 增加故障注入测试**
+- [ ] **Step 2: 增加故障注入**
 
 至少覆盖：
 
-- 初始化器失败；
+- Contract 版本或 Hash 不一致；
+- 文档工厂失败；
 - Schema 验证失败；
-- staging rename 失败；
-- 项目控制记录写入失败；
-- Manifest 更新失败；
-- 进程在最终 rename 后、ready 记录前中断；
-- Presentation baseRevision 冲突。
+- staging 写入失败；
+- rename 失败；
+- 绑定记录失败；
+- Manifest 替换失败；
+- 外部修改；
+- 恢复残留 staging。
 
 - [ ] **Step 3: 运行专项和完整回归**
 
 ```bash
+pnpm vitest run tests/presentation-project-e2e.spec.ts
 pnpm test
 pnpm typecheck
 pnpm test:built
@@ -756,47 +842,40 @@ Expected:
 - 新增测试全部通过；
 - 现有测试不回退；
 - legacy HTML/PPTX/PDF 测试仍通过；
-- npm 包版本仍为原版本；
-- 没有创建正式 `v2.0.0` Tag 或 Release。
+- npm 包版本仍为当前正式版本；
+- 没有创建正式 `v2.0.0` Tag 或 Release；
+- `layouts/` 未被 pre-design 写入。
 
-- [ ] **Step 4: 更新验收和 HANDOFF**
+- [ ] **Step 4: 更新验收与交接**
 
-必须记录：
+记录：
 
-- Presentation 标准版本和来源 commit；
-- pre-design 实现 commit；
-- E2E 命令和新鲜输出；
-- 示例项目目录路径与 Hash；
-- legacy 路径仍保留的边界；
-- 尚未进入本版的功能。
+- Presentation Contract 精确版本和 Hash；
+- E2E 测试数量；
+- 创建、资料、素材、草案和外部修改保护证据；
+- legacy 回归结果；
+- 已知非阻断风险。
 
 - [ ] **Step 5: 提交**
 
 ```bash
 git add tests/presentation-project-e2e.spec.ts docs/acceptance.md HANDOFF.md
-git commit -m "test: verify presentation project integration end to end"
+git commit -m "test: verify presentation project output flow"
 ```
 
 ---
 
-## Plan Self-Review
+## Final Verification
 
-### Spec coverage
+在声明完成前运行：
 
-- 两插件独立：Task 1–8 均不合并仓库或插件。
-- 标准权威在 Presentation：Task 1 使用适配口消费官方标准，不复制 Schema。
-- 创建时自动建目录：Task 3。
-- 强一致与恢复：Task 2–3、Task 8 故障注入。
-- 最小合法文件：Task 1、Task 3。
-- 原始资料复制和去重：Task 4。
-- 正式素材分类和溯源：Task 5。
-- 大纲、草案和素材 Canonical 输出：Task 6。
-- Gate / 显式触发同步：Task 7。
-- Revision 分离与映射：Task 7。
-- 不生成 Layout：Task 6–8 均有断言。
-- 不改 Presentation UI：全局约束和所有任务均遵守。
-- legacy 输出不删除：Task 8 回归验证。
+```bash
+pnpm tsx scripts/verify-presentation-contract-lock.ts
+pnpm test
+pnpm typecheck
+pnpm test:built
+git diff --check
+git status --short
+```
 
-### Execution gate
-
-本计划已经可执行，但必须先收到 `presentation-tools` 对以下内容的正式交付：目录版本、Schema、最小实例、初始化器、验证器、稳定 ID、sourceRefs、素材 lineage、Revision 提交方式和跨仓消费方式。未满足该门槛时，只允许继续审查规范，不允许在 `pre-design` 中用临时私有结构抢跑。
+完成声明必须包含实际命令输出、通过数量、当前 commit SHA 和仍存在的非阻断风险。
