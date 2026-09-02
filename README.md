@@ -86,20 +86,19 @@ pnpm golden:build -- --output C:\temp\dsh-preplanning-golden
 
 合同门禁：
 
-```powershelll
-PUsh-Location contracts\v0.6
+```powershell
+Push-Location contracts\v0.6
 python tests\test_contracts.py
 Pop-Location
 ```
 
-``golden:build` 生成现有�`0.7.0` 路径的同源 HTML/PPTX/PDF。默认使用本机 Microsoft Edge；可通过 `--browser` 或 `PREPLAN_BROWSER_EXECUTABLE` 指定兿宺的 Chromium 可执行文件。
+`golden:build` 生成现有 `0.7.0` 路径的同源 HTML/PPTX/PDF。默认使用本机 Microsoft Edge；可通过 `--browser` 或 `PREPLAN_BROWSER_EXECUTABLE` 指定兼容的 Chromium 可执行文件。
 
 ## 安装到 DSH Web Profile
 
-先备份 Profile 的 `package.json`、蔁文件和 Cordis 配置，再使用官方 CLI：
+先备份 Profile 的 `package.json`、锁文件和 Cordis 配置，再使用官方 CLI：
 
 ```powershell
-
 dsh plugin --profile web remove @architectureworld/dsh-preplanning-agent
 dsh plugin --profile web add .\architectureworld-dsh-preplanning-agent-0.7.0.tgz
 dsh --profile web --dump-config

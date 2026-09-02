@@ -20,7 +20,7 @@ language: zh-CN
 
 本文件只冻结内容生成规则。版本语义统一读取 [`docs/version-matrix.json`](../../version-matrix.json)，不得在本文件建立另一套包版本、Release、Presentation Contract 或实施状态口径。
 
-`pre-design` 是可执行 DSH 使用、内置前期策划 Skill，并包含专业工作流、Tools、Commands、状态、资料处理和标准文件生成能力。
+`pre-design` 是可执行 DSH 插件，内置前期策划 Skill，并包含专业工作流、Tools、Commands、状态、资料处理和标准文件生成能力。
 
 本文件冻结：
 

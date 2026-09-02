@@ -42,7 +42,7 @@ DSH Harness
 │  ├─ 原始资料和专业素材处理
 │  └─ 创建并填写标准化 Presentation 项目文件
 │
-└─ presentation-tools DSH 侺件
+└─ presentation-tools DSH 插件
    ├─ 定义 Presentation 标准项目格式
    ├─ 读取标准化项目文件
    ├─ 将项目内容可视化
@@ -96,7 +96,7 @@ DSH Harness
 
 - 不合并两个仓库或插件；
 - 不把 `pre-design` 简化成纯 Prompt 或单文件 Skill；
-- 不让 `pre-design` 自建第二奔 Agent Runtime；
+- 不让 `pre-design` 自建第二套 Agent Runtime；
 - 不要求 Presentation 理解 PS、DG、OP、SP、IM 等专业对象；
 - 不要求修改 Presentation UI 或交互；
 - 不在 Presentation 标准中定义 Gate、Workflow、Proposal 或专业审批；
@@ -168,7 +168,7 @@ presentationProjectId   Presentation ProjectManifest.projectId
 
 ## 5. 项目创建
 
-项目创建的 DSH 使用、文件系统操作、项目记录、失败补偿和恢复均由 `pre-design` 执行。
+项目创建的 DSH 命令、文件系统操作、项目记录、失败补偿和恢复均由 `pre-design` 执行。
 
 Presentation Contract只提供：
 
