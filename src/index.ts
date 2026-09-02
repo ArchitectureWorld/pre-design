@@ -12,6 +12,7 @@ import { ContractRegistry } from './contracts/registry.ts'
 import { GovernanceRepository } from './governance/repository.ts'
 import { SiteBoundaryAssetStore } from './governance/site-boundary-asset-store.ts'
 import { SiteBoundaryService } from './governance/site-boundary-service.ts'
+import { PresentationBindingRepository } from './presentation/binding-repository.ts'
 import { PREPLANNING_SYSTEM_PROMPT } from './prompts/preplanning-system.ts'
 import { ProposalGateway } from './proposals/gateway.ts'
 import { resolveBrowserExecutable } from './report/browser-executable.ts'
@@ -35,6 +36,7 @@ interface PreplanningHost {
   readonly contractVersion: '0.6.0'
   readonly repository: ProjectRepository
   readonly governance: GovernanceRepository
+  readonly presentationBindings: PresentationBindingRepository
   readonly gateway: ProposalGateway
   readonly registry: ContractRegistry
   readonly runtime: WorkflowRuntime
@@ -68,6 +70,7 @@ export async function apply(ctx: Context): Promise<void> {
   const registry = await ContractRegistry.open(new URL('../contracts/v0.6/', import.meta.url))
   const repository = await ProjectRepository.open(ctx.storage.domain)
   const governance = await GovernanceRepository.open(ctx.storage.domain)
+  const presentationBindings = await PresentationBindingRepository.open(ctx.storage.domain)
   const runtime = new WorkflowRuntime(registry, governance, now)
   const automation = new AutomationService(governance, registry, now)
   const gates = new GateService(registry, governance, runtime, automation, now)
@@ -130,6 +133,7 @@ export async function apply(ctx: Context): Promise<void> {
   })
   registerReportDownloadRoute(ctx.webServer, reportPackageRoot)
   ctx.effect(() => async () => {
+    await presentationBindings.close()
     await governance.close()
     await repository.close()
   })
@@ -160,6 +164,7 @@ export async function apply(ctx: Context): Promise<void> {
     contractVersion: '0.6.0',
     repository,
     governance,
+    presentationBindings,
     gateway,
     registry,
     runtime,
