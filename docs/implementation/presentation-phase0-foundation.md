@@ -151,13 +151,7 @@ Built-package regression: PASS
 Diff hygiene: PASS
 ```
 
-GitHub Actions run used for the current verification snapshot:
-
-```text
-workflow: Presentation Phase 0 Foundation
-run: 33695951945
-head: dd0c04e6fea08b23622441eefb2607897ecbe653
-```
+The latest successful `Presentation Phase 0 Foundation` workflow for the implementation branch is the verification authority. A concrete workflow run ID or commit SHA is intentionally not embedded here because such a self-reference becomes stale whenever this document itself changes.
 
 ## 4. Explicitly not implemented
 
