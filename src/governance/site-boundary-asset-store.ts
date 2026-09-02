@@ -57,11 +57,18 @@ function assertSha256(name: string, value: string): string {
   return value
 }
 
+const CRC32_TABLE = Uint32Array.from({ length: 256 }, (_, index) => {
+  let value = index
+  for (let bit = 0; bit < 8; bit += 1) {
+    value = (value >>> 1) ^ (value & 1 ? 0xedb88320 : 0)
+  }
+  return value >>> 0
+})
+
 function crc32(bytes: Uint8Array): number {
   let value = 0xffffffff
-  for (const byte of bytes) {
-    value ^= byte
-    for (let bit = 0; bit < 8; bit += 1) value = (value >>> 1) ^ (value & 1 ? 0xedb88320 : 0)
+  for (let index = 0; index < bytes.length; index += 1) {
+    value = CRC32_TABLE[(value ^ bytes[index]!) & 0xff]! ^ (value >>> 8)
   }
   return (value ^ 0xffffffff) >>> 0
 }
