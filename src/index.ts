@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
 import type { LlmRuntime } from '@deepseek-ai/dsh-llm'
@@ -13,6 +13,8 @@ import { GovernanceRepository } from './governance/repository.ts'
 import { SiteBoundaryAssetStore } from './governance/site-boundary-asset-store.ts'
 import { SiteBoundaryService } from './governance/site-boundary-service.ts'
 import { PresentationBindingRepository } from './presentation/binding-repository.ts'
+import { registerPresentationRuntime } from './presentation/runtime-integration.ts'
+import { PresentationStandardProjectService } from './presentation/standard-project-service.ts'
 import { PREPLANNING_SYSTEM_PROMPT } from './prompts/preplanning-system.ts'
 import { ProposalGateway } from './proposals/gateway.ts'
 import { resolveBrowserExecutable } from './report/browser-executable.ts'
@@ -37,6 +39,8 @@ interface PreplanningHost {
   readonly repository: ProjectRepository
   readonly governance: GovernanceRepository
   readonly presentationBindings: PresentationBindingRepository
+  readonly standardProjects: PresentationStandardProjectService
+  readonly presentationProjectRoot: string
   readonly gateway: ProposalGateway
   readonly registry: ContractRegistry
   readonly runtime: WorkflowRuntime
@@ -71,6 +75,15 @@ export async function apply(ctx: Context): Promise<void> {
   const repository = await ProjectRepository.open(ctx.storage.domain)
   const governance = await GovernanceRepository.open(ctx.storage.domain)
   const presentationBindings = await PresentationBindingRepository.open(ctx.storage.domain)
+  const presentationProjectRoot = resolve(
+    process.env.PRE_DESIGN_PRESENTATION_PROJECT_ROOT?.trim()
+      || join(homedir(), '.dsh', 'presentation-projects'),
+  )
+  const standardProjects = new PresentationStandardProjectService({
+    bindings: presentationBindings,
+    workspaceRoot: presentationProjectRoot,
+    now,
+  })
   const runtime = new WorkflowRuntime(registry, governance, now)
   const automation = new AutomationService(governance, registry, now)
   const gates = new GateService(registry, governance, runtime, automation, now)
@@ -87,7 +100,7 @@ export async function apply(ctx: Context): Promise<void> {
   const visualCollector = new SessionImageCollector({
     sessions: { get: id => ctx.sessions.get(id as never) },
     attachments: { readImage: (ref, signal) => ctx.attachments.readImage(ref as never, signal) },
-    waitForEvent: (childId, signal) => new Promise<void>((resolve, reject) => {
+    waitForEvent: (childId, signal) => new Promise<void>((resolveWait, reject) => {
       let dispose: () => unknown = () => undefined
       const cleanup = () => {
         signal.removeEventListener('abort', onAbort)
@@ -100,7 +113,7 @@ export async function apply(ctx: Context): Promise<void> {
       dispose = ctx.on('session/event', (session) => {
         if (String(session.id) !== childId) return
         cleanup()
-        resolve()
+        resolveWait()
       })
       signal.addEventListener('abort', onAbort, { once: true })
       if (signal.aborted) onAbort()
@@ -114,6 +127,11 @@ export async function apply(ctx: Context): Promise<void> {
     store: visualStore,
     now,
   })
+  const frozenProjectSource = (projectId: string, revision: number) => createFrozenProjectInput(
+    projectId,
+    revision,
+    { repository, governance, registry, visualStore },
+  )
   const reportPackageRoot = join(homedir(), '.dsh', 'preplanning-agent', 'report-packages')
   const clientProfileRoot = join(homedir(), '.dsh', 'preplanning-agent', 'client-profiles')
   const reports = new ReportPackageService({
@@ -121,12 +139,7 @@ export async function apply(ctx: Context): Promise<void> {
     boundaryIntegrity: boundaries,
     packageRoot: reportPackageRoot,
     browserExecutable: resolveBrowserExecutable(),
-    source: async (projectId, revision) => createFrozenProjectInput(projectId, revision, {
-      repository,
-      governance,
-      registry,
-      visualStore,
-    }),
+    source: async (projectId, revision) => frozenProjectSource(projectId, revision),
     profile: async (projectId, input) => loadClientProjectProfile(clientProfileRoot, projectId, input),
     createId: () => `report-${randomUUID()}`,
     now,
@@ -154,6 +167,11 @@ export async function apply(ctx: Context): Promise<void> {
     now,
   })
   registerPreplanningTools(ctx, { repository, gateway, governance, runtime, registry })
+  registerPresentationRuntime(ctx, {
+    repository,
+    standardProjects,
+    source: frozenProjectSource,
+  })
   ctx.systemPrompt.section({
     name: 'preplanning-agent',
     order: 120,
@@ -165,6 +183,8 @@ export async function apply(ctx: Context): Promise<void> {
     repository,
     governance,
     presentationBindings,
+    standardProjects,
+    presentationProjectRoot,
     gateway,
     registry,
     runtime,
