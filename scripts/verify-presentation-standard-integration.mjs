@@ -42,9 +42,10 @@ const implementationFiles = [
   'src/presentation/standard-project-types.ts',
   'src/presentation/standard-project-writer.ts',
   'src/presentation/standard-project-service.ts',
+  'src/presentation/standard-project-error.ts',
   'src/presentation/identity-ledger.ts',
-  'src/presentation/source-material-writer.ts',
-  'src/presentation/asset-writer.ts',
+  'src/presentation/material-plan.ts',
+  'src/presentation/filesystem.ts',
 ]
 for (const path of implementationFiles) {
   requireCondition(existsSync(resolve(root, path)), `missing implementation file: ${path}`)
@@ -77,6 +78,7 @@ const tests = [
   'tests/presentation-standard-adapter.spec.ts',
   'tests/presentation-standard-writer.spec.ts',
   'tests/presentation-standard-project-e2e.spec.ts',
+  'tests/presentation-standard-identity.spec.ts',
 ]
 for (const path of tests) {
   requireCondition(existsSync(resolve(root, path)), `missing integration test: ${path}`)
