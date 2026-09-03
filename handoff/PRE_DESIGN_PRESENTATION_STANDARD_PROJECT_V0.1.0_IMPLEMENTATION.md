@@ -1,12 +1,14 @@
 ---
 document_id: pre-v2-standard-project-output-handoff
 document_version: 2.0.0
-status: implementation-complete-final-verification-pending
+status: verified-development-candidate
 pre_design_version: 2.0.0
 presentation_contract_version: 0.1.0
 architecture_branch: architecture/pre-v2.0.0
 development_branch: feat/pre-v2.0.0
 phase0_base_commit: bc6fe0347b7725ae3df79c9317d198cd815d41b2
+verified_code_commit: c44699b5b0adccac5168d0205e579d898ca02013
+verified_workflow_run: 33725698031
 contract_commit: 974668d308728386ea005c9e77d58ebff9372f0a
 schema_set_sha256: 5bd329fcc8503ff7a48b3430e41b38dd264ae486cee7372a39cbbcccc2de2ebc
 language: zh-CN
@@ -37,6 +39,8 @@ Presentation Standard Project Directory 0.1.0
 | 开发支线 | `feat/pre-v2.0.0` |
 | Pre 包 | `@architectureworld/dsh-preplanning-agent@2.0.0` |
 | Phase 0 基线提交 | `bc6fe0347b7725ae3df79c9317d198cd815d41b2` |
+| 首个全绿代码提交 | `c44699b5b0adccac5168d0205e579d898ca02013` |
+| 首个完整成功工作流 | `Pre 2.0.0 Integration` Run `33725698031` |
 | Contract 仓库 | `ArchitectureWorld/presentation-tools` |
 | Contract 固定提交 | `974668d308728386ea005c9e77d58ebff9372f0a` |
 | Contract 包 | `@architectureworld/presentation-contracts@0.1.0` |
@@ -153,7 +157,31 @@ Pre FrozenProjectInput
 - 返回结构化错误；
 - 不报告成功。
 
-## 7. 验证命令
+## 7. 已完成验证
+
+首个完整全绿代码状态：
+
+```text
+Commit: c44699b5b0adccac5168d0205e579d898ca02013
+Workflow: Pre 2.0.0 Integration
+Run: 33725698031
+Conclusion: success
+```
+
+该工作流在同一代码提交上完成：
+
+- Pre 2.0.0 版本权威校验；
+- 固定 Presentation Contract 完整性校验；
+- 原生 Node 22 构建配置校验；
+- 标准项目专项测试；
+- TypeScript 校验；
+- 完整构建与全仓测试；
+- 构建产物测试；
+- Git diff hygiene。
+
+本文件及版本矩阵的最终状态固化提交还必须再次通过同一工作流，才能作为最终分支 HEAD 的验证证据。
+
+本地等价命令：
 
 ```bash
 pnpm install --frozen-lockfile
@@ -183,7 +211,7 @@ dsh --profile pre-v2-test --dump-config
 dsh --profile pre-v2-test --no-open
 ```
 
-在同一最终 HEAD 的完整回归和真实 DSH 烟测通过前，不覆盖现用稳定 Profile，不合并主线，不创建 `v2.0.0` Tag 或 Release。
+在真实 DSH Profile 烟测通过前，不覆盖现用稳定 Profile，不合并主线，不创建 `v2.0.0` Tag 或 Release。
 
 ## 9. 回滚
 
