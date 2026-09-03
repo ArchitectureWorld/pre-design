@@ -1,78 +1,77 @@
 {
-  "schemaVersion": 2,
-  "updatedAt": "2026-09-02",
-  "branch": "architecture/presentation-project-alignment-v2.0.0",
-  "implementationBranch": "feature/presentation-phase0-foundation-v2.0.0",
-  "alignmentBaseline": {
-    "name": "Pre-design × Presentation project alignment",
+  "schemaVersion": 3,
+  "updatedAt": "2026-09-03",
+  "repository": "ArchitectureWorld/pre-design",
+  "product": {
+    "name": "pre-design",
     "version": "2.0.0",
-    "label": "v2.0.0",
-    "status": "frozen"
+    "packageName": "@architectureworld/dsh-preplanning-agent",
+    "packageVersion": "2.0.0",
+    "status": "development-candidate",
+    "publishedTag": null
   },
-  "executablePackage": {
-    "name": "@architectureworld/dsh-preplanning-agent",
-    "version": "0.7.0",
-    "versionBumpAuthorized": false
+  "activeBranches": {
+    "architecture": "architecture/pre-v2.0.0",
+    "development": "feat/pre-v2.0.0"
   },
-  "publishedRelease": {
-    "tag": "v0.7.0",
-    "status": "historical-published-baseline"
+  "externalContracts": {
+    "presentationProjectFormat": {
+      "relationship": "decoupled-external-contract",
+      "standardName": "Presentation Standard Project Directory",
+      "standardVersion": "0.1.0",
+      "authorityRepository": "ArchitectureWorld/presentation-tools",
+      "sourceCommitSHA": "974668d308728386ea005c9e77d58ebff9372f0a",
+      "contractRoot": "contracts/presentation-standard-project",
+      "packageName": "@architectureworld/presentation-contracts",
+      "packageVersion": "0.1.0",
+      "schemaSetSha256": "5bd329fcc8503ff7a48b3430e41b38dd264ae486cee7372a39cbbcccc2de2ebc",
+      "lockFile": "docs/contracts/presentation-standard-project-v0.1.0-lock.json",
+      "lockStatus": "locked"
+    }
   },
   "legacyContracts": {
     "business": "v0.6",
     "governance": "v0.7",
     "status": "retained-historical-contract-lines"
   },
-  "presentationStandard": {
-    "name": "Presentation Standard Project Directory",
-    "authorityRepository": "ArchitectureWorld/presentation-tools",
-    "contractLockStatus": "pending",
-    "lockFile": "docs/contracts/presentation-standard-project-v1-lock.json",
-    "standardVersion": null,
-    "packageName": null,
-    "packageVersion": null,
-    "schemaSetSha256": null
-  },
-  "historicalLabels": {
+  "historical": {
+    "lastPublishedPreDesign": {
+      "packageVersion": "0.7.0",
+      "tag": "v0.7.0",
+      "status": "historical-published-baseline"
+    },
+    "supersededBranchNames": [
+      {
+        "name": "architecture/presentation-project-alignment-v2.0.0",
+        "replacement": "architecture/pre-v2.0.0"
+      },
+      {
+        "name": "feature/presentation-phase0-foundation-v2.0.0",
+        "replacement": "feat/pre-v2.0.0"
+      },
+      {
+        "name": "feat/presentation-standard-project-v0.1.0-integration",
+        "replacement": "feat/pre-v2.0.0"
+      }
+    ],
     "clientReportCandidate": {
       "label": "v0.8",
-      "status": "unreleased-historical-candidate-line",
-      "authority": false,
-      "evidencePath": "docs/acceptance-v0.8.md"
+      "authority": false
     },
-    "handoffBundle": {
+    "handoffArchive": {
       "label": "FINAL_v2.0",
-      "status": "historical-archive-label",
       "authority": false,
       "path": "handoff/FINAL_v2.0/"
-    },
-    "legacyHandoff": {
-      "status": "superseded-history",
-      "authority": false,
-      "path": "HANDOFF_HISTORY.md"
     }
   },
   "implementation": {
-    "phase0Foundation": {
-      "status": "implemented",
-      "verificationStatus": "targeted-tests-and-typecheck-passed",
-      "scope": [
-        "contract-port",
-        "project-binding",
-        "canonical-json-and-path-policy",
-        "atomic-filesystem",
-        "contract-neutral-narrative-projection",
-        "external-change-protection",
-        "material-and-asset-import-planning"
-      ]
+    "presentationStandardOutput": {
+      "status": "implemented-on-development-branch",
+      "contractVersion": "0.1.0",
+      "verificationStatus": "pending-final-green-after-version-normalization"
     },
-    "contractDependentIntegration": {
-      "status": "blocked-by-contract-lock",
-      "productionCodeChanged": false
-    },
-    "productionCodeChangedForAlignment": true,
-    "packageReleaseStatus": "not-authorized",
-    "planReady": true
+    "releaseStatus": "not-merged-not-published",
+    "productionCodeChanged": true
   },
   "authority": {
     "machine": "docs/version-matrix.json",
