@@ -28,7 +28,7 @@ describe('direct preplanning start', () => {
     expect(prompt).not.toHaveBeenCalled()
   })
 
-  it('项目创建成功后只发送一次受控自然语言任务', async () => {
+  it('项目创建后立即生成 Presentation 标准项目，再发送一次受控自然语言任务', async () => {
     const lines: string[] = []
     const prompts: string[] = []
     const port: DirectStartPort = {
@@ -47,14 +47,17 @@ describe('direct preplanning start', () => {
       statement: '新建鄂州体育中心项目并完成 01-01 身份校准',
     })
 
-    expect(lines).toEqual(['/preplan-new 鄂州体育中心项目'])
+    expect(lines).toEqual([
+      '/preplan-new 鄂州体育中心项目',
+      '/preplan-presentation-sync',
+    ])
     expect(prompts).toHaveLength(1)
     expect(prompts[0]).toContain('新建鄂州体育中心项目并完成 01-01 身份校准')
     expect(prompts[0]).toContain('preplanning_get_context')
     expect(prompts[0]).toContain('不要搜索工作区、文件系统或网页中的合同')
   })
 
-  it('全流程启动按用户选择配置模式后调用 preplan-run', async () => {
+  it('全流程启动先创建标准项目，再按用户选择配置模式并调用 preplan-run', async () => {
     const lines: string[] = []
     const port: DirectStartPort = {
       executeCommand: async line => { lines.push(line); return { kind: 'success' } },
@@ -68,6 +71,7 @@ describe('direct preplanning start', () => {
 
     expect(lines).toEqual([
       '/preplan-new 滨江文化活力区',
+      '/preplan-presentation-sync',
       '/preplan-mode automatic 12 extended',
       '/preplan-run',
     ])
