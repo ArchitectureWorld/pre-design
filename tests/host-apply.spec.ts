@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createD1ProposalExample, PREPLANNING_SYSTEM_PROMPT } from '../src/prompts/preplanning-system.ts'
 import * as HostPlugin from '../src/index.ts'
 import { SiteBoundaryService } from '../src/governance/site-boundary-service.ts'
+import { PresentationStandardProjectService } from '../src/presentation/standard-project-service.ts'
 import { ReportPackageService } from '../src/report/package-service.ts'
 import { VisualAgentService } from '../src/visual/agent.ts'
 
@@ -23,7 +24,7 @@ afterEach(async () => {
 })
 
 describe('Host apply composition', () => {
-  it('在真实 Storage Domain 上提供全流程 Host、十七命令、两工具和系统提示', async () => {
+  it('在真实 Storage Domain 上提供全流程 Host、十八命令、三工具和系统提示', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-preplanning-host-'))
     roots.push(root)
     const ctx = new Context()
@@ -60,6 +61,9 @@ describe('Host apply composition', () => {
     await vi.waitFor(() => expect(ctx.get('preplanning')).toBeDefined())
     expect(ctx.get('preplanning')?.visual).toBeInstanceOf(VisualAgentService)
     expect(ctx.get('preplanning')?.reports).toBeInstanceOf(ReportPackageService)
+    expect(ctx.get('preplanning')?.standardProjects).toBeInstanceOf(PresentationStandardProjectService)
+    expect(ctx.get('preplanning')?.presentationProjectRoot).toContain('.dsh')
+    expect(ctx.get('preplanning')?.presentationProjectRoot).toContain('presentation-projects')
     const reportOptions = Reflect.get(ctx.get('preplanning')!.reports, 'options') as { readonly boundaryIntegrity?: unknown }
     expect(reportOptions.boundaryIntegrity).toBeInstanceOf(SiteBoundaryService)
     expect(routes).toEqual([expect.objectContaining({ kind: 'prefix', path: '/preplan-export' })])
@@ -69,10 +73,11 @@ describe('Host apply composition', () => {
       'preplan-mode', 'preplan-run', 'preplan-pause', 'preplan-gate', 'preplan-revise',
       'preplan-visual', 'preplan-visual-adopt', 'preplan-visual-replace',
       'preplan-boundary-asset', 'preplan-boundary-coordinates', 'preplan-boundary-confirm',
-      'preplan-export',
+      'preplan-export', 'preplan-presentation-sync',
     ])
     expect(tools.map(definition => definition.name)).toEqual([
       'preplanning_get_context', 'preplanning_apply_commands',
+      'preplanning_sync_presentation_project',
     ])
     expect(promptSections).toHaveLength(1)
     expect(promptSections[0]).toMatchObject({
