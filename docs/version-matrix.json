@@ -7,7 +7,7 @@
     "version": "2.0.0",
     "packageName": "@architectureworld/dsh-preplanning-agent",
     "packageVersion": "2.0.0",
-    "status": "development-candidate",
+    "status": "verified-development-candidate",
     "publishedTag": null
   },
   "activeBranches": {
@@ -66,9 +66,15 @@
   },
   "implementation": {
     "presentationStandardOutput": {
-      "status": "implemented-on-development-branch",
+      "status": "implemented-and-verified-on-development-branch",
       "contractVersion": "0.1.0",
-      "verificationStatus": "pending-final-green-after-version-normalization"
+      "verificationStatus": "targeted-and-full-regression-passed",
+      "verifiedHead": "c44699b5b0adccac5168d0205e579d898ca02013",
+      "verifiedWorkflow": {
+        "name": "Pre 2.0.0 Integration",
+        "runId": 33725698031,
+        "conclusion": "success"
+      }
     },
     "releaseStatus": "not-merged-not-published",
     "productionCodeChanged": true
