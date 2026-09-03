@@ -23,7 +23,12 @@ function cloneBinding(
 ): PresentationProjectBindingRecord {
   return {
     ...record,
+    stableIds: { ...record.stableIds },
     lastExportedObjectHashes: { ...record.lastExportedObjectHashes },
+    lastExportedFileHashes: { ...record.lastExportedFileHashes },
+    ...(record.lastFailure === undefined
+      ? {}
+      : { lastFailure: { ...record.lastFailure } }),
   }
 }
 
