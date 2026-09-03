@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "standardName": "Presentation Standard Project Directory",
+  "standardVersion": "0.1.0",
+  "packageName": "@architectureworld/presentation-contracts",
+  "packageVersion": "0.1.0",
+  "authorityRepository": "ArchitectureWorld/presentation-tools",
+  "sourceCommitSHA": "974668d308728386ea005c9e77d58ebff9372f0a",
+  "schemaSetSha256": "5bd329fcc8503ff7a48b3430e41b38dd264ae486cee7372a39cbbcccc2de2ebc",
+  "tarballPath": "vendor/presentation-contracts/architectureworld-presentation-contracts-0.1.0.tgz",
+  "sizeBytes": 23703,
+  "sha256": "ae0e2955259abbb925d4c97b5b9a58ef93d8900fe9f39e35d3603e1f436b9cf5",
+  "integrity": "sha512-Jl4kEnF8Cs3GMZhQkb9rXd0xex2BocewKj8b7Gbx0TvewUQ/VABl9xAwvGhBmz2k3Dv+7dTX77phW0ygjw31UQ=="
+}
