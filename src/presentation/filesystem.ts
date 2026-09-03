@@ -52,7 +52,7 @@ function assertAbsoluteHostPath(path: string): void {
 }
 
 async function syncRegularFile(path: string): Promise<void> {
-  const handle = await open(path, 'r')
+  const handle = await open(path, 'r+')
   try {
     await handle.sync()
   } finally {
