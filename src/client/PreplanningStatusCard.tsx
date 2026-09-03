@@ -1,6 +1,7 @@
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { useState } from 'react'
 import { PreplanningDashboard } from './PreplanningDashboard.tsx'
+import { VersionFooter } from './VersionFooter.tsx'
 
 type Props = PropsRuntime<'conversation.chat.node', 'preplanning-status'> & {
   readonly confirm?: (proposalId: string) => Promise<void>
@@ -65,6 +66,7 @@ export function PreplanningStatusCard({ node, confirm }: Props) {
         </span>
       )}
       {error !== undefined && <span role="alert" style={{ color: '#c33', fontSize: 12 }}>{error}</span>}
+      <VersionFooter />
     </section>
   )
 }
