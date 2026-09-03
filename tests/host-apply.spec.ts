@@ -93,7 +93,8 @@ describe('Host apply composition', () => {
     } as never)
     expect(created?.kind).toBe('success')
     if (created?.kind !== 'success') throw new Error('preplan-new did not create the test project')
-    expect(created.text).toContain('尚未提供场地边界')
+    const createdText = created.text ?? ''
+    expect(createdText).toContain('尚未提供场地边界')
 
     const synchronized = await commands.find(
       definition => definition.name === 'preplan-presentation-sync',
@@ -102,9 +103,10 @@ describe('Host apply composition', () => {
     if (synchronized?.kind !== 'success') {
       throw new Error(`Presentation sync failed: ${synchronized?.text ?? 'missing result'}`)
     }
-    expect(synchronized.text).toContain('PRESENTATION_STANDARD_PROJECT_V0_1_0_PASS')
-    expect(synchronized.text).toContain('Presentation Project ID')
-    const directoryRoot = synchronized.text.match(/^目录：(.+)$/mu)?.[1]
+    const synchronizedText = synchronized.text ?? ''
+    expect(synchronizedText).toContain('PRESENTATION_STANDARD_PROJECT_V0_1_0_PASS')
+    expect(synchronizedText).toContain('Presentation Project ID')
+    const directoryRoot = synchronizedText.match(/^目录：(.+)$/mu)?.[1]
     expect(directoryRoot).toBeDefined()
     if (directoryRoot === undefined) throw new Error('sync did not report its directory')
     const projectDocument = JSON.parse(await readFile(join(directoryRoot, 'project.json'), 'utf8')) as {
@@ -120,7 +122,7 @@ describe('Host apply composition', () => {
       statement: '新建鄂州体育中心项目并完成 01-01 身份校准',
       createdAt: '2026-08-28T02:30:00.000Z',
     })
-    const actualProjectId = (created.text.match(/（([^）]+)）/u) ?? [])[1]
+    const actualProjectId = (createdText.match(/（([^）]+)）/u) ?? [])[1]
     if (actualProjectId === undefined) throw new Error('preplan-new did not return its project id')
     const acceptedEnvelope = {
       ...envelope,
