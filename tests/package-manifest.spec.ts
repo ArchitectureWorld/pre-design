@@ -5,6 +5,7 @@ interface PackageManifest {
   name?: string
   exports?: Record<string, unknown>
   files?: string[]
+  scripts?: Record<string, string>
   dependencies?: Record<string, string>
   peerDependencies?: Record<string, string>
   dsh?: {
@@ -29,13 +30,24 @@ describe('DSH package manifest', () => {
       './package.json': './package.json',
     })
     expect(manifest.files).toEqual(expect.arrayContaining([
-      'lib/index.js',
-      'lib/client.js',
-      'lib/types/**/*.d.ts',
+      'lib/**',
+      'SCHEMASET.sha256',
+      'schemas/0.1.0/*.schema.json',
       'cordis.patch.yml',
       'contracts/v0.6/**',
       'compatibility/dsh-baseline.json',
     ]))
+  })
+
+  it('regenerates and packs the immutable Presentation Contract runtime assets', async () => {
+    const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')) as PackageManifest
+
+    expect(manifest.scripts).toMatchObject({
+      'prepare:presentation-runtime-assets': 'node scripts/prepare-presentation-contract-runtime-assets.mjs',
+      prebuild: 'pnpm prepare:presentation-runtime-assets',
+      prepack: 'pnpm build',
+    })
+    expect(manifest.scripts?.['test:built']).toContain('tests/built-presentation-runtime.spec.ts')
   })
 
   it('ships Schemastery while sharing the Host Cordis runtime', async () => {

@@ -8,5 +8,7 @@ coverage/
 *.log
 .worktrees/
 work/
+/SCHEMASET.sha256
+/schemas/
 __pycache__/
 *.pyc

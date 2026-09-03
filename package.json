@@ -18,10 +18,9 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "lib/index.js",
-    "lib/client.js",
-    "lib/client.js.map",
-    "lib/types/**/*.d.ts",
+    "lib/**",
+    "SCHEMASET.sha256",
+    "schemas/0.1.0/*.schema.json",
     "cordis.patch.yml",
     "contracts/v0.6/**",
     "contracts/v0.7/**",
@@ -42,16 +41,19 @@
     "node": ">=22.0.0"
   },
   "scripts": {
+    "prepare:presentation-contract": "node scripts/prepare-presentation-contract.mjs",
+    "prepare:presentation-runtime-assets": "node scripts/prepare-presentation-contract-runtime-assets.mjs",
+    "prebuild": "pnpm prepare:presentation-runtime-assets",
     "build": "tsdown --config-loader native && tsc -p tsconfig.build.json",
+    "prepack": "pnpm build",
     "golden:build": "tsx scripts/build-golden-project-cli.ts",
     "golden:build-v080": "tsx scripts/build-golden-project-cli.ts --profile client-v080",
     "golden:inspect-v080": "tsx scripts/inspect-client-artifacts.ts",
-    "prepare:presentation-contract": "node scripts/prepare-presentation-contract.mjs",
     "verify:presentation-contract": "node scripts/verify-presentation-contract-lock.mjs",
     "verify:alignment-versions": "node scripts/verify-alignment-version-consistency.mjs",
     "test:presentation-standard": "pnpm verify:presentation-contract && vitest run tests/presentation-standard-*.spec.ts --maxWorkers=1 && node scripts/verify-presentation-standard-integration.mjs",
     "test": "pnpm verify:alignment-versions && pnpm verify:presentation-contract && pnpm build && vitest run --maxWorkers=1",
-    "test:built": "vitest run tests/built-package.spec.ts",
+    "test:built": "vitest run tests/built-package.spec.ts tests/built-presentation-runtime.spec.ts --maxWorkers=1",
     "typecheck": "tsc -p tsconfig.json"
   },
   "license": "MIT",

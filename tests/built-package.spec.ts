@@ -1,6 +1,8 @@
-import { readFile } from 'node:fs/promises'
+import { execFile as execFileCallback } from 'node:child_process'
+import { readFile, readdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { promisify } from 'node:util'
 import vm from 'node:vm'
 import { describe, expect, it } from 'vitest'
 import * as react from 'react'
@@ -12,7 +14,30 @@ interface ClientRow {
   factory: (require: (specifier: string) => unknown) => Record<string, unknown>
 }
 
+interface PackedFile {
+  path: string
+}
+
+interface PackedPackage {
+  files: PackedFile[]
+}
+
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
+const execFile = promisify(execFileCallback)
+
+async function packedFilePaths(): Promise<string[]> {
+  const executable = process.platform === 'win32' ? 'npm.cmd' : 'npm'
+  const { stdout } = await execFile(
+    executable,
+    ['pack', '--dry-run', '--json', '--ignore-scripts'],
+    { cwd: root, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 },
+  )
+  const rows = JSON.parse(stdout) as PackedPackage[]
+  if (!Array.isArray(rows) || rows.length !== 1 || !Array.isArray(rows[0]?.files)) {
+    throw new Error('npm pack --dry-run returned an unexpected result')
+  }
+  return rows[0].files.map(file => file.path.replaceAll('\\', '/')).sort()
+}
 
 describe('built npm package', () => {
   it('loads the Host export path declared by package.json', async () => {
@@ -52,5 +77,27 @@ describe('built npm package', () => {
     expect(typeof browser.apply).toBe('function')
     expect([...requestedExternals].sort()).toEqual(['react', 'react-dom', 'react/jsx-runtime'].sort())
     expect(Buffer.byteLength(source, 'utf8')).toBeLessThan(100_000)
+  })
+
+  it('packs every generated Host chunk and the pinned Presentation Contract runtime assets', async () => {
+    const paths = await packedFilePaths()
+    const builtJavaScript = (await readdir(resolve(root, 'lib')))
+      .filter(name => name.endsWith('.js'))
+      .sort()
+    for (const name of builtJavaScript) {
+      expect(paths).toContain(`lib/${name}`)
+    }
+
+    expect(paths).toContain('SCHEMASET.sha256')
+    expect(paths).toEqual(expect.arrayContaining([
+      'schemas/0.1.0/asset-manifest.schema.json',
+      'schemas/0.1.0/common.schema.json',
+      'schemas/0.1.0/draft-page-document.schema.json',
+      'schemas/0.1.0/outline-document.schema.json',
+      'schemas/0.1.0/page-manifest.schema.json',
+      'schemas/0.1.0/project-manifest.schema.json',
+      'schemas/0.1.0/project-rules-document.schema.json',
+      'schemas/0.1.0/source-material-manifest.schema.json',
+    ]))
   })
 })

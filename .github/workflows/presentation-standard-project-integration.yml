@@ -11,7 +11,10 @@ on:
       - 'src/commands/register.ts'
       - 'tests/presentation-standard-*.ts'
       - 'tests/presentation-build-toolchain.spec.ts'
+      - 'tests/built-package.spec.ts'
+      - 'tests/built-presentation-runtime.spec.ts'
       - 'scripts/prepare-presentation-contract.mjs'
+      - 'scripts/prepare-presentation-contract-runtime-assets.mjs'
       - 'scripts/verify-presentation-contract-lock.mjs'
       - 'scripts/verify-presentation-standard-integration.mjs'
       - 'scripts/verify-alignment-version-consistency.mjs'
@@ -94,7 +97,7 @@ jobs:
       - name: Run complete build and test suite
         run: pnpm test
 
-      - name: Test built package
+      - name: Test built and packed package runtime
         run: pnpm test:built
 
       - name: Verify repository diff hygiene
