@@ -111,7 +111,7 @@ describe('preplanning Browser plugin', () => {
     const card = render(<PreplanningStatusCard {...cardProps} />)
     expect(card.getByText('验收项目')).toBeTruthy()
     expect(card.getByText(/待人工确认/)).toBeTruthy()
-    expect(card.getByText('Pre 2.0.0 · Project Format 0.1.0')).toBeTruthy()
+    expect(card.container.textContent).toContain('Pre 2.0.0 · Project Format 0.1.0')
     fireEvent.click(card.getByRole('button', { name: '人工确认提案' }))
     await card.findByText('提案已确认，正在刷新项目状态。')
     expect(confirm).toHaveBeenCalledOnce()
