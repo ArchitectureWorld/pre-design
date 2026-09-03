@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { deriveProjectName, type DirectStartInput } from './direct-start.ts'
+import { VersionFooter } from './VersionFooter.tsx'
 
 export interface PreplanningProjectFormProps {
   readonly start: (input: DirectStartInput) => Promise<void>
@@ -124,7 +125,9 @@ export function PreplanningProjectForm({ start, onClose }: PreplanningProjectFor
       </small>
       {error !== undefined && <div role="alert" style={{ color: '#c33', fontSize: 12 }}>{error}</div>}
       {submitState === 'success' && (
-        <div role="status" style={{ color: '#24844b', fontSize: 12 }}>项目已创建，前期策划全流程已经启动。</div>
+        <div role="status" style={{ color: '#24844b', fontSize: 12 }}>
+          项目与 Presentation 标准目录已创建，前期策划全流程已经启动。
+        </div>
       )}
       <button
         disabled={submitState !== 'idle'}
@@ -137,6 +140,7 @@ export function PreplanningProjectForm({ start, onClose }: PreplanningProjectFor
       >
         {submitState === 'running' ? '正在启动…' : '创建并开始全流程'}
       </button>
+      <VersionFooter />
     </form>
   )
 }
