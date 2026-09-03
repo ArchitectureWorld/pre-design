@@ -25,6 +25,8 @@ const PRESENTATION_SCHEMASET = '5bd329fcc8503ff7a48b3430e41b38dd264ae486cee7372a
 const PRESENTATION_LOCK = 'docs/contracts/presentation-standard-project-v0.1.0-lock.json'
 const PRESENTATION_TARBALL = 'vendor/presentation-contracts/architectureworld-presentation-contracts-0.1.0.tgz'
 const PRESENTATION_ARTIFACT = 'vendor/presentation-contracts/contract-artifact.json'
+const VERIFIED_CODE_HEAD = 'c44699b5b0adccac5168d0205e579d898ca02013'
+const VERIFIED_RUN_ID = 33725698031
 
 requireCondition(matrix.schemaVersion === 3,
   'version matrix schemaVersion must be 3')
@@ -38,8 +40,8 @@ requireCondition(matrix.product?.packageName === PRE_PACKAGE,
   'pre-design package name mismatch')
 requireCondition(matrix.product?.packageVersion === PRE_VERSION,
   'pre-design package version must be 2.0.0')
-requireCondition(matrix.product?.status === 'development-candidate',
-  'pre-design 2.0.0 must remain a development candidate before release')
+requireCondition(matrix.product?.status === 'verified-development-candidate',
+  'pre-design 2.0.0 must be recorded as a verified development candidate')
 requireCondition(matrix.product?.publishedTag === null,
   'pre-design 2.0.0 must not claim a published tag')
 
@@ -142,9 +144,24 @@ requireCondition(matrix.historical?.lastPublishedPreDesign?.packageVersion === '
   'historical Pre package baseline must remain 0.7.0')
 requireCondition(matrix.historical?.lastPublishedPreDesign?.tag === 'v0.7.0',
   'historical Pre tag must remain v0.7.0')
-requireCondition(matrix.implementation?.presentationStandardOutput?.status
-    === 'implemented-on-development-branch',
-  'Presentation standard output must be recorded as implemented on the Pre development branch')
+
+const implementation = matrix.implementation?.presentationStandardOutput
+requireCondition(implementation?.status
+    === 'implemented-and-verified-on-development-branch',
+  'standard-project output must be recorded as implemented and verified')
+requireCondition(implementation?.contractVersion === PRESENTATION_VERSION,
+  'verified output must identify Contract version 0.1.0')
+requireCondition(implementation?.verificationStatus
+    === 'targeted-and-full-regression-passed',
+  'verified output must record targeted and full regression success')
+requireCondition(implementation?.verifiedHead === VERIFIED_CODE_HEAD,
+  'verified output must preserve the first fully green code HEAD')
+requireCondition(implementation?.verifiedWorkflow?.name === 'Pre 2.0.0 Integration',
+  'verified workflow name mismatch')
+requireCondition(implementation?.verifiedWorkflow?.runId === VERIFIED_RUN_ID,
+  'verified workflow run ID mismatch')
+requireCondition(implementation?.verifiedWorkflow?.conclusion === 'success',
+  'verified workflow must record success')
 requireCondition(matrix.implementation?.releaseStatus === 'not-merged-not-published',
   'Pre 2.0.0 release status must remain not merged and not published')
 
@@ -206,5 +223,7 @@ console.log(JSON.stringify({
   developmentBranch: matrix.activeBranches.development,
   externalContract: `${external.standardName}@${external.standardVersion}`,
   externalContractCommit: external.sourceCommitSHA,
+  verifiedCodeHead: implementation.verifiedHead,
+  verifiedWorkflowRunId: implementation.verifiedWorkflow.runId,
   releaseStatus: matrix.implementation.releaseStatus,
 }, null, 2))
