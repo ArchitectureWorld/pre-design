@@ -25,7 +25,7 @@ const fullStatus = {
 }
 
 describe('preplanning Browser plugin', () => {
-  it('通过 DSH SlotRegistry 合同适配器用一句话创建项目并向当前 Session 发送受控任务', async () => {
+  it('通过 DSH SlotRegistry 合同适配器创建 Pre 项目、初始化标准项目并启动当前 Session 任务', async () => {
     expect(BrowserPlugin.inject).toEqual(['conversationEvents', 'remote', 'remote.commands', 'sessions', 'slots'])
     expect(typeof BrowserPlugin.apply).toBe('function')
 
@@ -41,7 +41,7 @@ describe('preplanning Browser plugin', () => {
     const commandsRemote = {
       execute: async (_sessionId: string, line: string) => {
         commandLines.push(line)
-        return { ok: true, value: { result: { kind: 'success', text: '已创建项目。' } } }
+        return { ok: true, value: { result: { kind: 'success', text: '命令执行成功。' } } }
       },
     }
     ctx.provide('remote', { commands: commandsRemote } as never)
@@ -80,15 +80,19 @@ describe('preplanning Browser plugin', () => {
     const view = render(<HeaderEntry sessionId="session-1" />)
     fireEvent.click(view.getByRole('button', { name: '前期策划' }))
     expect(view.getByText(/当前会话所选模型/u)).toBeTruthy()
+    expect(view.getByText('Pre 2.0.0 · Project Format 0.1.0')).toBeTruthy()
     expect(view.queryByText(/Qwen/)).toBeNull()
     fireEvent.change(view.getByLabelText('一句话描述项目和目标'), {
       target: { value: '新建鄂州体育中心项目并完成 01-01 身份校准' },
     })
     expect((view.getByLabelText('识别的项目名称') as HTMLInputElement).value).toBe('鄂州体育中心项目')
     fireEvent.click(view.getByRole('button', { name: '创建并开始全流程' }))
-    await view.findByText('项目已创建，前期策划全流程已经启动。')
+    await view.findByText('项目与 Presentation 标准目录已创建，前期策划全流程已经启动。')
     expect(commandLines).toEqual([
-      '/preplan-new 鄂州体育中心项目', '/preplan-mode manual 8 standard', '/preplan-run',
+      '/preplan-new 鄂州体育中心项目',
+      '/preplan-presentation-sync',
+      '/preplan-mode manual 8 standard',
+      '/preplan-run',
     ])
     expect(prompts).toHaveLength(0)
 
@@ -107,6 +111,7 @@ describe('preplanning Browser plugin', () => {
     const card = render(<PreplanningStatusCard {...cardProps} />)
     expect(card.getByText('验收项目')).toBeTruthy()
     expect(card.getByText(/待人工确认/)).toBeTruthy()
+    expect(card.getByText('Pre 2.0.0 · Project Format 0.1.0')).toBeTruthy()
     fireEvent.click(card.getByRole('button', { name: '人工确认提案' }))
     await card.findByText('提案已确认，正在刷新项目状态。')
     expect(confirm).toHaveBeenCalledOnce()
