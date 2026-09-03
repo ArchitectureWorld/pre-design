@@ -1,6 +1,6 @@
 {
   "name": "@architectureworld/dsh-preplanning-agent",
-  "version": "0.7.0",
+  "version": "2.0.0",
   "description": "DSH 前期策划智能体插件",
   "type": "module",
   "main": "lib/index.js",
@@ -38,13 +38,19 @@
       "inject": []
     }
   },
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "build": "tsdown --config-loader tsx && tsc -p tsconfig.build.json",
     "golden:build": "tsx scripts/build-golden-project-cli.ts",
     "golden:build-v080": "tsx scripts/build-golden-project-cli.ts --profile client-v080",
     "golden:inspect-v080": "tsx scripts/inspect-client-artifacts.ts",
+    "prepare:presentation-contract": "node scripts/prepare-presentation-contract.mjs",
+    "verify:presentation-contract": "node scripts/verify-presentation-contract-lock.mjs",
     "verify:alignment-versions": "node scripts/verify-alignment-version-consistency.mjs",
-    "test": "pnpm verify:alignment-versions && pnpm build && vitest run --maxWorkers=1",
+    "test:presentation-standard": "pnpm verify:presentation-contract && vitest run tests/presentation-standard-*.spec.ts --maxWorkers=1 && node scripts/verify-presentation-standard-integration.mjs",
+    "test": "pnpm verify:alignment-versions && pnpm verify:presentation-contract && pnpm build && vitest run --maxWorkers=1",
     "test:built": "vitest run tests/built-package.spec.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
@@ -58,6 +64,7 @@
     "@deepseek-ai/cordis": "4.0.1"
   },
   "devDependencies": {
+    "@architectureworld/presentation-contracts": "file:vendor/presentation-contracts/architectureworld-presentation-contracts-0.1.0.tgz",
     "@deepseek-ai/cordis": "4.0.1",
     "@deepseek-ai/cordis-plugin-include": "1.0.6",
     "@deepseek-ai/cordis-plugin-loader": "1.0.2",
