@@ -2,7 +2,9 @@ node_modules/
 lib/
 coverage/
 .vitest/
+.cache/
 *.tgz
+!vendor/presentation-contracts/architectureworld-presentation-contracts-0.1.0.tgz
 *.log
 .worktrees/
 work/
