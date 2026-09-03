@@ -3,233 +3,208 @@ import { resolve } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..')
 const read = path => readFileSync(resolve(root, path), 'utf8')
-const matrix = JSON.parse(read('docs/version-matrix.json'))
-const pkg = JSON.parse(read('package.json'))
+const json = path => JSON.parse(read(path))
+const matrix = json('docs/version-matrix.json')
+const pkg = json('package.json')
 const lockfile = read('pnpm-lock.yaml')
 const failures = []
+
 const requireCondition = (condition, message) => {
   if (!condition) failures.push(message)
 }
 
-const normativeFiles = [
-  'README.md',
-  'HANDOFF.md',
-  'docs/VERSIONING.md',
-  'docs/implementation/presentation-phase0-foundation.md',
-  'docs/superpowers/specs/2026-09-02-pre-design-presentation-project-alignment-v2.0.0-design.md',
-  'docs/superpowers/specs/2026-09-02-pre-design-presentation-content-baseline-v2.0.0.md',
-  'docs/superpowers/plans/2026-09-02-pre-design-presentation-project-alignment-v2.0.0.md',
-]
-const phase0Files = [
-  'src/presentation/contract-port.ts',
-  'src/presentation/types.ts',
+const PRE_VERSION = '2.0.0'
+const PRE_PACKAGE = '@architectureworld/dsh-preplanning-agent'
+const ARCHITECTURE_BRANCH = 'architecture/pre-v2.0.0'
+const DEVELOPMENT_BRANCH = 'feat/pre-v2.0.0'
+const PRESENTATION_STANDARD = 'Presentation Standard Project Directory'
+const PRESENTATION_VERSION = '0.1.0'
+const PRESENTATION_PACKAGE = '@architectureworld/presentation-contracts'
+const PRESENTATION_COMMIT = '974668d308728386ea005c9e77d58ebff9372f0a'
+const PRESENTATION_SCHEMASET = '5bd329fcc8503ff7a48b3430e41b38dd264ae486cee7372a39cbbcccc2de2ebc'
+const PRESENTATION_LOCK = 'docs/contracts/presentation-standard-project-v0.1.0-lock.json'
+const PRESENTATION_TARBALL = 'vendor/presentation-contracts/architectureworld-presentation-contracts-0.1.0.tgz'
+const PRESENTATION_ARTIFACT = 'vendor/presentation-contracts/contract-artifact.json'
+
+requireCondition(matrix.schemaVersion === 3,
+  'version matrix schemaVersion must be 3')
+requireCondition(matrix.repository === 'ArchitectureWorld/pre-design',
+  'version matrix must identify the pre-design repository')
+requireCondition(matrix.product?.name === 'pre-design',
+  'product name must be pre-design')
+requireCondition(matrix.product?.version === PRE_VERSION,
+  'pre-design product version must be 2.0.0')
+requireCondition(matrix.product?.packageName === PRE_PACKAGE,
+  'pre-design package name mismatch')
+requireCondition(matrix.product?.packageVersion === PRE_VERSION,
+  'pre-design package version must be 2.0.0')
+requireCondition(matrix.product?.status === 'development-candidate',
+  'pre-design 2.0.0 must remain a development candidate before release')
+requireCondition(matrix.product?.publishedTag === null,
+  'pre-design 2.0.0 must not claim a published tag')
+
+requireCondition(matrix.activeBranches?.architecture === ARCHITECTURE_BRANCH,
+  `active architecture branch must be ${ARCHITECTURE_BRANCH}`)
+requireCondition(matrix.activeBranches?.development === DEVELOPMENT_BRANCH,
+  `active development branch must be ${DEVELOPMENT_BRANCH}`)
+requireCondition(!matrix.activeBranches?.architecture?.includes('presentation'),
+  'active Pre architecture branch must not be named after Presentation')
+requireCondition(!matrix.activeBranches?.development?.includes('presentation'),
+  'active Pre development branch must not be named after Presentation')
+
+requireCondition(pkg.name === PRE_PACKAGE,
+  'package.json name must match the Pre product package')
+requireCondition(pkg.version === PRE_VERSION,
+  'package.json version must be 2.0.0')
+requireCondition(pkg.engines?.node === '>=22.0.0',
+  'Pre 2.0.0 must declare Node.js >=22.0.0')
+
+const external = matrix.externalContracts?.presentationProjectFormat
+requireCondition(external?.relationship === 'decoupled-external-contract',
+  'Presentation project format must be recorded as a decoupled external Contract')
+requireCondition(external?.standardName === PRESENTATION_STANDARD,
+  'Presentation standard name mismatch')
+requireCondition(external?.standardVersion === PRESENTATION_VERSION,
+  'Presentation standard version must be 0.1.0')
+requireCondition(external?.authorityRepository === 'ArchitectureWorld/presentation-tools',
+  'Presentation Contract authority repository mismatch')
+requireCondition(external?.sourceCommitSHA === PRESENTATION_COMMIT,
+  'Presentation Contract source commit mismatch')
+requireCondition(external?.contractRoot === 'contracts/presentation-standard-project',
+  'Presentation Contract root mismatch')
+requireCondition(external?.packageName === PRESENTATION_PACKAGE,
+  'Presentation Contract package name mismatch')
+requireCondition(external?.packageVersion === PRESENTATION_VERSION,
+  'Presentation Contract package version mismatch')
+requireCondition(external?.schemaSetSha256 === PRESENTATION_SCHEMASET,
+  'Presentation Schema Set SHA-256 mismatch')
+requireCondition(external?.lockFile === PRESENTATION_LOCK,
+  'Presentation Contract lock path mismatch')
+requireCondition(external?.lockStatus === 'locked',
+  'Presentation Contract must be locked')
+
+requireCondition(existsSync(resolve(root, PRESENTATION_LOCK)),
+  'Presentation Contract lock file is missing')
+requireCondition(existsSync(resolve(root, PRESENTATION_TARBALL)),
+  'fixed Presentation Contract tarball is missing')
+requireCondition(existsSync(resolve(root, PRESENTATION_ARTIFACT)),
+  'Presentation Contract artifact metadata is missing')
+
+if (existsSync(resolve(root, PRESENTATION_LOCK))) {
+  const lock = json(PRESENTATION_LOCK)
+  requireCondition(lock.standardName === PRESENTATION_STANDARD,
+    'Contract lock standard name mismatch')
+  requireCondition(lock.standardVersion === PRESENTATION_VERSION,
+    'Contract lock standard version mismatch')
+  requireCondition(lock.sourceCommitSHA === PRESENTATION_COMMIT,
+    'Contract lock source commit mismatch')
+  requireCondition(lock.packageName === PRESENTATION_PACKAGE,
+    'Contract lock package name mismatch')
+  requireCondition(lock.packageVersion === PRESENTATION_VERSION,
+    'Contract lock package version mismatch')
+  requireCondition(lock.schemaSetSha256 === PRESENTATION_SCHEMASET,
+    'Contract lock Schema Set SHA-256 mismatch')
+  requireCondition(lock.schemaAuthorityExclusions?.includes('feat/report-studio-v0.1.1-hardening'),
+    'Contract lock must reject the Report Studio hardening branch as Schema authority')
+}
+
+if (existsSync(resolve(root, PRESENTATION_ARTIFACT))) {
+  const artifact = json(PRESENTATION_ARTIFACT)
+  requireCondition(artifact.standardVersion === PRESENTATION_VERSION,
+    'packed Contract artifact standard version mismatch')
+  requireCondition(artifact.sourceCommitSHA === PRESENTATION_COMMIT,
+    'packed Contract artifact source commit mismatch')
+  requireCondition(artifact.schemaSetSha256 === PRESENTATION_SCHEMASET,
+    'packed Contract artifact Schema Set mismatch')
+  requireCondition(artifact.tarballPath === PRESENTATION_TARBALL,
+    'packed Contract artifact path mismatch')
+  requireCondition(/^[a-f0-9]{64}$/u.test(artifact.sha256 ?? ''),
+    'packed Contract artifact SHA-256 is missing or invalid')
+  requireCondition(/^sha512-/u.test(artifact.integrity ?? ''),
+    'packed Contract artifact npm integrity is missing')
+}
+
+requireCondition(
+  pkg.devDependencies?.[PRESENTATION_PACKAGE]
+    === `file:${PRESENTATION_TARBALL}`,
+  'package.json must pin the exact Contract tarball as a development dependency',
+)
+requireCondition(lockfile.includes(PRESENTATION_PACKAGE),
+  'pnpm lockfile must contain the Presentation Contract package')
+requireCondition(lockfile.includes('architectureworld-presentation-contracts-0.1.0.tgz'),
+  'pnpm lockfile must pin the immutable Contract tarball')
+
+requireCondition(matrix.legacyContracts?.business === 'v0.6',
+  'business Contract line must remain v0.6')
+requireCondition(matrix.legacyContracts?.governance === 'v0.7',
+  'governance Contract line must remain v0.7')
+requireCondition(matrix.historical?.lastPublishedPreDesign?.packageVersion === '0.7.0',
+  'historical Pre package baseline must remain 0.7.0')
+requireCondition(matrix.historical?.lastPublishedPreDesign?.tag === 'v0.7.0',
+  'historical Pre tag must remain v0.7.0')
+requireCondition(matrix.implementation?.presentationStandardOutput?.status
+    === 'implemented-on-development-branch',
+  'Presentation standard output must be recorded as implemented on the Pre development branch')
+requireCondition(matrix.implementation?.releaseStatus === 'not-merged-not-published',
+  'Pre 2.0.0 release status must remain not merged and not published')
+
+const requiredFiles = [
+  'src/presentation/standard-contract.ts',
+  'src/presentation/standard-project-adapter.ts',
+  'src/presentation/standard-project-writer.ts',
+  'src/presentation/standard-project-service.ts',
+  'src/presentation/identity-ledger.ts',
   'src/presentation/binding-domain.ts',
   'src/presentation/binding-repository.ts',
-  'src/presentation/canonical-json.ts',
-  'src/presentation/path-policy.ts',
-  'src/presentation/filesystem.ts',
-  'src/presentation/projector/index.ts',
-  'src/presentation/projector/frozen-project-adapter.ts',
-  'src/presentation/update-plan.ts',
-  'src/presentation/material-plan.ts',
-  'src/report/browser-executable.ts',
-  'tests/presentation-phase0-foundation.spec.ts',
-  'tests/presentation-binding-repository.spec.ts',
-  'tests/presentation-host-binding.spec.ts',
-  'tests/presentation-filesystem.spec.ts',
-  'tests/presentation-projection.spec.ts',
-  'tests/presentation-frozen-project-adapter.spec.ts',
-  'tests/presentation-update-plan.spec.ts',
-  'tests/presentation-material-plan.spec.ts',
-  'tests/presentation-build-toolchain.spec.ts',
-  'tests/browser-executable.spec.ts',
+  'scripts/prepare-presentation-contract.mjs',
+  'scripts/verify-presentation-contract-lock.mjs',
+  'scripts/verify-presentation-standard-integration.mjs',
+  'handoff/PRE_DESIGN_PRESENTATION_STANDARD_PROJECT_V0.1.0_IMPLEMENTATION.md',
+  '.github/workflows/presentation-standard-project-integration.yml',
 ]
-const docs = Object.fromEntries(normativeFiles.map(path => [path, read(path)]))
-
-requireCondition(matrix.schemaVersion === 2,
-  'version matrix schemaVersion must be 2')
-requireCondition(matrix.branch === 'architecture/presentation-project-alignment-v2.0.0',
-  'alignment branch must match the frozen baseline branch')
-requireCondition(matrix.implementationBranch === 'feature/presentation-phase0-foundation-v2.0.0',
-  'implementation branch must match the Phase 0 branch')
-requireCondition(matrix.alignmentBaseline?.version === '2.0.0',
-  'alignment baseline version must be 2.0.0')
-requireCondition(matrix.alignmentBaseline?.label === 'v2.0.0',
-  'alignment baseline label must be v2.0.0')
-requireCondition(pkg.name === matrix.executablePackage?.name,
-  'package name must match the version matrix')
-requireCondition(pkg.version === '0.7.0'
-  && pkg.version === matrix.executablePackage?.version,
-  'executable package version must remain 0.7.0')
-requireCondition(matrix.executablePackage?.versionBumpAuthorized === false,
-  'this branch must not authorize a package-version bump')
-requireCondition(matrix.publishedRelease?.tag === 'v0.7.0',
-  'published historical release must remain v0.7.0')
-requireCondition(matrix.legacyContracts?.business === 'v0.6',
-  'business contract line must remain v0.6')
-requireCondition(matrix.legacyContracts?.governance === 'v0.7',
-  'governance contract line must remain v0.7')
-
-const presentation = matrix.presentationStandard
-requireCondition(presentation?.name === 'Presentation Standard Project Directory',
-  'Presentation standard name must remain provider-neutral')
-requireCondition(presentation?.authorityRepository === 'ArchitectureWorld/presentation-tools',
-  'Presentation authority repository must remain presentation-tools')
-requireCondition(['pending', 'locked'].includes(presentation?.contractLockStatus),
-  'Presentation contractLockStatus must be pending or locked')
-requireCondition(
-  presentation?.lockFile === 'docs/contracts/presentation-standard-project-v1-lock.json',
-  'Presentation Contract Lock placeholder path must remain stable until accepted',
-)
-
-const lockPath = resolve(root, presentation?.lockFile ?? '')
-if (presentation?.contractLockStatus === 'pending') {
-  requireCondition(!existsSync(lockPath),
-    'Contract Lock file must not exist while lock status is pending')
-  for (const field of ['standardVersion', 'packageName', 'packageVersion', 'schemaSetSha256']) {
-    requireCondition(presentation[field] === null,
-      `${field} must be null while Contract Lock is pending`)
-  }
-} else {
-  requireCondition(existsSync(lockPath),
-    'Contract Lock file must exist when lock status is locked')
-  requireCondition(typeof presentation.standardVersion === 'string'
-    && presentation.standardVersion.length > 0,
-  'locked Contract must provide standardVersion')
-  requireCondition(typeof presentation.packageName === 'string'
-    && presentation.packageName.length > 0,
-  'locked Contract must provide packageName')
-  requireCondition(typeof presentation.packageVersion === 'string'
-    && presentation.packageVersion.length > 0,
-  'locked Contract must provide packageVersion')
-  requireCondition(/^[a-f0-9]{64}$/u.test(presentation.schemaSetSha256 ?? ''),
-    'locked Contract must provide a lower-case Schema Set SHA-256')
+for (const path of requiredFiles) {
+  requireCondition(existsSync(resolve(root, path)), `required Pre 2.0.0 file is missing: ${path}`)
 }
 
-const implementation = matrix.implementation
-requireCondition(implementation?.phase0Foundation?.status === 'implemented',
-  'Phase 0 foundation must be recorded as implemented')
-requireCondition(
-  implementation?.phase0Foundation?.verificationStatus
-    === 'targeted-tests-and-typecheck-passed',
-  'Phase 0 verification status must record targeted tests and typecheck')
-requireCondition(
-  implementation?.contractDependentIntegration?.status
-    === 'blocked-by-contract-lock',
-  'Contract-dependent integration must remain blocked while lock is pending')
-requireCondition(
-  implementation?.contractDependentIntegration?.productionCodeChanged === false,
-  'Contract-dependent integration must not claim production code changes')
-requireCondition(implementation?.productionCodeChangedForAlignment === true,
-  'version matrix must acknowledge Phase 0 source changes')
-requireCondition(implementation?.packageReleaseStatus === 'not-authorized',
-  'package release must remain unauthorized')
-requireCondition(implementation?.planReady === true,
-  'implementation plan must remain ready')
+const readRequired = path => existsSync(resolve(root, path)) ? read(path) : ''
+const readme = readRequired('README.md')
+const handoff = readRequired('HANDOFF.md')
+const versioning = readRequired('docs/VERSIONING.md')
+const workflow = readRequired('.github/workflows/presentation-standard-project-integration.yml')
 
-requireCondition(matrix.historicalLabels?.clientReportCandidate?.label === 'v0.8',
-  'historical client-report candidate label must remain v0.8')
-requireCondition(matrix.historicalLabels?.clientReportCandidate?.authority === false,
-  'historical client-report candidate must not be a version authority')
-requireCondition(matrix.historicalLabels?.handoffBundle?.label === 'FINAL_v2.0',
-  'historical handoff bundle label must remain FINAL_v2.0')
-requireCondition(matrix.historicalLabels?.handoffBundle?.authority === false,
-  'historical handoff bundle must not be a version authority')
-requireCondition(matrix.historicalLabels?.legacyHandoff?.path === 'HANDOFF_HISTORY.md',
-  'legacy handoff path must remain HANDOFF_HISTORY.md')
-
-for (const path of phase0Files) {
-  requireCondition(existsSync(resolve(root, path)),
-    `required Phase 0 file is missing: ${path}`)
+for (const [path, text] of [
+  ['README.md', readme],
+  ['HANDOFF.md', handoff],
+  ['docs/VERSIONING.md', versioning],
+]) {
+  requireCondition(text.includes('pre-v2.0.0'),
+    `${path} must point to Pre-named v2.0.0 branches`)
+  requireCondition(text.includes('2.0.0'),
+    `${path} must state the Pre 2.0.0 product version`)
+  requireCondition(text.includes('Presentation Standard Project Directory'),
+    `${path} must identify the external Presentation Contract`)
+  requireCondition(text.includes('0.1.0'),
+    `${path} must state the external Contract version independently`)
 }
 
-const historyPath = resolve(root, 'HANDOFF_HISTORY.md')
-requireCondition(existsSync(historyPath),
-  'HANDOFF_HISTORY.md must preserve a non-authoritative history index')
-if (existsSync(historyPath)) {
-  const history = read('HANDOFF_HISTORY.md')
-  requireCondition(history.includes('Status: `superseded-history`'),
-    'HANDOFF_HISTORY.md must be explicitly non-authoritative')
-  requireCondition(!history.includes('唯一权威'),
-    'HANDOFF_HISTORY.md must not contain a current authority claim')
-}
-
-const positiveReleaseClaim = /(?:Git Tag|GitHub Release|Release)\s*(?:为|=|:|：)\s*`?v?2\.0\.0/iu
-for (const [path, text] of Object.entries(docs)) {
-  requireCondition(!text.includes('V2.0.0'),
-    `${path} uses the prohibited uppercase alignment label`)
-  requireCondition(!/插件(?:包)?版本\s*(?:为|=|:|：)\s*`?2\.0\.0/iu.test(text),
-    `${path} mislabels alignment 2.0.0 as a plugin/package version`)
-  requireCondition(!positiveReleaseClaim.test(text),
-    `${path} mislabels alignment 2.0.0 as a release`)
-  requireCondition(!text.includes('awaiting-final-presentation-contract'),
-    `${path} contains a deprecated implementation status`)
-}
-
-const frontmatterFiles = normativeFiles.filter(path => path.startsWith('docs/superpowers/'))
-for (const path of frontmatterFiles) {
-  const text = docs[path]
-  requireCondition(text.includes('document_version: 2.0.0'),
-    `${path} must declare document_version 2.0.0`)
-  requireCondition(text.includes('alignment_baseline: v2.0.0'),
-    `${path} must declare alignment_baseline v2.0.0`)
-  requireCondition(text.includes('branch: architecture/presentation-project-alignment-v2.0.0'),
-    `${path} must point to the frozen alignment branch`)
-  requireCondition(text.includes('implementation_status: blocked-by-contract-lock'),
-    `${path} must retain the Contract-dependent integration gate`)
-  requireCondition(text.includes('version_matrix: docs/version-matrix.json'),
-    `${path} must point to the machine version authority`)
-  requireCondition(text.includes('version_authority: docs/VERSIONING.md'),
-    `${path} must point to the human version authority`)
-}
-
-requireCondition(docs['README.md'].includes('Phase 0 基础 | 已实现'),
-  'README must state that Phase 0 is implemented')
-requireCondition(docs['README.md'].includes('Presentation Contract | 尚未锁定'),
-  'README must state that the Presentation Contract is not locked')
-requireCondition(docs['README.md'].includes('npm 包版本：`0.7.0`'),
-  'README must state the executable package version')
-requireCondition(docs['HANDOFF.md'].includes('Phase 0 foundation | `implemented`'),
-  'HANDOFF must state the Phase 0 status')
-requireCondition(docs['HANDOFF.md'].includes('Presentation Contract version | 尚未锁定'),
-  'HANDOFF must not invent a Presentation standardVersion')
-requireCondition(docs['HANDOFF.md'].includes('Executable npm package | `0.7.0`'),
-  'HANDOFF must state the package version')
-requireCondition(docs['docs/VERSIONING.md'].includes('Presentation Contract 版本 | **尚未锁定**'),
-  'VERSIONING must leave the Presentation version unlocked')
-requireCondition(docs['docs/VERSIONING.md'].includes('Phase 0 foundation | `implemented`'),
-  'VERSIONING must state the implemented Phase 0 status')
-const phase0Record = docs['docs/implementation/presentation-phase0-foundation.md']
-requireCondition(phase0Record.includes('Test Files: 10 passed')
-  && phase0Record.includes('Tests: 46 passed')
-  && phase0Record.includes('TypeScript: PASS')
-  && phase0Record.includes('Full build and repository test suite: PASS')
-  && phase0Record.includes('Built-package regression: PASS')
-  && phase0Record.includes('Diff hygiene: PASS'),
-'Phase 0 record must include the current targeted and full-regression evidence')
-
-const packageText = JSON.stringify(pkg)
-requireCondition(!packageText.includes('@architectureworld/presentation-contracts'),
-  'package.json must not depend on an unlocked Presentation Contract')
-requireCondition(!lockfile.includes('@architectureworld/presentation-contracts'),
-  'pnpm lockfile must not contain an unlocked Presentation Contract')
+requireCondition(workflow.includes(`- ${DEVELOPMENT_BRANCH}`),
+  'integration workflow must run on feat/pre-v2.0.0')
+requireCondition(!workflow.includes('- feat/presentation-standard-project-v0.1.0-integration'),
+  'integration workflow must not use the superseded Presentation-named Pre branch')
 
 if (failures.length > 0) {
-  console.error('PRE_DESIGN_ALIGNMENT_VERSION_CONSISTENCY_FAIL')
+  console.error('PRE_DESIGN_V2_0_0_VERSION_CONSISTENCY_FAIL')
   for (const failure of failures) console.error(`- ${failure}`)
   process.exit(1)
 }
 
-console.log('PRE_DESIGN_ALIGNMENT_VERSION_CONSISTENCY_PASS')
+console.log('PRE_DESIGN_V2_0_0_VERSION_CONSISTENCY_PASS')
 console.log(JSON.stringify({
-  alignmentBranch: matrix.branch,
-  implementationBranch: matrix.implementationBranch,
-  alignmentBaseline: matrix.alignmentBaseline.label,
-  executablePackage: `${pkg.name}@${pkg.version}`,
-  publishedRelease: matrix.publishedRelease.tag,
-  presentationContractLock: presentation.contractLockStatus,
-  presentationStandardVersion: presentation.standardVersion,
-  phase0Foundation: implementation.phase0Foundation.status,
-  contractDependentIntegration: implementation.contractDependentIntegration.status,
-  packageReleaseStatus: implementation.packageReleaseStatus,
+  product: `${matrix.product.name}@${matrix.product.version}`,
+  package: `${pkg.name}@${pkg.version}`,
+  architectureBranch: matrix.activeBranches.architecture,
+  developmentBranch: matrix.activeBranches.development,
+  externalContract: `${external.standardName}@${external.standardVersion}`,
+  externalContractCommit: external.sourceCommitSHA,
+  releaseStatus: matrix.implementation.releaseStatus,
 }, null, 2))
