@@ -1,0 +1,109 @@
+name: One-shot Presentation Integration Type Fixes
+
+on:
+  push:
+    branches:
+      - feat/presentation-standard-project-v0.1.0-integration
+    paths:
+      - '.github/workflows/one-shot-presentation-type-fixes.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply compiler-directed fixes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path_name: str, old: str, new: str) -> None:
+              path = Path(path_name)
+              text = path.read_text(encoding='utf-8')
+              if text.count(old) != 1:
+                  raise SystemExit(f'{path_name}: expected exactly one match for {old!r}, found {text.count(old)}')
+              path.write_text(text.replace(old, new), encoding='utf-8')
+
+          replace_once(
+              'src/presentation/standard-contract.ts',
+              "  schemaAuthorityExclusions: ['feat/report-studio-v0.1.1-hardening'],",
+              "  schemaAuthorityExclusions: ['feat/report-studio-v0.1.1-hardening'] as const,",
+          )
+          replace_once(
+              'src/presentation/standard-contract.ts',
+              "export function assertPresentationContractCoordinates(\n  candidate: Readonly<Record<string, unknown>>,\n): asserts candidate is PresentationStandardContractLock {\n  const expected = PRESENTATION_STANDARD_CONTRACT_LOCK",
+              "export function assertPresentationContractCoordinates(\n  candidate: unknown,\n): asserts candidate is PresentationStandardContractLock {\n  if (candidate === null || typeof candidate !== 'object' || Array.isArray(candidate)) {\n    fail('PRESENTATION_CONTRACT_COORDINATE_MISMATCH', 'Contract coordinates must be an object')\n  }\n  const record = candidate as Readonly<Record<string, unknown>>\n  const expected = PRESENTATION_STANDARD_CONTRACT_LOCK",
+          )
+          replace_once(
+              'src/presentation/standard-contract.ts',
+              '    if (candidate[key] !== expected[key]) {',
+              '    if (record[key] !== expected[key]) {',
+          )
+          replace_once(
+              'src/presentation/standard-contract.ts',
+              "        `${key} must be '${String(expected[key])}', received '${String(candidate[key])}'`,",
+              "        `${key} must be '${String(expected[key])}', received '${String(record[key])}'`,",
+          )
+          replace_once(
+              'src/presentation/standard-contract.ts',
+              '  const exclusions = candidate.schemaAuthorityExclusions',
+              '  const exclusions = record.schemaAuthorityExclusions',
+          )
+          replace_once(
+              'src/presentation/standard-project-adapter.ts',
+              '    ...finding.speakerNotes,',
+              '    ...(finding.speakerNotes ?? []),',
+          )
+          replace_once(
+              'tests/presentation-phase0-foundation.spec.ts',
+              "      state: 'awaiting_contract',\n      lastExportedObjectHashes: {},",
+              "      state: 'awaiting_contract',\n      stableIds: {},\n      lastExportedObjectHashes: {},\n      lastExportedFileHashes: {},",
+          )
+          replace_once(
+              'tests/presentation-phase0-foundation.spec.ts',
+              "      state: 'ready',\n      lastExportedObjectHashes: {},",
+              "      state: 'ready',\n      stableIds: {},\n      lastExportedObjectHashes: {},\n      lastExportedFileHashes: {},",
+          )
+          replace_once(
+              'tests/presentation-phase0-foundation.spec.ts',
+              "      presentationProjectId: 'presentation-project-1',\n      directoryRoot: '/workspace/projects/presentation-project-1-campus-renewal',\n      standardVersion: 'contract-test-version',\n      state: 'ready',\n      lastExportedObjectHashes: { page_1: 'a'.repeat(64) },",
+              "      presentationProjectId: 'project_01992a80-0000-7000-8000-000000000001',\n      projectSlug: 'campus-renewal',\n      directoryRoot: '/workspace/projects/project-campus-renewal',\n      standardVersion: '0.1.0',\n      state: 'ready',\n      stableIds: {\n        'project:pre-design:preplan-1': 'project_01992a80-0000-7000-8000-000000000001',\n      },\n      lastExportedObjectHashes: { page_1: 'a'.repeat(64) },\n      lastExportedFileHashes: {},",
+          )
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify targeted tests
+        run: pnpm exec vitest run tests/presentation-standard-*.spec.ts tests/presentation-phase0-foundation.spec.ts --maxWorkers=1
+
+      - name: Verify TypeScript
+        run: pnpm typecheck
+
+      - name: Check diff hygiene
+        run: git diff --check
+
+      - name: Commit fixes
+        run: |
+          git config user.name 'ArchitectureWorld'
+          git config user.email '140295054+ArchitectureWorld@users.noreply.github.com'
+          git add src/presentation/standard-contract.ts src/presentation/standard-project-adapter.ts tests/presentation-phase0-foundation.spec.ts
+          git commit -m 'fix: satisfy Presentation integration type contracts'
+          git push origin HEAD:feat/presentation-standard-project-v0.1.0-integration
