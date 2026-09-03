@@ -69,10 +69,10 @@
       "status": "usage-ready-and-verified-on-development-branch",
       "contractVersion": "0.1.0",
       "verificationStatus": "runtime-handoff-and-full-regression-passed",
-      "verifiedHead": "bc55008665d680bd8c8432ebec5bacf17266381e",
+      "verifiedHead": "521265c541a1d6dacac075849962a4c703530a6d",
       "verifiedWorkflow": {
         "name": "Pre 2.0.0 Integration",
-        "runId": 33733512838,
+        "runId": 33741077517,
         "conclusion": "success"
       },
       "runtime": {
@@ -84,6 +84,15 @@
         "projectRootEnvironmentVariable": "PRE_DESIGN_PRESENTATION_PROJECT_ROOT",
         "uiVersionLabel": "Pre 2.0.0 · Project Format 0.1.0",
         "presentationConsumption": "open-or-watch-the-same-project-root"
+      },
+      "packageRuntime": {
+        "status": "verified",
+        "assetPreparationScript": "scripts/prepare-presentation-contract-runtime-assets.mjs",
+        "schemaSetPath": "SCHEMASET.sha256",
+        "schemaRoot": "schemas/0.1.0",
+        "libraryFilesPattern": "lib/**",
+        "builtRuntimeTest": "tests/built-presentation-runtime.spec.ts",
+        "packContentsTest": "tests/built-package.spec.ts"
       }
     },
     "releaseStatus": "not-merged-not-published",

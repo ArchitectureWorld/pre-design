@@ -30,8 +30,14 @@ const PRESENTATION_TOOL = 'preplanning_sync_presentation_project'
 const PRESENTATION_ROOT_ENV = 'PRE_DESIGN_PRESENTATION_PROJECT_ROOT'
 const PRESENTATION_DEFAULT_ROOT = '~/.dsh/presentation-projects'
 const UI_VERSION_LABEL = 'Pre 2.0.0 · Project Format 0.1.0'
-const VERIFIED_RUNTIME_HEAD = 'bc55008665d680bd8c8432ebec5bacf17266381e'
-const VERIFIED_RUNTIME_RUN_ID = 33733512838
+const VERIFIED_RUNTIME_HEAD = '521265c541a1d6dacac075849962a4c703530a6d'
+const VERIFIED_RUNTIME_RUN_ID = 33741077517
+const RUNTIME_ASSET_SCRIPT = 'scripts/prepare-presentation-contract-runtime-assets.mjs'
+const RUNTIME_SCHEMASET_PATH = 'SCHEMASET.sha256'
+const RUNTIME_SCHEMA_ROOT = 'schemas/0.1.0'
+const LIBRARY_FILES_PATTERN = 'lib/**'
+const BUILT_RUNTIME_TEST = 'tests/built-presentation-runtime.spec.ts'
+const PACK_CONTENTS_TEST = 'tests/built-package.spec.ts'
 
 requireCondition(matrix.schemaVersion === 4,
   'version matrix schemaVersion must be 4')
@@ -65,6 +71,21 @@ requireCondition(pkg.version === PRE_VERSION,
   'package.json version must be 2.0.0')
 requireCondition(pkg.engines?.node === '>=22.0.0',
   'Pre 2.0.0 must declare Node.js >=22.0.0')
+requireCondition(pkg.files?.includes(LIBRARY_FILES_PATTERN),
+  'npm package must include every generated lib file and dynamic chunk')
+requireCondition(pkg.files?.includes(RUNTIME_SCHEMASET_PATH),
+  'npm package must include the Presentation Contract Schema Set hash')
+requireCondition(pkg.files?.includes(`${RUNTIME_SCHEMA_ROOT}/*.schema.json`),
+  'npm package must include the Presentation Contract runtime schemas')
+requireCondition(pkg.scripts?.['prepare:presentation-runtime-assets']
+    === `node ${RUNTIME_ASSET_SCRIPT}`,
+  'runtime Contract asset preparation script mismatch')
+requireCondition(pkg.scripts?.prebuild === 'pnpm prepare:presentation-runtime-assets',
+  'prebuild must prepare the immutable Presentation Contract runtime assets')
+requireCondition(pkg.scripts?.prepack === 'pnpm build',
+  'prepack must rebuild the package and runtime assets')
+requireCondition(pkg.scripts?.['test:built']?.includes(BUILT_RUNTIME_TEST),
+  'built-package verification must execute the installed Host runtime regression')
 
 const external = matrix.externalContracts?.presentationProjectFormat
 requireCondition(external?.relationship === 'decoupled-external-contract',
@@ -181,6 +202,20 @@ requireCondition(output?.runtime?.uiVersionLabel === UI_VERSION_LABEL,
   'UI version label mismatch')
 requireCondition(output?.runtime?.presentationConsumption === 'open-or-watch-the-same-project-root',
   'Presentation consumption boundary must require the same project root')
+requireCondition(output?.packageRuntime?.status === 'verified',
+  'installed package runtime must be recorded as verified')
+requireCondition(output?.packageRuntime?.assetPreparationScript === RUNTIME_ASSET_SCRIPT,
+  'runtime asset preparation script record mismatch')
+requireCondition(output?.packageRuntime?.schemaSetPath === RUNTIME_SCHEMASET_PATH,
+  'runtime Schema Set path record mismatch')
+requireCondition(output?.packageRuntime?.schemaRoot === RUNTIME_SCHEMA_ROOT,
+  'runtime Schema root record mismatch')
+requireCondition(output?.packageRuntime?.libraryFilesPattern === LIBRARY_FILES_PATTERN,
+  'runtime library packaging pattern record mismatch')
+requireCondition(output?.packageRuntime?.builtRuntimeTest === BUILT_RUNTIME_TEST,
+  'built runtime test record mismatch')
+requireCondition(output?.packageRuntime?.packContentsTest === PACK_CONTENTS_TEST,
+  'pack contents test record mismatch')
 requireCondition(matrix.implementation?.releaseStatus === 'not-merged-not-published',
   'Pre 2.0.0 release status must remain not merged and not published')
 
@@ -196,10 +231,13 @@ const requiredFiles = [
   'src/presentation/binding-domain.ts',
   'src/presentation/binding-repository.ts',
   'scripts/prepare-presentation-contract.mjs',
+  RUNTIME_ASSET_SCRIPT,
   'scripts/verify-presentation-contract-lock.mjs',
   'scripts/verify-presentation-standard-integration.mjs',
   'tests/presentation-runtime-integration.spec.ts',
   'tests/host-apply.spec.ts',
+  BUILT_RUNTIME_TEST,
+  PACK_CONTENTS_TEST,
   'handoff/PRE_DESIGN_PRESENTATION_STANDARD_PROJECT_V0.1.0_IMPLEMENTATION.md',
   '.github/workflows/presentation-standard-project-integration.yml',
 ]
@@ -220,6 +258,9 @@ const statusCard = readRequired('src/client/PreplanningStatusCard.tsx')
 const versionSource = readRequired('src/version.ts')
 const systemPrompt = readRequired('src/prompts/preplanning-system.ts')
 const runtimeTest = readRequired('tests/host-apply.spec.ts')
+const runtimeAssetScript = readRequired(RUNTIME_ASSET_SCRIPT)
+const builtRuntimeTest = readRequired(BUILT_RUNTIME_TEST)
+const packContentsTest = readRequired(PACK_CONTENTS_TEST)
 
 for (const [path, text] of [
   ['README.md', readme],
@@ -246,6 +287,12 @@ requireCondition(workflow.includes(`- ${DEVELOPMENT_BRANCH}`),
   'integration workflow must run on feat/pre-v2.0.0')
 requireCondition(!workflow.includes('- feat/presentation-standard-project-v0.1.0-integration'),
   'integration workflow must not use the superseded Presentation-named Pre branch')
+requireCondition(workflow.includes(RUNTIME_ASSET_SCRIPT),
+  'integration workflow must watch the runtime Contract asset script')
+requireCondition(workflow.includes(BUILT_RUNTIME_TEST),
+  'integration workflow must watch the installed Host runtime regression')
+requireCondition(workflow.includes(PACK_CONTENTS_TEST),
+  'integration workflow must watch the npm pack contents regression')
 
 requireCondition(host.includes('registerPresentationRuntime'),
   'Host must register the Presentation runtime integration')
@@ -277,6 +324,18 @@ requireCondition(runtimeTest.includes('PRESENTATION_STANDARD_PROJECT_V0_1_0_PASS
   'real Host test must assert the Presentation Contract success marker')
 requireCondition(runtimeTest.includes("readFile(join(directoryRoot, 'project.json')"),
   'real Host test must inspect the emitted standard project on disk')
+requireCondition(runtimeAssetScript.includes('PRESENTATION_CONTRACT_RUNTIME_ASSETS_PASS'),
+  'runtime asset script must report its verification marker')
+requireCondition(runtimeAssetScript.includes('SCHEMASET.sha256'),
+  'runtime asset script must copy and verify the Schema Set hash')
+requireCondition(builtRuntimeTest.includes("resolve(packageRoot, 'lib/index.js')"),
+  'installed Host regression must execute the built Host entry')
+requireCondition(builtRuntimeTest.includes('PRESENTATION_STANDARD_PROJECT_V0_1_0_PASS'),
+  'installed Host regression must assert successful Presentation validation')
+requireCondition(packContentsTest.includes("'SCHEMASET.sha256'"),
+  'npm pack regression must assert the Schema Set hash is shipped')
+requireCondition(packContentsTest.includes("'schemas/0.1.0/asset-manifest.schema.json'"),
+  'npm pack regression must assert Presentation schemas are shipped')
 
 if (failures.length > 0) {
   console.error('PRE_DESIGN_V2_0_0_VERSION_CONSISTENCY_FAIL')
@@ -296,6 +355,7 @@ console.log(JSON.stringify({
   runtimeTool: output.runtime.agentTool,
   defaultProjectRoot: output.runtime.defaultProjectRoot,
   uiVersionLabel: output.runtime.uiVersionLabel,
+  packageRuntimeStatus: output.packageRuntime.status,
   verifiedCodeHead: output.verifiedHead,
   verifiedWorkflowRunId: output.verifiedWorkflow.runId,
   releaseStatus: matrix.implementation.releaseStatus,

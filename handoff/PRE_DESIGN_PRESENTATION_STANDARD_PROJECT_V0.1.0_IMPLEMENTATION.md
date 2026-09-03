@@ -6,8 +6,8 @@ pre_design_version: 2.0.0
 presentation_contract_version: 0.1.0
 architecture_branch: architecture/pre-v2.0.0
 development_branch: feat/pre-v2.0.0
-verified_runtime_code_commit: bc55008665d680bd8c8432ebec5bacf17266381e
-verified_workflow_run: 33733512838
+verified_runtime_code_commit: 521265c541a1d6dacac075849962a4c703530a6d
+verified_workflow_run: 33741077517
 contract_commit: 974668d308728386ea005c9e77d58ebff9372f0a
 schema_set_sha256: 5bd329fcc8503ff7a48b3430e41b38dd264ae486cee7372a39cbbcccc2de2ebc
 language: zh-CN
@@ -17,7 +17,7 @@ language: zh-CN
 
 ## 1. 最终结论
 
-Pre-design 2.0.0 已从“底层标准项目输出模块”推进到“DSH 中可直接调用的使用级别”。
+Pre-design 2.0.0 已从“底层标准项目输出模块”推进到“DSH 中可直接调用的使用级别”，并补齐真实安装包中的 Presentation Contract 运行时资源。
 
 当前完整链路为：
 
@@ -42,8 +42,8 @@ DSH UI / 用户命令 / 当前 DSH Agent
 | Pre 产品／插件／包版本 | `2.0.0` |
 | 架构支线 | `architecture/pre-v2.0.0` |
 | 开发支线 | `feat/pre-v2.0.0` |
-| 已验证运行时代码提交 | `bc55008665d680bd8c8432ebec5bacf17266381e` |
-| 已验证工作流 | `Pre 2.0.0 Integration` Run `33733512838` |
+| 已验证运行时代码提交 | `521265c541a1d6dacac075849962a4c703530a6d` |
+| 已验证工作流 | `Pre 2.0.0 Integration` Run `33741077517` |
 | 外部标准 | `Presentation Standard Project Directory 0.1.0` |
 | Contract 仓库 | `ArchitectureWorld/presentation-tools` |
 | Contract 固定提交 | `974668d308728386ea005c9e77d58ebff9372f0a` |
@@ -235,6 +235,26 @@ standard-project-adapter.ts
 → 更新绑定和 Hash 账本
 ```
 
+### 6.4 安装包中的 Contract 运行时资源
+
+首次 Windows 人工测试发现：Contract 代码已被打入 `lib/index.js`，但旧包没有携带 `SCHEMASET.sha256`、`schemas/0.1.0/*.schema.json` 和动态 JS 分块，导致安装后从包根目录读取 Schema Set 时出现 `ENOENT`。
+
+修复后执行：
+
+```text
+pnpm build / pnpm pack
+→ scripts/prepare-presentation-contract-runtime-assets.mjs
+→ 从已锁定的 @architectureworld/presentation-contracts@0.1.0 读取资源
+→ 重新计算并核对 Schema Set SHA-256
+→ 生成包根 SCHEMASET.sha256
+→ 生成 schemas/0.1.0/*.schema.json
+→ 使用 lib/** 纳入全部构建分块
+→ npm pack 清单回归
+→ 从真实 lib/index.js 启动 Host 回归
+```
+
+生成的文件是固定 Contract 的构建产物，不是第二套 Schema 权威。权威仍是固定提交和 Contract Lock。
+
 ## 7. 标准数据映射
 
 ### Project
@@ -308,7 +328,9 @@ standard-project-adapter.ts
 src/version.ts
 src/client/VersionFooter.tsx
 src/presentation/runtime-integration.ts
+scripts/prepare-presentation-contract-runtime-assets.mjs
 tests/presentation-runtime-integration.spec.ts
+tests/built-presentation-runtime.spec.ts
 ```
 
 ### 重点修改
@@ -320,18 +342,24 @@ src/client/PreplanningProjectForm.tsx
 src/client/PreplanningStatusCard.tsx
 src/prompts/preplanning-system.ts
 src/presentation/index.ts
+src/presentation/filesystem.ts
 tests/direct-start.client.spec.ts
 tests/preplanning-dashboard.client.spec.tsx
 tests/browser-plugin.client.spec.tsx
 tests/host-apply.spec.ts
+tests/built-package.spec.ts
+tests/package-manifest.spec.ts
+package.json
+.gitignore
 README.md
 HANDOFF.md
 docs/version-matrix.json
 docs/VERSIONING.md
 scripts/verify-alignment-version-consistency.mjs
+.github/workflows/presentation-standard-project-integration.yml
 ```
 
-用户在 Windows 正式部署后补充的文件同步修复仍保留：
+Windows 文件同步保护仍保留：
 
 ```text
 src/presentation/filesystem.ts
@@ -343,14 +371,14 @@ open(path, 'r+')
 已验证运行时代码提交：
 
 ```text
-bc55008665d680bd8c8432ebec5bacf17266381e
+521265c541a1d6dacac075849962a4c703530a6d
 ```
 
 GitHub Actions：
 
 ```text
 Workflow: Pre 2.0.0 Integration
-Run: 33733512838
+Run: 33741077517
 Conclusion: success
 ```
 
@@ -366,14 +394,18 @@ Conclusion: success
 - Agent Tool 测试；
 - 完整构建；
 - 全仓回归；
+- 从真实 `lib/index.js` 启动 Host 并同步标准项目；
+- npm pack 清单包含 8 个 Schema、`SCHEMASET.sha256` 和全部生成 JS 分块；
 - 构建产物测试；
 - Git diff hygiene。
 
-真实 Host 测试实际执行：
+真实构建产物测试实际执行：
 
 ```text
-/preplan-new
+lib/index.js
+→ /preplan-new
 → /preplan-presentation-sync
+→ Contract Schema Set 校验
 → 读取磁盘 project.json
 → standardVersion = 0.1.0
 → PRESENTATION_STANDARD_PROJECT_V0_1_0_PASS
@@ -398,10 +430,13 @@ git diff --check
 
 ```bash
 git switch feat/pre-v2.0.0
+git pull --ff-only
 pnpm install --frozen-lockfile
 pnpm test
 pnpm pack
 ```
+
+`pnpm build` 和 `pnpm pack` 都会自动生成并验证 Contract 运行时资源。不得继续使用 `521265c541a1d6dacac075849962a4c703530a6d` 之前生成的同名 tgz。
 
 独立 Profile 安装：
 
@@ -413,16 +448,17 @@ dsh --profile pre-v2-test --no-open
 
 验收步骤：
 
-1. 打开新建前期策划面板；
-2. 确认底部显示 `Pre 2.0.0 · Project Format 0.1.0`；
-3. 创建项目；
-4. 确认 UI 报告标准目录已创建；
-5. 执行 `/preplan-presentation-sync`；
-6. 记录返回目录和 Project ID；
-7. 在 Presentation 中打开或监听同一目录；
-8. 确认能读取 `project.json / rules.json / outline.json / pages / assets / source-materials / layouts`；
-9. 修改 Pre 内容后再次同步，确认稳定 ID 保持不变；
-10. 检查默认保护外部修改。
+1. 确认安装的是本轮重新生成的 tgz；
+2. 打开新建前期策划面板；
+3. 确认底部显示 `Pre 2.0.0 · Project Format 0.1.0`；
+4. 对已经创建的测试项目执行 `/preplan-open <projectId>`；
+5. 执行 `/preplan-presentation-sync`，不要重复新建同一项目；
+6. 确认返回 `PRESENTATION_STANDARD_PROJECT_V0_1_0_PASS`；
+7. 记录返回目录和 Presentation Project ID；
+8. 在 Presentation 中打开或监听同一目录；
+9. 确认能读取 `project.json / rules.json / outline.json / pages / assets / source-materials / layouts`；
+10. 修改 Pre 内容后再次同步，确认稳定 ID 保持不变；
+11. 检查默认保护外部修改。
 
 ## 13. 已知边界
 
@@ -440,7 +476,7 @@ dsh --profile pre-v2-test --no-open
 3e0fceed75945ac83be01d05870430efd956ea5d
 ```
 
-该提交包含用户在 Windows 上完成的文件同步修复，但不包含本轮运行时接线和版本 UI。
+该提交包含 Windows 文件同步修复，但不包含本轮运行时接线、版本 UI 和安装包 Contract 资源修复。
 
 回滚部署时：
 
@@ -461,7 +497,10 @@ Runtime adapter: src/presentation/runtime-integration.ts
 Standard service: src/presentation/standard-project-service.ts
 Host composition: src/index.ts
 UI version source: src/version.ts
+Runtime asset preparation: scripts/prepare-presentation-contract-runtime-assets.mjs
 Runtime verification: tests/host-apply.spec.ts
+Built Host verification: tests/built-presentation-runtime.spec.ts
+Packed contents verification: tests/built-package.spec.ts
 Contract lock: docs/contracts/presentation-standard-project-v0.1.0-lock.json
 ```
 
