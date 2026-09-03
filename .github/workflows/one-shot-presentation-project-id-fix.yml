@@ -25,23 +25,21 @@ jobs:
           from pathlib import Path
 
           path = Path('src/presentation/standard-project-adapter.ts')
-          text = path.read_text(encoding='utf-8')
-          text = text.replace("const PROJECT_KEY = 'project:root'\n", '')
-          old = '''  const projectKey = `project:${normalizeString(frozenProject.projectId, 'frozenProject.projectId')}`
-          if (input.presentationProjectId !== undefined) {
-            ledger.bind('project', PROJECT_KEY, input.presentationProjectId)
-            ledger.bind('project', projectKey, input.presentationProjectId)
-          }
-          const projectId = ledger.resolve('project', PROJECT_KEY) as ProjectId
-          ledger.bind('project', projectKey, projectId)'''
-          new = '''  const projectKey = `pre-design:${normalizeString(frozenProject.projectId, 'frozenProject.projectId')}`
-          if (input.presentationProjectId !== undefined) {
-            ledger.bind('project', projectKey, input.presentationProjectId)
-          }
-          const projectId = ledger.resolve('project', projectKey) as ProjectId'''
-          if text.count(old) != 1:
-              raise SystemExit('Expected exactly one duplicate project identity block')
-          path.write_text(text.replace(old, new), encoding='utf-8')
+          lines = path.read_text(encoding='utf-8').splitlines()
+          lines = [line for line in lines if line != "const PROJECT_KEY = 'project:root'"]
+          starts = [index for index, line in enumerate(lines) if line.startswith('  const projectKey = `project:${normalizeString(')]
+          ends = [index for index, line in enumerate(lines) if line == "  ledger.bind('project', projectKey, projectId)"]
+          if len(starts) != 1 or len(ends) != 1 or ends[0] < starts[0]:
+              raise SystemExit(f'Unexpected project identity block: starts={starts}, ends={ends}')
+          replacement = [
+              "  const projectKey = `pre-design:${normalizeString(frozenProject.projectId, 'frozenProject.projectId')}`",
+              '  if (input.presentationProjectId !== undefined) {',
+              "    ledger.bind('project', projectKey, input.presentationProjectId)",
+              '  }',
+              "  const projectId = ledger.resolve('project', projectKey) as ProjectId",
+          ]
+          lines[starts[0]:ends[0] + 1] = replacement
+          path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
