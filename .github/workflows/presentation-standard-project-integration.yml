@@ -1,9 +1,9 @@
-name: Presentation Standard Project 0.1.0 Integration
+name: Pre 2.0.0 Integration
 
 on:
   push:
     branches:
-      - feat/presentation-standard-project-v0.1.0-integration
+      - feat/pre-v2.0.0
   pull_request:
     paths:
       - 'src/presentation/**'
@@ -13,6 +13,7 @@ on:
       - 'scripts/prepare-presentation-contract.mjs'
       - 'scripts/verify-presentation-contract-lock.mjs'
       - 'scripts/verify-presentation-standard-integration.mjs'
+      - 'scripts/verify-alignment-version-consistency.mjs'
       - 'docs/contracts/**'
       - 'docs/version-matrix.json'
       - 'docs/VERSIONING.md'
@@ -28,11 +29,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: presentation-standard-project-${{ github.ref }}
+  group: pre-v2-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  integration-targeted:
+  pre-v2-targeted:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
@@ -52,17 +53,20 @@ jobs:
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Verify pinned Contract
+      - name: Verify Pre 2.0.0 version authority
+        run: pnpm verify:alignment-versions
+
+      - name: Verify pinned external Contract
         run: pnpm verify:presentation-contract
 
-      - name: Run Presentation integration tests
-        run: pnpm exec vitest run tests/presentation-standard-*.spec.ts --maxWorkers=1
+      - name: Run standard-project output tests
+        run: pnpm test:presentation-standard
 
       - name: Typecheck
         run: pnpm typecheck
 
   full-regression:
-    needs: integration-targeted
+    needs: pre-v2-targeted
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
