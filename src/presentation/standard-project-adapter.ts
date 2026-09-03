@@ -610,7 +610,7 @@ function buildDraft(
   }))
   const speakerParts = distinctStrings([
     finding.keyMessage,
-    ...finding.speakerNotes,
+    ...(finding.speakerNotes ?? []),
     ...(finding.contentNature === 'decision' ? frozenProject.decisionItems : []),
     ...(finding.contentNature === 'decision' && frozenProject.recommendation.trim() !== ''
       ? [frozenProject.recommendation]

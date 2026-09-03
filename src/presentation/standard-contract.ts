@@ -37,7 +37,7 @@ export const PRESENTATION_STANDARD_CONTRACT_LOCK: PresentationStandardContractLo
   schemaSetSha256: '5bd329fcc8503ff7a48b3430e41b38dd264ae486cee7372a39cbbcccc2de2ebc',
   minimumNodeVersion: '22.0.0',
   successMarker: 'PRESENTATION_STANDARD_PROJECT_V0_1_0_PASS',
-  schemaAuthorityExclusions: ['feat/report-studio-v0.1.1-hardening'],
+  schemaAuthorityExclusions: ['feat/report-studio-v0.1.1-hardening'] as const,
 })
 
 function fail(code: string, detail: string): never {
@@ -45,8 +45,12 @@ function fail(code: string, detail: string): never {
 }
 
 export function assertPresentationContractCoordinates(
-  candidate: Readonly<Record<string, unknown>>,
+  candidate: unknown,
 ): asserts candidate is PresentationStandardContractLock {
+  if (candidate === null || typeof candidate !== 'object' || Array.isArray(candidate)) {
+    fail('PRESENTATION_CONTRACT_COORDINATE_MISMATCH', 'Contract coordinates must be an object')
+  }
+  const record = candidate as Readonly<Record<string, unknown>>
   const expected = PRESENTATION_STANDARD_CONTRACT_LOCK
   for (const key of [
     'schemaVersion',
@@ -61,14 +65,14 @@ export function assertPresentationContractCoordinates(
     'minimumNodeVersion',
     'successMarker',
   ] as const) {
-    if (candidate[key] !== expected[key]) {
+    if (record[key] !== expected[key]) {
       fail(
         'PRESENTATION_CONTRACT_COORDINATE_MISMATCH',
-        `${key} must be '${String(expected[key])}', received '${String(candidate[key])}'`,
+        `${key} must be '${String(expected[key])}', received '${String(record[key])}'`,
       )
     }
   }
-  const exclusions = candidate.schemaAuthorityExclusions
+  const exclusions = record.schemaAuthorityExclusions
   if (!Array.isArray(exclusions)
     || exclusions.length !== 1
     || exclusions[0] !== expected.schemaAuthorityExclusions[0]) {

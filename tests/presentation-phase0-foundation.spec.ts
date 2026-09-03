@@ -29,7 +29,9 @@ describe('Presentation Phase 0 foundation', () => {
     expect(binding).toEqual({
       preDesignProjectId: 'preplan-00000000-0000-4000-8000-000000000001',
       state: 'awaiting_contract',
+      stableIds: {},
       lastExportedObjectHashes: {},
+      lastExportedFileHashes: {},
       createdAt,
       updatedAt: createdAt,
     })
@@ -42,7 +44,9 @@ describe('Presentation Phase 0 foundation', () => {
     const incomplete: PresentationProjectBindingRecord = {
       preDesignProjectId: 'preplan-1',
       state: 'ready',
+      stableIds: {},
       lastExportedObjectHashes: {},
+      lastExportedFileHashes: {},
       createdAt,
       updatedAt: createdAt,
     }
@@ -54,11 +58,16 @@ describe('Presentation Phase 0 foundation', () => {
   it('accepts a complete ready binding without changing its values', () => {
     const ready: PresentationProjectBindingRecord = {
       preDesignProjectId: 'preplan-1',
-      presentationProjectId: 'presentation-project-1',
-      directoryRoot: '/workspace/projects/presentation-project-1-campus-renewal',
-      standardVersion: 'contract-test-version',
+      presentationProjectId: 'project_01992a80-0000-7000-8000-000000000001',
+      projectSlug: 'campus-renewal',
+      directoryRoot: '/workspace/projects/project-campus-renewal',
+      standardVersion: '0.1.0',
       state: 'ready',
+      stableIds: {
+        'project:pre-design:preplan-1': 'project_01992a80-0000-7000-8000-000000000001',
+      },
       lastExportedObjectHashes: { page_1: 'a'.repeat(64) },
+      lastExportedFileHashes: {},
       createdAt,
       updatedAt: createdAt,
     }
