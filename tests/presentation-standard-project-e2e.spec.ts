@@ -128,7 +128,7 @@ describe('pre-design to Presentation Standard Project end-to-end', () => {
     const pageManifest = JSON.parse(await readFile(join(repeated.directoryRoot, 'pages/manifest.json'), 'utf8'))
     const draftDocuments = await Promise.all(pageManifest.pages.map(async (page: any) =>
       JSON.parse(await readFile(join(repeated.directoryRoot, page.draftPath), 'utf8'))))
-    expect(draftDocuments.flatMap(findPrivateCanonicalKeys)).toEqual([])
+    expect(draftDocuments.flatMap(draft => findPrivateCanonicalKeys(draft))).toEqual([])
     expect(draftDocuments.every((draft: any) => draft.contentBlocks.some(
       (block: any) => block.sourceRefs?.some((source: any) =>
         source.provider === 'pre-design'
