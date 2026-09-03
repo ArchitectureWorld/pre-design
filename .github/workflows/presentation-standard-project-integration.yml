@@ -10,6 +10,7 @@ on:
       - 'src/index.ts'
       - 'src/commands/register.ts'
       - 'tests/presentation-standard-*.ts'
+      - 'tests/presentation-build-toolchain.spec.ts'
       - 'scripts/prepare-presentation-contract.mjs'
       - 'scripts/verify-presentation-contract-lock.mjs'
       - 'scripts/verify-presentation-standard-integration.mjs'
@@ -58,6 +59,9 @@ jobs:
 
       - name: Verify pinned external Contract
         run: pnpm verify:presentation-contract
+
+      - name: Verify native build config loading policy
+        run: pnpm exec vitest run tests/presentation-build-toolchain.spec.ts --maxWorkers=1
 
       - name: Run standard-project output tests
         run: pnpm test:presentation-standard
