@@ -1,0 +1,92 @@
+name: Presentation Standard Project 0.1.0 Integration
+
+on:
+  push:
+    branches:
+      - feat/presentation-standard-project-v0.1.0-integration
+  pull_request:
+    paths:
+      - 'src/presentation/**'
+      - 'src/index.ts'
+      - 'src/commands/register.ts'
+      - 'tests/presentation-standard-*.ts'
+      - 'scripts/prepare-presentation-contract.mjs'
+      - 'scripts/verify-presentation-contract-lock.mjs'
+      - 'scripts/verify-presentation-standard-integration.mjs'
+      - 'docs/contracts/**'
+      - 'docs/version-matrix.json'
+      - 'docs/VERSIONING.md'
+      - 'README.md'
+      - 'HANDOFF.md'
+      - 'handoff/**'
+      - 'vendor/presentation-contracts/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/presentation-standard-project-integration.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: presentation-standard-project-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration-targeted:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify pinned Contract
+        run: pnpm verify:presentation-contract
+
+      - name: Run Presentation integration tests
+        run: pnpm exec vitest run tests/presentation-standard-*.spec.ts --maxWorkers=1
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+  full-regression:
+    needs: integration-targeted
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run complete build and test suite
+        run: pnpm test
+
+      - name: Test built package
+        run: pnpm test:built
+
+      - name: Verify repository diff hygiene
+        run: git diff --check
