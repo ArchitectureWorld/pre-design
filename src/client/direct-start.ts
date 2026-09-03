@@ -52,6 +52,12 @@ export async function startDirectPreplanning(port: DirectStartPort, input: Direc
     if (command.kind === 'error') throw new Error(command.text)
   }
   await execute(`/preplan-new ${projectName}`)
+  try {
+    await execute('/preplan-presentation-sync')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '未知错误'
+    throw new Error(`前期策划项目已创建，但 Presentation 标准项目初始化失败：${message}。请修正后直接执行 /preplan-presentation-sync 重试。`)
+  }
   if (input.mode !== undefined) {
     const visualBudget = input.visualBudget ?? 8
     if (!Number.isInteger(visualBudget) || visualBudget < 0 || visualBudget > 20) {
