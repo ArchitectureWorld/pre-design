@@ -75,9 +75,11 @@ src/presentation/standard-project-error.ts
 src/presentation/identity-ledger.ts
 src/presentation/binding-domain.ts
 src/presentation/binding-repository.ts
-src/presentation/source-material-writer.ts
-src/presentation/asset-writer.ts
+src/presentation/material-plan.ts
+src/presentation/filesystem.ts
 ```
+
+原始资料和正式素材的分类、Hash、路径分配与写盘逻辑分别由 `standard-project-adapter.ts`、`material-plan.ts`、`filesystem.ts` 和 `standard-project-writer.ts` 协同实现，没有维护第二套 Schema。
 
 Contract 与构建入口：
 
