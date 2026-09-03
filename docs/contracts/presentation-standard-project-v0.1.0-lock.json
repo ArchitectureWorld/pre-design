@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "standardName": "Presentation Standard Project Directory",
+  "standardVersion": "0.1.0",
+  "authorityRepository": "ArchitectureWorld/presentation-tools",
+  "sourceCommitSHA": "974668d308728386ea005c9e77d58ebff9372f0a",
+  "contractRoot": "contracts/presentation-standard-project",
+  "packageName": "@architectureworld/presentation-contracts",
+  "packageVersion": "0.1.0",
+  "schemaSetSha256": "5bd329fcc8503ff7a48b3430e41b38dd264ae486cee7372a39cbbcccc2de2ebc",
+  "minimumNodeVersion": "22.0.0",
+  "entries": {
+    "types": "src/index.d.ts",
+    "ids": "src/ids.mjs",
+    "factory": "src/factory.mjs",
+    "documentValidator": "src/ajv-validation.mjs#validateDocumentWithAjv",
+    "projectValidator": "src/ajv-validation.mjs#validateProjectDirectoryWithAjv"
+  },
+  "fixtures": {
+    "minimal": "fixtures/minimal/project_01992a80-0000-7000-8000-000000000001-minimal-project",
+    "fullExample": "examples/unformatted-project/project_01992a80-0000-7000-8000-000000000101-campus-renewal-brief"
+  },
+  "installation": {
+    "mode": "fixed-git-commit-npm-pack",
+    "tarballPath": "vendor/presentation-contracts/architectureworld-presentation-contracts-0.1.0.tgz",
+    "artifactMetadataPath": "vendor/presentation-contracts/contract-artifact.json",
+    "registryFallback": "@architectureworld/presentation-contracts@0.1.0"
+  },
+  "successMarker": "PRESENTATION_STANDARD_PROJECT_V0_1_0_PASS",
+  "schemaAuthorityExclusions": [
+    "feat/report-studio-v0.1.1-hardening"
+  ]
+}
