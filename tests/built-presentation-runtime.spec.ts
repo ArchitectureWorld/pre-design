@@ -25,7 +25,9 @@ describe('installed Host Presentation runtime', () => {
     roots.push(root)
     vi.stubEnv('PRE_DESIGN_PRESENTATION_PROJECT_ROOT', join(root, 'presentation-projects'))
 
-    const HostPlugin = await import(pathToFileURL(resolve(packageRoot, 'lib/index.js')).href)
+    const HostPlugin = await import(
+      pathToFileURL(resolve(packageRoot, 'lib/index.js')).href
+    ) as typeof import('../src/index.ts')
     const ctx = new Context()
     contexts.push(ctx)
     const commands: CommandDefinition[] = []
@@ -36,7 +38,7 @@ describe('installed Host Presentation runtime', () => {
     ctx.provide('commands', {
       register: (definition: CommandDefinition) => { commands.push(definition); return () => undefined },
     } as never)
-    ctx.provide('tools', { register: () => () => undefined } as never)
+    ctx.provide('tools', { register: (_definition: unknown) => () => undefined } as never)
     ctx.provide('attachments', { readImage: vi.fn() } as never)
     ctx.provide('llm', { listModels: vi.fn(async () => []) } as never)
     ctx.provide('sessions', { get: vi.fn() } as never)
@@ -45,10 +47,10 @@ describe('installed Host Presentation runtime', () => {
       startContinuable: vi.fn(),
       followup: vi.fn(),
     } as never)
-    ctx.provide('systemPrompt', { section: () => () => undefined } as never)
-    ctx.provide('webServer', { register: () => () => undefined } as never)
+    ctx.provide('systemPrompt', { section: (_definition: unknown) => () => undefined } as never)
+    ctx.provide('webServer', { register: (_definition: unknown) => () => undefined } as never)
 
-    await ctx.plugin(HostPlugin as never)
+    await ctx.plugin(HostPlugin)
 
     const created = await commands.find(definition => definition.name === 'preplan-new')?.handler({
       rawInput: '安装包回归测试', agent: { id: 'session-1' },
