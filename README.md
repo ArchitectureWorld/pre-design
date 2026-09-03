@@ -1,6 +1,6 @@
 # Pre-design 2.0.0
 
-`pre-design` 是运行在 DeepSeek Harness 中的前期策划执行插件，npm 包为：
+`pre-design` 是运行在 DeepSeek Harness 中的前期策划执行插件：
 
 ```text
 @architectureworld/dsh-preplanning-agent@2.0.0
@@ -21,6 +21,7 @@
 |---|---|
 | Pre 产品／插件版本 | `2.0.0` |
 | 当前开发支线 | `feat/pre-v2.0.0` |
+| 运行时接入状态 | 已在开发支线完成并通过真实 DSH Host 验证 |
 | 发布状态 | 未合并、未发布 |
 | 上一正式发布 | `v0.7.0`，仅作历史基线 |
 | Presentation 项目格式 Contract | 外部依赖 `0.1.0` |
@@ -33,6 +34,80 @@
 - DSH Harness 负责 Agent、模型、Session 和工具执行。
 - `presentation-tools` 是独立的可视化交互、排版和导出工具。
 - 两个项目通过标准项目目录交换数据，产品版本彼此独立。
+
+## 已接通的使用链路
+
+通过 DSH UI 创建新项目时，Pre 2.0.0 会依次执行：
+
+```text
+创建 Pre 项目
+→ 初始化专业工作流
+→ 生成 Presentation 标准项目目录
+→ 写入 Canonical JSON
+→ 运行 Contract 0.1.0 全量验证
+→ 验证通过后原子发布
+→ 启动前期策划流程
+```
+
+UI 只有在标准目录已经创建并验证通过后，才显示：
+
+```text
+项目与 Presentation 标准目录已创建，前期策划全流程已经启动。
+```
+
+新建面板和项目状态卡底部均显示：
+
+```text
+Pre 2.0.0 · Project Format 0.1.0
+```
+
+这用于快速判断当前安装版本及其兼容的外部项目格式版本。
+
+## 与 Presentation 交接
+
+默认标准项目根目录：
+
+```text
+~/.dsh/presentation-projects
+```
+
+可以在启动 DSH 前指定共用目录：
+
+```text
+PRE_DESIGN_PRESENTATION_PROJECT_ROOT=<绝对目录>
+```
+
+Presentation 需要读取、打开或监听同一个项目根目录。Pre 负责生成和验证标准目录，不修改 Presentation 的 UI、排版逻辑或产品版本。
+
+已有项目可显式同步：
+
+```text
+/preplan-presentation-sync
+```
+
+默认拒绝覆盖 Pre 上次输出后被外部修改的内容。只有用户明确要求覆盖时才使用：
+
+```text
+/preplan-presentation-sync --force
+```
+
+也可以直接对 DSH Agent 说：
+
+```text
+把当前项目同步到 Presentation
+```
+
+Agent 会调用：
+
+```text
+preplanning_sync_presentation_project
+```
+
+成功结果必须包含目录、Presentation Project ID、Pre Revision 和：
+
+```text
+PRESENTATION_STANDARD_PROJECT_V0_1_0_PASS
+```
 
 ## Pre 2.0.0 核心能力
 
@@ -74,10 +149,9 @@ Schema Set 5bd329fcc8503ff7a48b3430e41b38dd264ae486cee7372a39cbbcccc2de2ebc
 /preplan-status
 /preplan-mode manual|automatic
 /preplan-confirm <proposalId>
+/preplan-presentation-sync
 /preplan-export
 ```
-
-标准项目输出的具体命令和路径以当前 Handoff 为准。
 
 ## 开发验证
 
@@ -92,15 +166,7 @@ pnpm test:built
 git diff --check
 ```
 
-Presentation Contract 集成成功标记：
-
-```text
-PRESENTATION_STANDARD_PROJECT_V0_1_0_PASS
-```
-
-## DSH 测试部署
-
-正式替换现用插件前，应先使用独立测试 Profile：
+## DSH 部署验证
 
 ```powershell
 dsh plugin --profile pre-v2-test add .\architectureworld-dsh-preplanning-agent-2.0.0.tgz
@@ -108,4 +174,4 @@ dsh --profile pre-v2-test --dump-config
 dsh --profile pre-v2-test --no-open
 ```
 
-完成全仓回归和真实 DSH 烟测前，不应覆盖现用稳定 Profile，也不应创建 `v2.0.0` Tag 或 Release。
+当前代码已通过自动化运行时与全仓回归；在覆盖现用稳定 Profile、合并主线或创建 `v2.0.0` Tag/Release 前，仍应使用目标机器执行一次真实安装烟测。

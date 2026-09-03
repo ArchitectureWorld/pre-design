@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "updatedAt": "2026-09-03",
   "repository": "ArchitectureWorld/pre-design",
   "product": {
@@ -66,14 +66,24 @@
   },
   "implementation": {
     "presentationStandardOutput": {
-      "status": "implemented-and-verified-on-development-branch",
+      "status": "usage-ready-and-verified-on-development-branch",
       "contractVersion": "0.1.0",
-      "verificationStatus": "targeted-and-full-regression-passed",
-      "verifiedHead": "c44699b5b0adccac5168d0205e579d898ca02013",
+      "verificationStatus": "runtime-handoff-and-full-regression-passed",
+      "verifiedHead": "bc55008665d680bd8c8432ebec5bacf17266381e",
       "verifiedWorkflow": {
         "name": "Pre 2.0.0 Integration",
-        "runId": 33725698031,
+        "runId": 33733512838,
         "conclusion": "success"
+      },
+      "runtime": {
+        "automaticInitialization": "ui-create-flow",
+        "syncCommand": "/preplan-presentation-sync",
+        "forceSyncCommand": "/preplan-presentation-sync --force",
+        "agentTool": "preplanning_sync_presentation_project",
+        "defaultProjectRoot": "~/.dsh/presentation-projects",
+        "projectRootEnvironmentVariable": "PRE_DESIGN_PRESENTATION_PROJECT_ROOT",
+        "uiVersionLabel": "Pre 2.0.0 · Project Format 0.1.0",
+        "presentationConsumption": "open-or-watch-the-same-project-root"
       }
     },
     "releaseStatus": "not-merged-not-published",

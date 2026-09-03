@@ -25,11 +25,16 @@ const PRESENTATION_SCHEMASET = '5bd329fcc8503ff7a48b3430e41b38dd264ae486cee7372a
 const PRESENTATION_LOCK = 'docs/contracts/presentation-standard-project-v0.1.0-lock.json'
 const PRESENTATION_TARBALL = 'vendor/presentation-contracts/architectureworld-presentation-contracts-0.1.0.tgz'
 const PRESENTATION_ARTIFACT = 'vendor/presentation-contracts/contract-artifact.json'
-const VERIFIED_CODE_HEAD = 'c44699b5b0adccac5168d0205e579d898ca02013'
-const VERIFIED_RUN_ID = 33725698031
+const PRESENTATION_COMMAND = '/preplan-presentation-sync'
+const PRESENTATION_TOOL = 'preplanning_sync_presentation_project'
+const PRESENTATION_ROOT_ENV = 'PRE_DESIGN_PRESENTATION_PROJECT_ROOT'
+const PRESENTATION_DEFAULT_ROOT = '~/.dsh/presentation-projects'
+const UI_VERSION_LABEL = 'Pre 2.0.0 · Project Format 0.1.0'
+const VERIFIED_RUNTIME_HEAD = 'bc55008665d680bd8c8432ebec5bacf17266381e'
+const VERIFIED_RUNTIME_RUN_ID = 33733512838
 
-requireCondition(matrix.schemaVersion === 3,
-  'version matrix schemaVersion must be 3')
+requireCondition(matrix.schemaVersion === 4,
+  'version matrix schemaVersion must be 4')
 requireCondition(matrix.repository === 'ArchitectureWorld/pre-design',
   'version matrix must identify the pre-design repository')
 requireCondition(matrix.product?.name === 'pre-design',
@@ -41,7 +46,7 @@ requireCondition(matrix.product?.packageName === PRE_PACKAGE,
 requireCondition(matrix.product?.packageVersion === PRE_VERSION,
   'pre-design package version must be 2.0.0')
 requireCondition(matrix.product?.status === 'verified-development-candidate',
-  'pre-design 2.0.0 must be recorded as a verified development candidate')
+  'pre-design 2.0.0 must be a verified development candidate before release')
 requireCondition(matrix.product?.publishedTag === null,
   'pre-design 2.0.0 must not claim a published tag')
 
@@ -145,37 +150,56 @@ requireCondition(matrix.historical?.lastPublishedPreDesign?.packageVersion === '
 requireCondition(matrix.historical?.lastPublishedPreDesign?.tag === 'v0.7.0',
   'historical Pre tag must remain v0.7.0')
 
-const implementation = matrix.implementation?.presentationStandardOutput
-requireCondition(implementation?.status
-    === 'implemented-and-verified-on-development-branch',
-  'standard-project output must be recorded as implemented and verified')
-requireCondition(implementation?.contractVersion === PRESENTATION_VERSION,
-  'verified output must identify Contract version 0.1.0')
-requireCondition(implementation?.verificationStatus
-    === 'targeted-and-full-regression-passed',
-  'verified output must record targeted and full regression success')
-requireCondition(implementation?.verifiedHead === VERIFIED_CODE_HEAD,
-  'verified output must preserve the first fully green code HEAD')
-requireCondition(implementation?.verifiedWorkflow?.name === 'Pre 2.0.0 Integration',
-  'verified workflow name mismatch')
-requireCondition(implementation?.verifiedWorkflow?.runId === VERIFIED_RUN_ID,
-  'verified workflow run ID mismatch')
-requireCondition(implementation?.verifiedWorkflow?.conclusion === 'success',
-  'verified workflow must record success')
+const output = matrix.implementation?.presentationStandardOutput
+requireCondition(output?.status === 'usage-ready-and-verified-on-development-branch',
+  'Presentation standard output must be recorded as usage-ready on the Pre development branch')
+requireCondition(output?.contractVersion === PRESENTATION_VERSION,
+  'runtime output Contract version mismatch')
+requireCondition(output?.verificationStatus === 'runtime-handoff-and-full-regression-passed',
+  'runtime handoff verification status mismatch')
+requireCondition(output?.verifiedHead === VERIFIED_RUNTIME_HEAD,
+  'verified runtime code commit mismatch')
+requireCondition(output?.verifiedWorkflow?.name === 'Pre 2.0.0 Integration',
+  'verified runtime workflow name mismatch')
+requireCondition(output?.verifiedWorkflow?.runId === VERIFIED_RUNTIME_RUN_ID,
+  'verified runtime workflow run mismatch')
+requireCondition(output?.verifiedWorkflow?.conclusion === 'success',
+  'verified runtime workflow must be successful')
+requireCondition(output?.runtime?.automaticInitialization === 'ui-create-flow',
+  'UI create flow must initialize the Presentation standard project')
+requireCondition(output?.runtime?.syncCommand === PRESENTATION_COMMAND,
+  'Presentation sync command mismatch')
+requireCondition(output?.runtime?.forceSyncCommand === `${PRESENTATION_COMMAND} --force`,
+  'Presentation force-sync command mismatch')
+requireCondition(output?.runtime?.agentTool === PRESENTATION_TOOL,
+  'Presentation Agent tool mismatch')
+requireCondition(output?.runtime?.defaultProjectRoot === PRESENTATION_DEFAULT_ROOT,
+  'default Presentation project root mismatch')
+requireCondition(output?.runtime?.projectRootEnvironmentVariable === PRESENTATION_ROOT_ENV,
+  'Presentation project root environment variable mismatch')
+requireCondition(output?.runtime?.uiVersionLabel === UI_VERSION_LABEL,
+  'UI version label mismatch')
+requireCondition(output?.runtime?.presentationConsumption === 'open-or-watch-the-same-project-root',
+  'Presentation consumption boundary must require the same project root')
 requireCondition(matrix.implementation?.releaseStatus === 'not-merged-not-published',
   'Pre 2.0.0 release status must remain not merged and not published')
 
 const requiredFiles = [
+  'src/version.ts',
+  'src/client/VersionFooter.tsx',
   'src/presentation/standard-contract.ts',
   'src/presentation/standard-project-adapter.ts',
   'src/presentation/standard-project-writer.ts',
   'src/presentation/standard-project-service.ts',
+  'src/presentation/runtime-integration.ts',
   'src/presentation/identity-ledger.ts',
   'src/presentation/binding-domain.ts',
   'src/presentation/binding-repository.ts',
   'scripts/prepare-presentation-contract.mjs',
   'scripts/verify-presentation-contract-lock.mjs',
   'scripts/verify-presentation-standard-integration.mjs',
+  'tests/presentation-runtime-integration.spec.ts',
+  'tests/host-apply.spec.ts',
   'handoff/PRE_DESIGN_PRESENTATION_STANDARD_PROJECT_V0.1.0_IMPLEMENTATION.md',
   '.github/workflows/presentation-standard-project-integration.yml',
 ]
@@ -188,6 +212,14 @@ const readme = readRequired('README.md')
 const handoff = readRequired('HANDOFF.md')
 const versioning = readRequired('docs/VERSIONING.md')
 const workflow = readRequired('.github/workflows/presentation-standard-project-integration.yml')
+const host = readRequired('src/index.ts')
+const runtime = readRequired('src/presentation/runtime-integration.ts')
+const directStart = readRequired('src/client/direct-start.ts')
+const projectForm = readRequired('src/client/PreplanningProjectForm.tsx')
+const statusCard = readRequired('src/client/PreplanningStatusCard.tsx')
+const versionSource = readRequired('src/version.ts')
+const systemPrompt = readRequired('src/prompts/preplanning-system.ts')
+const runtimeTest = readRequired('tests/host-apply.spec.ts')
 
 for (const [path, text] of [
   ['README.md', readme],
@@ -198,16 +230,53 @@ for (const [path, text] of [
     `${path} must point to Pre-named v2.0.0 branches`)
   requireCondition(text.includes('2.0.0'),
     `${path} must state the Pre 2.0.0 product version`)
-  requireCondition(text.includes('Presentation Standard Project Directory'),
+  requireCondition(text.includes(PRESENTATION_STANDARD),
     `${path} must identify the external Presentation Contract`)
-  requireCondition(text.includes('0.1.0'),
+  requireCondition(text.includes(PRESENTATION_VERSION),
     `${path} must state the external Contract version independently`)
+  requireCondition(text.includes(PRESENTATION_COMMAND),
+    `${path} must document the live Presentation sync command`)
+  requireCondition(text.includes(PRESENTATION_ROOT_ENV),
+    `${path} must document the shared Presentation project root variable`)
+  requireCondition(text.includes(UI_VERSION_LABEL),
+    `${path} must document the visible version label`)
 }
 
 requireCondition(workflow.includes(`- ${DEVELOPMENT_BRANCH}`),
   'integration workflow must run on feat/pre-v2.0.0')
 requireCondition(!workflow.includes('- feat/presentation-standard-project-v0.1.0-integration'),
   'integration workflow must not use the superseded Presentation-named Pre branch')
+
+requireCondition(host.includes('registerPresentationRuntime'),
+  'Host must register the Presentation runtime integration')
+requireCondition(host.includes('PresentationStandardProjectService'),
+  'Host must create the Presentation standard project service')
+requireCondition(host.includes(PRESENTATION_ROOT_ENV),
+  'Host must support the shared Presentation project root environment variable')
+requireCondition(host.includes("'.dsh', 'presentation-projects'"),
+  'Host must provide the default Presentation project root')
+requireCondition(runtime.includes("name: 'preplan-presentation-sync'"),
+  'runtime integration must register the user sync command')
+requireCondition(runtime.includes(`name: '${PRESENTATION_TOOL}'`),
+  'runtime integration must register the Agent sync tool')
+requireCondition(runtime.includes('confirmExternalChanges'),
+  'runtime integration must preserve explicit external-change confirmation')
+requireCondition(directStart.includes(`await execute('${PRESENTATION_COMMAND}')`),
+  'UI direct start must initialize a Presentation standard project')
+requireCondition(projectForm.includes('<VersionFooter />'),
+  'new-project UI must display the version footer')
+requireCondition(statusCard.includes('<VersionFooter />'),
+  'status UI must display the version footer')
+requireCondition(versionSource.includes("PRE_DESIGN_VERSION = '2.0.0'"),
+  'central Pre UI version constant mismatch')
+requireCondition(versionSource.includes("PRESENTATION_PROJECT_FORMAT_VERSION = '0.1.0'"),
+  'central project-format UI version constant mismatch')
+requireCondition(systemPrompt.includes(PRESENTATION_TOOL),
+  'system prompt must teach the Agent to perform the Presentation handoff')
+requireCondition(runtimeTest.includes('PRESENTATION_STANDARD_PROJECT_V0_1_0_PASS'),
+  'real Host test must assert the Presentation Contract success marker')
+requireCondition(runtimeTest.includes("readFile(join(directoryRoot, 'project.json')"),
+  'real Host test must inspect the emitted standard project on disk')
 
 if (failures.length > 0) {
   console.error('PRE_DESIGN_V2_0_0_VERSION_CONSISTENCY_FAIL')
@@ -223,7 +292,11 @@ console.log(JSON.stringify({
   developmentBranch: matrix.activeBranches.development,
   externalContract: `${external.standardName}@${external.standardVersion}`,
   externalContractCommit: external.sourceCommitSHA,
-  verifiedCodeHead: implementation.verifiedHead,
-  verifiedWorkflowRunId: implementation.verifiedWorkflow.runId,
+  runtimeCommand: output.runtime.syncCommand,
+  runtimeTool: output.runtime.agentTool,
+  defaultProjectRoot: output.runtime.defaultProjectRoot,
+  uiVersionLabel: output.runtime.uiVersionLabel,
+  verifiedCodeHead: output.verifiedHead,
+  verifiedWorkflowRunId: output.verifiedWorkflow.runId,
   releaseStatus: matrix.implementation.releaseStatus,
 }, null, 2))
