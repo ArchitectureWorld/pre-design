@@ -12,6 +12,7 @@ import { createAwaitingPresentationBinding } from '../src/presentation/types.ts'
 const roots: string[] = []
 const contexts: Context[] = []
 const createdAt = '2026-09-02T13:30:00.000Z'
+const presentationProjectId = 'project_01992a80-0000-7000-8000-000000000001'
 
 async function openStorage() {
   const root = await mkdtemp(join(tmpdir(), 'pre-design-presentation-binding-'))
@@ -58,9 +59,10 @@ describe('PresentationBindingRepository', () => {
 
     const creating = {
       ...first,
-      presentationProjectId: 'presentation-project-1',
-      directoryRoot: join(root, 'projects', 'presentation-project-1-campus-renewal'),
-      standardVersion: 'test-contract-version',
+      presentationProjectId,
+      projectSlug: 'campus-renewal',
+      directoryRoot: join(root, 'projects', `${presentationProjectId}-campus-renewal`),
+      standardVersion: '0.1.0',
       state: 'creating' as const,
       updatedAt: '2026-09-02T13:31:00.000Z',
     }
