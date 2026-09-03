@@ -56,7 +56,6 @@ import { adaptFrozenProjectToPresentationFindings } from './projector/frozen-pro
 import { DEFAULT_PRESENTATION_TOPICS } from './projector/topics.ts'
 import type { ProfessionalFinding } from './projector/types.ts'
 
-const PROJECT_KEY = 'project:root'
 const RULES_KEY = 'document:rules'
 const OUTLINE_KEY = 'document:outline'
 const MIME_PATTERN = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/u
@@ -662,13 +661,11 @@ export async function buildPresentationStandardProject(
   }
   const contract = await getPresentationStandardContract()
   const ledger = new PresentationStableIdLedger(input.stableIds)
-  const projectKey = `project:${normalizeString(frozenProject.projectId, 'frozenProject.projectId')}`
+  const projectKey = `pre-design:${normalizeString(frozenProject.projectId, 'frozenProject.projectId')}`
   if (input.presentationProjectId !== undefined) {
-    ledger.bind('project', PROJECT_KEY, input.presentationProjectId)
     ledger.bind('project', projectKey, input.presentationProjectId)
   }
-  const projectId = ledger.resolve('project', PROJECT_KEY) as ProjectId
-  ledger.bind('project', projectKey, projectId)
+  const projectId = ledger.resolve('project', projectKey) as ProjectId
   const projectRulesId = ledger.resolve('projectRules', RULES_KEY) as ProjectRulesDocument['projectRulesId']
   const outlineDocumentId = ledger.resolve('outlineDocument', OUTLINE_KEY) as OutlineDocument['outlineDocumentId']
   const projectSlug = input.projectSlug === undefined
