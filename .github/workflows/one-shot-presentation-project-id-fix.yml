@@ -1,0 +1,99 @@
+name: One-shot Presentation Project Identity Fix
+
+on:
+  push:
+    branches:
+      - feat/presentation-standard-project-v0.1.0-integration
+    paths:
+      - '.github/workflows/one-shot-presentation-project-id-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Replace duplicate project identity keys
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/presentation/standard-project-adapter.ts')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace("const PROJECT_KEY = 'project:root'\n", '')
+          old = '''  const projectKey = `project:${normalizeString(frozenProject.projectId, 'frozenProject.projectId')}`
+          if (input.presentationProjectId !== undefined) {
+            ledger.bind('project', PROJECT_KEY, input.presentationProjectId)
+            ledger.bind('project', projectKey, input.presentationProjectId)
+          }
+          const projectId = ledger.resolve('project', PROJECT_KEY) as ProjectId
+          ledger.bind('project', projectKey, projectId)'''
+          new = '''  const projectKey = `pre-design:${normalizeString(frozenProject.projectId, 'frozenProject.projectId')}`
+          if (input.presentationProjectId !== undefined) {
+            ledger.bind('project', projectKey, input.presentationProjectId)
+          }
+          const projectId = ledger.resolve('project', projectKey) as ProjectId'''
+          if text.count(old) != 1:
+              raise SystemExit('Expected exactly one duplicate project identity block')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Reproduce fixed identity path
+        run: |
+          cat > .tmp-project-id-check.ts <<'TS'
+          import { isStableId } from '@architectureworld/presentation-contracts'
+          import { buildPresentationStandardProject } from './src/presentation/standard-project-adapter.ts'
+
+          const build = await buildPresentationStandardProject({
+            frozenProject: {
+              projectId: 'preplan-project-id-check',
+              projectName: 'Identity Check',
+              revision: 0,
+              generatedAt: '2026-09-03T00:00:00.000Z',
+              recommendation: '',
+              decisionItems: [],
+              stateObjects: [],
+              gates: [],
+              visualAssets: [],
+              adoptedAssetIds: [],
+              siteBoundary: { status: 'not_provided' },
+            },
+          })
+          if (!isStableId('project', build.projectId)) throw new Error('project ID is not Contract-valid')
+          if (Object.values(build.stableIds).filter(value => value === build.projectId).length !== 1) {
+            throw new Error('project ID is still bound to multiple stable keys')
+          }
+          console.log('PRESENTATION_PROJECT_IDENTITY_FIX_PASS')
+          TS
+          pnpm exec tsx .tmp-project-id-check.ts
+          rm .tmp-project-id-check.ts
+
+      - name: Check patch hygiene
+        run: git diff --check
+
+      - name: Commit fix
+        run: |
+          git config user.name 'ArchitectureWorld'
+          git config user.email '140295054+ArchitectureWorld@users.noreply.github.com'
+          git add src/presentation/standard-project-adapter.ts
+          git commit -m 'fix: use one stable project identity key'
+          git push origin HEAD:feat/presentation-standard-project-v0.1.0-integration
