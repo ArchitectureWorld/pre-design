@@ -16,6 +16,7 @@ on:
       - 'scripts/verify-presentation-standard-integration.mjs'
       - 'scripts/verify-alignment-version-consistency.mjs'
       - 'docs/contracts/**'
+      - 'docs/superpowers/**'
       - 'docs/version-matrix.json'
       - 'docs/VERSIONING.md'
       - 'README.md'
