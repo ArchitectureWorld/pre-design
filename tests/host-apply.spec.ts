@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -19,14 +19,17 @@ const contexts: Context[] = []
 const roots: string[] = []
 
 afterEach(async () => {
+  vi.unstubAllEnvs()
   for (const ctx of contexts.splice(0)) await ctx.fiber.dispose()
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true })
 })
 
 describe('Host apply composition', () => {
-  it('在真实 Storage Domain 上提供全流程 Host、十八命令、三工具和系统提示', async () => {
+  it('提供十八命令、三工具，并通过真实 Host 发布可供 Presentation 使用的标准项目', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-preplanning-host-'))
     roots.push(root)
+    const presentationRoot = join(root, 'presentation-projects')
+    vi.stubEnv('PRE_DESIGN_PRESENTATION_PROJECT_ROOT', presentationRoot)
     const ctx = new Context()
     contexts.push(ctx)
     const commands: CommandDefinition[] = []
@@ -62,8 +65,7 @@ describe('Host apply composition', () => {
     expect(ctx.get('preplanning')?.visual).toBeInstanceOf(VisualAgentService)
     expect(ctx.get('preplanning')?.reports).toBeInstanceOf(ReportPackageService)
     expect(ctx.get('preplanning')?.standardProjects).toBeInstanceOf(PresentationStandardProjectService)
-    expect(ctx.get('preplanning')?.presentationProjectRoot).toContain('.dsh')
-    expect(ctx.get('preplanning')?.presentationProjectRoot).toContain('presentation-projects')
+    expect(ctx.get('preplanning')?.presentationProjectRoot).toBe(presentationRoot)
     const reportOptions = Reflect.get(ctx.get('preplanning')!.reports, 'options') as { readonly boundaryIntegrity?: unknown }
     expect(reportOptions.boundaryIntegrity).toBeInstanceOf(SiteBoundaryService)
     expect(routes).toEqual([expect.objectContaining({ kind: 'prefix', path: '/preplan-export' })])
@@ -84,7 +86,7 @@ describe('Host apply composition', () => {
       name: 'preplanning-agent',
       text: PREPLANNING_SYSTEM_PROMPT,
     })
-    expect(PREPLANNING_SYSTEM_PROMPT).toContain('每轮只提交该 workflow 的一个 ProposalEnvelope')
+    expect(PREPLANNING_SYSTEM_PROMPT).toContain('preplanning_sync_presentation_project')
 
     const created = await commands.find(definition => definition.name === 'preplan-new')?.handler({
       rawInput: '鄂州体育中心项目', agent: { id: 'session-1' },
@@ -92,13 +94,33 @@ describe('Host apply composition', () => {
     expect(created?.kind).toBe('success')
     if (created?.kind !== 'success') throw new Error('preplan-new did not create the test project')
     expect(created.text).toContain('尚未提供场地边界')
+
+    const synchronized = await commands.find(
+      definition => definition.name === 'preplan-presentation-sync',
+    )?.handler({ rawInput: '', agent: { id: 'session-1' } } as never)
+    expect(synchronized?.kind).toBe('success')
+    if (synchronized?.kind !== 'success') {
+      throw new Error(`Presentation sync failed: ${synchronized?.text ?? 'missing result'}`)
+    }
+    expect(synchronized.text).toContain('PRESENTATION_STANDARD_PROJECT_V0_1_0_PASS')
+    expect(synchronized.text).toContain('Presentation Project ID')
+    const directoryRoot = synchronized.text.match(/^目录：(.+)$/mu)?.[1]
+    expect(directoryRoot).toBeDefined()
+    if (directoryRoot === undefined) throw new Error('sync did not report its directory')
+    const projectDocument = JSON.parse(await readFile(join(directoryRoot, 'project.json'), 'utf8')) as {
+      standardVersion?: string
+      projectId?: string
+    }
+    expect(projectDocument.standardVersion).toBe('0.1.0')
+    expect(projectDocument.projectId).toMatch(/^project_/u)
+
     const envelope = createD1ProposalExample({
       projectId: 'preplan-test-project',
       projectName: '鄂州体育中心项目',
       statement: '新建鄂州体育中心项目并完成 01-01 身份校准',
       createdAt: '2026-08-28T02:30:00.000Z',
     })
-    const actualProjectId = (created.text?.match(/（([^）]+)）/u) ?? [])[1]
+    const actualProjectId = (created.text.match(/（([^）]+)）/u) ?? [])[1]
     if (actualProjectId === undefined) throw new Error('preplan-new did not return its project id')
     const acceptedEnvelope = {
       ...envelope,
