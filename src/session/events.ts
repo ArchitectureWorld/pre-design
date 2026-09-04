@@ -1,6 +1,7 @@
 import type { GovernanceRepository } from '../governance/repository.ts'
 import { deriveSiteBoundaryState } from '../governance/site-boundary-status.ts'
 import type { SiteBoundarySource, SiteBoundaryStateSummary } from '../governance/types.ts'
+import type { PresentationAutoSyncService, PresentationAutoSyncState } from '../presentation/auto-sync.ts'
 import type { WorkflowRuntime } from '../runtime/workflow-runtime.ts'
 import type { ProjectContext } from '../state/types.ts'
 import { reportLinks, type ReportPackageLinks } from '../client/report-links.ts'
@@ -19,6 +20,13 @@ export interface PreplanningBoundaryStatus {
   readonly nextAction: string
 }
 
+export interface PreplanningPresentationStatus {
+  readonly state: PresentationAutoSyncState
+  readonly currentRevision: number
+  readonly syncedRevision: number
+  readonly message?: string
+}
+
 export interface PreplanningStatusEventData {
   readonly projectId: string
   readonly projectName: string
@@ -35,17 +43,22 @@ export interface PreplanningStatusEventData {
   readonly visual: { readonly candidates: number; readonly adopted: number; readonly blocked: number }
   readonly boundary: PreplanningBoundaryStatus
   readonly modelRoute: { readonly primary: string; readonly visual: string }
+  readonly presentation?: PreplanningPresentationStatus
   readonly reportPackage?: ReportPackageLinks
 }
 
 export interface PreplanningStatusDependencies {
   readonly governance: Pick<GovernanceRepository, 'readProject'>
   readonly runtime: Pick<WorkflowRuntime, 'snapshot'>
+  readonly presentationSync?: Pick<PresentationAutoSyncService, 'status'>
 }
 
 const CHAPTER_TOTALS = [7, 8, 6, 6, 7, 7, 8, 8] as const
 const PRIMARY_MODEL_ROUTE = '当前 DSH Session 所选模型'
 const VISUAL_MODEL_ROUTE = 'antigravity / gemini-3.1-flash-image'
+const PRESENTATION_STATES: readonly PresentationAutoSyncState[] = [
+  'pending', 'syncing', 'synced', 'migration_required', 'external_changes', 'error',
+]
 
 function statusBoundary(records: Parameters<typeof deriveSiteBoundaryState>[0], revision: number): PreplanningBoundaryStatus {
   const state = deriveSiteBoundaryState(records, revision)
@@ -83,6 +96,23 @@ function baseStatus(context: ProjectContext) {
   }
 }
 
+function presentationStatus(
+  context: ProjectContext,
+  dependencies: PreplanningStatusDependencies,
+): PreplanningPresentationStatus | undefined {
+  const value = dependencies.presentationSync?.status(
+    context.project.projectId,
+    context.project.currentRevision,
+  )
+  if (value === undefined) return undefined
+  return {
+    state: value.state,
+    currentRevision: value.currentRevision,
+    syncedRevision: value.syncedRevision,
+    ...(value.message === undefined ? {} : { message: value.message }),
+  }
+}
+
 export function buildPreplanningStatus(
   context: ProjectContext,
   dependencies?: PreplanningStatusDependencies,
@@ -108,6 +138,7 @@ export function buildPreplanningStatus(
     .filter(row => row.status === 'published' && row.sourceRevision <= context.project.currentRevision)
     .sort((left, right) => left.sourceRevision - right.sourceRevision || left.packageId.localeCompare(right.packageId))
     .at(-1)
+  const presentation = presentationStatus(context, dependencies)
   return {
     ...base,
     mode: governed.policy?.mode ?? 'manual',
@@ -126,6 +157,7 @@ export function buildPreplanningStatus(
     },
     boundary: statusBoundary(governed.siteBoundaries, context.project.currentRevision),
     modelRoute: { primary: PRIMARY_MODEL_ROUTE, visual: VISUAL_MODEL_ROUTE },
+    ...(presentation === undefined ? {} : { presentation }),
     ...(latestPackage === undefined ? {} : { reportPackage: reportLinks(latestPackage.packageId) }),
   }
 }
@@ -139,11 +171,15 @@ export function formatPreplanningStatus(status: PreplanningStatusEventData): str
   const report = status.reportPackage?.id ?? 'none'
   const source = status.boundary.source === undefined ? '' : `（来源 ${JSON.stringify(status.boundary.source)}）`
   const detail = `前期策划全流程：模式 ${status.mode}；报告 ${status.reportDepth}；阻断 ${status.blocked}；视觉 ${status.visual.candidates}/${status.visual.adopted}/${status.visual.blocked}；章节 ${chapters}；成果 ${report}；主模型 ${JSON.stringify(status.modelRoute.primary)}；视觉模型 ${JSON.stringify(status.modelRoute.visual)}；场地边界 ${JSON.stringify(status.boundary.label)}${source}；下一步 ${JSON.stringify(status.boundary.nextAction)}。`
-  return `${base}\n${detail}`
+  const presentation = status.presentation === undefined
+    ? ''
+    : `\n前期策划 Presentation：${JSON.stringify(status.presentation)}。`
+  return `${base}\n${detail}${presentation}`
 }
 
 const STATUS_PATTERN = /(?:^|\n)前期策划状态：项目 ("(?:\\.|[^"\\])*")（([^）\r\n]+)），revision (\d+)，阶段 ([^，\r\n]+)，待确认 (\d+) 项，开放问题 (\d+) 项(?:，待确认提案 ("(?:\\.|[^"\\])*"))?。(?:$|\n)/u
 const DETAIL_PATTERN = /(?:^|\n)前期策划全流程：模式 (manual|automatic)；报告 (standard|extended)；阻断 (\d+)；视觉 (\d+)\/(\d+)\/(\d+)；章节 ([^；\r\n]+)；成果 ([A-Za-z0-9._-]+|none)；主模型 ("(?:\\.|[^"\\])*")；视觉模型 ("(?:\\.|[^"\\])*")(?:；场地边界 ("(?:\\.|[^"\\])*")(?:（来源 ("(?:\\.|[^"\\])*")）)?；下一步 ("(?:\\.|[^"\\])*"))?。(?:$|\n)/u
+const PRESENTATION_PATTERN = /(?:^|\n)前期策划 Presentation：(\{[^\r\n]*\})。(?:$|\n)/u
 
 function parseChapters(text: string): PreplanningChapterStatus[] | undefined {
   const chapters = text.split(',').map(value => {
@@ -202,6 +238,31 @@ function normalizedBoundary(value: unknown, revision: number): PreplanningBounda
   return fallback
 }
 
+function normalizedPresentation(value: unknown): PreplanningPresentationStatus | undefined {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const record = value as Record<string, unknown>
+  if (!PRESENTATION_STATES.includes(record.state as PresentationAutoSyncState)
+    || typeof record.currentRevision !== 'number' || !Number.isSafeInteger(record.currentRevision) || record.currentRevision < 0
+    || typeof record.syncedRevision !== 'number' || !Number.isSafeInteger(record.syncedRevision) || record.syncedRevision < 0
+    || (record.message !== undefined && typeof record.message !== 'string')) return undefined
+  return {
+    state: record.state as PresentationAutoSyncState,
+    currentRevision: record.currentRevision,
+    syncedRevision: record.syncedRevision,
+    ...(typeof record.message === 'string' ? { message: record.message } : {}),
+  }
+}
+
+function presentationFromText(text: string): PreplanningPresentationStatus | undefined {
+  const match = PRESENTATION_PATTERN.exec(text)
+  if (match === null) return undefined
+  try {
+    return normalizedPresentation(JSON.parse(match[1]!))
+  } catch {
+    return undefined
+  }
+}
+
 export function parsePreplanningStatus(text: string): PreplanningStatusEventData | undefined {
   const match = STATUS_PATTERN.exec(text)
   if (match === null) return undefined
@@ -210,6 +271,7 @@ export function parsePreplanningStatus(text: string): PreplanningStatusEventData
   const pendingProposalCount = Number(pendingText)
   const openQuestionCount = Number(openText)
   if (![revision, pendingProposalCount, openQuestionCount].every(Number.isSafeInteger)) return undefined
+  const presentation = presentationFromText(text)
   const base = {
     projectId,
     projectName: JSON.parse(encodedName) as string,
@@ -221,6 +283,7 @@ export function parsePreplanningStatus(text: string): PreplanningStatusEventData
     pendingProposalCount,
     ...(encodedProposalId === undefined ? {} : { pendingProposalId: JSON.parse(encodedProposalId) as string }),
     openQuestionCount,
+    ...(presentation === undefined ? {} : { presentation }),
   }
   const detail = DETAIL_PATTERN.exec(text)
   if (detail === null) return {
@@ -257,16 +320,20 @@ export function normalizePreplanningStatus(value: unknown): PreplanningStatusEve
     || (record.status !== 'active' && record.status !== 'attention_required' && record.status !== 'pending_review')
     || typeof record.pendingProposalCount !== 'number' || !Number.isSafeInteger(record.pendingProposalCount)
     || typeof record.openQuestionCount !== 'number' || !Number.isSafeInteger(record.openQuestionCount)) return undefined
-  const base = record as unknown as Omit<PreplanningStatusEventData, 'mode' | 'reportDepth' | 'chapters' | 'blocked' | 'visual' | 'modelRoute' | 'boundary'>
+  const presentation = normalizedPresentation(record.presentation)
+  if (record.presentation !== undefined && presentation === undefined) return undefined
+  const base = record as unknown as Omit<PreplanningStatusEventData, 'mode' | 'reportDepth' | 'chapters' | 'blocked' | 'visual' | 'modelRoute' | 'boundary' | 'presentation'>
   const rich = record.mode === 'manual' || record.mode === 'automatic'
   if (!rich) return {
     ...base, mode: 'manual', reportDepth: 'standard', chapters: defaultChapters(), blocked: 0,
     visual: { candidates: 0, adopted: 0, blocked: 0 },
     boundary: defaultBoundary(record.revision),
     modelRoute: { primary: PRIMARY_MODEL_ROUTE, visual: VISUAL_MODEL_ROUTE },
+    ...(presentation === undefined ? {} : { presentation }),
   }
   return {
-    ...(value as Omit<PreplanningStatusEventData, 'boundary'>),
+    ...(value as Omit<PreplanningStatusEventData, 'boundary' | 'presentation'>),
     boundary: normalizedBoundary(record.boundary, record.revision),
+    ...(presentation === undefined ? {} : { presentation }),
   }
 }

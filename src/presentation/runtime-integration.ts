@@ -14,6 +14,7 @@ import {
   PRESENTATION_PROJECT_FORMAT_VERSION,
   PRESENTATION_PROJECT_SUCCESS_MARKER,
 } from '../version.ts'
+import type { PresentationAutoSyncService } from './auto-sync.ts'
 import { openDirectoryInFileManager } from './open-directory.ts'
 import type { PresentationStandardProjectService } from './standard-project-service.ts'
 import type { PresentationAdoptedAssetInput } from './standard-project-types.ts'
@@ -35,6 +36,7 @@ export interface PresentationRuntimeDependencies {
     projectId: string,
     revision: number,
   ) => FrozenProjectInput | Promise<FrozenProjectInput>
+  readonly autoSync?: Pick<PresentationAutoSyncService, 'noteExplicitSuccess'>
   readonly resolveWorkspaceRoot?: (
     value: WorkspaceInvocationLike,
   ) => Promise<string | undefined>
@@ -131,6 +133,28 @@ function errorCodeOf(error: unknown): string | undefined {
   return typeof code === 'string' ? code : undefined
 }
 
+function stringDetail(details: unknown, key: string): string | undefined {
+  if (details === null || typeof details !== 'object') return undefined
+  const value = Reflect.get(details, key)
+  return typeof value === 'string' && value.trim() !== '' ? value : undefined
+}
+
+export function formatPresentationOperationError(error: unknown): string {
+  if (errorCodeOf(error) !== 'PRE_DESIGN_WORKSPACE_MIGRATION_CONFIRMATION_REQUIRED') {
+    return error instanceof Error ? error.message : 'Presentation 标准项目操作失败。'
+  }
+  const details = (error as { readonly details?: unknown }).details
+  const previous = stringDetail(details, 'previousDirectoryRoot')
+  const requested = stringDetail(details, 'requestedDirectoryRoot')
+  return [
+    'PRE_DESIGN_WORKSPACE_MIGRATION_CONFIRMATION_REQUIRED：检测到旧版标准项目，需要一次性确认迁移到当前 DSH Workspace。',
+    ...(previous === undefined ? [] : [`旧版标准项目：${previous}。`]),
+    ...(requested === undefined ? [] : [`当前目标工作区：${requested}。`]),
+    '请在当前 DSH 会话执行 /preplan-presentation-sync --force。',
+    '该操作保留 Stable ID、Presentation Project ID 和 Pre Revision；旧目录不会自动删除。',
+  ].join('\n')
+}
+
 async function workspaceRootOf(
   dependencies: PresentationRuntimeDependencies,
   carrier: WorkspaceInvocationLike,
@@ -176,7 +200,7 @@ export async function syncPresentationProject(
   if (!published.validation.valid) {
     throw new Error('PRESENTATION_STANDARD_PROJECT_VALIDATION_FAILED: Contract 校验未通过。')
   }
-  return Object.freeze({
+  const result = Object.freeze({
     preDesignProjectId: context.project.projectId,
     preDesignRevision: context.project.currentRevision,
     presentationProjectId: published.projectId,
@@ -186,6 +210,12 @@ export async function syncPresentationProject(
     validationMarker: PRESENTATION_PROJECT_SUCCESS_MARKER,
     replacedExisting: published.replacedExisting,
   })
+  dependencies.autoSync?.noteExplicitSuccess(result.preDesignProjectId, {
+    preDesignRevision: result.preDesignRevision,
+    directoryRoot: result.directoryRoot,
+    reason: confirmExternalChanges ? 'manual-force-sync' : 'manual-sync',
+  })
+  return result
 }
 
 function commandResultText(result: PresentationRuntimeSyncResult): string {
@@ -208,7 +238,7 @@ function guarded(
     } catch (error) {
       return {
         kind: 'error',
-        text: error instanceof Error ? error.message : 'Presentation 标准项目操作失败。',
+        text: formatPresentationOperationError(error),
       }
     }
   }

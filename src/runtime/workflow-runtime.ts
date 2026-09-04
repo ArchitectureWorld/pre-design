@@ -53,15 +53,28 @@ export class WorkflowRuntime {
     }
   }
 
+  ready(projectId: string): readonly WorkflowDescriptor[] {
+    const readyIds = new Set(this.governance.readProject(projectId).workflowRuns
+      .filter(run => run.status === 'ready')
+      .map(run => run.workflowId))
+    return Object.freeze(this.registry.workflows()
+      .filter(descriptor => readyIds.has(descriptor.workflowId)))
+  }
+
+  running(projectId: string): readonly WorkflowDescriptor[] {
+    const runningIds = new Set(this.governance.readProject(projectId).workflowRuns
+      .filter(run => run.status === 'running')
+      .map(run => run.workflowId))
+    return Object.freeze(this.registry.workflows()
+      .filter(descriptor => runningIds.has(descriptor.workflowId)))
+  }
+
   nextReady(projectId: string): WorkflowDescriptor | undefined {
-    const ready = this.governance.readProject(projectId).workflowRuns.find(run => run.status === 'ready')
-    return ready === undefined ? undefined : this.registry.workflow(ready.workflowId)
+    return this.ready(projectId)[0]
   }
 
   current(projectId: string): WorkflowDescriptor | undefined {
-    const running = this.governance.readProject(projectId).workflowRuns
-      .find(run => run.status === 'running')
-    return running === undefined ? undefined : this.registry.workflow(running.workflowId)
+    return this.running(projectId)[0]
   }
 
   async transition(

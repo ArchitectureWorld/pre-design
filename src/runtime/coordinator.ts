@@ -1,15 +1,27 @@
 import { createUserMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
 import type { WorkflowRuntime } from './workflow-runtime.ts'
+import type { ParallelWorkflowBatchResult } from './parallel-workflow-executor.ts'
 
 export interface CoordinatorAgent {
   followup(message: UserMessage): void | Promise<void>
   whenIdle(): Promise<void>
 }
 
+export interface ParallelWorkflowBatchPort {
+  canRun(projectId: string): boolean
+  runReadyBatch(
+    agent: CoordinatorAgent,
+    projectId: string,
+  ): Promise<ParallelWorkflowBatchResult>
+}
+
 export class AutomationCoordinator {
   private readonly running = new Map<string, symbol>()
 
-  constructor(private readonly runtime: WorkflowRuntime) {}
+  constructor(
+    private readonly runtime: WorkflowRuntime,
+    private readonly parallel?: ParallelWorkflowBatchPort,
+  ) {}
 
   async start(agent: CoordinatorAgent, projectId: string): Promise<void> {
     if (this.running.has(projectId)) return
@@ -31,6 +43,15 @@ export class AutomationCoordinator {
     try {
       let resumed = this.runtime.current(projectId)
       while (this.running.get(projectId) === token) {
+        if (resumed === undefined && this.parallel?.canRun(projectId) === true) {
+          const batch = await this.parallel.runReadyBatch(agent, projectId)
+          if (this.running.get(projectId) !== token) return
+          if (batch.attempted > 0) {
+            if (this.runtime.snapshot(projectId).blocked.length > 0) return
+            continue
+          }
+        }
+
         const next = resumed ?? this.runtime.nextReady(projectId)
         if (next === undefined) return
         if (resumed === undefined) {

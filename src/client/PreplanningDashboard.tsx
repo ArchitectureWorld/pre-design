@@ -1,4 +1,4 @@
-import type { PreplanningStatusEventData } from '../session/events.ts'
+import type { PreplanningPresentationStatus, PreplanningStatusEventData } from '../session/events.ts'
 
 export interface PreplanningDashboardProps {
   readonly status: PreplanningStatusEventData
@@ -16,6 +16,23 @@ const boundarySources = {
   closed_coordinates: '闭合坐标',
   geojson: 'GeoJSON',
 } as const
+
+function presentationLabel(status: PreplanningPresentationStatus): string {
+  switch (status.state) {
+    case 'synced':
+      return `Presentation：已同步 Revision ${status.syncedRevision}`
+    case 'pending':
+      return `Presentation：等待同步（Pre ${status.currentRevision} / 已同步 ${status.syncedRevision}）`
+    case 'syncing':
+      return `Presentation：正在同步 Revision ${status.currentRevision}`
+    case 'migration_required':
+      return 'Presentation：需要迁移；执行 /preplan-presentation-sync --force'
+    case 'external_changes':
+      return 'Presentation：检测到外部修改，未覆盖'
+    case 'error':
+      return `Presentation：同步失败：${status.message ?? '未知错误'}`
+  }
+}
 
 export function PreplanningDashboard({ status }: PreplanningDashboardProps) {
   const total = status.chapters.reduce((sum, chapter) => sum + chapter.total, 0)
@@ -57,6 +74,30 @@ export function PreplanningDashboard({ status }: PreplanningDashboardProps) {
         <span>已采用 {status.visual.adopted}</span>
         <span>视觉阻断 {status.visual.blocked}</span>
       </div>
+      {status.presentation === undefined ? null : (
+        <div
+          aria-label="Presentation 同步状态"
+          style={{
+            ...panel,
+            display: 'grid',
+            gap: 4,
+            borderColor: status.presentation.state === 'synced'
+              ? 'color-mix(in srgb, #24844b 45%, transparent)'
+              : status.presentation.state === 'error'
+                || status.presentation.state === 'migration_required'
+                || status.presentation.state === 'external_changes'
+                ? 'color-mix(in srgb, #c56b1a 50%, transparent)'
+                : panel.border,
+          }}
+        >
+          <strong>{presentationLabel(status.presentation)}</strong>
+          {status.presentation.message === undefined
+            || status.presentation.state === 'migration_required'
+            || status.presentation.state === 'external_changes'
+            ? null
+            : <small>{status.presentation.message}</small>}
+        </div>
+      )}
       {status.reportPackage === undefined ? (
         <div style={panel}><strong>甲方汇报成果</strong><div>尚未发布；完成必要 Gate 和视觉采用后生成。</div></div>
       ) : (
