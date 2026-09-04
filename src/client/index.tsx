@@ -1,4 +1,5 @@
 import type { ClientContext, ISessions } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { useSyncExternalStore } from 'react'
@@ -28,7 +29,7 @@ async function executeCommand(
   sessionId: string,
   line: string,
 ): Promise<Awaited<ReturnType<DirectStartPort['executeCommand']>>> {
-  const result = await ctx.remote.commands.execute(sessionId, line, [])
+  const result = await ctx.remote.commands.execute(sessionId as SessionId, line, [])
   if (!result.ok) return { kind: 'error', text: `${result.error.code}: ${result.error.message}` }
   if (result.value === undefined) return { kind: 'unmatched' }
   const value = result.value.result
