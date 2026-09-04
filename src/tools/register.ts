@@ -4,6 +4,7 @@ import type { ContractRegistry } from '../contracts/registry.ts'
 import { buildControlledContext } from '../context/build-context.ts'
 import type { GovernanceRepository } from '../governance/repository.ts'
 import type { PresentationAutoSyncService } from '../presentation/auto-sync.ts'
+import type { AutomaticGateApprover } from '../runtime/automatic-gate-approver.ts'
 import type { ProposalGateway } from '../proposals/gateway.ts'
 import type { WorkflowRuntime } from '../runtime/workflow-runtime.ts'
 import { buildPreplanningStatus } from '../session/events.ts'
@@ -16,6 +17,7 @@ export interface ToolDependencies {
   readonly runtime: WorkflowRuntime
   readonly registry: ContractRegistry
   readonly presentationSync?: Pick<PresentationAutoSyncService, 'request' | 'status'>
+  readonly gateApprover?: Pick<AutomaticGateApprover, 'approveReady'>
 }
 
 function sessionIdOf(exec: { readonly agent?: { readonly id: unknown } }): string {
@@ -164,10 +166,11 @@ export function registerPreplanningTools(ctx: Context, dependencies: ToolDepende
               proposalId: proposal.proposalId,
               revision: committed.revision,
             })
+            const approvedGates = await dependencies.gateApprover?.approveReady(proposal.projectId) ?? 0
             revision = committed.revision
             dependencies.presentationSync?.request(proposal.projectId, {
               ...(workspaceRootOf(exec) === undefined ? {} : { workspaceRoot: workspaceRootOf(exec) }),
-              reason: `automatic-workflow:${workflowId}:revision:${committed.revision}`,
+              reason: `automatic-workflow:${workflowId}:revision:${committed.revision}:approved-gates:${approvedGates}`,
             })
             status = committed.status
           } else {

@@ -224,6 +224,7 @@ export async function apply(ctx: Context): Promise<void> {
     runtime,
     registry,
     presentationSync,
+    gateApprover,
   })
   registerPresentationRuntime(ctx, {
     repository,

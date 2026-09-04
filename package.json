@@ -51,11 +51,11 @@
     "golden:inspect-v080": "tsx scripts/inspect-client-artifacts.ts",
     "verify:presentation-contract": "node scripts/verify-presentation-contract-lock.mjs",
     "verify:alignment-versions": "node scripts/verify-alignment-version-consistency.mjs",
-    "test:presentation-standard": "pnpm verify:presentation-contract && vitest run tests/presentation-standard-*.spec.ts tests/presentation-workspace-runtime.spec.ts tests/workspace-project-root.spec.ts tests/direct-start-workspace.client.spec.ts tests/workspace-form-draft.client.spec.tsx tests/workspace-open-folder-ui.client.spec.tsx tests/workspace-panel-polish.client.spec.tsx tests/presentation-auto-sync.spec.ts tests/presentation-migration-guidance.spec.ts tests/parallel-workflow-executor.spec.ts tests/automation-workflow-committer.spec.ts tests/coordinator-parallel.spec.ts tests/presentation-sync-status.client.spec.tsx --maxWorkers=1 && node scripts/verify-presentation-standard-integration.mjs",
+    "test:presentation-standard": "pnpm verify:presentation-contract && vitest run tests/presentation-standard-*.spec.ts tests/presentation-workspace-runtime.spec.ts tests/workspace-project-root.spec.ts tests/direct-start-workspace.client.spec.ts tests/workspace-form-draft.client.spec.tsx tests/workspace-open-folder-ui.client.spec.tsx tests/workspace-panel-polish.client.spec.tsx tests/presentation-auto-sync.spec.ts tests/presentation-migration-guidance.spec.ts tests/parallel-workflow-executor.spec.ts tests/automation-workflow-committer.spec.ts tests/coordinator-parallel.spec.ts tests/presentation-sync-status.client.spec.tsx tests/automatic-gate-after-serial.spec.ts --maxWorkers=1 && node scripts/verify-presentation-standard-integration.mjs",
     "test": "pnpm verify:alignment-versions && pnpm verify:presentation-contract && pnpm build && vitest run --maxWorkers=1",
     "test:built": "vitest run tests/built-package.spec.ts tests/built-presentation-runtime.spec.ts --maxWorkers=1",
     "typecheck": "tsc -p tsconfig.json",
-    "test:continuous-sync": "vitest run tests/presentation-auto-sync.spec.ts tests/presentation-migration-guidance.spec.ts tests/parallel-workflow-executor.spec.ts tests/automation-workflow-committer.spec.ts tests/coordinator-parallel.spec.ts tests/presentation-sync-status.client.spec.tsx --maxWorkers=1"
+    "test:continuous-sync": "vitest run tests/presentation-auto-sync.spec.ts tests/presentation-migration-guidance.spec.ts tests/parallel-workflow-executor.spec.ts tests/automation-workflow-committer.spec.ts tests/coordinator-parallel.spec.ts tests/presentation-sync-status.client.spec.tsx tests/automatic-gate-after-serial.spec.ts --maxWorkers=1"
   },
   "license": "MIT",
   "dependencies": {
