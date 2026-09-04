@@ -89,7 +89,25 @@ layouts/
 
 `~/.dsh/presentation-projects` 与 `PRE_DESIGN_PRESENTATION_PROJECT_ROOT` 只保留为没有 DSH Workspace 的显式兼容回退，不再是正常 UI 使用路径。
 
-## 5. UI 与刷新恢复
+## 5. Workspace 探测与操作命令
+
+UI 在创建或继续项目前先执行：
+
+```text
+/preplan-presentation-sync --probe
+```
+
+用于识别当前 Workspace 是否已经绑定 Pre 项目，并让同一 Workspace 的多个 Session 共用该项目。
+
+标准同步与打开目录命令：
+
+```text
+/preplan-presentation-sync
+/preplan-presentation-sync --force
+/preplan-open-project-folder
+```
+
+## 6. UI 与刷新恢复
 
 新建面板按 Workspace 路径保存输入草稿：
 
@@ -113,7 +131,7 @@ UI 版本标识保持：
 Pre 2.0.0 · Project Format 0.1.0
 ```
 
-## 6. 当前验证坐标
+## 7. 当前验证坐标
 
 Workspace 根目录实现代码已在以下坐标完成验证：
 
@@ -126,7 +144,7 @@ Conclusion: success
 
 该运行同时通过定向门禁、TypeScript、全仓回归、构建产物运行与 Git diff hygiene。
 
-## 7. 版本禁止事项
+## 8. 版本禁止事项
 
 不得：
 
