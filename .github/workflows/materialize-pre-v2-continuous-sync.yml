@@ -1,6 +1,6 @@
 name: Materialize Pre 2.0.0 Continuous Sync Runtime
 
-# Retry after correcting the RED fixture; this one-time workflow deletes itself after success.
+# One-time materializer. Cleanup is performed by the repository owner after a successful push.
 on:
   push:
     branches:
@@ -40,11 +40,6 @@ jobs:
       - name: Apply deterministic runtime wiring
         run: node scripts/patch-continuous-sync-wiring.mjs
 
-      - name: Remove one-time materializer
-        run: |
-          rm scripts/patch-continuous-sync-wiring.mjs
-          rm .github/workflows/materialize-pre-v2-continuous-sync.yml
-
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
 
@@ -54,10 +49,10 @@ jobs:
       - name: Run continuous-sync and parallel-workflow tests
         run: pnpm test:continuous-sync
 
-      - name: Commit to the existing branch
+      - name: Commit non-workflow runtime files to the existing branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
+          git add src/commands/register.ts package.json tests/host-apply.spec.ts
           git commit -m "feat: wire continuous sync and parallel workflows into Pre runtime"
           git push origin HEAD:feat/pre-v2.0.0
