@@ -3,6 +3,7 @@ import type { CommandDefinition, CommandInvocation, CommandResult } from '@deeps
 import type { ImageBlock } from '@deepseek-ai/dsh-llm'
 import type { ContractRegistry } from '../contracts/registry.ts'
 import type { GovernanceRepository } from '../governance/repository.ts'
+import type { PresentationAutoSyncService } from '../presentation/auto-sync.ts'
 import type { SiteBoundaryService } from '../governance/site-boundary-service.ts'
 import type { GateDecisionRecord } from '../governance/types.ts'
 import type { ProposalGateway } from '../proposals/gateway.ts'
@@ -30,6 +31,7 @@ export interface CommandDependencies {
   readonly boundaries: SiteBoundaryService
   readonly reports: ReportPackageService
   readonly registry: ContractRegistry
+  readonly presentationSync?: Pick<PresentationAutoSyncService, 'request' | 'flush' | 'status'>
   readonly createId: () => string
   readonly now: () => string
   readonly resolveBoundaryActor?: (invocation: CommandInvocation) => ActorRef | undefined
@@ -106,10 +108,41 @@ function commandSignal(invocation: CommandInvocation): AbortSignal {
   return controller.signal
 }
 
+function workspaceRootOf(invocation: CommandInvocation): string | undefined {
+  const cwd = (invocation.agent as unknown as {
+    readonly session?: { readonly header?: { readonly cwd?: unknown } }
+  }).session?.header?.cwd
+  return typeof cwd === 'string' && cwd.trim() !== '' ? cwd.trim() : undefined
+}
+
+function requestPresentationSync(
+  dependencies: CommandDependencies,
+  invocation: CommandInvocation,
+  projectId: string,
+  reason: string,
+): void {
+  dependencies.presentationSync?.request(projectId, {
+    ...(workspaceRootOf(invocation) === undefined ? {} : { workspaceRoot: workspaceRootOf(invocation) }),
+    reason,
+  })
+}
+
+async function flushPresentationSync(
+  dependencies: CommandDependencies,
+  invocation: CommandInvocation,
+  projectId: string,
+  reason: string,
+): Promise<void> {
+  await dependencies.presentationSync?.flush(projectId, {
+    ...(workspaceRootOf(invocation) === undefined ? {} : { workspaceRoot: workspaceRootOf(invocation) }),
+    reason,
+  })
+}
+
 function successWithStatus(
   text: string,
   context: ReturnType<ProjectRepository['readContext']>,
-  dependencies: Pick<CommandDependencies, 'governance' | 'runtime'>,
+  dependencies: Pick<CommandDependencies, 'governance' | 'runtime' | 'presentationSync'>,
 ): CommandResult {
   return { kind: 'success', text: `${text}\n${formatPreplanningStatus(buildPreplanningStatus(context, dependencies))}` }
 }
@@ -203,6 +236,10 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
             })
           }
         }
+        requestPresentationSync(
+          dependencies, invocation, result.projectId,
+          `proposal-confirmed:${proposalId}:revision:${result.revision}`,
+        )
         return successWithStatus(
           `已确认提案 ${result.proposalId}，当前 revision ${result.revision}。`,
           repository.readContext(String(invocation.agent.id)),
@@ -331,7 +368,15 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
           actor: actorOf(invocation),
           ...(reasonParts.length === 0 ? {} : { reason: reasonParts.join(' ') }),
         })
-        return { kind: 'success', text: `Gate ${record.gateId} 已记录为 ${record.decision}。` }
+        await flushPresentationSync(
+          dependencies, invocation, context.project.projectId,
+          `gate:${record.gateId}:${record.decision}`,
+        )
+        return successWithStatus(
+          `Gate ${record.gateId} 已记录为 ${record.decision}。`,
+          repository.readContext(String(invocation.agent.id)),
+          dependencies,
+        )
       }),
     },
     {
@@ -392,7 +437,15 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
           assetId,
           context.project.currentRevision,
         )
-        return { kind: 'success', text: `已采用概念表现图 ${asset.assetId}，绑定 Revision ${asset.adoptedRevision}。` }
+        requestPresentationSync(
+          dependencies, invocation, context.project.projectId,
+          `visual-adopted:${asset.assetId}`,
+        )
+        return successWithStatus(
+          `已采用概念表现图 ${asset.assetId}，绑定 Revision ${asset.adoptedRevision}。`,
+          repository.readContext(String(invocation.agent.id)),
+          dependencies,
+        )
       }),
     },
     {
@@ -413,10 +466,15 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
           rejectedAssetId,
           replacementAssetId,
         )
-        return {
-          kind: 'success',
-          text: `已拒绝概念表现图 ${result.rejectedAssetId}，并由已采用资产 ${result.replacementAssetId} 替代。`,
-        }
+        requestPresentationSync(
+          dependencies, invocation, context.project.projectId,
+          `visual-replaced:${result.rejectedAssetId}:${result.replacementAssetId}`,
+        )
+        return successWithStatus(
+          `已拒绝概念表现图 ${result.rejectedAssetId}，并由已采用资产 ${result.replacementAssetId} 替代。`,
+          repository.readContext(String(invocation.agent.id)),
+          dependencies,
+        )
       }),
     },
     {
@@ -489,7 +547,15 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
           { boundaryId, submittedRevision, contentSha256, statement },
           boundaryContext(invocation, dependencies),
         )
-        return { kind: 'success', text: `场地边界 ${record.boundaryId} 已正式确认。` }
+        requestPresentationSync(
+          dependencies, invocation, context.project.projectId,
+          `boundary-confirmed:${record.boundaryId}`,
+        )
+        return successWithStatus(
+          `场地边界 ${record.boundaryId} 已正式确认。`,
+          repository.readContext(String(invocation.agent.id)),
+          dependencies,
+        )
       }),
     },
     {

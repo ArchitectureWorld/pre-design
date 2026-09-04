@@ -11,7 +11,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createD1ProposalExample, PREPLANNING_SYSTEM_PROMPT } from '../src/prompts/preplanning-system.ts'
 import * as HostPlugin from '../src/index.ts'
 import { SiteBoundaryService } from '../src/governance/site-boundary-service.ts'
+import { PresentationAutoSyncService } from '../src/presentation/auto-sync.ts'
 import { PresentationStandardProjectService } from '../src/presentation/standard-project-service.ts'
+import { ParallelWorkflowExecutor } from '../src/runtime/parallel-workflow-executor.ts'
 import { ReportPackageService } from '../src/report/package-service.ts'
 import { VisualAgentService } from '../src/visual/agent.ts'
 
@@ -65,6 +67,8 @@ describe('Host apply composition', () => {
     expect(ctx.get('preplanning')?.visual).toBeInstanceOf(VisualAgentService)
     expect(ctx.get('preplanning')?.reports).toBeInstanceOf(ReportPackageService)
     expect(ctx.get('preplanning')?.standardProjects).toBeInstanceOf(PresentationStandardProjectService)
+    expect(ctx.get('preplanning')?.presentationSync).toBeInstanceOf(PresentationAutoSyncService)
+    expect(ctx.get('preplanning')?.parallel).toBeInstanceOf(ParallelWorkflowExecutor)
     expect(ctx.get('preplanning')?.presentationProjectRoot).toBe(presentationRoot)
     const reportOptions = Reflect.get(ctx.get('preplanning')!.reports, 'options') as { readonly boundaryIntegrity?: unknown }
     expect(reportOptions.boundaryIntegrity).toBeInstanceOf(SiteBoundaryService)
