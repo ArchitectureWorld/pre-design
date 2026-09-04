@@ -107,7 +107,13 @@ describe('AutomationWorkflowCommitter', () => {
     const submitProposal = vi.fn()
     const committer = new AutomationWorkflowCommitter({
       repository: {
-        readContext: () => ({ project: { projectId: 'preplan-1', currentRevision: 1 }, stateObjects: [] }),
+        readContext: () => ({
+          project: { projectId: 'preplan-1', currentRevision: 1 },
+          stateObjects: [
+            { objectId: 'PS03', revision: 1, value: { data: {} } },
+            { objectId: 'PS07', revision: 1, value: { data: {} } },
+          ],
+        }),
       },
       governance: {
         readProject: () => ({ policy: { mode: 'automatic', automationAuthorizationId: 'authorization-1' } }),

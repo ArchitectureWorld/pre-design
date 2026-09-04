@@ -1,5 +1,6 @@
 name: Materialize Pre 2.0.0 Continuous Sync Runtime
 
+# Retry after correcting the RED fixture; this one-time workflow deletes itself after success.
 on:
   push:
     branches:
