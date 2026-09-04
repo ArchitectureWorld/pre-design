@@ -8,7 +8,7 @@ afterEach(cleanup)
 
 describe('Preplanning full-flow UI', () => {
   it('将创建面板挂到视口层并约束在可滚动的可视区域内', () => {
-    const view = render(<PreplanningLauncher start={async () => undefined} />)
+    const view = render(<PreplanningLauncher start={async () => undefined} workspacePath="/workspace/project" />)
     const trigger = view.getByRole('button', { name: '前期策划' })
     const launcher = trigger.parentElement
 
@@ -26,13 +26,14 @@ describe('Preplanning full-flow UI', () => {
     expect(form.style.maxHeight).toBe('calc(100dvh - 32px)')
     expect(form.style.overflowY).toBe('auto')
     expect(view.getByText('Pre 2.0.0 · Project Format 0.1.0')).toBeTruthy()
+    expect(view.getByText(/项目总文件夹：\/workspace\/project/u)).toBeTruthy()
 
     fireEvent.click(view.getByRole('button', { name: '关闭前期策划面板' }))
     expect(view.queryByRole('form', { name: '新建前期策划项目' })).toBeNull()
   })
 
   it('沿用 DSH 主题色保证表单背景、文字和输入控件可读', () => {
-    const view = render(<PreplanningLauncher start={async () => undefined} />)
+    const view = render(<PreplanningLauncher start={async () => undefined} workspacePath="/workspace/project" />)
     fireEvent.click(view.getByRole('button', { name: '前期策划' }))
 
     const form = view.getByRole('form', { name: '新建前期策划项目' })
@@ -46,7 +47,7 @@ describe('Preplanning full-flow UI', () => {
 
   it('在创建前让用户选择人工或全自动、报告深度和生图预算', async () => {
     const start = vi.fn(async () => undefined)
-    const view = render(<PreplanningLauncher start={start} />)
+    const view = render(<PreplanningLauncher start={start} workspacePath="/workspace/project" />)
     fireEvent.click(view.getByRole('button', { name: '前期策划' }))
     fireEvent.change(view.getByLabelText('一句话描述项目和目标'), {
       target: { value: '新建滨江文化活力区并完成全流程前期策划' },
@@ -54,7 +55,7 @@ describe('Preplanning full-flow UI', () => {
     fireEvent.click(view.getByLabelText('全自动完成'))
     fireEvent.click(view.getByLabelText('扩展汇报'))
     fireEvent.change(view.getByLabelText('概念图预算上限'), { target: { value: '12' } })
-    fireEvent.click(view.getByRole('button', { name: '创建并开始全流程' }))
+    fireEvent.click(view.getByRole('button', { name: '创建或继续全流程' }))
 
     await vi.waitFor(() => expect(start).toHaveBeenCalledWith({
       projectName: '滨江文化活力区',

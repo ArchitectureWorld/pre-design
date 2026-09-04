@@ -25,7 +25,7 @@ const fullStatus = {
 }
 
 describe('preplanning Browser plugin', () => {
-  it('通过 DSH SlotRegistry 合同适配器创建 Pre 项目、初始化标准项目并启动当前 Session 任务', async () => {
+  it('按 Session Workspace 创建或恢复 Pre 项目，并启动当前 Session 任务', async () => {
     expect(BrowserPlugin.inject).toEqual(['conversationEvents', 'remote', 'remote.commands', 'sessions', 'slots'])
     expect(typeof BrowserPlugin.apply).toBe('function')
 
@@ -41,12 +41,23 @@ describe('preplanning Browser plugin', () => {
     const commandsRemote = {
       execute: async (_sessionId: string, line: string) => {
         commandLines.push(line)
-        return { ok: true, value: { result: { kind: 'success', text: '命令执行成功。' } } }
+        const text = line === '/preplan-presentation-sync --probe'
+          ? 'PRE_DESIGN_WORKSPACE_EMPTY\n工作区：C:\\Projects\\鄂州体育中心项目'
+          : '命令执行成功。'
+        return { ok: true, value: { result: { kind: 'success', text } } }
       },
     }
     ctx.provide('remote', { commands: commandsRemote } as never)
     ctx.provide('remote.commands', commandsRemote as never)
     ctx.provide('sessions', {
+      list: {
+        getSnapshot: () => ({
+          ids: ['session-1'],
+          byId: { 'session-1': { id: 'session-1', cwd: 'C:\\Projects\\鄂州体育中心项目' } },
+          current: 'session-1',
+        }),
+        subscribe: () => () => undefined,
+      },
       binding: (sessionId: string) => sessionId === 'session-1' ? {
         sessionId,
         ctx,
@@ -81,20 +92,23 @@ describe('preplanning Browser plugin', () => {
     fireEvent.click(view.getByRole('button', { name: '前期策划' }))
     expect(view.getByText(/当前会话所选模型/u)).toBeTruthy()
     expect(view.getByText('Pre 2.0.0 · Project Format 0.1.0')).toBeTruthy()
+    expect(view.getByText(/项目总文件夹：C:\\Projects\\鄂州体育中心项目/u)).toBeTruthy()
     expect(view.queryByText(/Qwen/)).toBeNull()
     fireEvent.change(view.getByLabelText('一句话描述项目和目标'), {
       target: { value: '新建鄂州体育中心项目并完成 01-01 身份校准' },
     })
     expect((view.getByLabelText('识别的项目名称') as HTMLInputElement).value).toBe('鄂州体育中心项目')
-    fireEvent.click(view.getByRole('button', { name: '创建并开始全流程' }))
+    fireEvent.click(view.getByRole('button', { name: '创建或继续全流程' }))
     await view.findByText('项目与 Presentation 标准目录已创建，前期策划全流程已经启动。')
     expect(commandLines).toEqual([
+      '/preplan-presentation-sync --probe',
       '/preplan-new 鄂州体育中心项目',
       '/preplan-presentation-sync',
       '/preplan-mode manual 8 standard',
       '/preplan-run',
     ])
     expect(prompts).toHaveLength(0)
+    expect(view.getByRole('button', { name: '打开项目文件夹' })).toBeTruthy()
 
     const statusEntry = slots.entries('conversation.chat.node')[0]
     expect(statusEntry?.options).toMatchObject({ key: 'preplanning-status' })
@@ -125,7 +139,7 @@ describe('preplanning Browser plugin', () => {
 
   it('快速启动失败时在面板显示错误并允许重试', async () => {
     const start = vi.fn(async () => { throw new Error('当前会话没有可用模型') })
-    const view = render(<PreplanningLauncher start={start} />)
+    const view = render(<PreplanningLauncher start={start} workspacePath="/workspace/project" />)
     fireEvent.click(view.getByRole('button', { name: '前期策划' }))
     fireEvent.change(view.getByLabelText('一句话描述项目和目标'), {
       target: { value: '创建测试项目，然后完成身份校准' },
@@ -133,7 +147,7 @@ describe('preplanning Browser plugin', () => {
     fireEvent.submit(view.getByRole('form', { name: '新建前期策划项目' }))
 
     await waitFor(() => expect(view.getByRole('alert').textContent).toContain('当前会话没有可用模型'))
-    expect((view.getByRole('button', { name: '创建并开始全流程' }) as HTMLButtonElement).disabled).toBe(false)
+    expect((view.getByRole('button', { name: '创建或继续全流程' }) as HTMLButtonElement).disabled).toBe(false)
   })
 
   it('人工确认失败时保留待确认状态并显示命令错误', async () => {

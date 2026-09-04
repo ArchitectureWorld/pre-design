@@ -19,6 +19,7 @@ export interface PresentationProjectBindingRecord {
   readonly preDesignProjectId: string
   readonly presentationProjectId?: string
   readonly projectSlug?: string
+  readonly workspaceRoot?: string
   readonly directoryRoot?: string
   readonly standardVersion?: string
   readonly state: PresentationDirectoryState
@@ -34,6 +35,7 @@ export interface PresentationProjectBindingRecord {
 
 export interface CreateAwaitingPresentationBindingInput {
   readonly preDesignProjectId: string
+  readonly workspaceRoot?: string
   readonly createdAt: string
 }
 
@@ -69,9 +71,13 @@ export function createAwaitingPresentationBinding(
   if (!nonEmpty(input.createdAt)) {
     fail('PRESENTATION_BINDING_TIMESTAMP_REQUIRED', 'createdAt is required')
   }
+  if (input.workspaceRoot !== undefined && !isPortableAbsolutePath(input.workspaceRoot)) {
+    fail('PRESENTATION_BINDING_WORKSPACE_NOT_ABSOLUTE', 'workspaceRoot must be an absolute host path')
+  }
 
   return Object.freeze({
     preDesignProjectId: input.preDesignProjectId,
+    ...(input.workspaceRoot === undefined ? {} : { workspaceRoot: input.workspaceRoot }),
     state: 'awaiting_contract' as const,
     stableIds: Object.freeze({}),
     lastExportedObjectHashes: Object.freeze({}),
@@ -89,6 +95,9 @@ export function assertPresentationBinding(
   }
   if (!nonEmpty(record.createdAt) || !nonEmpty(record.updatedAt)) {
     fail('PRESENTATION_BINDING_TIMESTAMP_REQUIRED', 'createdAt and updatedAt are required')
+  }
+  if (record.workspaceRoot !== undefined && !isPortableAbsolutePath(record.workspaceRoot)) {
+    fail('PRESENTATION_BINDING_WORKSPACE_NOT_ABSOLUTE', 'workspaceRoot must be an absolute host path')
   }
 
   if (record.lastExportedPreDesignRevision !== undefined
@@ -157,6 +166,12 @@ export function assertPresentationBinding(
     fail(
       'PRESENTATION_BINDING_DIRECTORY_NOT_ABSOLUTE',
       'directoryRoot must be an absolute host path kept outside Canonical project files',
+    )
+  }
+  if (record.workspaceRoot !== undefined && record.workspaceRoot !== record.directoryRoot) {
+    fail(
+      'PRESENTATION_BINDING_WORKSPACE_DIRECTORY_MISMATCH',
+      'Workspace-root mode requires workspaceRoot and directoryRoot to be identical',
     )
   }
 

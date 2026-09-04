@@ -25,7 +25,7 @@ afterEach(async () => {
 })
 
 describe('Host apply composition', () => {
-  it('提供十八命令、三工具，并通过真实 Host 发布可供 Presentation 使用的标准项目', async () => {
+  it('提供十九命令、三工具，并通过真实 Host 发布可供 Presentation 使用的标准项目', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-preplanning-host-'))
     roots.push(root)
     const presentationRoot = join(root, 'presentation-projects')
@@ -75,7 +75,7 @@ describe('Host apply composition', () => {
       'preplan-mode', 'preplan-run', 'preplan-pause', 'preplan-gate', 'preplan-revise',
       'preplan-visual', 'preplan-visual-adopt', 'preplan-visual-replace',
       'preplan-boundary-asset', 'preplan-boundary-coordinates', 'preplan-boundary-confirm',
-      'preplan-export', 'preplan-presentation-sync',
+      'preplan-export', 'preplan-presentation-sync', 'preplan-open-project-folder',
     ])
     expect(tools.map(definition => definition.name)).toEqual([
       'preplanning_get_context', 'preplanning_apply_commands',

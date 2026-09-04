@@ -140,6 +140,7 @@ export interface CreatePresentationStandardProjectInput {
   readonly preDesignProjectId: string
   readonly projectName: string
   readonly projectSlug?: string
+  readonly workspaceRoot?: string
   readonly createdAt: string
   readonly rules?: PresentationRulesInput
   readonly actorId?: string | null
@@ -147,6 +148,7 @@ export interface CreatePresentationStandardProjectInput {
 
 export interface ExportPresentationStandardProjectInput {
   readonly frozenProject: FrozenProjectInput
+  readonly workspaceRoot?: string
   readonly rules?: PresentationRulesInput
   readonly sourceMaterials?: readonly PresentationSourceMaterialInput[]
   readonly assets?: readonly PresentationAdoptedAssetInput[]

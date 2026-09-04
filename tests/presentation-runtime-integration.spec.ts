@@ -76,7 +76,7 @@ describe('Presentation runtime integration', () => {
     })])
   })
 
-  it('registers a user command and an Agent tool that publish a validated standard project', async () => {
+  it('registers Workspace-aware user commands and an Agent tool that publish a validated standard project', async () => {
     const commands: CommandDefinition[] = []
     const tools: ToolDefinition[] = []
     const exportProject = vi.fn(async () => ({
@@ -104,7 +104,10 @@ describe('Presentation runtime integration', () => {
       source,
     })
 
-    expect(commands.map(command => command.name)).toEqual(['preplan-presentation-sync'])
+    expect(commands.map(command => command.name)).toEqual([
+      'preplan-presentation-sync',
+      'preplan-open-project-folder',
+    ])
     expect(tools.map(tool => tool.name)).toEqual(['preplanning_sync_presentation_project'])
 
     const commandResult = await commands[0]?.handler({

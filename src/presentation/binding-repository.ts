@@ -64,16 +64,29 @@ export class PresentationBindingRepository {
           `pre-design project '${record.preDesignProjectId}' is already bound to '${existing.presentationProjectId}'`,
         )
       }
+      if (existing?.workspaceRoot !== undefined
+        && record.workspaceRoot !== existing.workspaceRoot) {
+        throw new PresentationBindingRepositoryError(
+          'PRE_DESIGN_WORKSPACE_BINDING_IMMUTABLE',
+          `pre-design project '${record.preDesignProjectId}' is already bound to Workspace '${existing.workspaceRoot}'`,
+        )
+      }
 
-      if (record.presentationProjectId !== undefined) {
-        for (const [preDesignProjectId, candidate] of bindings.entries()) {
-          if (preDesignProjectId !== record.preDesignProjectId
-            && candidate.presentationProjectId === record.presentationProjectId) {
-            throw new PresentationBindingRepositoryError(
-              'PRESENTATION_PROJECT_ALREADY_BOUND',
-              `Presentation project '${record.presentationProjectId}' is already bound to '${preDesignProjectId}'`,
-            )
-          }
+      for (const [preDesignProjectId, candidate] of bindings.entries()) {
+        if (preDesignProjectId === record.preDesignProjectId) continue
+        if (record.presentationProjectId !== undefined
+          && candidate.presentationProjectId === record.presentationProjectId) {
+          throw new PresentationBindingRepositoryError(
+            'PRESENTATION_PROJECT_ALREADY_BOUND',
+            `Presentation project '${record.presentationProjectId}' is already bound to '${preDesignProjectId}'`,
+          )
+        }
+        if (record.workspaceRoot !== undefined
+          && candidate.workspaceRoot === record.workspaceRoot) {
+          throw new PresentationBindingRepositoryError(
+            'PRE_DESIGN_WORKSPACE_ALREADY_BOUND',
+            `Workspace '${record.workspaceRoot}' is already bound to '${preDesignProjectId}'`,
+          )
         }
       }
 
@@ -88,6 +101,15 @@ export class PresentationBindingRepository {
   ): PresentationProjectBindingRecord | undefined {
     const record = this.domain.table('bindings').get(preDesignProjectId)
     return record === undefined ? undefined : cloneBinding(record)
+  }
+
+  findByWorkspaceRoot(
+    workspaceRoot: string,
+  ): PresentationProjectBindingRecord | undefined {
+    for (const [, record] of this.domain.table('bindings').entries()) {
+      if (record.workspaceRoot === workspaceRoot) return cloneBinding(record)
+    }
+    return undefined
   }
 
   listByState(

@@ -57,7 +57,7 @@ describe('Workspace-scoped Pre project form draft', () => {
     fireEvent.change(first.getByLabelText('识别的项目名称'), {
       target: { value: 'A 项目' },
     })
-    fireEvent.click(first.getByRole('button', { name: '创建并开始全流程' }))
+    fireEvent.click(first.getByRole('button', { name: '创建或继续全流程' }))
     await first.findByText('项目与 Presentation 标准目录已创建，前期策划全流程已经启动。')
     first.unmount()
 
@@ -86,6 +86,6 @@ describe('Workspace-scoped Pre project form draft', () => {
       <PreplanningProjectForm onClose={() => undefined} start={async () => undefined} />,
     )
     expect(view.getByRole('alert').textContent).toContain('请先为当前会话选择或创建 DSH 工作区')
-    expect((view.getByRole('button', { name: '创建并开始全流程' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((view.getByRole('button', { name: '创建或继续全流程' }) as HTMLButtonElement).disabled).toBe(true)
   })
 })

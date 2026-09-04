@@ -9,13 +9,19 @@ export interface DirectStartInput {
 export interface DirectStartPort {
   readonly executeCommand: (
     line: string,
-  ) => Promise<{ readonly kind: 'success' } | { readonly kind: 'error'; readonly text: string } | { readonly kind: 'unmatched' }>
+  ) => Promise<
+    | { readonly kind: 'success'; readonly text?: string }
+    | { readonly kind: 'error'; readonly text: string }
+    | { readonly kind: 'unmatched' }
+  >
   readonly prompt: (
     text: string,
   ) => Promise<{ readonly ok: true } | { readonly ok: false; readonly message: string }>
 }
 
 const MAX_PROJECT_NAME_LENGTH = 48
+const WORKSPACE_EMPTY = 'PRE_DESIGN_WORKSPACE_EMPTY'
+const WORKSPACE_ATTACHED = 'PRE_DESIGN_WORKSPACE_PROJECT_ATTACHED'
 
 function oneLine(value: string): string {
   return value.replace(/\s+/gu, ' ').trim()
@@ -50,13 +56,24 @@ export async function startDirectPreplanning(port: DirectStartPort, input: Direc
     const command = await port.executeCommand(line)
     if (command.kind === 'unmatched') throw new Error(`DSH 未找到 ${line.split(' ', 1)[0]}，请确认前期策划插件已加载。`)
     if (command.kind === 'error') throw new Error(command.text)
+    return command
   }
-  await execute(`/preplan-new ${projectName}`)
+
+  const probe = await execute('/preplan-presentation-sync --probe')
+  const existingWorkspaceProject = probe.text?.includes(WORKSPACE_ATTACHED) === true
+  const emptyWorkspace = probe.text?.includes(WORKSPACE_EMPTY) === true
+  if (!existingWorkspaceProject) {
+    if (probe.text !== undefined && !emptyWorkspace) {
+      throw new Error(`无法识别工作区探测结果：${probe.text}`)
+    }
+    await execute(`/preplan-new ${projectName}`)
+  }
+
   try {
     await execute('/preplan-presentation-sync')
   } catch (error) {
     const message = error instanceof Error ? error.message : '未知错误'
-    throw new Error(`前期策划项目已创建，但 Presentation 标准项目初始化失败：${message}。请修正后直接执行 /preplan-presentation-sync 重试。`)
+    throw new Error(`前期策划项目已创建或恢复，但 Presentation 标准项目初始化失败：${message}。请修正后直接执行 /preplan-presentation-sync 重试。`)
   }
   if (input.mode !== undefined) {
     const visualBudget = input.visualBudget ?? 8

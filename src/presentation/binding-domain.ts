@@ -10,6 +10,7 @@ const presentationBindingSchema = z.object({
   preDesignProjectId: z.string().min(1),
   presentationProjectId: z.string().min(1).optional(),
   projectSlug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u).optional(),
+  workspaceRoot: z.string().min(1).optional(),
   directoryRoot: z.string().min(1).optional(),
   standardVersion: z.string().min(1).optional(),
   state: z.enum([

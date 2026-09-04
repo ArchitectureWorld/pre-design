@@ -5,9 +5,15 @@ import { PreplanningProjectForm } from './PreplanningProjectForm.tsx'
 
 export interface PreplanningLauncherProps {
   readonly start: (input: DirectStartInput) => Promise<void>
+  readonly workspacePath?: string
+  readonly openProjectFolder?: () => Promise<void>
 }
 
-export function PreplanningLauncher({ start }: PreplanningLauncherProps) {
+export function PreplanningLauncher({
+  start,
+  workspacePath,
+  openProjectFolder,
+}: PreplanningLauncherProps) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -34,7 +40,13 @@ export function PreplanningLauncher({ start }: PreplanningLauncherProps) {
         前期策划
       </button>
       {open && typeof document !== 'undefined' && createPortal(
-        <PreplanningProjectForm onClose={() => setOpen(false)} start={start} />,
+        <PreplanningProjectForm
+          key={workspacePath ?? 'workspace-unavailable'}
+          onClose={() => setOpen(false)}
+          openProjectFolder={openProjectFolder}
+          start={start}
+          workspacePath={workspacePath}
+        />,
         document.body,
       )}
     </div>
