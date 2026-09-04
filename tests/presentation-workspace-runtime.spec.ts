@@ -36,6 +36,16 @@ function invocation(rawInput: string, cwd = 'C:\\Projects\\武汉站') {
   } as never
 }
 
+function projectContext() {
+  return {
+    project: {
+      projectId: frozenProject.projectId,
+      name: frozenProject.projectName,
+      currentRevision: frozenProject.revision,
+    },
+  }
+}
+
 describe('Workspace-aware Presentation runtime', () => {
   it('probes the Workspace, binds another Session to the existing Pre project, and exports into the Workspace root', async () => {
     const commands: CommandDefinition[] = []
@@ -61,13 +71,7 @@ describe('Workspace-aware Presentation runtime', () => {
     registerPresentationRuntime(runtimeContext(commands, tools), {
       repository: {
         bindSession,
-        readContext: vi.fn(() => ({
-          project: {
-            projectId: frozenProject.projectId,
-            name: frozenProject.projectName,
-            currentRevision: frozenProject.revision,
-          },
-        })),
+        readContext: vi.fn(projectContext),
       } as never,
       standardProjects: { exportProject, findByWorkspaceRoot } as never,
       source: vi.fn(async () => frozenProject),
@@ -99,27 +103,44 @@ describe('Workspace-aware Presentation runtime', () => {
     }))
   })
 
-  it('opens the current Workspace instead of a global Presentation output directory', async () => {
+  it('recognizes a legacy Session-bound Pre project before the first Workspace export', async () => {
+    const commands: CommandDefinition[] = []
+    const tools: ToolDefinition[] = []
+    const bindSession = vi.fn(async () => undefined)
+    const readContext = vi.fn(projectContext)
+    registerPresentationRuntime(runtimeContext(commands, tools), {
+      repository: { bindSession, readContext } as never,
+      standardProjects: {
+        exportProject: vi.fn(),
+        findByWorkspaceRoot: vi.fn(() => undefined),
+      } as never,
+      source: vi.fn(async () => frozenProject),
+      resolveWorkspaceRoot: vi.fn(async () => 'C:\\Projects\\武汉站'),
+      openDirectory: vi.fn(async () => undefined),
+    })
+
+    const probe = await commands[0]?.handler(invocation('--probe'))
+    expect(probe).toMatchObject({
+      kind: 'success',
+      text: expect.stringContaining('PRE_DESIGN_WORKSPACE_PROJECT_ATTACHED'),
+    })
+    expect(probe?.kind === 'success' ? probe.text : '').toContain(frozenProject.projectId)
+    expect(readContext).toHaveBeenCalledWith('session-2')
+    expect(bindSession).not.toHaveBeenCalled()
+  })
+
+  it('opens the current Workspace even before a Pre binding has been published', async () => {
     const commands: CommandDefinition[] = []
     const tools: ToolDefinition[] = []
     const openDirectory = vi.fn(async () => undefined)
     registerPresentationRuntime(runtimeContext(commands, tools), {
       repository: {
         bindSession: vi.fn(async () => undefined),
-        readContext: vi.fn(() => ({ project: {
-          projectId: frozenProject.projectId,
-          name: frozenProject.projectName,
-          currentRevision: frozenProject.revision,
-        } })),
+        readContext: vi.fn(() => { throw Object.assign(new Error('not bound'), { code: 'session-not-bound' }) }),
       } as never,
       standardProjects: {
         exportProject: vi.fn(),
-        findByWorkspaceRoot: vi.fn(() => ({
-          preDesignProjectId: frozenProject.projectId,
-          workspaceRoot: 'C:\\Projects\\武汉站',
-          directoryRoot: 'C:\\Projects\\武汉站',
-          state: 'ready',
-        })),
+        findByWorkspaceRoot: vi.fn(() => undefined),
       } as never,
       source: vi.fn(async () => frozenProject),
       resolveWorkspaceRoot: vi.fn(async () => 'C:\\Projects\\武汉站'),
