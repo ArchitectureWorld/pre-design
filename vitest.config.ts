@@ -6,6 +6,11 @@ const packageFile = (path: string): string => fileURLToPath(new URL(path, import
 export default defineConfig({
   test: {
     exclude: [...configDefaults.exclude, '**/.superpowers/**', '**/.worktrees/**'],
+    poolOptions: {
+      forks: {
+        execArgv: ['--no-experimental-webstorage'],
+      },
+    },
   },
   resolve: {
     alias: [
