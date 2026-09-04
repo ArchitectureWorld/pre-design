@@ -15,6 +15,7 @@ import {
   sep,
   win32,
 } from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 import { sha256File } from './filesystem.ts'
 import { getPresentationStandardContract } from './standard-contract.ts'
 import {
@@ -38,6 +39,9 @@ const MANAGED_ROOTS = Object.freeze([
   'assets',
 ] as const)
 
+const TRANSIENT_RENAME_ERROR_CODES = new Set(['EACCES', 'EBUSY', 'EPERM'])
+const RENAME_RETRY_DELAYS_MS = Object.freeze([25, 50, 100, 200, 400] as const)
+
 export interface PublishPresentationStandardProjectIntoWorkspaceInput {
   readonly directoryRoot: string
   readonly build: PresentationStandardProjectBuild
@@ -54,6 +58,22 @@ async function exists(path: string): Promise<boolean> {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
     throw error
+  }
+}
+
+async function renameWithTransientRetry(oldPath: string, newPath: string): Promise<void> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await rename(oldPath, newPath)
+      return
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      const retryDelay = RENAME_RETRY_DELAYS_MS[attempt]
+      if (retryDelay === undefined || code === undefined || !TRANSIENT_RENAME_ERROR_CODES.has(code)) {
+        throw error
+      }
+      await delay(retryDelay)
+    }
   }
 }
 
@@ -170,7 +190,7 @@ export async function publishPresentationStandardProjectIntoWorkspace(
       const target = join(directoryRoot, name)
       if (await exists(source)) {
         await mkdir(dirname(target), { recursive: true })
-        await rename(source, target).catch(() => undefined)
+        await renameWithTransientRetry(source, target).catch(() => undefined)
       }
     }
   }
@@ -229,11 +249,11 @@ export async function publishPresentationStandardProjectIntoWorkspace(
       const candidate = join(prepared.directoryRoot, name)
       if (await exists(current)) {
         await mkdir(dirname(backup), { recursive: true })
-        await rename(current, backup)
+        await renameWithTransientRetry(current, backup)
         backedUp.add(name)
       }
       if (await exists(candidate)) {
-        await rename(candidate, current)
+        await renameWithTransientRetry(candidate, current)
         installed.add(name)
       }
     }
