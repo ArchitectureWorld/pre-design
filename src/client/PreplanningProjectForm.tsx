@@ -120,7 +120,8 @@ export function PreplanningProjectForm({
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
         <div>
           <strong style={{ display: 'block', fontSize: 15 }}>新建或继续前期策划</strong>
-          <small style={{ opacity: 0.65 }}>一个 DSH 工作区对应一个 Pre 项目</small>
+          <small style={{ display: 'block', opacity: 0.65 }}>一个 DSH 工作区对应一个 Pre 项目</small>
+          <small style={{ display: 'block', opacity: 0.65 }}>主流程使用当前会话所选模型</small>
         </div>
         <button aria-label="关闭前期策划面板" onClick={onClose} type="button">×</button>
       </div>

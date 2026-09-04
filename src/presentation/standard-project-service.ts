@@ -15,7 +15,10 @@ import type {
 } from './standard-project-types.ts'
 import { publishPresentationStandardProject } from './standard-project-writer.ts'
 import { publishPresentationStandardProjectIntoWorkspace } from './workspace-project-writer.ts'
-import type { PresentationProjectBindingRecord } from './types.ts'
+import {
+  createAwaitingPresentationBinding,
+  type PresentationProjectBindingRecord,
+} from './types.ts'
 
 export interface PresentationStandardProjectServiceOptions {
   readonly bindings: PresentationBindingRepository
@@ -122,7 +125,7 @@ export class PresentationStandardProjectService {
       )
     }
 
-    const existing = this.options.bindings.read(preDesignProjectId)
+    let existing = this.options.bindings.read(preDesignProjectId)
     if (existing?.workspaceRoot !== undefined
       && requestedWorkspaceRoot !== undefined
       && existing.workspaceRoot !== requestedWorkspaceRoot) {
@@ -134,6 +137,14 @@ export class PresentationStandardProjectService {
     }
 
     const createdAt = existing?.createdAt ?? input.createdAt ?? input.frozenProject.generatedAt
+    if (existing === undefined && requestedWorkspaceRoot !== undefined) {
+      existing = await this.options.bindings.put(createAwaitingPresentationBinding({
+        preDesignProjectId,
+        workspaceRoot: requestedWorkspaceRoot,
+        createdAt,
+      }))
+    }
+
     const projectSlug = existing?.projectSlug
       ?? input.projectSlug
       ?? normalizeProjectSlug(input.frozenProject.projectName)
