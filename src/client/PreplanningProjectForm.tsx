@@ -199,7 +199,7 @@ export function PreplanningProjectForm({
       >
         {submitState === 'running' ? '正在启动…' : '创建或继续全流程'}
       </button>
-      {submitState === 'success' && openProjectFolder !== undefined && (
+      {!workspaceMissing && openProjectFolder !== undefined && (
         <button disabled={openState === 'running'} onClick={openFolder} type="button">
           {openState === 'running' ? '正在打开…' : '打开项目文件夹'}
         </button>
