@@ -51,7 +51,7 @@
     "golden:inspect-v080": "tsx scripts/inspect-client-artifacts.ts",
     "verify:presentation-contract": "node scripts/verify-presentation-contract-lock.mjs",
     "verify:alignment-versions": "node scripts/verify-alignment-version-consistency.mjs",
-    "test:presentation-standard": "pnpm verify:presentation-contract && vitest run tests/presentation-standard-*.spec.ts --maxWorkers=1 && node scripts/verify-presentation-standard-integration.mjs",
+    "test:presentation-standard": "pnpm verify:presentation-contract && vitest run tests/presentation-standard-*.spec.ts tests/presentation-workspace-runtime.spec.ts tests/workspace-project-root.spec.ts tests/direct-start-workspace.client.spec.ts tests/workspace-form-draft.client.spec.tsx tests/workspace-open-folder-ui.client.spec.tsx --maxWorkers=1 && node scripts/verify-presentation-standard-integration.mjs",
     "test": "pnpm verify:alignment-versions && pnpm verify:presentation-contract && pnpm build && vitest run --maxWorkers=1",
     "test:built": "vitest run tests/built-package.spec.ts tests/built-presentation-runtime.spec.ts --maxWorkers=1",
     "typecheck": "tsc -p tsconfig.json"

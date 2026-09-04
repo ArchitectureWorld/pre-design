@@ -1,39 +1,51 @@
 ---
-document_id: pre-v2-standard-project-output-handoff
+document_id: pre-v2-workspace-root-standard-project-handoff
 document_version: 2.0.0
-status: usage-ready-verified-development-candidate
+status: workspace-root-usage-ready-verified-development-candidate
 pre_design_version: 2.0.0
 presentation_contract_version: 0.1.0
 architecture_branch: architecture/pre-v2.0.0
 development_branch: feat/pre-v2.0.0
-verified_runtime_code_commit: 521265c541a1d6dacac075849962a4c703530a6d
-verified_workflow_run: 33741077517
+verified_runtime_code_commit: 700a1675ac5801b4ed824b31de48184be2cc1c6c
+verified_workflow_run: 33835245301
 contract_commit: 974668d308728386ea005c9e77d58ebff9372f0a
 schema_set_sha256: 5bd329fcc8503ff7a48b3430e41b38dd264ae486cee7372a39cbbcccc2de2ebc
 language: zh-CN
 ---
 
-# Pre-design 2.0.0 标准项目输出实施 Handoff
+# Pre-design 2.0.0 × DSH Workspace × Presentation 标准项目实施 Handoff
 
 ## 1. 最终结论
 
-Pre-design 2.0.0 已从“底层标准项目输出模块”推进到“DSH 中可直接调用的使用级别”，并补齐真实安装包中的 Presentation Contract 运行时资源。
-
-当前完整链路为：
+Pre 2.0.0 已从用户级公共输出目录调整为 DSH Workspace 根目录模型：
 
 ```text
-DSH UI / 用户命令 / 当前 DSH Agent
-→ Pre 2.0.0
-→ 冻结当前 Pre 项目 Revision
-→ 转换为 Presentation Standard Project Directory 0.1.0
-→ staging 写盘
-→ Contract 全量验证
-→ 原子发布
-→ 返回标准目录、Presentation Project ID、Pre Revision 和成功标记
-→ Presentation 读取、打开或监听该标准目录
+一个 DSH Workspace
+= 用户设置的项目总文件夹
+= 一个 Pre 项目
+= 一套 Presentation Standard Project Directory 0.1.0
+
+同一 Workspace
+├─ Session A
+├─ Session B
+└─ Session C
+   共同使用同一个 Pre 项目
 ```
 
-本轮没有创建新支线，没有修改 `ArchitectureWorld/presentation-tools`，没有合并主线，也没有创建 Tag 或 Release。
+当前完整链路：
+
+```text
+DSH 选择项目 Workspace
+→ SessionHeader.cwd 固定项目总文件夹
+→ Pre probe 当前 Workspace
+→ 创建或恢复 Workspace 对应的 Pre 项目
+→ 将标准文件直接写入 Workspace 根目录
+→ Contract 0.1.0 全量验证
+→ 保留 layouts 与其他用户资料
+→ Presentation 读取同一个 Workspace
+```
+
+本轮没有新建支线，没有修改 `ArchitectureWorld/presentation-tools`，没有合并主线，没有创建 Tag 或 Release。
 
 ## 2. 固定坐标
 
@@ -42,8 +54,8 @@ DSH UI / 用户命令 / 当前 DSH Agent
 | Pre 产品／插件／包版本 | `2.0.0` |
 | 架构支线 | `architecture/pre-v2.0.0` |
 | 开发支线 | `feat/pre-v2.0.0` |
-| 已验证运行时代码提交 | `521265c541a1d6dacac075849962a4c703530a6d` |
-| 已验证工作流 | `Pre 2.0.0 Integration` Run `33741077517` |
+| Workspace 根目录代码提交 | `700a1675ac5801b4ed824b31de48184be2cc1c6c` |
+| 验证工作流 | `Pre 2.0.0 Integration` Run `33835245301` |
 | 外部标准 | `Presentation Standard Project Directory 0.1.0` |
 | Contract 仓库 | `ArchitectureWorld/presentation-tools` |
 | Contract 固定提交 | `974668d308728386ea005c9e77d58ebff9372f0a` |
@@ -52,366 +64,356 @@ DSH UI / 用户命令 / 当前 DSH Agent
 | 成功标记 | `PRESENTATION_STANDARD_PROJECT_V0_1_0_PASS` |
 | 发布状态 | 未合并、未发布 |
 
-Presentation Contract 是外部、解耦依赖，不参与 Pre 2.0.0 的产品和分支命名。
+## 3. 权威项目目录
 
-## 3. 用户入口
-
-### 3.1 UI 新建项目
-
-现有“前期策划”新建面板不增加新工作区，只在原流程中增加标准项目初始化。
-
-实际调用顺序：
+当前 Session 的 `SessionHeader.cwd` 是唯一 Workspace 路径来源。Host 对它执行：
 
 ```text
-/preplan-new <项目名称>
-/preplan-presentation-sync
-/preplan-mode <manual|automatic> <图像预算> <standard|extended>
-/preplan-run
+绝对路径检查
+→ realpath 规范化
+→ 目录存在性检查
+→ 非符号链接检查
 ```
 
-只有 `/preplan-presentation-sync` 完成 Contract 校验并发布标准目录后，UI 才显示：
+标准项目直接落在该目录：
 
 ```text
-项目与 Presentation 标准目录已创建，前期策划全流程已经启动。
+<DSH Workspace>/
+├─ project.json
+├─ rules.json
+├─ outline.json
+├─ pages/
+│  ├─ manifest.json
+│  └─ drafts/
+├─ source-materials/
+├─ assets/
+├─ layouts/
+└─ 用户自己的其他项目文件与目录
 ```
 
-如果 Pre 项目已经创建，但标准项目初始化失败，UI 返回明确错误，并提示用户修正后执行：
+Contract 推荐的 `<projectId>-<projectSlug>` 目录名只用于普通目录工厂；用户选择的 Workspace 文件夹名称可以不同。`project.json` 中的稳定 `projectId` 仍是权威身份，目录名称不作为主键。
+
+## 4. 写盘所有权
+
+Pre 只托管：
 
 ```text
-/preplan-presentation-sync
+project.json
+rules.json
+outline.json
+pages/
+source-materials/
+assets/
 ```
 
-### 3.2 已有项目
+Pre 永不替换：
 
 ```text
-/preplan-open <preDesignProjectId>
-/preplan-presentation-sync
+layouts/
+Workspace 中其他用户文件和目录
 ```
 
-默认行为：
+原因：Workspace 是完整项目总文件夹，不是 Pre 可以整体原子替换的专用导出目录。
 
-- 复用稳定 Presentation Project ID；
-- 复用 Outline、Page、Draft 和内容块稳定 ID；
-- 读取当前 Pre Revision；
-- 更新标准文件；
-- 拒绝静默覆盖外部修改；
-- 验证通过后原子替换旧成果。
+## 5. Workspace Writer
 
-用户明确要求覆盖外部修改时：
+新增：
+
+```text
+src/presentation/workspace-project-writer.ts
+```
+
+执行流程：
+
+```text
+读取 Workspace 托管路径现状
+→ 检查上次导出 Hash
+→ 在 Workspace 同级建立临时准备目录
+→ 复用原有标准 Writer 生成完整候选项目
+→ Contract 校验候选项目
+→ 备份 Workspace 中现有托管路径
+→ 仅安装六类 Pre 托管路径
+→ 保留 layouts 与其他资料
+→ 对最终 Workspace 再做 Contract 全量验证
+→ 成功后删除备份
+```
+
+失败时：
+
+- 删除本轮安装的托管路径；
+- 恢复备份；
+- 清理准备目录；
+- 不返回成功标记；
+- 不破坏用户其他资料。
+
+首次同步时，Workspace 若已存在 Canonical 托管路径但没有 Pre 输出账本，会拒绝静默接管。只有用户明确 `--force` 才能继续。
+
+## 6. Workspace 与 Pre 项目身份
+
+`PresentationProjectBindingRecord` 增加内部字段：
+
+```text
+workspaceRoot
+```
+
+它只保存在 Pre 内部 Domain，不进入 Presentation Canonical 文件。
+
+约束：
+
+```text
+一个 workspaceRoot → 一个 preDesignProjectId
+一个 preDesignProjectId → 一个 workspaceRoot
+```
+
+`PresentationBindingRepository` 提供：
+
+```text
+findByWorkspaceRoot(workspaceRoot)
+```
+
+并拒绝：
+
+- 一个 Workspace 绑定两个 Pre 项目；
+- 一个 Pre 项目改绑另一 Workspace；
+- 两个 Pre 项目共享同一个 Presentation Project ID。
+
+## 7. 初始化失败恢复
+
+Workspace→Pre 绑定现在先于 Contract 文档构建持久化：
+
+```text
+创建 Pre 项目
+→ 保存 awaiting_contract Workspace 绑定
+→ 构建 Contract 文档
+→ 写盘与验证
+```
+
+即使 Contract 构建、Schema 资源或写盘失败，刷新页面或切换到同一 Workspace 下另一 Session 时仍能找回原 Pre 项目，不会重复创建同名项目。
+
+## 8. 多 Session 使用
+
+新增 probe：
+
+```text
+/preplan-presentation-sync --probe
+```
+
+返回之一：
+
+```text
+PRE_DESIGN_WORKSPACE_EMPTY
+```
+
+或：
+
+```text
+PRE_DESIGN_WORKSPACE_PROJECT_ATTACHED
+```
+
+逻辑：
+
+1. 先按 Workspace 绑定查找 Pre 项目；
+2. 找到后将当前 Session 绑定到该项目；
+3. 未找到 Workspace 绑定时，再检查当前 Session 是否已经绑定旧 Pre 项目；
+4. 旧 Session 项目被识别为当前 Workspace 项目，首次正常同步时补齐正式 Workspace 绑定；
+5. 仅两者都没有时才创建新 Pre 项目。
+
+因此同一 Workspace 的多个 Session 不需要分别执行 `/preplan-open`。
+
+## 9. UI 创建或继续
+
+`src/client/direct-start.ts` 的顺序：
+
+```text
+/preplan-presentation-sync --probe
+```
+
+### Workspace 为空
+
+```text
+/preplan-new <name>
+→ /preplan-presentation-sync
+→ /preplan-mode ...
+→ /preplan-run
+```
+
+### Workspace 已有项目
+
+```text
+跳过 /preplan-new
+→ /preplan-presentation-sync
+→ /preplan-mode ...
+→ /preplan-run
+```
+
+UI 文案已调整为“新建或继续前期策划”和“创建或继续全流程”。
+
+## 10. UI 输入刷新恢复
+
+新增：
+
+```text
+src/client/workspace-draft.ts
+```
+
+存储键：
+
+```text
+pre-design:v2:workspace-draft:<workspace-key>
+```
+
+保存字段：
+
+```text
+statement
+projectName
+nameEdited
+mode
+reportDepth
+visualBudget
+```
+
+规则：
+
+- 同一 Workspace 下不同 Session 共享草稿；
+- 页面刷新、关闭面板后重新打开可恢复；
+- 不同 Workspace 相互隔离；
+- JSON 损坏或字段非法时安全回退；
+- 标准项目创建成功后清除；
+- 无 Workspace 时禁用创建并明确提示。
+
+该机制只保存用户尚未提交的 UI 输入，不把草稿写入 Presentation 标准目录，也不污染 Pre 专业 Revision。
+
+## 11. 打开项目文件夹
+
+新增命令：
+
+```text
+/preplan-open-project-folder
+```
+
+UI 入口：
+
+- 新建/继续面板；
+- 前期策划状态卡。
+
+行为：
+
+```text
+Windows → explorer.exe
+macOS   → open
+Linux   → xdg-open
+```
+
+当前 Session 有 Workspace 时，直接打开该 Workspace；不要求 Pre 项目或 Presentation 标准文件已经初始化成功。
+
+## 12. 历史兼容
+
+旧默认输出：
+
+```text
+~/.dsh/presentation-projects/<projectId>-<projectSlug>/
+```
+
+现在仅用于：
+
+- Session 没有 `cwd` 的显式命令行兼容场景；
+- 明确设置 `PRE_DESIGN_PRESENTATION_PROJECT_ROOT` 的旧部署。
+
+正常 DSH UI 不再使用该路径。
+
+旧项目已成功发布在公共目录时，迁移到 Workspace 根目录需要：
 
 ```text
 /preplan-presentation-sync --force
 ```
 
-不得由 Agent 自行决定 `--force`。
+迁移不会删除旧目录，并保留：
 
-### 3.3 Agent 入口
-
-工具名称：
-
-```text
-preplanning_sync_presentation_project
-```
-
-参数：
-
-```json
-{
-  "confirmExternalChanges": false
-}
-```
-
-系统提示已要求：
-
-- 用户说“同步到 Presentation”“交付标准项目”时调用该工具；
-- 默认 `confirmExternalChanges=false`；
-- 只有用户明确要求覆盖时才设为 `true`；
-- 成功后报告目录、Presentation Project ID、Pre Revision 和成功标记。
-
-## 4. 项目根目录
-
-默认根目录：
-
-```text
-~/.dsh/presentation-projects
-```
-
-目标机器可以在启动 DSH 前设置：
-
-```text
-PRE_DESIGN_PRESENTATION_PROJECT_ROOT=<绝对目录>
-```
-
-推荐将该变量指向 Presentation 实际读取或监听的同一目录。
-
-标准项目最终路径：
-
-```text
-<projectRoot>/<presentationProjectId>-<projectSlug>/
-```
-
-注意：
-
-- Pre 负责创建、填写、验证和发布目录；
-- Presentation 负责读取、可视化、交互、排版和导出；
-- Pre 不修改 Presentation UI；
-- 若 Presentation 当前未自动监听该目录，需要在 Presentation 中打开或导入该目录。
-
-## 5. UI 版本标识
-
-新增统一底部小字：
-
-```text
-Pre 2.0.0 · Project Format 0.1.0
-```
-
-显示位置：
-
-1. 新建前期策划项目面板底部；
-2. 会话中的前期策划状态卡底部。
-
-版本值来自：
-
-```text
-src/version.ts
-```
-
-不得在多个 UI 组件中分别硬编码版本。
-
-## 6. 运行时组件
-
-### 6.1 Host 接线
-
-`src/index.ts` 现在负责：
-
-- 打开 `PresentationBindingRepository`；
-- 创建 `PresentationStandardProjectService`；
-- 确定标准项目根目录；
-- 复用 `createFrozenProjectInput` 生成当前 Revision 输入；
-- 注册同步 Command 与 Agent Tool；
-- 在 Host 上暴露：
-  - `standardProjects`；
-  - `presentationProjectRoot`；
-  - `presentationBindings`。
-
-### 6.2 运行时 Adapter
-
-文件：
-
-```text
-src/presentation/runtime-integration.ts
-```
-
-职责：
-
-- 从当前 Session 取得 Pre 项目；
-- 冻结当前 Revision；
-- 将已采用的视觉素材转换为正式 Presentation Asset 输入；
-- 调用唯一 `PresentationStandardProjectService`；
-- 返回结构化同步结果；
-- 注册 Command 与 Agent Tool；
-- 不复制或修改 Contract Schema。
-
-### 6.3 标准项目输出引擎
-
-```text
-standard-project-adapter.ts
-→ standard-project-writer.ts
-→ standard-project-service.ts
-```
-
-固定执行顺序：
-
-```text
-读取绑定和稳定 ID 账本
-→ 生成 Canonical 文档
-→ 创建 sibling staging
-→ 写入 JSON 和文件
-→ 计算 MIME / sizeBytes / SHA-256
-→ 更新 Manifest
-→ Contract Validator 全量校验
-→ 备份或保护既有目录
-→ 原子发布
-→ 更新绑定和 Hash 账本
-```
-
-### 6.4 安装包中的 Contract 运行时资源
-
-首次 Windows 人工测试发现：Contract 代码已被打入 `lib/index.js`，但旧包没有携带 `SCHEMASET.sha256`、`schemas/0.1.0/*.schema.json` 和动态 JS 分块，导致安装后从包根目录读取 Schema Set 时出现 `ENOENT`。
-
-修复后执行：
-
-```text
-pnpm build / pnpm pack
-→ scripts/prepare-presentation-contract-runtime-assets.mjs
-→ 从已锁定的 @architectureworld/presentation-contracts@0.1.0 读取资源
-→ 重新计算并核对 Schema Set SHA-256
-→ 生成包根 SCHEMASET.sha256
-→ 生成 schemas/0.1.0/*.schema.json
-→ 使用 lib/** 纳入全部构建分块
-→ npm pack 清单回归
-→ 从真实 lib/index.js 启动 Host 回归
-```
-
-生成的文件是固定 Contract 的构建产物，不是第二套 Schema 权威。权威仍是固定提交和 Contract Lock。
-
-## 7. 标准数据映射
-
-### Project
-
-- `preDesignProjectId` 保留为上游来源身份；
-- `presentationProjectId` 使用 Contract ID Factory；
-- 项目改名和重复同步不重新生成 ID；
-- `projectSlug` 只用于目录名。
-
-### Outline / Page / Draft
-
-- 57 项专业成果先投影为汇报主题和页面；
-- Outline 使用稳定节点 ID；
-- Page 使用稳定 `pageId`；
-- 每页独立 Draft 文件；
-- 内容块使用 `heading / text / list / metric_group / table`；
-- 讲解稿使用 `scriptBlocks`；
-- 页面素材使用 `pageAssets`；
-- 不写字体、颜色、坐标、模板、母版或 CSS。
-
-### Assets
-
-当前运行时自动纳入：
-
-- 已采用的概念图；
-- 已采用的确定性图表或示意图；
-- 已采用的证据图片。
-
-候选、缓存和临时文件不进入 Asset Manifest。
-
-### sourceRefs
-
-保留：
-
-- provider；
-- Pre 项目 ID；
+- Presentation Project ID；
+- Outline/Page/Draft/内容块 Stable ID；
 - Pre Revision；
-- 对象 ID；
-- Evidence ID；
-- 可选 Snapshot Hash。
+- 来源关系。
 
-`sourceRefs` 只承担追溯，不承担自动覆盖或所有权。
-
-## 8. 错误与恢复
-
-同步失败时：
-
-- 不返回成功标记；
-- 不发布未通过验证的目录；
-- 清理 staging；
-- 不静默覆盖旧成果；
-- 保存结构化失败信息；
-- 允许用户修正后重试。
-
-外部修改保护：
+## 13. 关键新增文件
 
 ```text
-当前标准文件 Hash
-≠ Pre 上次发布 Hash
-→ 默认拒绝覆盖
-→ 返回 review_required / structured error
+src/presentation/workspace-context.ts
+src/presentation/workspace-project-writer.ts
+src/presentation/open-directory.ts
+src/client/workspace-draft.ts
+
+tests/workspace-project-root.spec.ts
+tests/presentation-workspace-runtime.spec.ts
+tests/presentation-standard-workspace-recovery.spec.ts
+tests/direct-start-workspace.client.spec.ts
+tests/workspace-form-draft.client.spec.tsx
+tests/workspace-open-folder-ui.client.spec.tsx
+
+docs/superpowers/specs/2026-09-04-pre-v2.0.0-workspace-root-and-ui-recovery-design.md
+docs/superpowers/plans/2026-09-04-pre-v2.0.0-workspace-root-and-ui-recovery.md
 ```
 
-只有明确命令 `--force` 或工具参数 `confirmExternalChanges=true` 才允许覆盖。
-
-## 9. 关键新增和修改文件
-
-### 新增
+## 14. 重点修改文件
 
 ```text
-src/version.ts
-src/client/VersionFooter.tsx
+src/presentation/types.ts
+src/presentation/binding-domain.ts
+src/presentation/binding-repository.ts
+src/presentation/standard-project-types.ts
+src/presentation/standard-project-service.ts
 src/presentation/runtime-integration.ts
-scripts/prepare-presentation-contract-runtime-assets.mjs
-tests/presentation-runtime-integration.spec.ts
-tests/built-presentation-runtime.spec.ts
-```
-
-### 重点修改
-
-```text
-src/index.ts
+src/presentation/index.ts
 src/client/direct-start.ts
+src/client/index.tsx
+src/client/PreplanningLauncher.tsx
 src/client/PreplanningProjectForm.tsx
 src/client/PreplanningStatusCard.tsx
-src/prompts/preplanning-system.ts
-src/presentation/index.ts
-src/presentation/filesystem.ts
-tests/direct-start.client.spec.ts
-tests/preplanning-dashboard.client.spec.tsx
-tests/browser-plugin.client.spec.tsx
-tests/host-apply.spec.ts
-tests/built-package.spec.ts
-tests/package-manifest.spec.ts
 package.json
-.gitignore
 README.md
 HANDOFF.md
 docs/version-matrix.json
 docs/VERSIONING.md
 scripts/verify-alignment-version-consistency.mjs
-.github/workflows/presentation-standard-project-integration.yml
 ```
 
-Windows 文件同步保护仍保留：
+## 15. 自动化验证
+
+Workspace 根目录代码提交：
 
 ```text
-src/presentation/filesystem.ts
-open(path, 'r+')
-```
-
-## 10. 验证证据
-
-已验证运行时代码提交：
-
-```text
-521265c541a1d6dacac075849962a4c703530a6d
+700a1675ac5801b4ed824b31de48184be2cc1c6c
 ```
 
 GitHub Actions：
 
 ```text
 Workflow: Pre 2.0.0 Integration
-Run: 33741077517
-Conclusion: success
+Run: 33835245301
+pre-v2-targeted: success
+full-regression: success
 ```
 
-同一代码提交通过：
+覆盖：
 
-- Pre 2.0.0 版本权威校验；
-- 固定 Contract 完整性校验；
-- Node.js 22 原生构建配置校验；
-- Presentation 专项测试；
-- TypeScript 校验；
-- 真实 DSH Host 标准目录发布测试；
-- UI 创建流程测试；
-- Agent Tool 测试；
-- 完整构建；
-- 全仓回归；
-- 从真实 `lib/index.js` 启动 Host 并同步标准项目；
-- npm pack 清单包含 8 个 Schema、`SCHEMASET.sha256` 和全部生成 JS 分块；
-- 构建产物测试；
-- Git diff hygiene。
+- Workspace 根目录直接通过 Contract 0.1.0；
+- Workspace 用户文件保留；
+- `layouts/` 保留；
+- 重复同步 Stable ID 不变；
+- 托管文件外部修改被拒绝；
+- 一 Workspace 一 Pre 项目；
+- 多 Session 自动共享；
+- 旧 Session 项目恢复；
+- 初始化失败后绑定恢复；
+- UI 输入刷新恢复；
+- Workspace 草稿隔离与清理；
+- UI 和命令打开文件夹；
+- Windows/Linux 路径一致性；
+- Contract 运行时资源打包；
+- 构建后 Host 运行；
+- HTML/PPTX/PDF 和 57 项流程全仓回归。
 
-真实构建产物测试实际执行：
-
-```text
-lib/index.js
-→ /preplan-new
-→ /preplan-presentation-sync
-→ Contract Schema Set 校验
-→ 读取磁盘 project.json
-→ standardVersion = 0.1.0
-→ PRESENTATION_STANDARD_PROJECT_V0_1_0_PASS
-```
-
-## 11. 本地验证命令
+验证命令：
 
 ```bash
 pnpm install --frozen-lockfile
@@ -424,84 +426,72 @@ pnpm test:built
 git diff --check
 ```
 
-## 12. DSH 部署与验收
-
-从当前开发支线构建：
-
-```bash
-git switch feat/pre-v2.0.0
-git pull --ff-only
-pnpm install --frozen-lockfile
-pnpm test
-pnpm pack
-```
-
-`pnpm build` 和 `pnpm pack` 都会自动生成并验证 Contract 运行时资源。不得继续使用 `521265c541a1d6dacac075849962a4c703530a6d` 之前生成的同名 tgz。
-
-独立 Profile 安装：
+## 16. DSH 部署
 
 ```powershell
-dsh plugin --profile pre-v2-test add .\architectureworld-dsh-preplanning-agent-2.0.0.tgz
-dsh --profile pre-v2-test --dump-config
-dsh --profile pre-v2-test --no-open
+git fetch origin
+git switch feat/pre-v2.0.0
+git pull --ff-only
+git rev-parse HEAD
+
+pnpm install --frozen-lockfile
+pnpm test
+Remove-Item .\architectureworld-dsh-preplanning-agent-2.0.0.tgz -ErrorAction SilentlyContinue
+pnpm pack
+
+dsh plugin --profile web add .\architectureworld-dsh-preplanning-agent-2.0.0.tgz
+dsh --profile web --no-open
 ```
 
-验收步骤：
-
-1. 确认安装的是本轮重新生成的 tgz；
-2. 打开新建前期策划面板；
-3. 确认底部显示 `Pre 2.0.0 · Project Format 0.1.0`；
-4. 对已经创建的测试项目执行 `/preplan-open <projectId>`；
-5. 执行 `/preplan-presentation-sync`，不要重复新建同一项目；
-6. 确认返回 `PRESENTATION_STANDARD_PROJECT_V0_1_0_PASS`；
-7. 记录返回目录和 Presentation Project ID；
-8. 在 Presentation 中打开或监听同一目录；
-9. 确认能读取 `project.json / rules.json / outline.json / pages / assets / source-materials / layouts`；
-10. 修改 Pre 内容后再次同步，确认稳定 ID 保持不变；
-11. 检查默认保护外部修改。
-
-## 13. 已知边界
-
-- 本轮完成 Pre 侧的使用级标准目录交付，不修改 Presentation 的项目发现 UI。
-- Presentation 是否自动出现在其项目列表中，取决于 Presentation 是否读取或监听同一根目录。
-- 当前 UI 成功提示不显示绝对目录；显式命令和 Agent Tool 会返回完整目录。
-- `--force` 是破坏性操作，必须由用户明确授权。
-- 当前仍是开发候选，未合并、未打 Tag、未发布正式 Release。
-
-## 14. 回滚
-
-代码回滚基点：
+浏览器重新打开后执行：
 
 ```text
-3e0fceed75945ac83be01d05870430efd956ea5d
+Ctrl + F5
 ```
 
-该提交包含 Windows 文件同步修复，但不包含本轮运行时接线、版本 UI 和安装包 Contract 资源修复。
+验收：
 
-回滚部署时：
+1. 在 DSH 中选择或创建一个项目 Workspace；
+2. 新建该 Workspace 下的 Session；
+3. 打开“前期策划”，确认显示正确项目总文件夹；
+4. 输入一部分表单内容并刷新页面，确认恢复；
+5. 创建或继续项目；
+6. 确认标准文件直接出现在 Workspace 根目录；
+7. 点击“打开项目文件夹”；
+8. 新建同 Workspace 的第二个 Session，再打开 Pre；
+9. 确认没有创建第二个 Pre 项目；
+10. 在 Presentation 中打开同一个 Workspace。
 
-1. 卸载当前测试 Profile 中的 Pre 2.0.0 包；
-2. 安装上一已知可用包；
-3. 不删除已经生成的标准项目目录；
-4. 保留 `~/.dsh/presentation-projects` 以便审计或重新导入；
-5. 不回滚或修改 Presentation Contract 源码。
+## 17. 回滚
 
-## 15. 下一开发 Agent 入口
+代码改造前基点：
+
+```text
+96dfc29ab0295093f2ef9e050734a5f70462d6dc
+```
+
+回滚时：
+
+- 不删除 Workspace 中已生成的标准文件；
+- 不删除旧公共输出目录；
+- 卸载当前测试包并安装上一已知可用包；
+- 保留 Pre Domain 数据用于审计；
+- 不修改 Presentation Contract 源码。
+
+## 18. 下一开发入口
 
 ```text
 Repository: ArchitectureWorld/pre-design
 Branch: feat/pre-v2.0.0
 Version authority: docs/version-matrix.json
 Human version rules: docs/VERSIONING.md
-Runtime adapter: src/presentation/runtime-integration.ts
-Standard service: src/presentation/standard-project-service.ts
-Host composition: src/index.ts
-UI version source: src/version.ts
-Runtime asset preparation: scripts/prepare-presentation-contract-runtime-assets.mjs
-Runtime verification: tests/host-apply.spec.ts
-Built Host verification: tests/built-presentation-runtime.spec.ts
-Packed contents verification: tests/built-package.spec.ts
+Workspace resolution: src/presentation/workspace-context.ts
+Workspace writer: src/presentation/workspace-project-writer.ts
+Runtime integration: src/presentation/runtime-integration.ts
+Workspace binding: src/presentation/binding-repository.ts
+UI draft persistence: src/client/workspace-draft.ts
+UI composition: src/client/index.tsx
 Contract lock: docs/contracts/presentation-standard-project-v0.1.0-lock.json
 ```
 
-下一步不得新增支线；继续在 `feat/pre-v2.0.0` 上处理真实 DSH 与 Presentation 联调反馈，完整验证后再申请合并与发布。
+下一步继续在 `feat/pre-v2.0.0` 上处理真实 DSH 与 Presentation 联调反馈，不得新增支线；完整验证后再申请合并和发布。

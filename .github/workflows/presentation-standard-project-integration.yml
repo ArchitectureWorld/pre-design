@@ -7,9 +7,14 @@ on:
   pull_request:
     paths:
       - 'src/presentation/**'
+      - 'src/client/**'
       - 'src/index.ts'
       - 'src/commands/register.ts'
       - 'tests/presentation-standard-*.ts'
+      - 'tests/presentation-workspace-*.ts'
+      - 'tests/workspace-*.ts'
+      - 'tests/workspace-*.tsx'
+      - 'tests/direct-start*.ts'
       - 'tests/presentation-build-toolchain.spec.ts'
       - 'tests/built-package.spec.ts'
       - 'tests/built-presentation-runtime.spec.ts'
@@ -67,7 +72,7 @@ jobs:
       - name: Verify native build config loading policy
         run: pnpm exec vitest run tests/presentation-build-toolchain.spec.ts --maxWorkers=1
 
-      - name: Run standard-project output tests
+      - name: Run standard-project and Workspace output tests
         run: pnpm test:presentation-standard
 
       - name: Typecheck

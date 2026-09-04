@@ -5,167 +5,229 @@
 > 架构支线：`architecture/pre-v2.0.0`  
 > 开发支线：`feat/pre-v2.0.0`
 
-## 1. 当前版本
+## 1. 当前结论
 
-| 项目 | 当前状态 |
+Pre 2.0.0 已完成 DSH Workspace 根目录接入：
+
+```text
+一个 DSH Workspace
+= 一个项目总文件夹
+= 一个 Pre 项目
+= 一套 Presentation Standard Project Directory 0.1.0
+
+一个 Workspace
+可以包含多个 DSH Session
+这些 Session 共同使用同一个 Pre 项目
+```
+
+当前代码仍在开发支线，未合并主线、未打 Tag、未创建正式 Release。
+
+## 2. 版本与验证坐标
+
+| 项目 | 当前值 |
 |---|---|
-| Pre 产品版本 | `2.0.0` |
+| Pre 产品／插件／包版本 | `2.0.0` |
 | npm 包 | `@architectureworld/dsh-preplanning-agent@2.0.0` |
-| 架构支线 | `architecture/pre-v2.0.0` |
 | 开发支线 | `feat/pre-v2.0.0` |
-| 标准目录运行时接入 | 已实现并通过真实 Host 验证 |
+| Presentation Contract | `0.1.0` |
+| Contract commit | `974668d308728386ea005c9e77d58ebff9372f0a` |
+| Schema Set SHA-256 | `5bd329fcc8503ff7a48b3430e41b38dd264ae486cee7372a39cbbcccc2de2ebc` |
+| Workspace 根目录代码 HEAD | `700a1675ac5801b4ed824b31de48184be2cc1c6c` |
+| GitHub Actions Run | `33835245301` |
+| 结果 | targeted 与 full-regression 均 `success` |
 | 发布状态 | 未合并、未发布 |
-| 上一正式发布 | `v0.7.0`，仅作历史基线 |
-| 外部 Presentation Contract | `0.1.0`，已精确锁定 |
 
-Pre 2.0.0 是本仓库自身的产品和插件版本。Presentation `0.1.0` 只是外部项目格式 Contract 版本，两者没有同步升版关系。
+Pre `2.0.0` 与 Presentation `0.1.0` 是两条独立版本线。
 
-## 2. 固定外部 Contract 坐标
+## 3. 目录模型
+
+当前 Session 的 `SessionHeader.cwd` 是项目总文件夹，也是 Presentation 标准项目根目录：
 
 ```text
-Standard: Presentation Standard Project Directory
-Version: 0.1.0
-Repository: ArchitectureWorld/presentation-tools
-Commit: 974668d308728386ea005c9e77d58ebff9372f0a
-Package: @architectureworld/presentation-contracts@0.1.0
-Schema Set SHA-256: 5bd329fcc8503ff7a48b3430e41b38dd264ae486cee7372a39cbbcccc2de2ebc
-Lock: docs/contracts/presentation-standard-project-v0.1.0-lock.json
+<DSH Workspace>/
+├─ project.json
+├─ rules.json
+├─ outline.json
+├─ pages/
+├─ source-materials/
+├─ assets/
+├─ layouts/
+└─ 其他用户项目资料
 ```
 
-`presentation-tools` 的应用版本可以独立发展。除非其 Contract 本身发布新坐标并由 Pre 明确升级适配，否则 Pre 2.0.0 不受影响。
-
-## 3. 当前架构
+Pre 托管：
 
 ```text
-DSH Harness
-├─ Pre-design 2.0.0
-│  ├─ 前期策划 Skill
-│  ├─ 8 章、57 项专业工作流
-│  ├─ Tools / Commands
-│  ├─ State / Evidence / Gate / Revision
-│  ├─ 原始资料与正式素材管理
-│  └─ 标准项目目录生成、验证和交付
-│
-└─ presentation-tools
-   ├─ 独立产品和版本线
-   ├─ 读取标准项目目录
-   ├─ 可视化与交互编辑
-   ├─ 排版
-   └─ 导出
+project.json
+rules.json
+outline.json
+pages/
+source-materials/
+assets/
 ```
 
-双方通过标准项目文件解耦，不共享产品版本，不合并运行治理状态。
-
-## 4. 已达到的使用级别
-
-### 4.1 新项目
-
-从 DSH UI 点击“前期策划”并创建项目时，客户端流程现在自动执行：
+Pre 保留且不替换：
 
 ```text
-/preplan-new <项目名称>
+layouts/
+工作区中全部非托管用户文件与目录
+```
+
+Workspace Writer 使用 sibling staging、Contract 校验、托管路径备份、逐项替换和失败回滚。校验失败时不会发布半成品，也不会损坏用户其他项目资料。
+
+## 4. Workspace 与 Session 绑定
+
+- 一个规范化 Workspace 路径只能对应一个 Pre 项目；
+- 一个 Pre 项目只能归属一个 Workspace；
+- 同一 Workspace 下的多个 Session 自动绑定同一个 Pre 项目；
+- 旧 Session 已绑定 Pre 项目但尚无 Workspace 记录时，probe 会识别现有项目，避免重复创建；
+- Contract 初始化失败前会先持久化 Workspace→Pre 关系，刷新或换会话后仍可恢复；
+- 没有 Workspace 的命令行场景仍保留旧输出模式，但正常 UI 会要求先选择或创建 DSH Workspace。
+
+## 5. 用户流程
+
+### 5.1 UI 创建或继续
+
+```text
+打开“前期策划”
+→ 显示当前 Workspace 路径
+→ /preplan-presentation-sync --probe
+```
+
+Workspace 无项目：
+
+```text
+/preplan-new <name>
+→ /preplan-presentation-sync
+→ /preplan-mode ...
+→ /preplan-run
+```
+
+Workspace 已有项目：
+
+```text
+自动绑定当前 Session
+→ 跳过 /preplan-new
+→ /preplan-presentation-sync
+→ 继续原项目
+```
+
+### 5.2 同步与覆盖保护
+
+```text
 /preplan-presentation-sync
-/preplan-mode <manual|automatic> <图像预算> <报告深度>
-/preplan-run
 ```
 
-只有标准目录已经完成 Contract 校验并原子发布，UI 才报告创建成功。
-
-### 4.2 已有项目
-
-```text
-/preplan-open <preDesignProjectId>
-/preplan-presentation-sync
-```
-
-默认保护外部修改。用户明确确认破坏性覆盖后才使用：
+仅用户明确决定覆盖标准文件外部修改或迁移旧输出目录时：
 
 ```text
 /preplan-presentation-sync --force
 ```
 
-### 4.3 Agent 调用
+### 5.3 打开项目文件夹
 
-用户可以直接说“把当前项目同步到 Presentation”。系统提示已要求 Agent 调用：
-
-```text
-preplanning_sync_presentation_project
-```
-
-工具返回：
-
-- 标准目录绝对路径；
-- Presentation Project ID；
-- Pre Revision；
-- Contract 版本；
-- `PRESENTATION_STANDARD_PROJECT_V0_1_0_PASS`。
-
-### 4.4 标准项目位置
-
-默认根目录：
+UI 新建面板与状态卡均提供：
 
 ```text
-~/.dsh/presentation-projects
+打开项目文件夹
 ```
 
-可通过以下环境变量指定与 Presentation 共用的绝对目录：
+命令：
 
 ```text
-PRE_DESIGN_PRESENTATION_PROJECT_ROOT
+/preplan-open-project-folder
 ```
 
-Presentation 必须读取、打开或监听同一个根目录。Pre 不修改 Presentation 的 UI 或运行实现。
+它直接打开当前 DSH Workspace，即使标准项目初始化尚未完成也可使用。
 
-### 4.5 UI 版本识别
+## 6. UI 刷新恢复
 
-新建面板和项目状态卡最底部均显示：
+未提交表单按 Workspace 路径保存到浏览器 `localStorage`：
 
 ```text
-Pre 2.0.0 · Project Format 0.1.0
+pre-design:v2:workspace-draft:<workspace-key>
 ```
 
-## 5. 已实现范围
+保存：
 
-- 固定 Contract 获取、核验、打包和锁定；
-- 唯一 Presentation 标准项目 Adapter；
-- Stable ID 映射和持久化；
-- 项目、Rules、Outline、Page、Draft 映射；
+- 项目描述；
+- 项目名称及手工编辑状态；
+- 人工/自动模式；
+- 报告深度；
+- 概念图预算。
+
+同一 Workspace 页面刷新或关闭面板后可恢复；不同 Workspace 相互隔离；项目成功创建并同步后清除。
+
+## 7. 运行时组件
+
+```text
+src/presentation/workspace-context.ts
+```
+
+从 `SessionHeader.cwd` 读取并 `realpath` 规范化当前 Workspace。
+
+```text
+src/presentation/workspace-project-writer.ts
+```
+
+在现有 Workspace 中安全发布 Pre 托管标准文件，同时保留 `layouts/` 与其他用户文件。
+
+```text
+src/presentation/runtime-integration.ts
+```
+
+负责 Workspace probe、跨 Session 恢复、同步命令、Agent Tool 与打开文件夹命令。
+
+```text
+src/client/workspace-draft.ts
+```
+
+负责 Workspace 级表单草稿持久化。
+
+```text
+src/presentation/open-directory.ts
+```
+
+负责 Windows、macOS、Linux 文件管理器调用。
+
+## 8. 历史兼容与迁移
+
+旧默认输出：
+
+```text
+~/.dsh/presentation-projects/<projectId>-<projectSlug>/
+```
+
+现在只作为无 Workspace 的兼容回退。`PRE_DESIGN_PRESENTATION_PROJECT_ROOT` 同样降级为兼容配置，不是 UI 主路径。
+
+已在旧目录成功发布的项目首次迁移到 Workspace 根目录时：
+
+```text
+/preplan-presentation-sync --force
+```
+
+迁移原则：
+
+- 旧目录不自动删除；
+- Stable ID 不变；
+- Presentation Project ID 不变；
+- Pre Revision 不变；
+- Workspace 中已有 Canonical 路径不会被静默接管。
+
+## 9. 保留的既有能力
+
+- 8 章 57 项专业工作流；
+- Project State、Evidence、Assumption、Question、Gate、Revision；
+- 原始资料与正式素材管理；
 - `heading`、`text`、`list`、`metric_group`、`table`；
-- 独立讲解稿和页面素材引用；
-- 原始资料与正式素材分离；
-- 已采用视觉素材进入 Asset Manifest；
-- `sourceRefs` 专业来源追溯；
-- MIME、`sizeBytes` 和 SHA-256；
-- sibling staging、完整验证、原子发布与失败回滚；
-- 外部修改保护；
-- DSH 命令、Agent Tool 与 UI 创建流程接线；
-- UI 版本标识；
-- 既有 HTML、PPTX、PDF 输出兼容。
+- 独立讲解稿、页面素材、`sourceRefs`；
+- HTML、PPTX、PDF 输出；
+- Contract 运行时资源打包；
+- Stable ID、MIME、sizeBytes、SHA-256；
+- 外部修改保护和失败恢复；
+- UI 版本标识 `Pre 2.0.0 · Project Format 0.1.0`。
 
-专业实现交接：
-
-[`handoff/PRE_DESIGN_PRESENTATION_STANDARD_PROJECT_V0.1.0_IMPLEMENTATION.md`](handoff/PRE_DESIGN_PRESENTATION_STANDARD_PROJECT_V0.1.0_IMPLEMENTATION.md)
-
-## 6. 当前禁止混用
-
-- 不使用 Presentation 版本命名 Pre 分支；
-- 不把 Pre 2.0.0 写成 Presentation 标准版本；
-- 不把 Presentation 0.1.0 写成 Pre 产品版本；
-- 不因 `presentation-tools` 升级而自动修改 Pre；
-- 不把 Pre 的 Session、Gate、Proposal、Revision/CAS 或恢复记录写进标准项目目录；
-- 不在 Pre 仓库维护第二套 Presentation Schema；
-- 不默认覆盖 Presentation 或其他工具已经修改的标准文件。
-
-## 7. 当前有效入口
-
-```text
-architecture/pre-v2.0.0
-feat/pre-v2.0.0
-```
-
-旧名称只保留用于审计和回退，不再作为当前开发入口。
-
-## 8. 完整验证
+## 10. 完整验证
 
 ```bash
 pnpm install --frozen-lockfile
@@ -178,22 +240,43 @@ pnpm test:built
 git diff --check
 ```
 
-运行时验证还必须覆盖：
+代码验证 Run `33835245301` 已覆盖：
 
-```text
-真实 DSH Host
-→ /preplan-new
-→ /preplan-presentation-sync
-→ 磁盘生成标准目录
-→ Contract 全量验证通过
-→ project.json 可读取
+- Workspace 根目录直接通过 Contract 0.1.0；
+- 用户其他文件和 `layouts/` 保留；
+- 同一 Workspace 多 Session 共用 Pre 项目；
+- 旧 Session 项目恢复；
+- 初始化失败绑定恢复；
+- 表单刷新恢复与 Workspace 隔离；
+- 打开文件夹命令和 UI；
+- Windows/Linux 路径；
+- 构建产物和 npm 打包运行；
+- 全仓旧功能回归。
+
+## 11. 部署
+
+```powershell
+git fetch origin
+git switch feat/pre-v2.0.0
+git pull --ff-only
+pnpm install --frozen-lockfile
+pnpm test
+Remove-Item .\architectureworld-dsh-preplanning-agent-2.0.0.tgz -ErrorAction SilentlyContinue
+pnpm pack
+dsh plugin --profile web add .\architectureworld-dsh-preplanning-agent-2.0.0.tgz
+dsh --profile web --no-open
 ```
 
-成功标记：
+浏览器重新打开后执行 `Ctrl + F5`。
+
+## 12. 当前有效入口
 
 ```text
-PRE_DESIGN_V2_0_0_VERSION_CONSISTENCY_PASS
-PRESENTATION_STANDARD_PROJECT_V0_1_0_PASS
+Repository: ArchitectureWorld/pre-design
+Branch: feat/pre-v2.0.0
+Machine authority: docs/version-matrix.json
+Human authority: docs/VERSIONING.md
+Detailed implementation handoff: handoff/PRE_DESIGN_PRESENTATION_STANDARD_PROJECT_V0.1.0_IMPLEMENTATION.md
+Workspace spec: docs/superpowers/specs/2026-09-04-pre-v2.0.0-workspace-root-and-ui-recovery-design.md
+Workspace plan: docs/superpowers/plans/2026-09-04-pre-v2.0.0-workspace-root-and-ui-recovery.md
 ```
-
-当前自动化测试已覆盖上述运行链路。覆盖现用稳定 Profile、合并主线或发布前，仍需在目标机器完成一次真实安装烟测。

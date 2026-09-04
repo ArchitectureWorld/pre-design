@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 4,
-  "updatedAt": "2026-09-03",
+  "schemaVersion": 5,
+  "updatedAt": "2026-09-04",
   "repository": "ArchitectureWorld/pre-design",
   "product": {
     "name": "pre-design",
@@ -66,24 +66,42 @@
   },
   "implementation": {
     "presentationStandardOutput": {
-      "status": "usage-ready-and-verified-on-development-branch",
+      "status": "workspace-root-usage-ready-and-verified-on-development-branch",
       "contractVersion": "0.1.0",
-      "verificationStatus": "runtime-handoff-and-full-regression-passed",
-      "verifiedHead": "521265c541a1d6dacac075849962a4c703530a6d",
+      "verificationStatus": "workspace-root-runtime-and-full-regression-passed",
+      "verifiedHead": "700a1675ac5801b4ed824b31de48184be2cc1c6c",
       "verifiedWorkflow": {
         "name": "Pre 2.0.0 Integration",
-        "runId": 33741077517,
+        "runId": 33835245301,
         "conclusion": "success"
       },
       "runtime": {
-        "automaticInitialization": "ui-create-flow",
+        "automaticInitialization": "workspace-probe-then-create-or-continue",
+        "workspaceBinding": "one-dsh-workspace-one-pre-project-multiple-sessions",
+        "primaryProjectRoot": "SessionHeader.cwd",
+        "projectRootMode": "dsh-workspace-root-is-standard-project-root",
+        "managedRootEntries": [
+          "project.json",
+          "rules.json",
+          "outline.json",
+          "pages",
+          "source-materials",
+          "assets"
+        ],
+        "preservedWorkspaceEntries": [
+          "layouts",
+          "all-unrelated-user-files-and-directories"
+        ],
+        "legacyFallbackProjectRoot": "~/.dsh/presentation-projects",
+        "legacyFallbackEnvironmentVariable": "PRE_DESIGN_PRESENTATION_PROJECT_ROOT",
+        "probeCommand": "/preplan-presentation-sync --probe",
         "syncCommand": "/preplan-presentation-sync",
         "forceSyncCommand": "/preplan-presentation-sync --force",
+        "openFolderCommand": "/preplan-open-project-folder",
         "agentTool": "preplanning_sync_presentation_project",
-        "defaultProjectRoot": "~/.dsh/presentation-projects",
-        "projectRootEnvironmentVariable": "PRE_DESIGN_PRESENTATION_PROJECT_ROOT",
+        "workspaceDraftPersistence": "localStorage-per-workspace",
         "uiVersionLabel": "Pre 2.0.0 · Project Format 0.1.0",
-        "presentationConsumption": "open-or-watch-the-same-project-root"
+        "presentationConsumption": "open-current-dsh-workspace-root"
       },
       "packageRuntime": {
         "status": "verified",
