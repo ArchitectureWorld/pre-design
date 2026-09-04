@@ -30,9 +30,9 @@ describe('preplanning Browser plugin', () => {
       'conversationEvents',
       'remote',
       'remote.commands',
-      'remote.session',
       'sessions',
       'slots',
+      'workspaces',
     ])
     expect(typeof BrowserPlugin.apply).toBe('function')
 
@@ -54,12 +54,8 @@ describe('preplanning Browser plugin', () => {
         return { ok: true, value: { result: { kind: 'success', text } } }
       },
     }
-    const sessionRemote = {
-      openWorkspacePath: vi.fn(async () => ({ ok: true, value: { opened: true } })),
-    }
-    ctx.provide('remote', { commands: commandsRemote, session: sessionRemote } as never)
+    ctx.provide('remote', { commands: commandsRemote } as never)
     ctx.provide('remote.commands', commandsRemote as never)
-    ctx.provide('remote.session', sessionRemote as never)
     ctx.provide('sessions', {
       list: {
         getSnapshot: () => ({
@@ -80,6 +76,7 @@ describe('preplanning Browser plugin', () => {
         },
       } : undefined,
     } as never)
+    ctx.provide('workspaces', { openPath: vi.fn(async () => undefined) } as never)
     slots.register({
       name: 'root',
       children: {

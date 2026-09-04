@@ -83,9 +83,9 @@ describe('built npm package', () => {
       'conversationEvents',
       'remote',
       'remote.commands',
-      'remote.session',
       'sessions',
       'slots',
+      'workspaces',
     ])
     expect(typeof browser.apply).toBe('function')
     expect([...requestedExternals].sort()).toEqual(['react', 'react-dom', 'react/jsx-runtime'].sort())

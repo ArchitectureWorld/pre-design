@@ -1,4 +1,4 @@
-import type { ClientContext, ISessions } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ClientContext, ISessions, IWorkspaces } from '@deepseek-ai/dsh-client-runtime/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -12,18 +12,10 @@ export const inject = [
   'conversationEvents',
   'remote',
   'remote.commands',
-  'remote.session',
   'sessions',
   'slots',
+  'workspaces',
 ]
-
-type OpenWorkspacePathResult =
-  | { readonly ok: true; readonly value?: unknown }
-  | { readonly ok: false; readonly error: { readonly message: string } }
-
-interface WorkspaceSessionRemote {
-  openWorkspacePath(request: { readonly path: string }): Promise<OpenWorkspacePathResult>
-}
 
 function workspacePathOf(sessions: ISessions, sessionId: string): string | undefined {
   const snapshot = sessions.list.getSnapshot()
@@ -69,22 +61,19 @@ async function requireSuccessfulCommand(
 }
 
 async function openWorkspaceFolder(
-  ctx: ClientContext,
+  workspaces: IWorkspaces,
   workspacePath: string | undefined,
 ): Promise<void> {
   const normalizedPath = workspacePath?.trim()
   if (normalizedPath === undefined || normalizedPath === '') {
     throw new Error('当前会话没有可用的 DSH 工作区。')
   }
-  const sessionRemote = (ctx.remote as unknown as { readonly session: WorkspaceSessionRemote }).session
-  const result = await sessionRemote.openWorkspacePath({ path: normalizedPath })
-  if (!result.ok) {
-    throw new Error(`项目文件夹打开失败：${result.error.message}`)
-  }
+  await workspaces.openPath(normalizedPath)
 }
 
 export function apply(ctx: ClientContext): void {
   const sessions = ctx.get('sessions') as unknown as ISessions
+  const workspaces = ctx.get('workspaces') as unknown as IWorkspaces
   ctx.conversationEvents.register(preplanningStatusDefinition)
   ctx.slots.inject('conversation.session.header.actions', () => ctx.slots.register({
     name: 'conversation.session.header.actions',
@@ -95,7 +84,7 @@ export function apply(ctx: ClientContext): void {
     const workspacePath = useWorkspacePath(sessions, String(sessionId))
     return (
       <PreplanningLauncher
-        openProjectFolder={() => openWorkspaceFolder(ctx, workspacePath)}
+        openProjectFolder={() => openWorkspaceFolder(workspaces, workspacePath)}
         start={input => startDirectPreplanning({
           executeCommand: line => executeCommand(ctx, String(sessionId), line),
           prompt: async text => {
@@ -122,7 +111,7 @@ export function apply(ctx: ClientContext): void {
         confirm={async proposalId => {
           await requireSuccessfulCommand(ctx, String(props.sessionId), `/preplan-confirm ${proposalId}`)
         }}
-        openProjectFolder={() => openWorkspaceFolder(ctx, workspacePath)}
+        openProjectFolder={() => openWorkspaceFolder(workspaces, workspacePath)}
       />
     )
   }))

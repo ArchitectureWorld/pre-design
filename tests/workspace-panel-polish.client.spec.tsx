@@ -54,9 +54,9 @@ describe('Preplanning Workspace panel polish', () => {
       'conversationEvents',
       'remote',
       'remote.commands',
-      'remote.session',
       'sessions',
       'slots',
+      'workspaces',
     ])
 
     const ctx = new Context()
@@ -69,16 +69,11 @@ describe('Preplanning Workspace panel polish', () => {
         return { ok: true, value: { result: { kind: 'success', text: '命令执行成功。' } } }
       },
     }
-    const openWorkspacePath = vi.fn(async ({ path }: { path: string }) => ({
-      ok: true as const,
-      value: { opened: true as const, path },
-    }))
-    const sessionRemote = { openWorkspacePath }
+    const openPath = vi.fn(async (_path: string) => undefined)
 
     ctx.provide('conversationEvents', { register: () => () => undefined } as never)
-    ctx.provide('remote', { commands: commandsRemote, session: sessionRemote } as never)
+    ctx.provide('remote', { commands: commandsRemote } as never)
     ctx.provide('remote.commands', commandsRemote as never)
-    ctx.provide('remote.session', sessionRemote as never)
     ctx.provide('sessions', {
       list: {
         getSnapshot: () => ({
@@ -90,6 +85,7 @@ describe('Preplanning Workspace panel polish', () => {
       },
       binding: () => undefined,
     } as never)
+    ctx.provide('workspaces', { openPath } as never)
     slots.register({
       name: 'root',
       children: {
@@ -110,7 +106,7 @@ describe('Preplanning Workspace panel polish', () => {
     fireEvent.click(view.getByRole('button', { name: '打开项目文件夹' }))
 
     expect(await view.findByText('项目文件夹已打开。')).toBeTruthy()
-    expect(openWorkspacePath).toHaveBeenCalledWith({ path: WORKSPACE })
+    expect(openPath).toHaveBeenCalledWith(WORKSPACE)
     expect(commandLines).toEqual([])
 
     await fiber.dispose()
