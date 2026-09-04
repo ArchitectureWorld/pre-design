@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { stat } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { isAbsolute, join } from 'node:path'
+import { isAbsolute, win32 } from 'node:path'
 
 interface SessionLookup {
   get(id: string): { readonly header: { readonly cwd?: string } } | undefined
@@ -56,7 +56,7 @@ export async function openWorkspaceInNewWindow(
   const run = options.run ?? runDetached
   if (platform === 'win32') {
     const windowsDirectory = options.windowsDirectory ?? process.env.SystemRoot ?? 'C:\\Windows'
-    await run(join(windowsDirectory, 'explorer.exe'), [`/n,${path}`])
+    await run(win32.join(windowsDirectory, 'explorer.exe'), [`/n,${path}`])
     return
   }
   if (platform === 'darwin') {
