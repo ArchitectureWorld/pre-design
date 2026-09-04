@@ -1,0 +1,62 @@
+name: Materialize Pre 2.0.0 Continuous Sync Runtime
+
+on:
+  push:
+    branches:
+      - feat/pre-v2.0.0
+    paths:
+      - '.github/workflows/materialize-pre-v2-continuous-sync.yml'
+      - 'scripts/patch-continuous-sync-wiring.mjs'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: materialize-pre-v2-continuous-sync
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout current Pre branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/pre-v2.0.0
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Apply deterministic runtime wiring
+        run: node scripts/patch-continuous-sync-wiring.mjs
+
+      - name: Remove one-time materializer
+        run: |
+          rm scripts/patch-continuous-sync-wiring.mjs
+          rm .github/workflows/materialize-pre-v2-continuous-sync.yml
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck materialized runtime
+        run: pnpm typecheck
+
+      - name: Run continuous-sync and parallel-workflow tests
+        run: pnpm test:continuous-sync
+
+      - name: Commit to the existing branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: wire continuous sync and parallel workflows into Pre runtime"
+          git push origin HEAD:feat/pre-v2.0.0

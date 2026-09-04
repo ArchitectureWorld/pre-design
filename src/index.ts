@@ -12,8 +12,9 @@ import { ContractRegistry } from './contracts/registry.ts'
 import { GovernanceRepository } from './governance/repository.ts'
 import { SiteBoundaryAssetStore } from './governance/site-boundary-asset-store.ts'
 import { SiteBoundaryService } from './governance/site-boundary-service.ts'
+import { PresentationAutoSyncService } from './presentation/auto-sync.ts'
 import { PresentationBindingRepository } from './presentation/binding-repository.ts'
-import { registerPresentationRuntime } from './presentation/runtime-integration.ts'
+import { adoptedPresentationAssets, registerPresentationRuntime } from './presentation/runtime-integration.ts'
 import { PresentationStandardProjectService } from './presentation/standard-project-service.ts'
 import { PREPLANNING_SYSTEM_PROMPT } from './prompts/preplanning-system.ts'
 import { ProposalGateway } from './proposals/gateway.ts'
@@ -22,10 +23,14 @@ import { registerReportDownloadRoute, type ReportDownloadRegistrar } from './rep
 import { ReportPackageService } from './report/package-service.ts'
 import { createFrozenProjectInput, loadClientProjectProfile } from './report/source.ts'
 import { AutomationService } from './runtime/automation-service.ts'
+import { AutomationWorkflowCommitter } from './runtime/automation-workflow-committer.ts'
+import { AutomaticGateApprover } from './runtime/automatic-gate-approver.ts'
 import { AutomationCoordinator } from './runtime/coordinator.ts'
 import { GateService } from './runtime/gate-service.ts'
+import { ParallelWorkflowExecutor } from './runtime/parallel-workflow-executor.ts'
 import { QuestionService } from './runtime/question-service.ts'
 import { RevisionService } from './runtime/revision-service.ts'
+import { DshSubagentWorkflowAnalyzer } from './runtime/subagent-workflow-analyzer.ts'
 import { WorkflowRuntime } from './runtime/workflow-runtime.ts'
 import { ProjectRepository } from './state/repository.ts'
 import { registerPreplanningTools } from './tools/register.ts'
@@ -41,6 +46,7 @@ interface PreplanningHost {
   readonly governance: GovernanceRepository
   readonly presentationBindings: PresentationBindingRepository
   readonly standardProjects: PresentationStandardProjectService
+  readonly presentationSync: PresentationAutoSyncService
   readonly presentationProjectRoot: string
   readonly gateway: ProposalGateway
   readonly registry: ContractRegistry
@@ -49,6 +55,7 @@ interface PreplanningHost {
   readonly gates: GateService
   readonly revisions: RevisionService
   readonly questions: QuestionService
+  readonly parallel: ParallelWorkflowExecutor
   readonly coordinator: AutomationCoordinator
   readonly visual: VisualAgentService
   readonly siteBoundaryAssets: SiteBoundaryAssetStore
@@ -90,7 +97,6 @@ export async function apply(ctx: Context): Promise<void> {
   const gates = new GateService(registry, governance, runtime, automation, now)
   const revisions = new RevisionService(registry, runtime)
   const questions = new QuestionService(repository, runtime, now)
-  const coordinator = new AutomationCoordinator(runtime)
   const gateway = new ProposalGateway(repository, registry, now, governance)
   const visualAssetRoot = join(homedir(), '.dsh', 'preplanning-agent', 'visual-assets')
   const visualStore = new VisualAssetStore(visualAssetRoot)
@@ -133,6 +139,45 @@ export async function apply(ctx: Context): Promise<void> {
     revision,
     { repository, governance, registry, visualStore },
   )
+  const presentationSync = new PresentationAutoSyncService({
+    repository,
+    standardProjects,
+    source: frozenProjectSource,
+    adoptedAssets: adoptedPresentationAssets,
+    delayMs: 750,
+    now,
+  })
+  const workflowAnalyzer = new DshSubagentWorkflowAnalyzer({
+    subagents: ctx.subagents,
+    repository,
+    registry,
+  })
+  const workflowCommitter = new AutomationWorkflowCommitter({
+    repository,
+    governance,
+    registry,
+    gateway,
+    createId: randomUUID,
+    now,
+  })
+  const gateApprover = new AutomaticGateApprover({ registry, governance, gates })
+  const parallel = new ParallelWorkflowExecutor({
+    runtime,
+    enabled: (projectId) => {
+      const project = governance.readProject(projectId)
+      const authorizationId = project.policy?.automationAuthorizationId
+      return project.policy?.mode === 'automatic'
+        && authorizationId !== undefined
+        && project.authorizations.some(record =>
+          record.authorizationId === authorizationId && record.status === 'active')
+    },
+    analyzer: workflowAnalyzer,
+    committer: workflowCommitter,
+    gateApprover,
+    presentationSync,
+    maxConcurrency: 4,
+  })
+  const coordinator = new AutomationCoordinator(runtime, parallel)
   const reportPackageRoot = join(homedir(), '.dsh', 'preplanning-agent', 'report-packages')
   const clientProfileRoot = join(homedir(), '.dsh', 'preplanning-agent', 'client-profiles')
   const reports = new ReportPackageService({
@@ -150,6 +195,7 @@ export async function apply(ctx: Context): Promise<void> {
     get: id => ctx.sessions.get(id as never),
   })
   ctx.effect(() => async () => {
+    await presentationSync.close()
     await presentationBindings.close()
     await governance.close()
     await repository.close()
@@ -167,14 +213,23 @@ export async function apply(ctx: Context): Promise<void> {
     boundaries,
     registry,
     reports,
+    presentationSync,
     createId: () => `preplan-${randomUUID()}`,
     now,
   })
-  registerPreplanningTools(ctx, { repository, gateway, governance, runtime, registry })
+  registerPreplanningTools(ctx, {
+    repository,
+    gateway,
+    governance,
+    runtime,
+    registry,
+    presentationSync,
+  })
   registerPresentationRuntime(ctx, {
     repository,
     standardProjects,
     source: frozenProjectSource,
+    autoSync: presentationSync,
   })
   ctx.systemPrompt.section({
     name: 'preplanning-agent',
@@ -188,6 +243,7 @@ export async function apply(ctx: Context): Promise<void> {
     governance,
     presentationBindings,
     standardProjects,
+    presentationSync,
     presentationProjectRoot,
     gateway,
     registry,
@@ -196,6 +252,7 @@ export async function apply(ctx: Context): Promise<void> {
     gates,
     revisions,
     questions,
+    parallel,
     coordinator,
     visual,
     siteBoundaryAssets,
