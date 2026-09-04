@@ -26,10 +26,15 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const execFile = promisify(execFileCallback)
 
 async function packedFilePaths(): Promise<string[]> {
-  const executable = process.platform === 'win32' ? 'npm.cmd' : 'npm'
   const { stdout } = await execFile(
-    executable,
-    ['pack', '--dry-run', '--json', '--ignore-scripts'],
+    process.execPath,
+    [
+      resolve(dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+      'pack',
+      '--dry-run',
+      '--json',
+      '--ignore-scripts',
+    ],
     { cwd: root, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 },
   )
   const rows = JSON.parse(stdout) as PackedPackage[]
