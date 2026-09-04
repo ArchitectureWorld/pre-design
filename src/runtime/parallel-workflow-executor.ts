@@ -26,8 +26,8 @@ interface ParallelWorkflowExecutorDependencies {
   readonly maxConcurrency?: number
 }
 
-function workspaceRootOf(parent: Agent): string | undefined {
-  const candidate = parent as unknown as {
+function workspaceRootOf(parent: unknown): string | undefined {
+  const candidate = parent as {
     readonly session?: { readonly header?: { readonly cwd?: unknown } }
   }
   const cwd = candidate.session?.header?.cwd
@@ -54,12 +54,13 @@ export class ParallelWorkflowExecutor {
   }
 
   async runReadyBatch(
-    parent: Agent,
+    parent: unknown,
     projectId: string,
   ): Promise<ParallelWorkflowBatchResult> {
     if (!this.canRun(projectId)) {
       return { attempted: 0, completed: 0, blocked: 0, approvedGates: 0 }
     }
+    const agent = parent as Agent
     const selected = this.dependencies.runtime.ready(projectId)
       .slice(0, this.maxConcurrency)
     for (const descriptor of selected) {
@@ -67,7 +68,7 @@ export class ParallelWorkflowExecutor {
     }
 
     const analyses = await Promise.allSettled(selected.map(descriptor =>
-      this.dependencies.analyzer.analyze(parent, projectId, descriptor)))
+      this.dependencies.analyzer.analyze(agent, projectId, descriptor)))
     const workspaceRoot = workspaceRootOf(parent)
     let completed = 0
     let blocked = 0
@@ -85,7 +86,7 @@ export class ParallelWorkflowExecutor {
       }
       try {
         const committed = await this.dependencies.committer.commit(
-          parent,
+          agent,
           projectId,
           descriptor,
           analysis.value,

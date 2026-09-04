@@ -3,6 +3,7 @@ import { defineTool, type JsonValue } from '@deepseek-ai/dsh-tools'
 import type { ContractRegistry } from '../contracts/registry.ts'
 import { buildControlledContext } from '../context/build-context.ts'
 import type { GovernanceRepository } from '../governance/repository.ts'
+import type { PresentationAutoSyncService } from '../presentation/auto-sync.ts'
 import type { ProposalGateway } from '../proposals/gateway.ts'
 import type { WorkflowRuntime } from '../runtime/workflow-runtime.ts'
 import { buildPreplanningStatus } from '../session/events.ts'
@@ -14,11 +15,20 @@ export interface ToolDependencies {
   readonly governance: GovernanceRepository
   readonly runtime: WorkflowRuntime
   readonly registry: ContractRegistry
+  readonly presentationSync?: Pick<PresentationAutoSyncService, 'request' | 'status'>
 }
 
 function sessionIdOf(exec: { readonly agent?: { readonly id: unknown } }): string {
   if (exec.agent === undefined) throw new Error('前期策划工具必须在 DSH Agent Session 中调用。')
   return String(exec.agent.id)
+}
+
+function workspaceRootOf(exec: { readonly agent?: unknown }): string | undefined {
+  const agent = exec.agent
+  if (agent === null || typeof agent !== 'object') return undefined
+  const cwd = (agent as { readonly session?: { readonly header?: { readonly cwd?: unknown } } })
+    .session?.header?.cwd
+  return typeof cwd === 'string' && cwd.trim() !== '' ? cwd.trim() : undefined
 }
 
 function jsonSnapshot(value: unknown): JsonValue {
@@ -154,8 +164,12 @@ export function registerPreplanningTools(ctx: Context, dependencies: ToolDepende
               proposalId: proposal.proposalId,
               revision: committed.revision,
             })
-            status = committed.status
             revision = committed.revision
+            dependencies.presentationSync?.request(proposal.projectId, {
+              ...(workspaceRootOf(exec) === undefined ? {} : { workspaceRoot: workspaceRootOf(exec) }),
+              reason: `automatic-workflow:${workflowId}:revision:${committed.revision}`,
+            })
+            status = committed.status
           } else {
             await dependencies.runtime.transition(proposal.projectId, workflowId, {
               to: 'pending_review',

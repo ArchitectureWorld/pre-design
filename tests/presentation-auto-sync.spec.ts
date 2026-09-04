@@ -56,7 +56,7 @@ describe('PresentationAutoSyncService', () => {
       },
       standardProjects: {
         findByPreDesignProjectId: () => currentBinding,
-        exportProject: async input => {
+        exportProject: async (input: any) => {
           exports.push(input.frozenProject.revision)
           currentBinding.lastExportedPreDesignRevision = input.frozenProject.revision
           return {
@@ -71,7 +71,7 @@ describe('PresentationAutoSyncService', () => {
           }
         },
       },
-      source: async (projectId, sourceRevision) => frozen(projectId, sourceRevision),
+      source: async (projectId: string, sourceRevision: number) => frozen(projectId, sourceRevision),
       adoptedAssets: () => [],
       delayMs: 500,
     } as never)
@@ -101,7 +101,7 @@ describe('PresentationAutoSyncService', () => {
       repository: { listProjects: () => [{ projectId: 'preplan-1', currentRevision: revision }] },
       standardProjects: {
         findByPreDesignProjectId: () => currentBinding,
-        exportProject: async input => {
+        exportProject: async (input: any) => {
           exports.push(input.frozenProject.revision)
           if (exports.length === 1) await first
           currentBinding.lastExportedPreDesignRevision = input.frozenProject.revision
@@ -112,7 +112,7 @@ describe('PresentationAutoSyncService', () => {
           }
         },
       },
-      source: async (projectId, sourceRevision) => frozen(projectId, sourceRevision),
+      source: async (projectId: string, sourceRevision: number) => frozen(projectId, sourceRevision),
       adoptedAssets: () => [],
       delayMs: 60_000,
     } as never)
@@ -147,7 +147,7 @@ describe('PresentationAutoSyncService', () => {
           )
         },
       },
-      source: async (projectId, sourceRevision) => frozen(projectId, sourceRevision),
+      source: async (projectId: string, sourceRevision: number) => frozen(projectId, sourceRevision),
       adoptedAssets: () => [],
       delayMs: 60_000,
     } as never)
@@ -167,7 +167,7 @@ describe('PresentationAutoSyncService', () => {
       repository: { listProjects: () => [{ projectId: 'preplan-1', currentRevision: 4 }] },
       standardProjects: {
         findByPreDesignProjectId: () => binding({ lastExportedPreDesignRevision: 3 }),
-        exportProject: async input => {
+        exportProject: async (input: any) => {
           confirmExternalChanges = input.confirmExternalChanges
           throw new PresentationStandardProjectError(
             'PRESENTATION_EXTERNAL_CHANGE_REVIEW_REQUIRED',
@@ -176,7 +176,7 @@ describe('PresentationAutoSyncService', () => {
           )
         },
       },
-      source: async (projectId, sourceRevision) => frozen(projectId, sourceRevision),
+      source: async (projectId: string, sourceRevision: number) => frozen(projectId, sourceRevision),
       adoptedAssets: () => [],
     } as never)
     services.push(service)

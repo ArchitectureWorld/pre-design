@@ -48,7 +48,7 @@ describe('AutomationWorkflowCommitter', () => {
         }),
       },
       gateway: {
-        submitProposal: async envelope => {
+        submitProposal: async (envelope: any) => {
           capturedEnvelope = envelope as Record<string, unknown>
           return {
             proposalId: (envelope as { proposal_id: string }).proposal_id,
@@ -130,7 +130,7 @@ describe('AutomationWorkflowCommitter', () => {
 
 describe('AutomaticGateApprover', () => {
   it('approves newly Ready gates once and leaves existing decisions unchanged', async () => {
-    const decideGate = vi.fn(async (_projectId, gateId) => ({ gateId }))
+    const decideGate = vi.fn(async (_projectId: string, gateId: string, _input: unknown) => ({ gateId }))
     const approver = new AutomaticGateApprover({
       registry: { gates: () => [{ gateId: 'G1' }, { gateId: 'G2' }, { gateId: 'G3' }] },
       governance: {
@@ -140,7 +140,7 @@ describe('AutomaticGateApprover', () => {
         }),
       },
       gates: {
-        evaluateGate: (_projectId, gateId) => ({
+        evaluateGate: (_projectId: string, gateId: string) => ({
           gateId, ready: gateId !== 'G3', revision: 7,
         }),
         decideGate,

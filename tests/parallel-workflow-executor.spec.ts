@@ -34,7 +34,7 @@ describe('ParallelWorkflowExecutor', () => {
       runtime: {
         ready: () => descriptors,
         running: () => [],
-        transition: async (_projectId, workflowId, command) => {
+        transition: async (_projectId: string, workflowId: string, command: any) => {
           transitions.push({ workflowId, to: command.to })
           return {} as never
         },
@@ -43,7 +43,7 @@ describe('ParallelWorkflowExecutor', () => {
       enabled: () => true,
       analyzer: {
         available: () => true,
-        analyze: async (_parent, _projectId, descriptor) => {
+        analyze: async (_parent: unknown, _projectId: string, descriptor: any) => {
           active += 1
           maxActive = Math.max(maxActive, active)
           analysisOrder.push(descriptor.workflowId)
@@ -53,7 +53,7 @@ describe('ParallelWorkflowExecutor', () => {
         },
       },
       committer: {
-        commit: async (_parent, _projectId, descriptor) => {
+        commit: async (_parent: unknown, _projectId: string, descriptor: any) => {
           commitOrder.push(descriptor.workflowId)
           return { proposalId: `proposal-${descriptor.workflowId}`, revision: commitOrder.length }
         },
@@ -99,7 +99,7 @@ describe('ParallelWorkflowExecutor', () => {
     const executor = new ParallelWorkflowExecutor({
       runtime: {
         ready: () => descriptors.slice(0, 3), running: () => [], snapshot: () => ({ blocked: [] }),
-        transition: async (_projectId, workflowId, command) => {
+        transition: async (_projectId: string, workflowId: string, command: any) => {
           transitions.push({ workflowId, to: command.to, reason: command.reason })
           return {} as never
         },
@@ -107,13 +107,13 @@ describe('ParallelWorkflowExecutor', () => {
       enabled: () => true,
       analyzer: {
         available: () => true,
-        analyze: async (_parent, _projectId, descriptor) => {
+        analyze: async (_parent: unknown, _projectId: string, descriptor: any) => {
           if (descriptor.workflowId === descriptors[1]!.workflowId) throw new Error('research transport failed')
           return { payload: { object_id: descriptor.targetObjectId, data: {} } }
         },
       },
       committer: {
-        commit: async (_parent, _projectId, descriptor) => {
+        commit: async (_parent: unknown, _projectId: string, descriptor: any) => {
           commits.push(descriptor.workflowId)
           return { proposalId: `proposal-${descriptor.workflowId}`, revision: commits.length }
         },
@@ -136,7 +136,7 @@ describe('ParallelWorkflowExecutor', () => {
 describe('DshSubagentWorkflowAnalyzer', () => {
   it('uses one-shot spawn with no tools, one delegation level and a structured payload', async () => {
     const dispose = vi.fn(async () => undefined)
-    const start = vi.fn(async () => ({
+    const start = vi.fn(async (_provider: string, _request: any) => ({
       id: 'child-1',
       localAgent: undefined,
       result: Promise.resolve({
@@ -158,8 +158,8 @@ describe('DshSubagentWorkflowAnalyzer', () => {
         }),
       },
       registry: {
-        stateSchema: objectId => ({ type: 'object', title: objectId }),
-        stateExample: objectId => ({ object_id: objectId, data: {} }),
+        stateSchema: (objectId: string) => ({ type: 'object', title: objectId }),
+        stateExample: (objectId: string) => ({ object_id: objectId, data: {} }),
       },
     } as never)
 
