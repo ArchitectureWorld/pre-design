@@ -125,6 +125,12 @@ function nowOf(dependencies: PresentationRuntimeDependencies): string {
   return (dependencies.now ?? (() => new Date().toISOString()))()
 }
 
+function errorCodeOf(error: unknown): string | undefined {
+  if (error === null || typeof error !== 'object') return undefined
+  const code = (error as { readonly code?: unknown }).code
+  return typeof code === 'string' ? code : undefined
+}
+
 async function workspaceRootOf(
   dependencies: PresentationRuntimeDependencies,
   carrier: WorkspaceInvocationLike,
@@ -212,6 +218,7 @@ async function probeWorkspace(
   dependencies: PresentationRuntimeDependencies,
   invocation: CommandInvocation,
 ): Promise<CommandResult> {
+  const sessionId = sessionIdOf(invocation)
   const workspaceRoot = await workspaceRootOf(dependencies, invocation)
   if (workspaceRoot === undefined) {
     return {
@@ -221,10 +228,24 @@ async function probeWorkspace(
   }
   const binding = await attachWorkspaceProject(
     dependencies,
-    sessionIdOf(invocation),
+    sessionId,
     workspaceRoot,
   )
   if (binding === undefined) {
+    try {
+      const context = dependencies.repository.readContext(sessionId)
+      return {
+        kind: 'success',
+        text: [
+          PRE_DESIGN_WORKSPACE_ATTACHED_MARKER,
+          `工作区：${workspaceRoot}`,
+          `Pre Project ID：${context.project.projectId}`,
+          '状态：当前 Session 已有 Pre 项目；首次同步将建立 Workspace 绑定。',
+        ].join('\n'),
+      }
+    } catch (error) {
+      if (errorCodeOf(error) !== 'session-not-bound') throw error
+    }
     return {
       kind: 'success',
       text: `${PRE_DESIGN_WORKSPACE_EMPTY_MARKER}\n工作区：${workspaceRoot}`,
@@ -276,13 +297,6 @@ export function registerPresentationRuntime(
       const workspaceRoot = await workspaceRootOf(dependencies, invocation)
       let directoryRoot: string
       if (workspaceRoot !== undefined) {
-        const binding = await attachWorkspaceProject(dependencies, sessionId, workspaceRoot)
-        if (binding === undefined) {
-          return {
-            kind: 'error',
-            text: '当前工作区尚未绑定 Pre 项目，请先创建项目并执行 /preplan-presentation-sync。',
-          }
-        }
         directoryRoot = workspaceRoot
       } else {
         const context = dependencies.repository.readContext(sessionId)
