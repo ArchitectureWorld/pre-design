@@ -26,7 +26,14 @@ const fullStatus = {
 
 describe('preplanning Browser plugin', () => {
   it('按 Session Workspace 创建或恢复 Pre 项目，并启动当前 Session 任务', async () => {
-    expect(BrowserPlugin.inject).toEqual(['conversationEvents', 'remote', 'remote.commands', 'sessions', 'slots'])
+    expect(BrowserPlugin.inject).toEqual([
+      'conversationEvents',
+      'remote',
+      'remote.commands',
+      'remote.session',
+      'sessions',
+      'slots',
+    ])
     expect(typeof BrowserPlugin.apply).toBe('function')
 
     const ctx = new Context()
@@ -47,8 +54,12 @@ describe('preplanning Browser plugin', () => {
         return { ok: true, value: { result: { kind: 'success', text } } }
       },
     }
-    ctx.provide('remote', { commands: commandsRemote } as never)
+    const sessionRemote = {
+      openWorkspacePath: vi.fn(async () => ({ ok: true, value: { opened: true } })),
+    }
+    ctx.provide('remote', { commands: commandsRemote, session: sessionRemote } as never)
     ctx.provide('remote.commands', commandsRemote as never)
+    ctx.provide('remote.session', sessionRemote as never)
     ctx.provide('sessions', {
       list: {
         getSnapshot: () => ({
@@ -90,7 +101,8 @@ describe('preplanning Browser plugin', () => {
     const HeaderEntry = entries[0]?.component as ComponentType<{ sessionId: string }>
     const view = render(<HeaderEntry sessionId="session-1" />)
     fireEvent.click(view.getByRole('button', { name: '前期策划' }))
-    expect(view.getByText(/当前会话所选模型/u)).toBeTruthy()
+    expect(view.getByText('前期策划项目')).toBeTruthy()
+    expect(view.queryByText('主流程使用当前会话所选模型')).toBeNull()
     expect(view.getByText('Pre 2.0.0 · Project Format 0.1.0')).toBeTruthy()
     expect(view.getByText(/项目总文件夹：C:\\Projects\\鄂州体育中心项目/u)).toBeTruthy()
     expect(view.queryByText(/Qwen/)).toBeNull()

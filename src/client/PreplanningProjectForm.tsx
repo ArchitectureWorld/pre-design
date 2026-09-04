@@ -15,7 +15,7 @@ export interface PreplanningProjectFormProps {
 }
 
 type SubmitState = 'idle' | 'running' | 'success'
-type OpenState = 'idle' | 'running'
+type OpenState = 'idle' | 'running' | 'success'
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : '前期策划启动失败，请重试。'
@@ -83,9 +83,9 @@ export function PreplanningProjectForm({
     setOpenState('running')
     try {
       await openProjectFolder()
+      setOpenState('success')
     } catch (cause) {
       setError(messageOf(cause))
-    } finally {
       setOpenState('idle')
     }
   }
@@ -117,13 +117,32 @@ export function PreplanningProjectForm({
         width: 'min(420px, calc(100vw - 32px))', zIndex: 2_147_483_000,
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-        <div>
-          <strong style={{ display: 'block', fontSize: 15 }}>新建或继续前期策划</strong>
-          <small style={{ display: 'block', opacity: 0.65 }}>一个 DSH 工作区对应一个 Pre 项目</small>
-          <small style={{ display: 'block', opacity: 0.65 }}>主流程使用当前会话所选模型</small>
-        </div>
-        <button aria-label="关闭前期策划面板" onClick={onClose} type="button">×</button>
+      <div style={{ alignItems: 'flex-start', display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+        <strong style={{ display: 'block', fontSize: 15, lineHeight: '28px' }}>前期策划项目</strong>
+        <button
+          aria-label="关闭前期策划面板"
+          onClick={onClose}
+          style={{
+            alignItems: 'center',
+            alignSelf: 'start',
+            background: 'transparent',
+            border: 0,
+            borderRadius: 8,
+            color: 'inherit',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            fontSize: 20,
+            height: 28,
+            justifyContent: 'center',
+            lineHeight: 1,
+            opacity: 0.72,
+            padding: 0,
+            width: 28,
+          }}
+          type="button"
+        >
+          ×
+        </button>
       </div>
       {workspaceMissing ? (
         <div role="alert" style={{ color: '#c33', fontSize: 12 }}>
@@ -200,9 +219,27 @@ export function PreplanningProjectForm({
         {submitState === 'running' ? '正在启动…' : '创建或继续全流程'}
       </button>
       {!workspaceMissing && openProjectFolder !== undefined && (
-        <button disabled={openState === 'running'} onClick={openFolder} type="button">
+        <button
+          disabled={openState === 'running'}
+          onClick={openFolder}
+          style={{
+            background: 'transparent',
+            border: '1px solid var(--dsw-alias-border-l2, #c7c9cc)',
+            borderRadius: 9,
+            color: 'inherit',
+            cursor: openState === 'running' ? 'wait' : 'pointer',
+            fontWeight: 600,
+            padding: '9px 12px',
+          }}
+          type="button"
+        >
           {openState === 'running' ? '正在打开…' : '打开项目文件夹'}
         </button>
+      )}
+      {openState === 'success' && (
+        <div role="status" style={{ color: '#24844b', fontSize: 12, textAlign: 'center' }}>
+          项目文件夹已打开。
+        </div>
       )}
       <VersionFooter />
     </form>

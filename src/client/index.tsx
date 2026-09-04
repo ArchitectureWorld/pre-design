@@ -8,7 +8,22 @@ import { PreplanningLauncher } from './PreplanningLauncher.tsx'
 import { PreplanningStatusCard } from './PreplanningStatusCard.tsx'
 import { preplanningStatusDefinition } from './status-definition.ts'
 
-export const inject = ['conversationEvents', 'remote', 'remote.commands', 'sessions', 'slots']
+export const inject = [
+  'conversationEvents',
+  'remote',
+  'remote.commands',
+  'remote.session',
+  'sessions',
+  'slots',
+]
+
+type OpenWorkspacePathResult =
+  | { readonly ok: true; readonly value?: unknown }
+  | { readonly ok: false; readonly error: { readonly message: string } }
+
+interface WorkspaceSessionRemote {
+  openWorkspacePath(request: { readonly path: string }): Promise<OpenWorkspacePathResult>
+}
 
 function workspacePathOf(sessions: ISessions, sessionId: string): string | undefined {
   const snapshot = sessions.list.getSnapshot()
@@ -53,6 +68,21 @@ async function requireSuccessfulCommand(
   if (result.kind === 'error') throw new Error(result.text)
 }
 
+async function openWorkspaceFolder(
+  ctx: ClientContext,
+  workspacePath: string | undefined,
+): Promise<void> {
+  const normalizedPath = workspacePath?.trim()
+  if (normalizedPath === undefined || normalizedPath === '') {
+    throw new Error('当前会话没有可用的 DSH 工作区。')
+  }
+  const sessionRemote = (ctx.remote as unknown as { readonly session: WorkspaceSessionRemote }).session
+  const result = await sessionRemote.openWorkspacePath({ path: normalizedPath })
+  if (!result.ok) {
+    throw new Error(`项目文件夹打开失败：${result.error.message}`)
+  }
+}
+
 export function apply(ctx: ClientContext): void {
   const sessions = ctx.get('sessions') as unknown as ISessions
   ctx.conversationEvents.register(preplanningStatusDefinition)
@@ -65,11 +95,7 @@ export function apply(ctx: ClientContext): void {
     const workspacePath = useWorkspacePath(sessions, String(sessionId))
     return (
       <PreplanningLauncher
-        openProjectFolder={() => requireSuccessfulCommand(
-          ctx,
-          String(sessionId),
-          '/preplan-open-project-folder',
-        )}
+        openProjectFolder={() => openWorkspaceFolder(ctx, workspacePath)}
         start={input => startDirectPreplanning({
           executeCommand: line => executeCommand(ctx, String(sessionId), line),
           prompt: async text => {
@@ -88,17 +114,16 @@ export function apply(ctx: ClientContext): void {
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({
     name: 'conversation.chat.node',
     key: 'preplanning-status',
-  }, (props: PropsRuntime<'conversation.chat.node', 'preplanning-status'>) => (
-    <PreplanningStatusCard
-      {...props}
-      confirm={async proposalId => {
-        await requireSuccessfulCommand(ctx, String(props.sessionId), `/preplan-confirm ${proposalId}`)
-      }}
-      openProjectFolder={() => requireSuccessfulCommand(
-        ctx,
-        String(props.sessionId),
-        '/preplan-open-project-folder',
-      )}
-    />
-  )))
+  }, (props: PropsRuntime<'conversation.chat.node', 'preplanning-status'>) => {
+    const workspacePath = useWorkspacePath(sessions, String(props.sessionId))
+    return (
+      <PreplanningStatusCard
+        {...props}
+        confirm={async proposalId => {
+          await requireSuccessfulCommand(ctx, String(props.sessionId), `/preplan-confirm ${proposalId}`)
+        }}
+        openProjectFolder={() => openWorkspaceFolder(ctx, workspacePath)}
+      />
+    )
+  }))
 }

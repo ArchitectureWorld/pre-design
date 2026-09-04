@@ -79,7 +79,14 @@ describe('built npm package', () => {
       if (specifier === 'react-dom') return reactDom
       throw new Error(`unexpected client external: ${specifier}`)
     })
-    expect(browser.inject).toEqual(['conversationEvents', 'remote', 'remote.commands', 'sessions', 'slots'])
+    expect(browser.inject).toEqual([
+      'conversationEvents',
+      'remote',
+      'remote.commands',
+      'remote.session',
+      'sessions',
+      'slots',
+    ])
     expect(typeof browser.apply).toBe('function')
     expect([...requestedExternals].sort()).toEqual(['react', 'react-dom', 'react/jsx-runtime'].sort())
     expect(Buffer.byteLength(source, 'utf8')).toBeLessThan(100_000)
