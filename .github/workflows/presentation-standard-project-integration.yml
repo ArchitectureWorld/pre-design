@@ -82,7 +82,7 @@ jobs:
       - name: Verify native build config loading policy
         run: pnpm exec vitest run tests/presentation-build-toolchain.spec.ts --maxWorkers=1
 
-      - name: Run standard-project, continuous-sync and parallel-workflow tests
+      - name: Run standard-project and Workspace output tests
         run: pnpm test:presentation-standard
 
       - name: Typecheck
