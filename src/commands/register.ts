@@ -372,11 +372,7 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
           dependencies, invocation, context.project.projectId,
           `gate:${record.gateId}:${record.decision}`,
         )
-        return successWithStatus(
-          `Gate ${record.gateId} 已记录为 ${record.decision}。`,
-          repository.readContext(String(invocation.agent.id)),
-          dependencies,
-        )
+        return { kind: 'success', text: `Gate ${record.gateId} 已记录为 ${record.decision}。` }
       }),
     },
     {
@@ -441,11 +437,7 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
           dependencies, invocation, context.project.projectId,
           `visual-adopted:${asset.assetId}`,
         )
-        return successWithStatus(
-          `已采用概念表现图 ${asset.assetId}，绑定 Revision ${asset.adoptedRevision}。`,
-          repository.readContext(String(invocation.agent.id)),
-          dependencies,
-        )
+        return { kind: 'success', text: `已采用概念表现图 ${asset.assetId}，绑定 Revision ${asset.adoptedRevision}。` }
       }),
     },
     {
@@ -470,11 +462,10 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
           dependencies, invocation, context.project.projectId,
           `visual-replaced:${result.rejectedAssetId}:${result.replacementAssetId}`,
         )
-        return successWithStatus(
-          `已拒绝概念表现图 ${result.rejectedAssetId}，并由已采用资产 ${result.replacementAssetId} 替代。`,
-          repository.readContext(String(invocation.agent.id)),
-          dependencies,
-        )
+        return {
+          kind: 'success',
+          text: `已拒绝概念表现图 ${result.rejectedAssetId}，并由已采用资产 ${result.replacementAssetId} 替代。`,
+        }
       }),
     },
     {
@@ -551,11 +542,7 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
           dependencies, invocation, context.project.projectId,
           `boundary-confirmed:${record.boundaryId}`,
         )
-        return successWithStatus(
-          `场地边界 ${record.boundaryId} 已正式确认。`,
-          repository.readContext(String(invocation.agent.id)),
-          dependencies,
-        )
+        return { kind: 'success', text: `场地边界 ${record.boundaryId} 已正式确认。` }
       }),
     },
     {
