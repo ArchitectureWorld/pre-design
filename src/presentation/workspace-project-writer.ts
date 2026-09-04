@@ -140,6 +140,23 @@ async function collectManagedFileHashes(
   ))
 }
 
+async function collectDirectoryPaths(root: string): Promise<readonly string[]> {
+  const directories: string[] = []
+
+  async function visit(directory: string): Promise<void> {
+    for (const name of (await readdir(directory)).sort((left, right) => left.localeCompare(right))) {
+      const target = join(directory, name)
+      const info = await lstat(target)
+      if (!info.isDirectory()) continue
+      directories.push(portable(root, target))
+      await visit(target)
+    }
+  }
+
+  await visit(root)
+  return Object.freeze(directories)
+}
+
 function changedPaths(
   expected: Readonly<Record<string, string>>,
   actual: Readonly<Record<string, string>>,
@@ -239,23 +256,29 @@ export async function publishPresentationStandardProjectIntoWorkspace(
       operationId: `workspace-${input.operationId}`,
       hooks: input.hooks,
     })
+    const currentFiles = Object.keys(actualHashes).sort((left, right) => left.localeCompare(right))
+    const candidateFiles = Object.keys(prepared.fileHashes).sort((left, right) => left.localeCompare(right))
+    const candidateDirectories = await collectDirectoryPaths(prepared.directoryRoot)
 
     stage = 'commit'
     await mkdir(backupRoot)
     backupCreated = true
-    for (const name of MANAGED_ROOTS) {
-      const current = join(directoryRoot, name)
-      const backup = join(backupRoot, name)
-      const candidate = join(prepared.directoryRoot, name)
-      if (await exists(current)) {
-        await mkdir(dirname(backup), { recursive: true })
-        await renameWithTransientRetry(current, backup)
-        backedUp.add(name)
-      }
-      if (await exists(candidate)) {
-        await renameWithTransientRetry(candidate, current)
-        installed.add(name)
-      }
+    for (const relativePath of currentFiles) {
+      const current = join(directoryRoot, relativePath)
+      const backup = join(backupRoot, relativePath)
+      await mkdir(dirname(backup), { recursive: true })
+      await renameWithTransientRetry(current, backup)
+      backedUp.add(relativePath)
+    }
+    for (const relativePath of candidateDirectories) {
+      await mkdir(join(directoryRoot, relativePath), { recursive: true })
+    }
+    for (const relativePath of candidateFiles) {
+      const candidate = join(prepared.directoryRoot, relativePath)
+      const current = join(directoryRoot, relativePath)
+      await mkdir(dirname(current), { recursive: true })
+      await renameWithTransientRetry(candidate, current)
+      installed.add(relativePath)
     }
     await mkdir(join(directoryRoot, 'layouts'), { recursive: true })
 

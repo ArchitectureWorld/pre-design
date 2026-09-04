@@ -1,3 +1,4 @@
+import { watch } from 'node:fs'
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -86,5 +87,48 @@ describe('Presentation standard project in a DSH Workspace root', () => {
       operationId: 'workspace-third-export',
       expectedExistingFileHashes: second.fileHashes,
     })).rejects.toThrow('PRESENTATION_EXTERNAL_CHANGE_REVIEW_REQUIRED')
+  })
+
+  it('publishes updates while Report Studio watches the Workspace root, pages and drafts directories', async () => {
+    const root = await workspaceRoot()
+    const initialBuild = await buildPresentationStandardProject({
+      frozenProject,
+      projectSlug: 'wuhan-station',
+    })
+    const initial = await publishPresentationStandardProjectIntoWorkspace({
+      directoryRoot: root,
+      build: initialBuild,
+      operationId: 'workspace-watched-initial',
+    })
+    const watchers = [
+      watch(root, { persistent: true }, () => undefined),
+      watch(join(root, 'pages'), { persistent: true }, () => undefined),
+      watch(join(root, 'pages', 'drafts'), { persistent: true }, () => undefined),
+    ]
+
+    try {
+      const updatedBuild = await buildPresentationStandardProject({
+        frozenProject: {
+          ...frozenProject,
+          projectName: '武汉站综合枢纽更新版',
+          revision: 4,
+        },
+        projectSlug: 'wuhan-station',
+        previousStableIds: initialBuild.stableIds,
+      })
+      await publishPresentationStandardProjectIntoWorkspace({
+        directoryRoot: root,
+        build: updatedBuild,
+        operationId: 'workspace-watched-update',
+        expectedExistingFileHashes: initial.fileHashes,
+      })
+    } finally {
+      for (const watcher of watchers) watcher.close()
+    }
+
+    expect(JSON.parse(await readFile(join(root, 'project.json'), 'utf8'))).toMatchObject({
+      name: '武汉站综合枢纽更新版',
+    })
+    await expect(validateProjectDirectoryWithAjv(root)).resolves.toMatchObject({ valid: true })
   })
 })

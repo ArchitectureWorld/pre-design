@@ -66,7 +66,7 @@ afterEach(async () => {
 })
 
 describe('Presentation standard project Workspace commit retries', () => {
-  it('retries a transient EPERM while replacing the managed pages directory', async () => {
+  it('retries a transient EPERM while replacing the managed page manifest', async () => {
     const root = await mkdtemp(join(tmpdir(), 'pre-design-workspace-retry-'))
     roots.push(root)
     await mkdir(join(root, 'layouts'), { recursive: true })
@@ -86,7 +86,7 @@ describe('Presentation standard project Workspace commit retries', () => {
       frozenProject: frozenProject(4, '武汉站综合枢纽更新版'),
       projectSlug: 'wuhan-station',
     })
-    renameFailure.target = join(root, 'pages')
+    renameFailure.target = join(root, 'pages', 'manifest.json')
     renameFailure.failuresRemaining = 1
 
     await publishPresentationStandardProjectIntoWorkspace({
