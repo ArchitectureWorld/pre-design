@@ -32,7 +32,6 @@ describe('preplanning Browser plugin', () => {
       'remote.commands',
       'sessions',
       'slots',
-      'workspaces',
     ])
     expect(typeof BrowserPlugin.apply).toBe('function')
 

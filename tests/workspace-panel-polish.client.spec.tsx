@@ -7,7 +7,10 @@ import { SlotRegistry } from './support/dsh-client-runtime.ts'
 import * as BrowserPlugin from '../src/client/index.tsx'
 import { PreplanningProjectForm } from '../src/client/PreplanningProjectForm.tsx'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 const HEADER_SLOT = 'conversation.session.header.actions'
 const WORKSPACE = 'D:\\沙潭河'
@@ -49,14 +52,13 @@ describe('Preplanning Workspace panel polish', () => {
     expect(openProjectFolder).toHaveBeenCalledOnce()
   })
 
-  it('uses the DSH native Workspace opener instead of a slash command', async () => {
+  it('uses the direct Host Workspace route instead of a slash command', async () => {
     expect(BrowserPlugin.inject).toEqual([
       'conversationEvents',
       'remote',
       'remote.commands',
       'sessions',
       'slots',
-      'workspaces',
     ])
 
     const ctx = new Context()
@@ -69,7 +71,8 @@ describe('Preplanning Workspace panel polish', () => {
         return { ok: true, value: { result: { kind: 'success', text: '命令执行成功。' } } }
       },
     }
-    const openPath = vi.fn(async (_path: string) => undefined)
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetchMock)
 
     ctx.provide('conversationEvents', { register: () => () => undefined } as never)
     ctx.provide('remote', { commands: commandsRemote } as never)
@@ -85,7 +88,6 @@ describe('Preplanning Workspace panel polish', () => {
       },
       binding: () => undefined,
     } as never)
-    ctx.provide('workspaces', { openPath } as never)
     slots.register({
       name: 'root',
       children: {
@@ -106,7 +108,11 @@ describe('Preplanning Workspace panel polish', () => {
     fireEvent.click(view.getByRole('button', { name: '打开项目文件夹' }))
 
     expect(await view.findByText('项目文件夹已打开。')).toBeTruthy()
-    expect(openPath).toHaveBeenCalledWith(WORKSPACE)
+    expect(fetchMock).toHaveBeenCalledWith('/preplan-open-workspace', {
+      body: JSON.stringify({ sessionId: 'session-1' }),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    })
     expect(commandLines).toEqual([])
 
     await fiber.dispose()

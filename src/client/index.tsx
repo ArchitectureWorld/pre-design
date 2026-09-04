@@ -1,4 +1,4 @@
-import type { ClientContext, ISessions, IWorkspaces } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ClientContext, ISessions } from '@deepseek-ai/dsh-client-runtime/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -14,7 +14,6 @@ export const inject = [
   'remote.commands',
   'sessions',
   'slots',
-  'workspaces',
 ]
 
 function workspacePathOf(sessions: ISessions, sessionId: string): string | undefined {
@@ -61,19 +60,21 @@ async function requireSuccessfulCommand(
 }
 
 async function openWorkspaceFolder(
-  workspaces: IWorkspaces,
-  workspacePath: string | undefined,
+  sessionId: string,
 ): Promise<void> {
-  const normalizedPath = workspacePath?.trim()
-  if (normalizedPath === undefined || normalizedPath === '') {
-    throw new Error('当前会话没有可用的 DSH 工作区。')
+  const response = await fetch('/preplan-open-workspace', {
+    body: JSON.stringify({ sessionId }),
+    headers: { 'content-type': 'application/json' },
+    method: 'POST',
+  })
+  if (!response.ok) {
+    const message = (await response.text()).trim()
+    throw new Error(message || '项目文件夹打开失败，请重试。')
   }
-  await workspaces.openPath(normalizedPath)
 }
 
 export function apply(ctx: ClientContext): void {
   const sessions = ctx.get('sessions') as unknown as ISessions
-  const workspaces = ctx.get('workspaces') as unknown as IWorkspaces
   ctx.conversationEvents.register(preplanningStatusDefinition)
   ctx.slots.inject('conversation.session.header.actions', () => ctx.slots.register({
     name: 'conversation.session.header.actions',
@@ -84,7 +85,7 @@ export function apply(ctx: ClientContext): void {
     const workspacePath = useWorkspacePath(sessions, String(sessionId))
     return (
       <PreplanningLauncher
-        openProjectFolder={() => openWorkspaceFolder(workspaces, workspacePath)}
+        openProjectFolder={() => openWorkspaceFolder(String(sessionId))}
         start={input => startDirectPreplanning({
           executeCommand: line => executeCommand(ctx, String(sessionId), line),
           prompt: async text => {
@@ -111,7 +112,7 @@ export function apply(ctx: ClientContext): void {
         confirm={async proposalId => {
           await requireSuccessfulCommand(ctx, String(props.sessionId), `/preplan-confirm ${proposalId}`)
         }}
-        openProjectFolder={() => openWorkspaceFolder(workspaces, workspacePath)}
+        openProjectFolder={() => openWorkspaceFolder(String(props.sessionId))}
       />
     )
   }))

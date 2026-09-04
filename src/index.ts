@@ -32,6 +32,7 @@ import { registerPreplanningTools } from './tools/register.ts'
 import { VisualAgentService } from './visual/agent.ts'
 import { VisualAssetStore } from './visual/asset-store.ts'
 import { SessionImageCollector } from './visual/session-image-collector.ts'
+import { registerWorkspaceOpenRoute, type WorkspaceOpenRegistrar } from './workspace/open-workspace-route.ts'
 
 interface PreplanningHost {
   readonly pluginId: 'preplanning-agent'
@@ -57,7 +58,7 @@ interface PreplanningHost {
 declare module '@deepseek-ai/cordis' {
   interface Context {
     preplanning: PreplanningHost
-    webServer: ReportDownloadRegistrar
+    webServer: ReportDownloadRegistrar & WorkspaceOpenRegistrar
   }
 }
 
@@ -145,6 +146,9 @@ export async function apply(ctx: Context): Promise<void> {
     now,
   })
   registerReportDownloadRoute(ctx.webServer, reportPackageRoot)
+  registerWorkspaceOpenRoute(ctx.webServer, {
+    get: id => ctx.sessions.get(id as never),
+  })
   ctx.effect(() => async () => {
     await presentationBindings.close()
     await governance.close()

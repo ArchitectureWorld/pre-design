@@ -68,7 +68,10 @@ describe('Host apply composition', () => {
     expect(ctx.get('preplanning')?.presentationProjectRoot).toBe(presentationRoot)
     const reportOptions = Reflect.get(ctx.get('preplanning')!.reports, 'options') as { readonly boundaryIntegrity?: unknown }
     expect(reportOptions.boundaryIntegrity).toBeInstanceOf(SiteBoundaryService)
-    expect(routes).toEqual([expect.objectContaining({ kind: 'prefix', path: '/preplan-export' })])
+    expect(routes).toEqual([
+      expect.objectContaining({ kind: 'prefix', path: '/preplan-export' }),
+      expect.objectContaining({ kind: 'exact', path: '/preplan-open-workspace' }),
+    ])
 
     expect(commands.map(definition => definition.name)).toEqual([
       'preplan-new', 'preplan-open', 'preplan-list', 'preplan-status', 'preplan-confirm',
