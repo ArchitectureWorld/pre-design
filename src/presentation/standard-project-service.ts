@@ -162,16 +162,18 @@ export class PresentationStandardProjectService {
 
     const directoryRoot = requestedWorkspaceRoot
       ?? join(this.options.workspaceRoot, build.directoryName)
-    const directoryChanged = existing?.directoryRoot !== undefined
-      && existing.directoryRoot !== directoryRoot
+    const previousDirectoryRoot = existing?.directoryRoot
+    const directoryChanged = previousDirectoryRoot !== undefined
+      && previousDirectoryRoot !== directoryRoot
     if (directoryChanged
+      && existing !== undefined
       && Object.keys(existing.lastExportedFileHashes).length > 0
       && input.confirmExternalChanges !== true) {
       throw new PresentationStandardProjectError(
         'PRE_DESIGN_WORKSPACE_MIGRATION_CONFIRMATION_REQUIRED',
         'preflight',
-        `existing standard project is '${existing.directoryRoot}', explicit --force is required before rebinding to '${directoryRoot}'`,
-        { previousDirectoryRoot: existing.directoryRoot, requestedDirectoryRoot: directoryRoot },
+        `existing standard project is '${previousDirectoryRoot}', explicit --force is required before rebinding to '${directoryRoot}'`,
+        { previousDirectoryRoot, requestedDirectoryRoot: directoryRoot },
       )
     }
 
