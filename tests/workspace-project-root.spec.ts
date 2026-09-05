@@ -114,7 +114,7 @@ describe('Presentation standard project in a DSH Workspace root', () => {
           revision: 4,
         },
         projectSlug: 'wuhan-station',
-        previousStableIds: initialBuild.stableIds,
+        stableIds: initialBuild.stableIds,
       })
       await publishPresentationStandardProjectIntoWorkspace({
         directoryRoot: root,
