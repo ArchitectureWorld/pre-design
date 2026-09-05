@@ -98,6 +98,18 @@ function evidenceTable(entries: readonly Detail[]): SupportingBlock {
   ]) }
 }
 
+/** The canonical adapter already renders keyMessage; supporting arguments must add information. */
+function argumentBlocks(keyMessage: string, explanation: string, points: readonly string[]): SupportingBlock[] {
+  const exact = (value: string) => value.normalize('NFC').trim().replace(/。+$/u, '')
+  const key = exact(keyMessage)
+  const body = explanation.split('\n\n').filter(paragraph => paragraph.trim() !== '' && exact(paragraph) !== key).join('\n\n')
+  const additional = points.filter(point => exact(point) !== key)
+  return [
+    ...(body === '' ? [] : [{ type: 'text', role: 'body', content: body } as const]),
+    ...(additional.length === 0 ? [] : [{ type: 'list', role: 'key_points', listStyle: 'unordered', items: additional } as const]),
+  ]
+}
+
 function implication(sectionKey: string): string {
   const implications: Readonly<Record<string, string>> = {
     mandate: '因此，本轮选择应同时回应实际需求与实施边界，未完成验证的条件仍是后续决策的前提。',
@@ -135,8 +147,7 @@ function detailPages(input: FrozenProjectInput, section: EditorialSection, secti
       order: pageIndex,
       title, keyMessage, contentNature: 'professional_judgement', objectIds, evidenceIds: evidenceIds(entries),
       supportingBlocks: [
-        { type: 'text', role: 'body', content: `${keyMessage}\n\n${implication(section.key)}` },
-        { type: 'list', role: 'key_points', listStyle: 'unordered', items: page.points },
+        ...argumentBlocks(keyMessage, implication(section.key), page.points),
         evidenceTable(entries),
       ],
       speakerNotes: composeNarration({ title, claim: keyMessage, entries, kind: 'detail', implication: implication(section.key) }),
@@ -168,11 +179,10 @@ function synthesisContext(members: readonly FrozenStateObject[]): Detail[] {
   })
 }
 
-function synthesisBlocks(members: readonly FrozenStateObject[], conclusion: string): SupportingBlock[] {
+function synthesisBlocks(members: readonly FrozenStateObject[], keyMessage: string, explanation: string): SupportingBlock[] {
   const context = synthesisContext(members)
   return [
-    { type: 'text', role: 'body', content: conclusion },
-    { type: 'list', role: 'key_points', listStyle: 'unordered', items: displayPoints(context) },
+    ...argumentBlocks(keyMessage, explanation, displayPoints(context)),
     evidenceTable(context),
   ]
 }
@@ -208,8 +218,7 @@ function agendaPages(input: FrozenProjectInput): ReportOutlineFinding[] {
       order, title, keyMessage: conflict ?? statement, contentNature: conflict === undefined ? 'professional_judgement' : 'missing',
       objectIds: members.map(member => member.objectId), evidenceIds: evidenceIds([entry, ...members.flatMap(details)]),
       supportingBlocks: [
-        { type: 'text', role: 'body', content: `${conclusion}\n\n${implication('recommended-path')}` },
-        { type: 'list', role: 'key_points', listStyle: 'unordered', items: displayPoints(context) },
+        ...argumentBlocks(conflict ?? statement, implication('recommended-path'), displayPoints(context)),
         evidenceTable(context),
       ],
       speakerNotes: composeNarration({ title, claim: conclusion, entries: [entry, ...members.filter(member => member.objectId !== 'DG06').flatMap(details)], kind: 'agenda', implication: implication('recommended-path') }),
@@ -237,14 +246,14 @@ export function compileReportOutline(input: FrozenProjectInput): readonly Report
     const keyMessage = conflict ?? pageClaim(members.flatMap(details), old.title)
     const scope = old.findingId === 'pre-design:decision' ? 'recommended-path' : old.findingId === 'pre-design:delivery' ? 'funding-finance' : 'mandate'
     const decisions = distinct(input.decisionItems.map(audienceText)).filter(value => !/成果版本|Revision|Gate|R\d/u.test(value))
-    const conclusion = `${keyMessage}\n\n${implication(scope)}${old.findingId === 'pre-design:decision' && decisions.length > 0 ? `\n\n待决事项：${decisions.join('；')}` : ''}`
+    const conclusion = `${implication(scope)}${old.findingId === 'pre-design:decision' && decisions.length > 0 ? `\n\n待决事项：${decisions.join('；')}` : ''}`
     findings.push({
       ...old, title: `${old.title}：综合研判`, keyMessage,
       contentNature: conflict === undefined ? 'professional_judgement' : 'missing',
       objectIds: members.map(member => member.objectId), evidenceIds: evidenceIds(members.flatMap(details)),
       sectionKey: `${old.findingId}:overview`, sectionTitle: `${old.title}综述`, sectionOrder: old.order < 40 ? old.order / 10 : 0,
       supportingBlocks: [
-        ...synthesisBlocks(members, conclusion),
+        ...synthesisBlocks(members, keyMessage, conclusion),
       ],
       speakerNotes: composeNarration({ title: old.title, claim: keyMessage, entries: members.flatMap(details), kind: 'overview', implication: implication(scope) }),
       assetIds: assetsFor(input, members.map(member => member.objectId)),
@@ -264,7 +273,7 @@ export function compileReportOutline(input: FrozenProjectInput): readonly Report
       contentNature: conflict === undefined ? 'professional_judgement' : 'missing',
       objectIds: members.map(member => member.objectId), evidenceIds: evidenceIds(members.flatMap(details)),
       supportingBlocks: [
-        ...synthesisBlocks(members, `${conflict === undefined ? '' : `${conflict}\n\n`}${analysis.claim}`),
+        ...synthesisBlocks(members, conflict ?? analysis.claim, analysis.claim),
       ],
       speakerNotes: composeNarration({ title: analysis.title, claim: conflict ?? analysis.claim, entries: members.flatMap(details), kind: 'analysis', implication: analysis.claim }),
       assetIds: assetsFor(input, members.map(member => member.objectId)),

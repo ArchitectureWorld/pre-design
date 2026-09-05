@@ -51,7 +51,7 @@ describe('formal report outline compilation', () => {
     expect(plan([...objects].reverse())).toEqual(normal)
     const need = normal.find(f => f.findingId === 'pre-design:analysis:need-response')
     expect(need?.objectIds).toEqual(expect.arrayContaining(['BL05', 'BL06', 'DG01', 'DG03', 'OB01', 'PG03']))
-    expect(JSON.stringify(need?.supportingBlocks)).toContain('建设必要性')
+    expect(need?.keyMessage).toContain('建设必要性')
     const renamed = objects.map(item => ({ ...item, title: `${item.title}修订`, summary: `${item.summary}修订` }))
     expect(plan(renamed).map(f => f.findingId)).toEqual(normal.map(f => f.findingId))
   })
@@ -72,9 +72,11 @@ describe('formal report outline compilation', () => {
     expect(JSON.stringify(check?.supportingBlocks)).toContain('44200')
     expect(JSON.stringify(check?.supportingBlocks)).toContain('28500')
     expect(JSON.stringify(check?.supportingBlocks)).toContain('不等于资金已落实')
-    // Studio edits the first body and list: critical conclusions must not live only in later text/table blocks.
+    // The canonical key-message block owns the warning; body explains it without repeating it.
     const body = check?.supportingBlocks.find(block => block.type === 'text' && block.role === 'body')
-    expect(body?.type === 'text' ? body.content : '').toContain('投资口径待核对')
+    expect(check?.keyMessage).toContain('投资口径待核对')
+    expect(body?.type === 'text' ? body.content : '').toContain('不等于资金已落实')
+    expect(body?.type === 'text' ? body.content : '').not.toContain('投资口径待核对')
     const points = check?.supportingBlocks.find(block => block.type === 'list')
     expect(points?.type === 'list' ? points.items.length : 0).toBeGreaterThan(1)
   })

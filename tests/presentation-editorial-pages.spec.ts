@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { compileReportOutline } from '../src/presentation/projector/report-outline.ts'
+import { buildPresentationStandardProject } from '../src/presentation/standard-project-adapter.ts'
+import type { DraftPageDocument } from '@architectureworld/presentation-contracts'
 import type { FrozenReportSection, FrozenStateObject } from '../src/report/types.ts'
 import { createStandardFrozenProject } from './presentation-standard-fixture.ts'
 
@@ -12,7 +14,7 @@ const object = (id: string, title: string, sections: readonly FrozenReportSectio
   title, summary: sections[0]?.entries[0]?.text ?? title, facts: [], reportSections: sections,
 })
 const plan = (objects: readonly FrozenStateObject[]) => compileReportOutline(createStandardFrozenProject({ stateObjects: objects }))
-const mainText = (finding: ReturnType<typeof plan>[number]) => finding.supportingBlocks.flatMap(block => block.type === 'list' ? block.items : block.type === 'text' && block.role !== 'source_note' ? [block.content] : []).join('\n')
+const mainText = (finding: ReturnType<typeof plan>[number]) => [finding.keyMessage, ...finding.supportingBlocks.flatMap(block => block.type === 'list' ? block.items : block.type === 'text' && block.role !== 'source_note' ? [block.content] : [])].join('\n')
 
 describe('content-led report pages and spoken narration', () => {
   it('keeps a decision argument and its short tail and condition together instead of splitting at twelve items or by field class', () => {
@@ -33,7 +35,7 @@ describe('content-led report pages and spoken narration', () => {
     const text = '供水功能需要在防洪安全得到保障后实施'
     const input = object('PG02', '功能体系', [section('functions', '功能要求', [text, text]), section('dependencies', '成立条件', [text])])
     const detail = plan([input]).filter(f => f.findingId.startsWith('pre-design:detail:user-functions:'))
-    const points = detail.flatMap(f => f.supportingBlocks.flatMap(b => b.type === 'list' ? b.items : []))
+    const points = detail.flatMap(f => [f.keyMessage, ...f.supportingBlocks.flatMap(b => b.type === 'list' ? b.items : [])])
     expect(points.filter(item => item.includes(text))).toHaveLength(1)
     const sources = JSON.stringify(detail.map(f => f.supportingBlocks))
     expect(sources).toContain('data.functions[0]')
@@ -211,10 +213,42 @@ describe('content-led report pages and spoken narration', () => {
     const source = `${argument}：\\n1. 决策督导层：${'政府与相关部门共同负责重大建设方案和跨部门事项协调，'.repeat(15)}。\\n2. 建设统筹层：项目法人必须承担建设交付责任。`
     const input = object('IM05', '建设运营与维护主体', [section('governance', '建设运营协同机制', [source])])
     const finding = plan([input]).find(f => f.findingId.startsWith('pre-design:detail:approval-operator:'))!
-    const points = finding.supportingBlocks.flatMap(b => b.type === 'list' ? b.items : [])
+    const points = [finding.keyMessage, ...finding.supportingBlocks.flatMap(b => b.type === 'list' ? b.items : [])]
     expect(points.join('')).not.toContain('涉及建设运营与维护主体的具体要求')
     expect(points.join('')).toContain(argument)
     expect(points.join('')).not.toContain('：；')
     expect(points.some(point => point.length < 165 && point.includes(argument))).toBe(true)
+  })
+
+  it('renders each key message once in canonical main content while retaining similar arguments, evidence and narration', async () => {
+    const main = '建设边界需要同时校核用地条件和实际服务需求'
+    const different = '建设边界需要同时校核用地条件和未来服务需求'
+    const inputs = [
+      object('PS02', '决策任务', [section('decision_question', '决策问题', [main, different])]),
+      object('DG06', '策划议题', [section('topics', '核心议题', ['坝址比选；需要共同检验库容规模与淹没影响'])]),
+      object('OP02', '备选方案', [section('options', '路径方案', ['路径A优先减少淹没范围', '路径B优先满足供水保障'])]),
+      object('OP07', '推荐路径', [section('recommended_option', '推荐方案', ['暂推荐路径B']), section('conditions', '成立条件', ['推荐坝址必须取得地质复核结果'])]),
+    ]
+    const build = await buildPresentationStandardProject({ frozenProject: createStandardFrozenProject({ stateObjects: inputs }) })
+    const drafts = Object.values(build.documents).filter((value): value is DraftPageDocument => typeof value === 'object'
+      && value !== null && 'documentType' in value && value.documentType === 'DraftPageDocument')
+    expect(drafts.length).toBeGreaterThan(4)
+    const canonical = (value: string) => value.trim().replace(/。+$/u, '')
+    for (const draft of drafts) {
+      const key = draft.contentBlocks.find(block => block.type === 'text' && block.role === 'key_message')!
+      const visible = draft.contentBlocks.flatMap(block => block.type === 'text' ? block.content.split('\n\n')
+        : block.type === 'list' ? block.items.map(item => item.content) : [])
+      expect(visible.filter(value => canonical(value) === canonical((key as { content: string }).content)), draft.pageId).toHaveLength(1)
+      expect(draft.contentBlocks.some(block => block.type === 'table')).toBe(true)
+      expect(draft.scriptBlocks[0]!.content.length).toBeGreaterThan(0)
+    }
+    const detailId = build.stableIds['page:finding:pre-design:detail:mandate:argument:PS02:decision_question:decision_question-0']
+    const detail = drafts.find(draft => draft.pageId === detailId)!
+    expect(detail.contentBlocks.find(block => block.type === 'text' && block.role === 'key_message')).toMatchObject({ content: `${main}。` })
+    expect(detail.contentBlocks.flatMap(block => block.type === 'list' ? block.items.map(item => item.content) : [])).toContain(different)
+    const evidence = JSON.stringify(detail.contentBlocks.filter(block => block.type === 'table'))
+    expect(evidence).toContain(main)
+    expect(evidence).toContain(different)
+    expect(detail.scriptBlocks[0]!.content).toContain(main)
   })
 })
