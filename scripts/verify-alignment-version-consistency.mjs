@@ -98,7 +98,8 @@ if (exists(PRESENTATION_ARTIFACT)) {
     'packed Contract Schema Set mismatch')
 }
 if (exists('SCHEMASET.sha256')) {
-  requireCondition(read('SCHEMASET.sha256').trim() === PRESENTATION_SCHEMASET,
+  const runtimeSchemaSet = read('SCHEMASET.sha256').trim().split(/\s+/u)[0]
+  requireCondition(runtimeSchemaSet === PRESENTATION_SCHEMASET,
     'runtime Contract Schema Set hash changed')
 }
 
