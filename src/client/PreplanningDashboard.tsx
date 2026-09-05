@@ -95,7 +95,7 @@ export function PreplanningDashboard({ status }: PreplanningDashboardProps) {
             || status.presentation.state === 'migration_required'
             || status.presentation.state === 'external_changes'
             ? null
-            : <small>{status.presentation.message}</small>}
+            : <small>{status.presentation.state === 'synced' ? `资料提示：${status.presentation.message}` : status.presentation.message}</small>}
         </div>
       )}
       {status.reportPackage === undefined ? (

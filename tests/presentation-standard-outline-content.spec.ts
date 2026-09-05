@@ -42,6 +42,36 @@ function finding(overrides: Partial<PlannedFinding> = {}): PlannedFinding {
 beforeEach(() => planner.compile.mockReset())
 
 describe('standard report outline integration', () => {
+  it('uses the complete speaker notes without prepending the takeaway or appending decision text', async () => {
+    planner.compile.mockReturnValue([finding({
+      contentNature: 'decision',
+      keyMessage: '现有成果提出：供水保障需要统筹建设条件。',
+      speakerNotes: ['从项目认知出发，先解释供水需求与建设边界的关系。', '接下来比较两处坝址，并说明仍待核实的地质条件。'],
+    })])
+    const build = await buildPresentationStandardProject({ frozenProject: createStandardFrozenProject({
+      decisionItems: ['确认一期实施范围。'], recommendation: '暂推荐下坝址。',
+    }) })
+    const manifest = build.documents['pages/manifest.json'] as any
+    const draft = build.documents[manifest.pages[0].draftPath] as any
+    expect(draft.scriptBlocks[0].content).toBe('从项目认知出发，先解释供水需求与建设边界的关系。\n接下来比较两处坝址，并说明仍待核实的地质条件。')
+    expect(draft.contentBlocks.find((block: any) => block.role === 'key_message').content)
+      .toBe('现有成果提出：供水保障需要统筹建设条件。')
+  })
+
+  it.each([
+    { label: 'missing', speakerNotes: undefined },
+    { label: 'empty', speakerNotes: [] },
+    { label: 'blank', speakerNotes: ['  ', '\n'] },
+  ])('keeps the legacy decision fallback when speaker notes are $label', async ({ speakerNotes }) => {
+    planner.compile.mockReturnValue([finding({ contentNature: 'decision', keyMessage: '明确本轮需要确认的建设边界。', speakerNotes })])
+    const build = await buildPresentationStandardProject({ frozenProject: createStandardFrozenProject({
+      decisionItems: ['确认一期实施范围。'], recommendation: '暂推荐下坝址。',
+    }) })
+    const manifest = build.documents['pages/manifest.json'] as any
+    const draft = build.documents[manifest.pages[0].draftPath] as any
+    expect(draft.scriptBlocks[0].content).toBe('明确本轮需要确认的建设边界。\n确认一期实施范围。\n暂推荐下坝址。')
+  })
+
   it('writes every compiled support block without replacing it with object summaries', async () => {
     planner.compile.mockReturnValue([finding()])
     const ledger = new PresentationStableIdLedger()

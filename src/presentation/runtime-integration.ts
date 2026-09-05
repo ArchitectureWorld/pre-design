@@ -18,6 +18,7 @@ import type { PresentationAutoSyncService } from './auto-sync.ts'
 import { openDirectoryInFileManager } from './open-directory.ts'
 import type { PresentationStandardProjectService } from './standard-project-service.ts'
 import type { PresentationAdoptedAssetInput } from './standard-project-types.ts'
+import { preparePresentationMaterials } from './material-registry.ts'
 import {
   resolveInvocationWorkspaceRoot,
   type WorkspaceInvocationLike,
@@ -53,6 +54,7 @@ export interface PresentationRuntimeSyncResult {
   readonly standardVersion: typeof PRESENTATION_PROJECT_FORMAT_VERSION
   readonly validationMarker: typeof PRESENTATION_PROJECT_SUCCESS_MARKER
   readonly replacedExisting: boolean
+  readonly materialWarnings?: readonly string[]
 }
 
 function fileNameOf(path: string): string {
@@ -69,9 +71,7 @@ function semanticRoleOf(asset: ReportAsset): string {
 
 function objectIdsOf(asset: ReportAsset, project: FrozenProjectInput): string[] {
   return project.stateObjects
-    .filter(object => asset.workItemId !== undefined
-      ? object.workItemId === asset.workItemId
-      : asset.chapterId !== undefined && object.chapterId === asset.chapterId)
+    .filter(object => asset.workItemId !== undefined && object.workItemId === asset.workItemId)
     .map(object => object.objectId)
     .sort((left, right) => left.localeCompare(right))
 }
@@ -191,10 +191,18 @@ export async function syncPresentationProject(
     context.project.projectId,
     context.project.currentRevision,
   )
+  const binding = dependencies.standardProjects.findByPreDesignProjectId?.(frozenProject.projectId)
+  const materials = await preparePresentationMaterials({
+    frozenProject,
+    workspaceRoot: workspaceRoot ?? binding?.workspaceRoot ?? binding?.directoryRoot,
+    assets: adoptedPresentationAssets(frozenProject),
+    previous: binding,
+  })
   const published = await dependencies.standardProjects.exportProject({
     frozenProject,
     ...(workspaceRoot === undefined ? {} : { workspaceRoot }),
-    assets: adoptedPresentationAssets(frozenProject),
+    assets: materials.assets,
+    sourceMaterials: materials.sourceMaterials,
     confirmExternalChanges,
   })
   if (!published.validation.valid) {
@@ -209,11 +217,13 @@ export async function syncPresentationProject(
     standardVersion: PRESENTATION_PROJECT_FORMAT_VERSION,
     validationMarker: PRESENTATION_PROJECT_SUCCESS_MARKER,
     replacedExisting: published.replacedExisting,
+    materialWarnings: materials.materialWarnings,
   })
   dependencies.autoSync?.noteExplicitSuccess(result.preDesignProjectId, {
     preDesignRevision: result.preDesignRevision,
     directoryRoot: result.directoryRoot,
     reason: confirmExternalChanges ? 'manual-force-sync' : 'manual-sync',
+    ...(materials.materialWarnings.length === 0 ? {} : { message: materials.materialWarnings.join('；') }),
   })
   return result
 }
@@ -221,6 +231,7 @@ export async function syncPresentationProject(
 function commandResultText(result: PresentationRuntimeSyncResult): string {
   return [
     '已生成可由 Presentation 直接读取的标准项目。',
+    ...(result.materialWarnings ?? []).map(warning => `资料提示：${warning}`),
     `目录：${result.directoryRoot}`,
     `Presentation Project ID：${result.presentationProjectId}`,
     `Pre Revision：${result.preDesignRevision}`,

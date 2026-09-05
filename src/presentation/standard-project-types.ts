@@ -74,6 +74,12 @@ export interface PresentationAdoptedAssetInput {
   readonly origin: PresentationAssetOriginInput
   readonly objectIds: readonly string[]
   readonly evidenceIds: readonly string[]
+  readonly aliases?: readonly string[]
+  readonly role?: 'primary' | 'supporting' | 'background' | 'reference'
+  readonly pageBindings?: readonly {
+    readonly findingId: string
+    readonly role?: 'primary' | 'supporting' | 'background' | 'reference'
+  }[]
 }
 
 export interface PresentationManagedFile {

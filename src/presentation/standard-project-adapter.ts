@@ -68,7 +68,12 @@ const DEFAULT_RULES: PresentationRulesInput = Object.freeze({
   writingRules: Object.freeze(['结论优先', '每页只表达一个核心结论']),
   terminology: Object.freeze({}),
   truthConstraints: Object.freeze(['事实、判断、假设、建议和决策必须明确区分']),
-  visualIntent: Object.freeze(['优先使用可追溯的项目证据与正式采用素材']),
+  visualIntent: Object.freeze([
+    '优先使用可追溯的项目证据与正式采用素材，排版只能使用当前草案页面素材库已关联的素材',
+    '相关场景图和大图优先；仅按明确的页面关联使用背景图，不将同一图像铺到无关页面',
+    '地图、专业图纸、数据图表与带文字图件完整显示，保留图例和标注，不以裁切背景损失信息',
+    '尽量减少纯文字页面；没有真实素材时明确资料缺口，不虚构图片、视频或数据',
+  ]),
   prohibitedContent: Object.freeze(['不得虚构缺失事实或证据']),
 })
 
@@ -268,7 +273,7 @@ async function buildSourceMaterials(
       category,
       originalFileName: input.originalFileName,
       sha256: integrity.sha256,
-      existingEntries: entries,
+      existingEntries: entries.filter(entry => entry.relativePath.startsWith(`source-materials/${category}/`)),
     })
 
     if (importPlan.action === 'deduplicate') {
@@ -352,15 +357,16 @@ async function buildAssets(
     if (sourceKeys.has(sourceKey)) fail('PRESENTATION_ASSET_KEY_DUPLICATE', `duplicate asset key '${sourceKey}'`)
     sourceKeys.add(sourceKey)
     const mimeType = normalizeMimeType(input.mimeType)
-    const plannedCategory = classifyFormalAsset(input.originalFileName, mimeType, input.semanticRole)
-    const mediaType = assetMediaType(mimeType)
+    const isDrawing = classifySourceMaterial(input.originalFileName, mimeType) === 'drawings'
+    const plannedCategory = isDrawing ? 'other' : classifyFormalAsset(input.originalFileName, mimeType, input.semanticRole)
+    const mediaType = isDrawing ? 'other' : assetMediaType(mimeType)
     const integrity = await regularFileIntegrity(input.sourcePath)
     const importPlan = planMaterialImport({
       domain: 'assets',
       category: plannedCategory,
       originalFileName: input.originalFileName,
       sha256: integrity.sha256,
-      existingEntries: entries,
+      existingEntries: entries.filter(entry => entry.relativePath.startsWith(`assets/${plannedCategory}/`)),
     })
 
     if (importPlan.action === 'deduplicate') {
@@ -399,8 +405,11 @@ async function buildAssets(
       && (!Number.isInteger(metadata.widthPx) || !Number.isInteger(metadata.heightPx))) {
       fail('PRESENTATION_ASSET_IMAGE_DIMENSIONS_REQUIRED', `image asset '${sourceKey}' requires widthPx and heightPx`)
     }
-    if ((mediaType === 'video' || mediaType === 'audio') && metadata.durationMs === undefined) {
+    if ((mediaType === 'video' || mediaType === 'audio') && (metadata.durationMs === undefined || !Number.isFinite(metadata.durationMs) || metadata.durationMs <= 0)) {
       fail('PRESENTATION_ASSET_DURATION_REQUIRED', `${mediaType} asset '${sourceKey}' requires durationMs`)
+    }
+    if (mediaType !== 'image' && (input.role === 'background' || input.pageBindings?.some(binding => binding.role === 'background'))) {
+      fail('PRESENTATION_BACKGROUND_ASSET_INVALID', `only image assets may be backgrounds: '${sourceKey}'`)
     }
 
     const assetId = ledger.resolve('asset', stableAssetKey(sourceKey)) as AssetId
@@ -587,14 +596,15 @@ function buildDraft(
   const pageAssets: PageAssetReference[] = matchingAssets.map(({ input, record }, order) => ({
     pageAssetId: ledger.resolve('pageAsset', `finding:${findingKey}:asset:${input.sourceKey}`) as PageAssetReference['pageAssetId'],
     assetId: record.assetId,
-    role: order === 0 ? 'primary' : 'supporting',
+    role: input.pageBindings?.find(binding => binding.findingId === finding.findingId)?.role
+      ?? input.role ?? (record.mediaType === 'image' ? (order === 0 ? 'primary' : 'supporting') : 'reference'),
     order,
     caption: record.displayName,
     sourceRefs: record.sourceRefs,
   }))
-  const speakerParts = distinctStrings([
+  const authoredSpeakerNotes = distinctStrings(finding.speakerNotes ?? [])
+  const speakerParts = authoredSpeakerNotes.length > 0 ? authoredSpeakerNotes : distinctStrings([
     finding.keyMessage,
-    ...(finding.speakerNotes ?? []),
     ...(finding.contentNature === 'decision' ? frozenProject.decisionItems : []),
     ...(finding.contentNature === 'decision' && frozenProject.recommendation.trim() !== ''
       ? [frozenProject.recommendation]
@@ -624,16 +634,34 @@ function buildDraft(
 }
 
 function matchingAssetsForFinding(
+  frozenProject: FrozenProjectInput,
   finding: ProfessionalFinding,
   inputs: readonly PresentationAdoptedAssetInput[],
   records: ReadonlyMap<string, AssetRecord>,
 ): readonly { readonly input: PresentationAdoptedAssetInput; readonly record: AssetRecord }[] {
   const objectIds = new Set(finding.objectIds)
-  return inputs.flatMap(input => {
-    if (!input.objectIds.some(objectId => objectIds.has(objectId))) return []
+  const evidenceIds = new Set(finding.evidenceIds)
+  const explicitIds = new Set(finding.assetIds ?? [])
+  for (const object of frozenProject.stateObjects) {
+    if (!objectIds.has(object.objectId)) continue
+    for (const section of object.reportSections ?? []) for (const entry of section.entries) for (const ref of entry.evidenceRefs ?? []) {
+      if (evidenceIds.has(ref.evidenceId) && ref.assetId !== undefined) explicitIds.add(ref.assetId)
+    }
+  }
+  const matches = new Map<string, { input: PresentationAdoptedAssetInput; record: AssetRecord; priority: number }>()
+  for (const input of inputs) {
+    const identities = [input.sourceKey, ...(input.aliases ?? [])]
+    const pageMatch = input.pageBindings?.some(binding => binding.findingId === finding.findingId) ?? false
+    const referenceMatch = identities.some(id => explicitIds.has(id) || evidenceIds.has(id)) || input.evidenceIds.some(id => evidenceIds.has(id))
+    const objectMatch = input.objectIds.some(objectId => objectIds.has(objectId))
+    if (!pageMatch && !referenceMatch && !objectMatch) continue
     const record = records.get(input.sourceKey.normalize('NFC').trim())
-    return record === undefined ? [] : [{ input, record }]
-  })
+    if (record === undefined) continue
+    const priority = pageMatch ? 3 : referenceMatch ? 2 : 1
+    const previous = matches.get(record.assetId)
+    if (previous === undefined || priority > previous.priority) matches.set(record.assetId, { input, record, priority })
+  }
+  return [...matches.values()].map(({ input, record }) => ({ input, record }))
 }
 
 export async function buildPresentationStandardProject(
@@ -750,7 +778,7 @@ export async function buildPresentationStandardProject(
           projectId,
           pageId,
           ledger,
-          matchingAssetsForFinding(finding, input.assets ?? [], assets.recordsBySourceKey),
+          matchingAssetsForFinding(frozenProject, finding, input.assets ?? [], assets.recordsBySourceKey),
         )
         const draftPath = `pages/drafts/${pageId}.json`
         pageRecords.push({

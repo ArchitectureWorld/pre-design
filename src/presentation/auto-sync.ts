@@ -1,6 +1,7 @@
 import type { FrozenProjectInput } from '../report/types.ts'
 import type { ProjectRepository } from '../state/repository.ts'
 import type { PresentationStandardProjectService } from './standard-project-service.ts'
+import { preparePresentationMaterials } from './material-registry.ts'
 import type {
   ExportPresentationStandardProjectInput,
   PresentationAdoptedAssetInput,
@@ -163,6 +164,7 @@ export class PresentationAutoSyncService {
       readonly preDesignRevision: number
       readonly directoryRoot?: string
       readonly reason?: string
+      readonly message?: string
     },
   ): PresentationAutoSyncStatus {
     const slot = this.slot(projectId)
@@ -177,6 +179,7 @@ export class PresentationAutoSyncService {
       syncedRevision: input.preDesignRevision,
       ...(input.directoryRoot === undefined ? {} : { workspaceRoot: input.directoryRoot }),
       ...(input.reason === undefined ? {} : { reason: input.reason }),
+      ...(input.message === undefined ? {} : { message: input.message }),
       updatedAt: this.now(),
     }
     this.settleWaiters(slot)
@@ -274,10 +277,17 @@ export class PresentationAutoSyncService {
       }
       try {
         const frozenProject = await this.dependencies.source(projectId, revision)
+        const materials = await preparePresentationMaterials({
+          frozenProject,
+          workspaceRoot: workspaceRoot ?? binding?.directoryRoot,
+          assets: this.dependencies.adoptedAssets(frozenProject),
+          previous: binding,
+        })
         const input: ExportPresentationStandardProjectInput = {
           frozenProject,
           ...(workspaceRoot === undefined ? {} : { workspaceRoot }),
-          assets: this.dependencies.adoptedAssets(frozenProject),
+          assets: materials.assets,
+          sourceMaterials: materials.sourceMaterials,
           confirmExternalChanges: false,
         }
         await this.dependencies.standardProjects.exportProject(input)
@@ -287,6 +297,7 @@ export class PresentationAutoSyncService {
           syncedRevision: revision,
           ...(workspaceRoot === undefined ? {} : { workspaceRoot }),
           reason: request.reason,
+          ...(materials.materialWarnings.length === 0 ? {} : { message: materials.materialWarnings.join('；') }),
           updatedAt: this.now(),
         }
       } catch (error) {

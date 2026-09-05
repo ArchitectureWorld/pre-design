@@ -27,7 +27,7 @@ describe('formal report outline compilation', () => {
     for (const finding of findings) {
       expect(finding.sectionKey).toBeTruthy()
       expect(finding.sectionTitle).toBeTruthy()
-      expect(JSON.stringify(finding.supportingBlocks)).toContain('本页回答')
+      expect(JSON.stringify(finding.supportingBlocks)).not.toMatch(/本页回答|编写主线|编写建议/u)
     }
     const visible = JSON.stringify(findings.map(finding => finding.supportingBlocks))
     for (const item of objects) for (const section of item.reportSections ?? []) for (const entry of section.entries) expect(visible).toContain(entry.text)
@@ -38,10 +38,10 @@ describe('formal report outline compilation', () => {
 
   it('grows with content volume, never drops the ninth or later item, and uses meaningful titles', () => {
     const small = plan([object('PG01', '06', 'needs', 2)])
-    const large = plan([object('PG01', '06', 'needs', 20)])
+    const large = plan([object('PG01', '06', 'needs', 40)])
     expect(large.length).toBeGreaterThan(small.length)
     const visible = JSON.stringify(large.map(f => f.supportingBlocks))
-    expect(visible).toContain('PG01第20项具体内容')
+    expect(visible).toContain('PG01第40项具体内容')
     expect(large.every(f => !/续\d|第\d+页/u.test(f.title))).toBe(true)
   })
 

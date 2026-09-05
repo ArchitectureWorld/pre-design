@@ -1,7 +1,8 @@
-import type { FrozenProjectInput, FrozenReportEntry, FrozenStateObject } from '../../report/types.ts'
+import type { FrozenProjectInput, FrozenStateObject } from '../../report/types.ts'
 import { adaptFrozenProjectToPresentationFindings } from './frozen-project-adapter.ts'
 import { DEFAULT_PRESENTATION_TOPICS } from './topics.ts'
 import type { ProfessionalFinding, SupportingBlock } from './types.ts'
+import { argumentPriority, audienceText, composeEditorialPages, composeNarration, contentWithoutLabel, displayPoints, isCondition, narrativeEntries, rawBody, type EditorialDetail } from './editorial-composition.ts'
 
 /** Editorial sections are report questions, not workflow steps or a target page count. */
 export interface ReportOutlineFinding extends ProfessionalFinding {
@@ -48,12 +49,7 @@ const SECTIONS: readonly EditorialSection[] = [
   { key: 'roadmap-risk', topic: 'delivery_model', title: '实施时序、风险与绩效', question: '什么先做、何时启动，发生哪些风险时应调整方案？', objects: ['IM07', 'IM08'], visual: '分期实施路线图、风险触发与绩效监测表' },
 ]
 
-interface Detail extends FrozenReportEntry {
-  readonly objectId: string
-  readonly objectTitle: string
-  readonly sectionTitle: string
-  readonly sectionKey: string
-}
+type Detail = EditorialDetail
 
 function details(object: FrozenStateObject): Detail[] {
   if ((object.reportSections?.length ?? 0) > 0) {
@@ -80,91 +76,73 @@ function headline(text: string, max = 42): string {
 }
 
 function bodyText(entry: Detail): string {
-  return entry.contentText ?? entry.text
-}
-
-function pageSubject(entries: readonly Detail[]): string {
-  const candidates = entries.map(entry => {
-    const body = bodyText(entry).replace(`${entry.sectionTitle}：`, '')
-    const subject = body.split(/[；;。\n]/u)[0]!.trim()
-    return subject.length > 36 ? `${subject.slice(0, 36)}…` : subject
-  })
-  return candidates.find(value => value.length >= 8 && /\p{Script=Han}/u.test(value)
-    && !/[A-Za-z]+_/u.test(value)
-    && !/^(?:DSH|资料定位|可信程度|适用限制|判断依据|单位|上限|下限|推荐理由|[\d.]+[\s万千亿%])/u.test(value)
-    && !value.includes('补充内容')) ?? distinct(entries.map(entry => entry.sectionTitle)).slice(0, 2).join('与')
+  return rawBody(entry)
 }
 
 function evidenceIds(entries: readonly Detail[]): string[] {
   return distinct(entries.flatMap(entry => entry.evidenceRefs?.map(ref => ref.evidenceId) ?? [])).sort()
 }
 
-function assetsFor(input: FrozenProjectInput, objectIds: readonly string[]): string[] {
+function assetsFor(input: FrozenProjectInput, objectIds: readonly string[], pageEntries?: readonly Detail[]): string[] {
   const members = input.stateObjects.filter(object => objectIds.includes(object.objectId))
+  const evidence = pageEntries ?? members.flatMap(details)
   return input.visualAssets.filter(asset => (input.adoptedAssetIds === undefined || input.adoptedAssetIds.includes(asset.assetId))
-    && members.some(object => asset.workItemId !== undefined ? object.workItemId === asset.workItemId : object.chapterId === asset.chapterId))
+    && (members.some(object => asset.workItemId !== undefined && object.workItemId === asset.workItemId)
+      || evidence.some(entry => entry.evidenceRefs?.some(ref => ref.assetId === asset.assetId))))
     .map(asset => asset.assetId).sort()
 }
 
-const LENSES = [
-  { key: 'basis', title: '依据与测算', match: /baseline|population|demographic|demand|need|capacity|quantit|area|capex|cost|irr|dscr|npv|cashflow|revenue|amount|price|unit|formula|parameter|target|definition|score|weight|criter|metric|range|comparison/u },
-  { key: 'proposal', title: '内容与组织', match: /./u },
-  { key: 'conditions', title: '条件、风险与验证', match: /constraint|risk|condition|assumption|approval|gap|limit|veto|uncertain|trigger|test|dependenc|validation|conflict|prohibit|restrict|sensitivity|stress|fallback|rejection|exception|prerequisite/u },
-] as const
-
-function lensFor(key: string): typeof LENSES[number] {
-  return LENSES[2].match.test(key) ? LENSES[2] : LENSES[0].match.test(key) ? LENSES[0] : LENSES[1]
+function evidenceTable(entries: readonly Detail[]): SupportingBlock {
+  return { type: 'table', role: 'data', columns: ['完整成果内容', '依据与适用条件', '来源字段'], rows: entries.map(entry => [
+    entry.text, entry.basis || '原资料未注明依据', `${entry.objectId}/${entry.fieldPath}/${entry.key}`,
+  ]) }
 }
 
-/** Keep semantic entities intact. Limits bound page density, never total content. */
-function paginate(entries: readonly Detail[]): Detail[][] {
-  const pages: Detail[][] = []
-  for (const entry of entries) {
-    let page = pages.at(-1)
-    const weight = (value: Detail) => bodyText(value).length
-    if (page === undefined || (page.length > 0 && (page.length >= 12 || page.reduce((sum, value) => sum + weight(value), 0) + weight(entry) > 2400))) {
-      page = []
-      pages.push(page)
-    }
-    page.push(entry)
+function implication(sectionKey: string): string {
+  const implications: Readonly<Record<string, string>> = {
+    mandate: '因此，本轮选择应同时回应实际需求与实施边界，未完成验证的条件仍是后续决策的前提。',
+    scope: '这些范围分别对应研究、建设和影响责任。明确彼此的区别，才能判断后续方案涉及哪些审批与协调事项。',
+    'planning-land': '因此，规划允许建设与空间权利已经落实是不同的条件。方案推进仍取决于用地、权属与相关审批的实际进展。',
+    'user-functions': '这意味着功能选择需要同时满足服务需求和运行前提，容量与设施配置也应与实际使用方式保持一致。',
+    'capacity-sharing': '这些参数共同影响设施规模和共享方式。需求与运行条件变化时，相应容量也需要重新校核。',
+    'packages-cost': '这些工程量、单价和费用共同构成当前投资估算。后续设计深化与实测结果变化时，投资基线需要同步调整。',
+    'funding-finance': '因此，预期资金能够平衡不代表资金已经到位，实际推进仍取决于审批、出资和运营条件的落实。',
+    'recommended-path': '推荐意见以这些条件成立为前提。验证结果发生变化时，仍需重新比较推荐与备选路径。',
+    'spatial-support': '这些支撑条件共同影响空间能否安全使用。功能安排与专项能力需要保持一致，尚未核实的部分仍应保留调整空间。',
   }
-  return pages
+  return implications[sectionKey] ?? '这些安排共同影响项目的实施范围与推进顺序。对于仍属于测算、建议或待验证的部分，后续决策需要以相应条件落实为前提。'
+}
+
+function pageClaim(entries: readonly Detail[], fallback: string): string {
+  const first = narrativeEntries(entries, fallback)[0]
+  const points = displayPoints(first === undefined ? [] : [first], 400)
+  return points[0] === undefined ? `${fallback}仍需补充有效的项目依据。` : `${points[0].replace(/[。；;，]+$/u, '')}。`
 }
 
 function detailPages(input: FrozenProjectInput, section: EditorialSection, sectionOrder: number): ReportOutlineFinding[] {
   const members = section.objects.flatMap(id => input.stateObjects.filter(object => object.objectId === id))
-  const all = members.flatMap(details).filter(entry => bodyText(entry).trim() !== '')
-  const conflict = members.some(member => ['IM02', 'IM03', 'IM06'].includes(member.objectId))
-    ? investmentConflict(input.stateObjects) : undefined
-  return LENSES.flatMap(lens => paginate(all.filter(entry => lensFor(entry.sectionKey).key === lens.key)).map((entries, pageIndex, pages) => {
+  const all = members.flatMap(details)
+  const pages = composeEditorialPages(all)
+  return pages.map((page, pageIndex) => {
+    const { entries } = page
     const first = entries[0]!
-    const names = distinct(entries.map(entry => entry.sectionTitle))
-    const subTitle = names.length <= 2 ? names.join('与') : `${names[0]}至${names.at(-1)}`
-    const title = `${section.title}：${pages.length === 1 ? lens.title : pageSubject(entries)}`
+    const title = pages.length === 1 ? section.title : `${section.title}：${page.subject}·${headline(audienceText(contentWithoutLabel(first)), 34)}`
     const objectIds = distinct(entries.map(entry => entry.objectId))
-    const sources = entries.map(entry => `${entry.objectId} / ${entry.fieldPath}：${entry.basis || '来源资料未注明依据'}`)
-    const keyMessage = lens.key === 'conditions'
-      ? `本页列明${subTitle}，作为${section.title}的成立条件与待验证边界。`
-      : `围绕${subTitle}展开${section.title}，逐项说明已有成果及其依据，不将测算或建议当作已实施事实。`
+    const keyMessage = pageClaim(entries, section.title)
     return {
-      findingId: `pre-design:detail:${section.key}:${lens.key}:${first.objectId}:${first.sectionKey}:${first.key}`,
+      findingId: `pre-design:detail:${section.key}:argument:${first.objectId}:${first.sectionKey}:${first.key}`,
       topicKey: section.topic, sectionKey: section.key, sectionTitle: section.title, sectionOrder,
-      order: LENSES.indexOf(lens) * 10000 + pageIndex,
-      title, keyMessage, contentNature: lens.key === 'conditions' ? 'assumption' : 'professional_judgement', objectIds, evidenceIds: evidenceIds(entries),
+      order: pageIndex,
+      title, keyMessage, contentNature: 'professional_judgement', objectIds, evidenceIds: evidenceIds(entries),
       supportingBlocks: [
-        { type: 'text', role: 'body', content: `本页回答：${section.question}\n\n编写主线：${keyMessage}${conflict === undefined ? '' : `\n\n${conflict}`}` },
-        ...(conflict === undefined ? [] : [{ type: 'text', role: 'body', content: conflict, contentNature: 'missing' } satisfies SupportingBlock]),
-        { type: 'heading', role: 'section_title', content: '汇报展开要点' },
-        { type: 'list', role: 'key_points', listStyle: 'unordered', items: entries.map(bodyText) },
-        { type: 'table', role: 'data', columns: ['论证内容', '依据与适用条件'], rows: entries.map(entry => [headline(entry.text), entry.basis || '来源资料未注明依据，正式汇报前核实']) },
-        { type: 'text', role: 'caption', content: `建议图表：${section.visual}（编写建议，非已生成图件）。` },
-        { type: 'text', role: 'source_note', content: `来源成果：${distinct(entries.map(entry => entry.objectTitle)).join('；')}。` },
+        { type: 'text', role: 'body', content: `${keyMessage}\n\n${implication(section.key)}` },
+        { type: 'list', role: 'key_points', listStyle: 'unordered', items: page.points },
+        evidenceTable(entries),
       ],
-      speakerNotes: [`本页回答：${section.question}`, ...entries.map(entry => entry.text), ...sources,
-        ...members.flatMap(details).filter(entry => bodyText(entry).trim() === '').map(entry => `${entry.text}（${entry.objectId}/${entry.fieldPath}）`)],
-      assetIds: assetsFor(input, objectIds),
+      speakerNotes: composeNarration({ title, claim: keyMessage, entries, kind: 'detail', implication: implication(section.key) }),
+      assetIds: assetsFor(input, objectIds, entries),
     } satisfies ReportOutlineFinding
-  }))
+  })
 }
 
 interface AnalysisDefinition extends EditorialSection {
@@ -172,27 +150,30 @@ interface AnalysisDefinition extends EditorialSection {
 }
 
 const ANALYSES: readonly AnalysisDefinition[] = [
-  { key: 'need-response', topic: 'diagnosis', title: '建设必要性：需求、成因与目标响应', question: '建设必要性是否由真实需求和因果分析支撑，哪些问题不在项目作用边界内？', objects: ['BL05', 'BL06', 'BL08', 'DG01', 'DG03', 'OB01', 'OB03', 'PG03'], visual: '需求—缺口—成因—目标—规模论证链', claim: '把供需缺口、问题成因与目标规模对照论证；不能把相关问题都归因为单一原因，也不能承诺一个项目解决全部问题。' },
-  { key: 'path-response', topic: 'positioning', title: '推荐方案：比较依据与成立条件', question: '推荐是否同时满足目标、底线、空间容量与成本约束？', objects: ['OB04', 'OB06', 'OP01', 'OP02', 'OP03', 'OP04', 'OP05', 'OP06', 'OP07'], visual: '备选路径—得失—推荐—回退条件对照表', claim: '在同一基线下比较各方案的得失，再列明推荐理由和前置验证；推荐意见不等于方案已经获批。' },
-  { key: 'program-response', topic: 'program_product', title: '功能规模：从需求到产品服务的推导', question: '人群、需求、功能、容量和服务标准之间是否有明确推导关系？', objects: ['BL05', 'BL06', 'PG01', 'PG02', 'PG03', 'PG04', 'PG05', 'PG07'], visual: '服务对象—使用场景—功能—容量—产品对应表', claim: '用人群和场景需求校核功能、容量与产品组合；保留峰值、周转率和共享条件，避免只罗列功能名称。' },
-  { key: 'spatial-response', topic: 'spatial_strategy', title: '空间可实施性：功能落位与专项约束', question: '功能落位能否同时满足容量、交通、生态和技术条件？', objects: ['OB04', 'PG03', 'PG05', 'PG06', 'SP01', 'SP02', 'SP04', 'SP05', 'SP06'], visual: '功能—位置—专项能力—约束校核矩阵', claim: '把空间方案与功能规模、生态边界和技术能力逐项对照；公共活动与游憩设想不代表已通过保护区等合规审查。' },
-  { key: 'investment-basis', topic: 'delivery_model', title: '投资口径、资金落实与财务结论核对', question: '成本、筹资和财务模型是否使用同一口径，资金是否实际落实？', objects: ['IM01', 'IM02', 'IM03', 'IM06', 'PG06'], visual: '投资基线与财务口径对照表、资金落实状态表', claim: '先核对投资范围、基准时点与融资条件，再解释财务结果；测算资金缺口为零不等于资金已落实。' },
-  { key: 'delivery-response', topic: 'delivery_model', title: '实施闭环：启动条件、责任与风险回退', question: '工程包是否具备启动条件，谁负责落实，条件变化如何调整？', objects: ['IM01', 'IM03', 'IM04', 'IM05', 'IM07', 'IM08', 'SP08'], visual: '工程包—审批—资金—责任—时序—回退关系表', claim: '将建设时序与资金、审批、征迁和运营责任对照，明确未落实的启动条件以及调整预案。' },
+  { key: 'need-response', topic: 'diagnosis', title: '建设必要性：需求、成因与目标响应', question: '建设必要性是否由真实需求和因果分析支撑，哪些问题不在项目作用边界内？', objects: ['BL05', 'BL06', 'BL08', 'DG01', 'DG03', 'OB01', 'OB03', 'PG03'], visual: '需求—缺口—成因—目标—规模论证链', claim: '建设必要性取决于真实需求、现有供给和项目能够处理的问题范围。不同成因可能需要不同措施，项目目标仍受实际作用边界约束。' },
+  { key: 'path-response', topic: 'positioning', title: '推荐方案：比较依据与成立条件', question: '推荐是否同时满足目标、底线、空间容量与成本约束？', objects: ['OB04', 'OB06', 'OP01', 'OP02', 'OP03', 'OP04', 'OP05', 'OP06', 'OP07'], visual: '备选路径—得失—推荐—回退条件对照表', claim: '方案的比较以共同边界和评价标准为前提。当前推荐仍受底线要求与前置验证约束，推荐意见不等于方案已经获批。' },
+  { key: 'program-response', topic: 'program_product', title: '功能规模：从需求到产品服务的推导', question: '人群、需求、功能、容量和服务标准之间是否有明确推导关系？', objects: ['BL05', 'BL06', 'PG01', 'PG02', 'PG03', 'PG04', 'PG05', 'PG07'], visual: '服务对象—使用场景—功能—容量—产品对应表', claim: '功能规模由服务人群、使用时段和容量参数共同决定。峰值需求、周转率及共享条件变化，都会影响产品服务的配置与实施成本。' },
+  { key: 'spatial-response', topic: 'spatial_strategy', title: '空间可实施性：功能落位与专项约束', question: '功能落位能否同时满足容量、交通、生态和技术条件？', objects: ['OB04', 'PG03', 'PG05', 'PG06', 'SP01', 'SP02', 'SP04', 'SP05', 'SP06'], visual: '功能—位置—专项能力—约束校核矩阵', claim: '空间落位同时受到功能容量、生态边界、交通及技术能力约束。公共活动与游憩属于方案设想，是否实施仍取决于保护要求和专项审查。' },
+  { key: 'investment-basis', topic: 'delivery_model', title: '投资口径、资金落实与财务结论核对', question: '成本、筹资和财务模型是否使用同一口径，资金是否实际落实？', objects: ['IM01', 'IM02', 'IM03', 'IM06', 'PG06'], visual: '投资基线与财务口径对照表、资金落实状态表', claim: '建设投资、资金到位与拟筹资安排反映的是不同状态，拟筹资安排不等于资金已落实，也不能把建设费用当作已经到位的资金。财务判断仍需先统一投资范围、基准时点与融资条件。' },
+  { key: 'delivery-response', topic: 'delivery_model', title: '实施闭环：启动条件、责任与风险回退', question: '工程包是否具备启动条件，谁负责落实，条件变化如何调整？', objects: ['IM01', 'IM03', 'IM04', 'IM05', 'IM07', 'IM08', 'SP08'], visual: '工程包—审批—资金—责任—时序—回退关系表', claim: '工程包的启动取决于资金、审批、征迁和责任主体共同落实。建设时序属于附条件的安排，外部条件改变时，推进顺序和实施规模也需相应调整。' },
 ]
 
-function synthesisBlocks(question: string, members: readonly FrozenStateObject[], visual: string, conclusion?: string): SupportingBlock[] {
+function synthesisContext(members: readonly FrozenStateObject[]): Detail[] {
+  return members.flatMap(member => {
+    const available = details(member).filter(entry => audienceText(contentWithoutLabel(entry)) !== '')
+      .sort((a, b) => argumentPriority(b) - argumentPriority(a))
+    const selected = [available[0], ...available.filter(entry => entry.sectionKey === 'options' || entry.sectionKey === 'recommended_option'), available.find(entry => entry.metric !== undefined),
+      available.find(entry => isCondition(entry) && entry !== available[0]), available.find(entry => entry !== available[0])]
+    return [...new Set(selected.filter((entry): entry is Detail => entry !== undefined))]
+  })
+}
+
+function synthesisBlocks(members: readonly FrozenStateObject[], conclusion: string): SupportingBlock[] {
+  const context = synthesisContext(members)
   return [
-    { type: 'text', role: 'body', content: `本页回答：${question}${conclusion === undefined ? '' : `\n\n核心判断与论证要求：${conclusion}`}` },
-    // Studio's current editor exposes the first body/list; tables remain canonical supporting detail.
-    { type: 'list', role: 'key_points', listStyle: 'unordered', items: members.map(member => {
-      const points = details(member).filter(entry => bodyText(entry).trim() !== '').slice(0, 2).map(bodyText)
-      return `${member.title}：${member.summary}${points.length === 0 ? '' : `\n支撑内容：${points.join('；')}`}`
-    }) },
-    { type: 'table', role: 'comparison', columns: ['论证环节', '已有成果提出的判断', '支撑要点与限定条件'], rows: members.map(member => [
-      member.title, member.summary, details(member).map(entry => entry.text).slice(0, 2).join('；') || '尚缺展开依据，需补证',
-    ]) },
-    { type: 'text', role: 'caption', content: `建议图表：${visual}（编写建议，非已生成图件）。` },
-    { type: 'text', role: 'source_note', content: '以下详细页展开完整成果；本页用于跨成果组织论证。资料中的判断、预测和建议均保留原有条件，未作独立事实核验。' },
+    { type: 'text', role: 'body', content: conclusion },
+    { type: 'list', role: 'key_points', listStyle: 'unordered', items: displayPoints(context) },
+    evidenceTable(context),
   ]
 }
 
@@ -219,19 +200,19 @@ function agendaPages(input: FrozenProjectInput): ReportOutlineFinding[] {
       ...(/资金|融资|投资|财务|筹措/u.test(title) ? ['PG06', 'IM01', 'IM02', 'IM03', 'IM06', 'IM07'] : []),
     ]
     const members = [agenda, ...distinct(related).flatMap(id => input.stateObjects.filter(object => object.objectId === id))]
-    const question = `围绕“${title}”，已有依据、方案回应与未落实条件分别是什么？`
     const conflict = /资金|融资|投资|财务/u.test(title) ? investmentConflict(members) : undefined
+    const context = [entry, ...synthesisContext(members.filter(member => member.objectId !== 'DG06'))]
+    const conclusion = conflict ?? audienceText(statement)
     return {
       findingId: `pre-design:agenda:${entry.key}`, topicKey: 'opportunity', sectionKey: 'project-agenda', sectionTitle: '项目关键议题的综合论证', sectionOrder: 79,
       order, title, keyMessage: conflict ?? statement, contentNature: conflict === undefined ? 'professional_judgement' : 'missing',
       objectIds: members.map(member => member.objectId), evidenceIds: evidenceIds([entry, ...members.flatMap(details)]),
       supportingBlocks: [
-        { type: 'text', role: 'body', content: `本页回答：${question}\n\n议题内容：${statement}${conflict === undefined ? '' : `\n\n${conflict}`}` },
-        { type: 'text', role: 'body', content: `议题内容：${statement}` },
-        ...synthesisBlocks(question, members.filter(member => member.objectId !== 'DG06'), '议题—依据—方案回应—成立条件论证表').filter(block => block.type !== 'text' || !block.content.startsWith('本页回答')),
-        ...(conflict === undefined ? [] : [{ type: 'text', role: 'body', content: conflict, contentNature: 'missing' } satisfies SupportingBlock]),
+        { type: 'text', role: 'body', content: `${conclusion}\n\n${implication('recommended-path')}` },
+        { type: 'list', role: 'key_points', listStyle: 'unordered', items: displayPoints(context) },
+        evidenceTable(context),
       ],
-      speakerNotes: [entry.text, ...members.flatMap(details).map(detail => `${detail.text}（${detail.objectId}/${detail.fieldPath}；${detail.basis}）`)],
+      speakerNotes: composeNarration({ title, claim: conclusion, entries: [entry, ...members.filter(member => member.objectId !== 'DG06').flatMap(details)], kind: 'agenda', implication: implication('recommended-path') }),
       assetIds: assetsFor(input, members.map(member => member.objectId)),
     }
   })
@@ -251,19 +232,22 @@ export function compileReportOutline(input: FrozenProjectInput): readonly Report
     if (old.findingId === 'pre-design:decision') {
       members.splice(0, members.length, ...input.stateObjects.filter(object => ['PS02', 'OP07', 'IM02', 'IM06', 'IM07', 'IM08'].includes(object.objectId)).sort((a, b) => a.objectId.localeCompare(b.objectId)))
     }
-    const question = old.findingId === 'pre-design:decision' ? '本轮需确认哪些建议、成立条件和后续补证事项？' : `${old.title}形成了哪些判断，它们之间怎样关联，哪些依据和条件还需展开？`
     const conflict = ['pre-design:delivery', 'pre-design:decision'].includes(old.findingId) ? investmentConflict(input.stateObjects) : undefined
-    const keyMessage = conflict ?? `汇总${members.map(member => member.title).join('、')}，形成${old.title}的论证主线；具体依据、条件和测算见后续专题页。`
+    const context = synthesisContext(members)
+    const keyMessage = conflict ?? pageClaim(members.flatMap(details), old.title)
+    const scope = old.findingId === 'pre-design:decision' ? 'recommended-path' : old.findingId === 'pre-design:delivery' ? 'funding-finance' : 'mandate'
+    const decisions = distinct(input.decisionItems.map(audienceText)).filter(value => !/成果版本|Revision|Gate|R\d/u.test(value))
+    const conclusion = `${keyMessage}\n\n${implication(scope)}${old.findingId === 'pre-design:decision' && decisions.length > 0 ? `\n\n待决事项：${decisions.join('；')}` : ''}`
     findings.push({
       ...old, title: `${old.title}：综合研判`, keyMessage,
       contentNature: conflict === undefined ? 'professional_judgement' : 'missing',
       objectIds: members.map(member => member.objectId), evidenceIds: evidenceIds(members.flatMap(details)),
       sectionKey: `${old.findingId}:overview`, sectionTitle: `${old.title}综述`, sectionOrder: old.order < 40 ? old.order / 10 : 0,
       supportingBlocks: [
-        ...synthesisBlocks(question, members, '相关成果综合对照表', `${keyMessage}${old.findingId !== 'pre-design:decision' ? '' : `\n待决事项${conflict === undefined ? '' : '（须先处理上述核对项）'}：${input.decisionItems.join('；')}`}`),
-        ...(old.findingId !== 'pre-design:decision' ? [] : [{ type: 'list', role: 'steps', listStyle: 'ordered', items: distinct(input.decisionItems) } satisfies SupportingBlock]).filter(block => block.type !== 'list' || block.items.length > 0),
+        ...synthesisBlocks(members, conclusion),
       ],
-      speakerNotes: [question, ...members.flatMap(member => [member.summary, ...details(member).map(entry => `${entry.text}（依据：${entry.basis}；${member.objectId}/${entry.fieldPath}）`)])],
+      speakerNotes: composeNarration({ title: old.title, claim: keyMessage, entries: members.flatMap(details), kind: 'overview', implication: implication(scope) }),
+      assetIds: assetsFor(input, members.map(member => member.objectId)),
     })
   }
   for (const [index, section] of SECTIONS.entries()) findings.push(...detailPages(input, section, 10 + index))
@@ -280,11 +264,9 @@ export function compileReportOutline(input: FrozenProjectInput): readonly Report
       contentNature: conflict === undefined ? 'professional_judgement' : 'missing',
       objectIds: members.map(member => member.objectId), evidenceIds: evidenceIds(members.flatMap(details)),
       supportingBlocks: [
-        ...synthesisBlocks(analysis.question, members, analysis.visual, `${analysis.claim}${conflict === undefined ? '' : `\n\n${conflict}`}`),
-        { type: 'text', role: 'body', content: `论证要求：${analysis.claim}`, contentNature: 'professional_judgement' },
-        ...(conflict === undefined ? [] : [{ type: 'text', role: 'body', content: conflict, contentNature: 'missing' } satisfies SupportingBlock]),
+        ...synthesisBlocks(members, `${conflict === undefined ? '' : `${conflict}\n\n`}${analysis.claim}`),
       ],
-      speakerNotes: [analysis.question, analysis.claim, ...(conflict === undefined ? [] : [conflict]), ...members.flatMap(member => details(member).map(entry => `${entry.text}（${member.objectId}/${entry.fieldPath}；依据：${entry.basis}）`))],
+      speakerNotes: composeNarration({ title: analysis.title, claim: conflict ?? analysis.claim, entries: members.flatMap(details), kind: 'analysis', implication: analysis.claim }),
       assetIds: assetsFor(input, members.map(member => member.objectId)),
     })
   }
@@ -295,6 +277,13 @@ export function compileReportOutline(input: FrozenProjectInput): readonly Report
     findings.push(...detailPages(input, { key: `additional:${id}`, topic: 'project_brief', title: object.title, question: '本项补充成果对项目判断和汇报有哪些影响？', objects: [id], visual: '补充成果及其依据对照表' }, 90))
   }
   const topicOrder = new Map<string, number>(DEFAULT_PRESENTATION_TOPICS.map(topic => [topic.key, topic.order]))
-  return findings.sort((a, b) => (topicOrder.get(a.topicKey) ?? 0) - (topicOrder.get(b.topicKey) ?? 0)
+  const ordered = findings.sort((a, b) => (topicOrder.get(a.topicKey) ?? 0) - (topicOrder.get(b.topicKey) ?? 0)
     || a.sectionOrder - b.sectionOrder || a.sectionKey.localeCompare(b.sectionKey) || a.order - b.order || a.findingId.localeCompare(b.findingId))
+  return ordered.map((finding, index) => {
+    const next = ordered[index + 1]
+    const transition = next === undefined ? '在此基础上，后续推进仍以前述关键条件得到核实和确认作为前提。'
+      : next.sectionKey === finding.sectionKey ? `在此基础上，进一步看${next.title.split('：').at(-1)}。`
+        : `接下来转向${next.sectionTitle}，进一步讨论与之相关的项目条件和安排。`
+    return { ...finding, speakerNotes: [...finding.speakerNotes ?? [], transition] }
+  })
 }

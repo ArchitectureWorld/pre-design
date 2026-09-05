@@ -23,6 +23,13 @@ function status(presentation: NonNullable<PreplanningStatusEventData['presentati
 }
 
 describe('Presentation continuous-sync status', () => {
+  it('shows material warnings even after a successful synchronization', () => {
+    const view = render(<PreplanningDashboard status={status({
+      state: 'synced', currentRevision: 11, syncedRevision: 11,
+      message: '资料“现场视频”原件未找到；尚未进入项目及当页素材库',
+    })} />)
+    expect(view.getByText('资料提示：资料“现场视频”原件未找到；尚未进入项目及当页素材库')).toBeTruthy()
+  })
   it('shows the synchronized Revision', () => {
     const view = render(<PreplanningDashboard status={status({
       state: 'synced', currentRevision: 11, syncedRevision: 11,
