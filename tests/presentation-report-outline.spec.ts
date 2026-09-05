@@ -72,6 +72,11 @@ describe('formal report outline compilation', () => {
     expect(JSON.stringify(check?.supportingBlocks)).toContain('44200')
     expect(JSON.stringify(check?.supportingBlocks)).toContain('28500')
     expect(JSON.stringify(check?.supportingBlocks)).toContain('不等于资金已落实')
+    // Studio edits the first body and list: critical conclusions must not live only in later text/table blocks.
+    const body = check?.supportingBlocks.find(block => block.type === 'text' && block.role === 'body')
+    expect(body?.type === 'text' ? body.content : '').toContain('投资口径待核对')
+    const points = check?.supportingBlocks.find(block => block.type === 'list')
+    expect(points?.type === 'list' ? points.items.length : 0).toBeGreaterThan(1)
   })
 
   it('turns the project own priority agenda into named cross-result report pages', () => {

@@ -152,7 +152,7 @@ function detailPages(input: FrozenProjectInput, section: EditorialSection, secti
       order: LENSES.indexOf(lens) * 10000 + pageIndex,
       title, keyMessage, contentNature: lens.key === 'conditions' ? 'assumption' : 'professional_judgement', objectIds, evidenceIds: evidenceIds(entries),
       supportingBlocks: [
-        { type: 'text', role: 'body', content: `本页回答：${section.question}` },
+        { type: 'text', role: 'body', content: `本页回答：${section.question}\n\n编写主线：${keyMessage}${conflict === undefined ? '' : `\n\n${conflict}`}` },
         ...(conflict === undefined ? [] : [{ type: 'text', role: 'body', content: conflict, contentNature: 'missing' } satisfies SupportingBlock]),
         { type: 'heading', role: 'section_title', content: '汇报展开要点' },
         { type: 'list', role: 'key_points', listStyle: 'unordered', items: entries.map(bodyText) },
@@ -180,9 +180,14 @@ const ANALYSES: readonly AnalysisDefinition[] = [
   { key: 'delivery-response', topic: 'delivery_model', title: '实施闭环：启动条件、责任与风险回退', question: '工程包是否具备启动条件，谁负责落实，条件变化如何调整？', objects: ['IM01', 'IM03', 'IM04', 'IM05', 'IM07', 'IM08', 'SP08'], visual: '工程包—审批—资金—责任—时序—回退关系表', claim: '将建设时序与资金、审批、征迁和运营责任对照，明确未落实的启动条件以及调整预案。' },
 ]
 
-function synthesisBlocks(question: string, members: readonly FrozenStateObject[], visual: string): SupportingBlock[] {
+function synthesisBlocks(question: string, members: readonly FrozenStateObject[], visual: string, conclusion?: string): SupportingBlock[] {
   return [
-    { type: 'text', role: 'body', content: `本页回答：${question}` },
+    { type: 'text', role: 'body', content: `本页回答：${question}${conclusion === undefined ? '' : `\n\n核心判断与论证要求：${conclusion}`}` },
+    // Studio's current editor exposes the first body/list; tables remain canonical supporting detail.
+    { type: 'list', role: 'key_points', listStyle: 'unordered', items: members.map(member => {
+      const points = details(member).filter(entry => bodyText(entry).trim() !== '').slice(0, 2).map(bodyText)
+      return `${member.title}：${member.summary}${points.length === 0 ? '' : `\n支撑内容：${points.join('；')}`}`
+    }) },
     { type: 'table', role: 'comparison', columns: ['论证环节', '已有成果提出的判断', '支撑要点与限定条件'], rows: members.map(member => [
       member.title, member.summary, details(member).map(entry => entry.text).slice(0, 2).join('；') || '尚缺展开依据，需补证',
     ]) },
@@ -221,7 +226,7 @@ function agendaPages(input: FrozenProjectInput): ReportOutlineFinding[] {
       order, title, keyMessage: conflict ?? statement, contentNature: conflict === undefined ? 'professional_judgement' : 'missing',
       objectIds: members.map(member => member.objectId), evidenceIds: evidenceIds([entry, ...members.flatMap(details)]),
       supportingBlocks: [
-        { type: 'text', role: 'body', content: `本页回答：${question}` },
+        { type: 'text', role: 'body', content: `本页回答：${question}\n\n议题内容：${statement}${conflict === undefined ? '' : `\n\n${conflict}`}` },
         { type: 'text', role: 'body', content: `议题内容：${statement}` },
         ...synthesisBlocks(question, members.filter(member => member.objectId !== 'DG06'), '议题—依据—方案回应—成立条件论证表').filter(block => block.type !== 'text' || !block.content.startsWith('本页回答')),
         ...(conflict === undefined ? [] : [{ type: 'text', role: 'body', content: conflict, contentNature: 'missing' } satisfies SupportingBlock]),
@@ -244,17 +249,18 @@ export function compileReportOutline(input: FrozenProjectInput): readonly Report
       if (cost !== undefined) members.push(cost)
     }
     if (old.findingId === 'pre-design:decision') {
-      members.splice(0, members.length, ...input.stateObjects.filter(object => ['PS02', 'OP07', 'IM02', 'IM07', 'IM08'].includes(object.objectId)).sort((a, b) => a.objectId.localeCompare(b.objectId)))
+      members.splice(0, members.length, ...input.stateObjects.filter(object => ['PS02', 'OP07', 'IM02', 'IM06', 'IM07', 'IM08'].includes(object.objectId)).sort((a, b) => a.objectId.localeCompare(b.objectId)))
     }
     const question = old.findingId === 'pre-design:decision' ? '本轮需确认哪些建议、成立条件和后续补证事项？' : `${old.title}形成了哪些判断，它们之间怎样关联，哪些依据和条件还需展开？`
-    const conflict = old.findingId === 'pre-design:delivery' ? investmentConflict(members) : undefined
+    const conflict = ['pre-design:delivery', 'pre-design:decision'].includes(old.findingId) ? investmentConflict(input.stateObjects) : undefined
+    const keyMessage = conflict ?? `汇总${members.map(member => member.title).join('、')}，形成${old.title}的论证主线；具体依据、条件和测算见后续专题页。`
     findings.push({
-      ...old, title: `${old.title}：综合研判`, keyMessage: conflict ?? `汇总${members.map(member => member.title).join('、')}，形成${old.title}的论证主线；具体依据、条件和测算见后续专题页。`,
+      ...old, title: `${old.title}：综合研判`, keyMessage,
       contentNature: conflict === undefined ? 'professional_judgement' : 'missing',
       objectIds: members.map(member => member.objectId), evidenceIds: evidenceIds(members.flatMap(details)),
       sectionKey: `${old.findingId}:overview`, sectionTitle: `${old.title}综述`, sectionOrder: old.order < 40 ? old.order / 10 : 0,
       supportingBlocks: [
-        ...synthesisBlocks(question, members, '相关成果综合对照表'),
+        ...synthesisBlocks(question, members, '相关成果综合对照表', `${keyMessage}${old.findingId !== 'pre-design:decision' ? '' : `\n待决事项${conflict === undefined ? '' : '（须先处理上述核对项）'}：${input.decisionItems.join('；')}`}`),
         ...(old.findingId !== 'pre-design:decision' ? [] : [{ type: 'list', role: 'steps', listStyle: 'ordered', items: distinct(input.decisionItems) } satisfies SupportingBlock]).filter(block => block.type !== 'list' || block.items.length > 0),
       ],
       speakerNotes: [question, ...members.flatMap(member => [member.summary, ...details(member).map(entry => `${entry.text}（依据：${entry.basis}；${member.objectId}/${entry.fieldPath}）`)])],
@@ -274,7 +280,7 @@ export function compileReportOutline(input: FrozenProjectInput): readonly Report
       contentNature: conflict === undefined ? 'professional_judgement' : 'missing',
       objectIds: members.map(member => member.objectId), evidenceIds: evidenceIds(members.flatMap(details)),
       supportingBlocks: [
-        ...synthesisBlocks(analysis.question, members, analysis.visual),
+        ...synthesisBlocks(analysis.question, members, analysis.visual, `${analysis.claim}${conflict === undefined ? '' : `\n\n${conflict}`}`),
         { type: 'text', role: 'body', content: `论证要求：${analysis.claim}`, contentNature: 'professional_judgement' },
         ...(conflict === undefined ? [] : [{ type: 'text', role: 'body', content: conflict, contentNature: 'missing' } satisfies SupportingBlock]),
       ],
