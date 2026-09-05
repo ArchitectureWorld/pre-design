@@ -1,0 +1,61 @@
+name: Materialize Shared Workspace Safety
+
+on:
+  push:
+    branches:
+      - feat/pre-v2.0.0
+    paths:
+      - 'scripts/patch-shared-workspace-safety.mjs'
+      - '.github/workflows/materialize-shared-workspace-safety.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: materialize-shared-workspace-safety
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout current branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/pre-v2.0.0
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+
+      - name: Set up Node.js 24.11.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.11.0
+          cache: pnpm
+
+      - name: Apply deterministic patch
+        run: node scripts/patch-shared-workspace-safety.mjs
+
+      - name: Remove one-time patch script
+        run: rm scripts/patch-shared-workspace-safety.mjs
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify Workspace safety tests
+        run: pnpm test:workspace-safety
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Commit implementation to existing branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/presentation/workspace-project-writer.ts src/presentation/workspace-write-transaction.ts tests/helpers/shared-workspace-fixture.ts scripts/patch-shared-workspace-safety.mjs
+          git commit -m "fix: preserve external shared Workspace assets and transaction ownership"
+          git push origin HEAD:feat/pre-v2.0.0
