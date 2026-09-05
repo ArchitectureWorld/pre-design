@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { join, resolve } from 'node:path'
+import type { ProjectId } from '@architectureworld/presentation-contracts'
 import type { FrozenProjectInput } from '../report/types.ts'
 import { PresentationBindingRepository } from './binding-repository.ts'
 import { normalizeProjectSlug } from './path-policy.ts'
@@ -14,9 +15,12 @@ import type {
   PresentationStandardProjectPublishResult,
 } from './standard-project-types.ts'
 import { publishPresentationStandardProject } from './standard-project-writer.ts'
+import { readWorkspaceProjectId } from './workspace-project-identity.ts'
 import { publishPresentationStandardProjectIntoWorkspace } from './workspace-project-writer.ts'
+import { recoverPresentationWorkspaceTransaction } from './workspace-write-transaction.ts'
 import {
   createAwaitingPresentationBinding,
+  type PresentationDirectoryState,
   type PresentationProjectBindingRecord,
 } from './types.ts'
 
@@ -28,6 +32,23 @@ export interface PresentationStandardProjectServiceOptions {
 
 export type PresentationStandardProjectServiceResult = PresentationStandardProjectPublishResult & {
   readonly stableIds: Readonly<Record<string, string>>
+}
+
+const RECOVERABLE_BINDING_STATES: readonly PresentationDirectoryState[] = [
+  'awaiting_contract', 'creating', 'ready', 'recovery_required',
+]
+
+function projectIdConflict(
+  workspaceRoot: string,
+  workspaceProjectId: string,
+  boundProjectId: string,
+): PresentationStandardProjectError {
+  return new PresentationStandardProjectError(
+    'PROJECT_ID_CONFLICT',
+    'preflight',
+    `Workspace projectId '${workspaceProjectId}' conflicts with bound projectId '${boundProjectId}'`,
+    { workspaceRoot, workspaceProjectId, boundProjectId },
+  )
 }
 
 export class PresentationStandardProjectService {
@@ -44,6 +65,21 @@ export class PresentationStandardProjectService {
 
   findByPreDesignProjectId(preDesignProjectId: string): PresentationProjectBindingRecord | undefined {
     return this.options.bindings.read(preDesignProjectId)
+  }
+
+  async recoverBoundWorkspaces(): Promise<number> {
+    const roots = new Set<string>()
+    for (const state of RECOVERABLE_BINDING_STATES) {
+      for (const binding of this.options.bindings.listByState(state)) {
+        if (binding.workspaceRoot !== undefined) roots.add(resolve(binding.workspaceRoot))
+      }
+    }
+    let recovered = 0
+    for (const workspaceRoot of [...roots].sort((left, right) => left.localeCompare(right))) {
+      const result = await recoverPresentationWorkspaceTransaction(workspaceRoot)
+      if (result.status === 'recovered') recovered += 1
+    }
+    return recovered
   }
 
   createProject(
@@ -136,6 +172,18 @@ export class PresentationStandardProjectService {
       )
     }
 
+    const workspaceProjectId = requestedWorkspaceRoot === undefined
+      ? undefined
+      : await readWorkspaceProjectId(requestedWorkspaceRoot)
+    const boundProjectId = existing?.presentationProjectId
+      ?? workspaceOwner?.presentationProjectId
+    if (workspaceProjectId !== undefined
+      && boundProjectId !== undefined
+      && workspaceProjectId !== boundProjectId) {
+      throw projectIdConflict(requestedWorkspaceRoot!, workspaceProjectId, boundProjectId)
+    }
+    const authoritativeProjectId = (workspaceProjectId ?? boundProjectId) as ProjectId | undefined
+
     const createdAt = existing?.createdAt ?? input.createdAt ?? input.frozenProject.generatedAt
     if (existing === undefined && requestedWorkspaceRoot !== undefined) {
       existing = await this.options.bindings.put(createAwaitingPresentationBinding({
@@ -151,7 +199,7 @@ export class PresentationStandardProjectService {
     const build = await buildPresentationStandardProject({
       frozenProject: input.frozenProject,
       projectSlug,
-      presentationProjectId: existing?.presentationProjectId as Parameters<typeof buildPresentationStandardProject>[0]['presentationProjectId'],
+      presentationProjectId: authoritativeProjectId,
       stableIds: existing?.stableIds,
       rules: input.rules,
       sourceMaterials: input.sourceMaterials,

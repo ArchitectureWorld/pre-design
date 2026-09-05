@@ -115,6 +115,10 @@ export interface PresentationStandardProjectWriterHooks {
   readonly beforeValidation?: (stagingDirectory: string) => void | Promise<void>
   readonly beforeCommit?: (stagingDirectory: string, finalDirectory: string) => void | Promise<void>
   readonly afterBackupCreated?: (backupDirectory: string) => void | Promise<void>
+  readonly afterManagedPathCommitted?: (
+    relativePath: string,
+    index: number,
+  ) => void | Promise<void>
 }
 
 export interface PublishPresentationStandardProjectInput {

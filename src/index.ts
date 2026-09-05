@@ -92,6 +92,7 @@ export async function apply(ctx: Context): Promise<void> {
     workspaceRoot: presentationProjectRoot,
     now,
   })
+  await standardProjects.recoverBoundWorkspaces()
   const runtime = new WorkflowRuntime(registry, governance, now)
   const automation = new AutomationService(governance, registry, now)
   const gates = new GateService(registry, governance, runtime, automation, now)
