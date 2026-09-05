@@ -25,7 +25,7 @@ const EXTERNAL_PATHS = [
   'layouts/openpencil/page-a.op',
   'layouts/future-component/unknown.bin',
   'third-party-extension/custom.json',
-  'assets/future-component/unknown.bin',
+  'assets/other/future-component/unknown.bin',
 ] as const
 
 function externalInventory(
@@ -34,7 +34,7 @@ function externalInventory(
   return Object.freeze(Object.fromEntries(Object.entries(snapshot)
     .filter(([path]) => path.startsWith('layouts/')
       || path.startsWith('third-party-extension/')
-      || path.startsWith('assets/future-component/'))
+      || path.startsWith('assets/other/future-component/'))
     .sort(([left], [right]) => left.localeCompare(right))))
 }
 

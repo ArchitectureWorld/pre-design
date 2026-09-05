@@ -113,10 +113,39 @@ export async function writePresentationOwnedFixture(root: string): Promise<void>
     '{"extension":"keep-byte-for-byte","revision":7}\n',
     'utf8',
   )
-  await writeFile(
-    join(root, 'assets', 'future-component', 'unknown.bin'),
-    Buffer.from([102, 85, 68, 51, 34, 17, 255, 0]),
-  )
+  const externalAsset = Buffer.from([102, 85, 68, 51, 34, 17, 255, 0])
+  const externalAssetPath = join(root, 'assets', 'other', 'future-component', 'unknown.bin')
+  await mkdir(join(root, 'assets', 'other', 'future-component'), { recursive: true })
+  await writeFile(externalAssetPath, externalAsset)
+  const assetManifestPath = join(root, 'assets', 'manifest.json')
+  const assetManifest = await readJson<{
+    projectId: string
+    assets: Record<string, unknown>[]
+  }>(assetManifestPath)
+  assetManifest.assets.push({
+    assetId: 'asset_00000000-0000-7000-8000-000000000099',
+    displayName: 'Report Studio future component fixture',
+    mediaType: 'other',
+    category: 'other',
+    semanticRole: 'report_studio_future_component',
+    relativePath: 'assets/other/future-component/unknown.bin',
+    mimeType: 'application/octet-stream',
+    sizeBytes: externalAsset.byteLength,
+    sha256: createHash('sha256').update(externalAsset).digest('hex'),
+    metadata: {},
+    adoptionStatus: 'adopted',
+    origin: {
+      type: 'human_added',
+      sourceMaterialIds: [],
+      parentAssetIds: [],
+      method: 'created by Presentation/Report Studio compatibility fixture',
+      sourceTool: { name: 'report-studio', version: '0.2.0-beta.1' },
+    },
+    createdAt: FIXED_CREATED_AT,
+    adoptedAt: FIXED_CREATED_AT,
+    retiredAt: null,
+  })
+  await writeJson(assetManifestPath, assetManifest)
 }
 
 export interface FileSnapshot {

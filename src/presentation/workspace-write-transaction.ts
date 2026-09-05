@@ -282,6 +282,14 @@ export async function recoverPresentationWorkspaceTransaction(
     )
   }
 
+  if (owner === undefined && journal === undefined) {
+    throw new PresentationStandardProjectError(
+      'WORKSPACE_RECOVERY_FAILED',
+      'cleanup',
+      'existing transaction directory is not owned by pre-design; refusing to claim or delete it',
+      { transactionRoot },
+    )
+  }
   if (journal?.phase === 'validated') {
     await rm(transactionRoot, { recursive: true, force: true })
     return Object.freeze({ status: 'recovered', operationId: journal.operationId })
