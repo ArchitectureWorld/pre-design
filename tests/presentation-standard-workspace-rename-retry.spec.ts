@@ -20,7 +20,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
         renameFailure.targetCalls += 1
         if (renameFailure.failuresRemaining > 0) {
           renameFailure.failuresRemaining -= 1
-          throw Object.assign(new Error('simulated transient Windows directory lock'), {
+          throw Object.assign(new Error('simulated transient Windows file lock'), {
             code: 'EPERM',
             syscall: 'rename',
             path: oldPath,
@@ -66,7 +66,7 @@ afterEach(async () => {
 })
 
 describe('Presentation standard project Workspace commit retries', () => {
-  it('retries a transient EPERM while replacing the managed page manifest', async () => {
+  it('retries a transient EPERM while replacing one exact Pre-managed file', async () => {
     const root = await mkdtemp(join(tmpdir(), 'pre-design-workspace-retry-'))
     roots.push(root)
     await mkdir(join(root, 'layouts'), { recursive: true })
@@ -85,6 +85,7 @@ describe('Presentation standard project Workspace commit retries', () => {
     const updatedBuild = await buildPresentationStandardProject({
       frozenProject: frozenProject(4, '武汉站综合枢纽更新版'),
       projectSlug: 'wuhan-station',
+      stableIds: initialBuild.stableIds,
     })
     renameFailure.target = join(root, 'pages', 'manifest.json')
     renameFailure.failuresRemaining = 1
@@ -98,6 +99,7 @@ describe('Presentation standard project Workspace commit retries', () => {
 
     expect(renameFailure.targetCalls).toBe(2)
     expect(JSON.parse(await readFile(join(root, 'project.json'), 'utf8'))).toMatchObject({
+      projectId: initialBuild.projectId,
       name: '武汉站综合枢纽更新版',
     })
     await expect(readFile(join(root, 'layouts', 'human-owned.json'), 'utf8')).resolves.toBe('{}\n')
