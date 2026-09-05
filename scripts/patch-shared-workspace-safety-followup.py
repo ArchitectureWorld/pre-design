@@ -20,6 +20,16 @@ replace(
     "relativePath: 'assets/other/future-component/unknown.bin'",
 )
 replace(
+    "tests/helpers/shared-workspace-fixture.ts",
+    """  const externalAssetPath = join(root, 'assets', 'other', 'future-component', 'unknown.bin')
+  await writeFile(externalAssetPath, externalAsset)
+""",
+    """  const externalAssetPath = join(root, 'assets', 'other', 'future-component', 'unknown.bin')
+  await mkdir(join(root, 'assets', 'other', 'future-component'), { recursive: true })
+  await writeFile(externalAssetPath, externalAsset)
+""",
+)
+replace(
     "tests/presentation-workspace-ownership.spec.ts",
     "'assets/future-component/unknown.bin'",
     "'assets/other/future-component/unknown.bin'",
