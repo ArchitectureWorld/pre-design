@@ -12,9 +12,11 @@ import {
   expectContractValid,
   mtimeNanoseconds,
   readJson,
+  snapshotFiles,
   snapshotSelectedFiles,
   writeJson,
   writePresentationOwnedFixture,
+  type FileSnapshot,
 } from './helpers/shared-workspace-fixture.ts'
 
 const EXTERNAL_PATHS = [
@@ -23,7 +25,18 @@ const EXTERNAL_PATHS = [
   'layouts/openpencil/page-a.op',
   'layouts/future-component/unknown.bin',
   'third-party-extension/custom.json',
+  'assets/future-component/unknown.bin',
 ] as const
+
+function externalInventory(
+  snapshot: Readonly<Record<string, FileSnapshot>>,
+): Readonly<Record<string, FileSnapshot>> {
+  return Object.freeze(Object.fromEntries(Object.entries(snapshot)
+    .filter(([path]) => path.startsWith('layouts/')
+      || path.startsWith('third-party-extension/')
+      || path.startsWith('assets/future-component/'))
+    .sort(([left], [right]) => left.localeCompare(right))))
+}
 
 afterEach(cleanupSharedWorkspaces)
 
@@ -47,6 +60,7 @@ describe('shared Workspace file ownership', () => {
     })
     await writePresentationOwnedFixture(root)
     const externalBefore = await snapshotSelectedFiles(root, EXTERNAL_PATHS)
+    const externalTreeBefore = externalInventory(await snapshotFiles(root))
     const projectIdBefore = (await readJson<{ projectId: string }>(join(root, 'project.json'))).projectId
 
     const updatedBuild = await buildSharedProject({
@@ -62,6 +76,7 @@ describe('shared Workspace file ownership', () => {
     })
 
     expect(await snapshotSelectedFiles(root, EXTERNAL_PATHS)).toEqual(externalBefore)
+    expect(externalInventory(await snapshotFiles(root))).toEqual(externalTreeBefore)
     expect((await readJson<{ projectId: string }>(join(root, 'project.json'))).projectId)
       .toBe(projectIdBefore)
     expect(updated.projectId).toBe(projectIdBefore)
@@ -81,6 +96,7 @@ describe('shared Workspace file ownership', () => {
 
     const projectId = (await readJson<{ projectId: string }>(join(root, 'project.json'))).projectId
     const externalBefore = await snapshotSelectedFiles(root, EXTERNAL_PATHS)
+    const externalTreeBefore = externalInventory(await snapshotFiles(root))
     const rulesPath = join(root, 'rules.json')
     const rulesMtimeBefore = await mtimeNanoseconds(rulesPath)
     await delay(1100)
@@ -100,6 +116,7 @@ describe('shared Workspace file ownership', () => {
       expect((await readJson<{ projectId: string }>(join(root, 'project.json'))).projectId)
         .toBe(projectId)
       expect(await snapshotSelectedFiles(root, EXTERNAL_PATHS)).toEqual(externalBefore)
+      expect(externalInventory(await snapshotFiles(root))).toEqual(externalTreeBefore)
       await expectContractValid(root)
     }
 

@@ -1,4 +1,4 @@
-import { lstat, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
@@ -114,6 +114,29 @@ describe('shared Workspace write transaction', () => {
     expect((await readJson<{ projectId: string }>(join(root, 'project.json'))).projectId)
       .toBe(build.projectId)
     await expectContractValid(root)
+  })
+
+  it('does not claim or delete an unrelated sibling directory that collides with the transaction name', async () => {
+    const root = await createSharedWorkspace()
+    const transactionRoot = workspaceTransactionDirectory(root)
+    const markerPath = join(transactionRoot, 'external-owner.txt')
+    const marker = Buffer.from('not-owned-by-pre-design\n', 'utf8')
+    await mkdir(transactionRoot)
+    await writeFile(markerPath, marker)
+    const workspaceBefore = await snapshotFiles(root)
+    const build = await buildSharedProject({ revision: 1, summary: '所有权冲突。' })
+
+    try {
+      await expect(publishPresentationStandardProjectIntoWorkspace({
+        directoryRoot: root,
+        build,
+        operationId: 'unowned-transaction-collision',
+      })).rejects.toMatchObject({ code: 'WORKSPACE_RECOVERY_FAILED' })
+      expect(await readFile(markerPath)).toEqual(marker)
+      expect(await snapshotFiles(root)).toEqual(workspaceBefore)
+    } finally {
+      await rm(transactionRoot, { recursive: true, force: true })
+    }
   })
 
   it('allows one writer and rejects a concurrent writer with WORKSPACE_WRITE_LOCKED', async () => {

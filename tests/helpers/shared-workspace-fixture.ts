@@ -88,6 +88,7 @@ export async function writePresentationOwnedFixture(root: string): Promise<void>
   await mkdir(join(root, 'layouts', 'openpencil'), { recursive: true })
   await mkdir(join(root, 'layouts', 'future-component'), { recursive: true })
   await mkdir(join(root, 'third-party-extension'), { recursive: true })
+  await mkdir(join(root, 'assets', 'future-component'), { recursive: true })
   await writeFile(
     join(root, 'layouts', 'manifest.json'),
     '{"owner":"presentation","version":"0.2.0-beta.1"}\n',
@@ -111,6 +112,10 @@ export async function writePresentationOwnedFixture(root: string): Promise<void>
     join(root, 'third-party-extension', 'custom.json'),
     '{"extension":"keep-byte-for-byte","revision":7}\n',
     'utf8',
+  )
+  await writeFile(
+    join(root, 'assets', 'future-component', 'unknown.bin'),
+    Buffer.from([102, 85, 68, 51, 34, 17, 255, 0]),
   )
 }
 
