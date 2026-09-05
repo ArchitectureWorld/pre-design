@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -10,6 +11,9 @@ const artifact = await readJson(lock.installation.artifactMetadataPath)
 const packageJson = await readJson('package.json')
 const lockfile = await readFile(path.join(root, 'pnpm-lock.yaml'), 'utf8')
 const tarball = path.join(root, ...lock.installation.tarballPath.split('/'))
+const require = createRequire(import.meta.url)
+const contractPackageJsonPath = require.resolve(`${lock.packageName}/package.json`)
+const contractPackageJson = JSON.parse(await readFile(contractPackageJsonPath, 'utf8'))
 
 function requireCondition(condition, message) {
   if (!condition) throw new Error(`PRESENTATION_CONTRACT_LOCK_INVALID: ${message}`)
@@ -18,6 +22,23 @@ function requireCondition(condition, message) {
 async function digestFile(filePath, algorithm, encoding = 'hex') {
   return createHash(algorithm).update(await readFile(filePath)).digest(encoding)
 }
+
+function minimumNodeVersion(range) {
+  const match = /^>=(\d+)(?:\.(\d+))?(?:\.(\d+))?$/u.exec(String(range).trim())
+  if (match === null) return undefined
+  return [Number(match[1]), Number(match[2] ?? 0), Number(match[3] ?? 0)]
+}
+
+function versionAtLeast(candidate, required) {
+  for (let index = 0; index < 3; index += 1) {
+    if (candidate[index] > required[index]) return true
+    if (candidate[index] < required[index]) return false
+  }
+  return true
+}
+
+const preNodeMinimum = minimumNodeVersion(packageJson.engines?.node)
+const contractNodeMinimum = minimumNodeVersion(contractPackageJson.engines?.node)
 
 requireCondition(lock.standardName === 'Presentation Standard Project Directory', 'standard name mismatch')
 requireCondition(lock.standardVersion === '0.1.0', 'standard version mismatch')
@@ -32,7 +53,14 @@ requireCondition(lock.schemaAuthorityExclusions.includes('feat/report-studio-v0.
 
 requireCondition(packageJson.name === '@architectureworld/dsh-preplanning-agent', 'pre-design package identity mismatch')
 requireCondition(packageJson.version === '2.0.0', 'pre-design product version must be 2.0.0')
-requireCondition(packageJson.engines?.node === '>=22.0.0', 'Node.js engine must satisfy the Contract package')
+requireCondition(preNodeMinimum !== undefined, 'pre-design Node.js engine must be a minimum range')
+requireCondition(contractNodeMinimum !== undefined, 'Contract Node.js engine must be a minimum range')
+requireCondition(
+  preNodeMinimum !== undefined
+    && contractNodeMinimum !== undefined
+    && versionAtLeast(preNodeMinimum, contractNodeMinimum),
+  `Node.js engine ${packageJson.engines?.node} must be at least the Contract requirement ${contractPackageJson.engines?.node}`,
+)
 requireCondition(
   packageJson.devDependencies?.[lock.packageName] === `file:${lock.installation.tarballPath}`,
   'Contract dependency must be the exact packed tarball',
@@ -84,6 +112,8 @@ requireCondition(contract.isStableId('project', plan.projectId), 'Factory projec
 console.log('PRESENTATION_CONTRACT_LOCK_PASS')
 console.log(JSON.stringify({
   preDesignVersion: packageJson.version,
+  preDesignNodeEngine: packageJson.engines.node,
+  contractNodeEngine: contractPackageJson.engines.node,
   standardVersion: lock.standardVersion,
   sourceCommitSHA: lock.sourceCommitSHA,
   schemaSetSha256: lock.schemaSetSha256,
