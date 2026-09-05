@@ -7,26 +7,14 @@ on:
   pull_request:
     paths:
       - 'src/presentation/**'
-      - 'src/runtime/**'
       - 'src/client/**'
-      - 'src/session/**'
-      - 'src/tools/**'
       - 'src/index.ts'
       - 'src/commands/register.ts'
-      - 'tests/helpers/shared-workspace-fixture.ts'
       - 'tests/presentation-standard-*.ts'
       - 'tests/presentation-workspace-*.ts'
-      - 'tests/presentation-auto-sync.spec.ts'
-      - 'tests/presentation-migration-guidance.spec.ts'
-      - 'tests/presentation-sync-status.client.spec.tsx'
-      - 'tests/parallel-workflow-executor.spec.ts'
-      - 'tests/automation-workflow-committer.spec.ts'
-      - 'tests/automatic-gate-after-serial.spec.ts'
-      - 'tests/coordinator-parallel.spec.ts'
       - 'tests/workspace-*.ts'
       - 'tests/workspace-*.tsx'
       - 'tests/direct-start*.ts'
-      - 'tests/host-apply.spec.ts'
       - 'tests/presentation-build-toolchain.spec.ts'
       - 'tests/built-package.spec.ts'
       - 'tests/built-presentation-runtime.spec.ts'
@@ -36,11 +24,11 @@ on:
       - 'scripts/verify-presentation-standard-integration.mjs'
       - 'scripts/verify-alignment-version-consistency.mjs'
       - 'scripts/emit-workspace-compatibility-result.mjs'
+      - 'docs/contracts/**'
+      - 'docs/superpowers/**'
       - 'docs/architecture/**'
       - 'docs/acceptance/**'
       - 'docs/handoff/**'
-      - 'docs/contracts/**'
-      - 'docs/superpowers/**'
       - 'docs/version-matrix.json'
       - 'docs/VERSIONING.md'
       - 'README.md'
@@ -59,39 +47,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  workspace-safety:
-    name: workspace-safety-${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-latest
-          - windows-latest
-    runs-on: ${{ matrix.os }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.15.1
-
-      - name: Set up Node.js 24.11.0
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24.11.0
-          cache: pnpm
-
-      - name: Install exact dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Verify pinned external Contract
-        run: pnpm verify:presentation-contract
-
-      - name: Run shared Workspace safety tests
-        run: pnpm test:workspace-safety
-
   pre-v2-targeted:
     runs-on: ubuntu-latest
     steps:
@@ -127,10 +82,43 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+  workspace-safety:
+    name: workspace-safety-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+
+      - name: Set up Node.js 24.11.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.11.0
+          cache: pnpm
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify pinned external Contract
+        run: pnpm verify:presentation-contract
+
+      - name: Run shared Workspace safety tests
+        run: pnpm test:workspace-safety
+
   full-regression:
     needs:
-      - workspace-safety
       - pre-v2-targeted
+      - workspace-safety
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -160,4 +148,8 @@ jobs:
         run: git diff --check
 
       - name: Verify clean checkout
-        run: git status --short
+        run: |
+          if [ -n "$(git status --short)" ]; then
+            git status --short
+            exit 1
+          fi
