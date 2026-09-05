@@ -374,7 +374,14 @@ describe('createFrozenProjectInput', () => {
       .not.toContainEqual(expect.objectContaining({ label: '财务净现值', value: '1280' }))
     expect(source.stateObjects.find(object => object.objectId === 'IM07')?.summary)
       .toBe('一期示范、二期成型、三期提升')
-    expect(JSON.stringify(source.stateObjects)).not.toMatch(
+    const visibleSource = source.stateObjects.map(({ title, summary, facts, reportSections }) => ({
+      title, summary, facts,
+      reportSections: reportSections?.map(section => ({
+        title: section.title,
+        entries: section.entries.map(({ text, basis, metric }) => ({ text, basis, metric })),
+      })),
+    }))
+    expect(JSON.stringify(visibleSource)).not.toMatch(
       /origin mode|origin_mode|allowed|mandatory level|mandatory_level|level|score|measures|dependencies|mixed|medium|mandatory|OPT-B/iu,
     )
   })

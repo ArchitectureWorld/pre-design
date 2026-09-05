@@ -63,6 +63,31 @@ export interface FrozenStateFact {
   readonly basis: string
 }
 
+export interface FrozenReportEntry {
+  readonly key: string
+  readonly text: string
+  readonly contentText?: string
+  readonly basis: string
+  readonly fieldPath: string
+  readonly evidenceRefs?: readonly {
+    readonly evidenceId: string
+    readonly assetId?: string
+    readonly versionId?: string
+    readonly locator?: Readonly<Record<string, unknown>>
+  }[]
+  readonly metric?: {
+    readonly label: string
+    readonly value: string | number
+    readonly unit?: string
+  }
+}
+
+export interface FrozenReportSection {
+  readonly key: string
+  readonly title: string
+  readonly entries: readonly FrozenReportEntry[]
+}
+
 export interface FrozenStateObject {
   readonly objectId: string
   readonly chapterId: string
@@ -70,6 +95,7 @@ export interface FrozenStateObject {
   readonly title: string
   readonly summary: string
   readonly facts: readonly FrozenStateFact[]
+  readonly reportSections?: readonly FrozenReportSection[]
 }
 
 export type FrozenSiteBoundary =

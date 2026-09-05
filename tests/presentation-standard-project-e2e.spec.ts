@@ -9,6 +9,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { validateProjectDirectoryWithAjv } from '@architectureworld/presentation-contracts'
 import { PresentationBindingRepository } from '../src/presentation/binding-repository.ts'
 import { PresentationStandardProjectService } from '../src/presentation/standard-project-service.ts'
+import { buildPresentationStandardProject } from '../src/presentation/standard-project-adapter.ts'
+import { publishPresentationStandardProject } from '../src/presentation/standard-project-writer.ts'
 import {
   STANDARD_TEST_RULES,
   STANDARD_TEST_TIME,
@@ -55,6 +57,96 @@ afterEach(async () => {
 })
 
 describe('pre-design to Presentation Standard Project end-to-end', () => {
+  it('expands a ten-page two-level directory at the same source revision while retaining old identities', async () => {
+    const { root, bindings } = await openStorage()
+    const workspaceRoot = join(root, 'presentation-projects')
+    const service = new PresentationStandardProjectService({ bindings, workspaceRoot, now: () => STANDARD_TEST_TIME })
+    const source = createStandardFrozenProject()
+    const empty = await service.createProject({
+      preDesignProjectId: source.projectId,
+      projectName: source.projectName,
+      projectSlug: 'campus-renewal-brief',
+      createdAt: STANDARD_TEST_TIME,
+      rules: STANDARD_TEST_RULES,
+    })
+    const emptyBinding = bindings.read(source.projectId)!
+    const fullBuild = await buildPresentationStandardProject({
+      frozenProject: source,
+      rules: STANDARD_TEST_RULES,
+      projectSlug: emptyBinding.projectSlug,
+      presentationProjectId: empty.projectId,
+      stableIds: emptyBinding.stableIds,
+    })
+    const legacyTopics = {
+      'project-brief': 'project_brief', baseline: 'diagnosis', diagnosis: 'diagnosis',
+      opportunity: 'opportunity', positioning: 'positioning', strategy: 'positioning',
+      product: 'program_product', spatial: 'spatial_strategy', delivery: 'delivery_model',
+      decision: 'decision_next_steps',
+    }
+    const allPages = (fullBuild.documents['pages/manifest.json'] as any).pages
+    const allNodes = (fullBuild.documents['outline.json'] as any).nodes
+    const legacyPages = Object.keys(legacyTopics).map((key, order) => {
+      const pageId = fullBuild.stableIds[`page:finding:pre-design:${key}`]
+      return { ...allPages.find((page: any) => page.pageId === pageId), order }
+    })
+    expect(legacyPages).toHaveLength(10)
+    expect(legacyPages.every(page => page.pageId)).toBe(true)
+    const legacyLeafNodes = Object.entries(legacyTopics).map(([key, topic], order) => ({
+      ...allNodes.find((node: any) => node.outlineNodeId === fullBuild.stableIds[`outlineNode:finding:pre-design:${key}`]),
+      parentOutlineNodeId: fullBuild.stableIds[`outlineNode:topic:${topic}`],
+      order,
+    }))
+    const draftPaths = new Set(legacyPages.map(page => page.draftPath))
+    const legacyDocuments = {
+      ...Object.fromEntries(Object.entries(fullBuild.documents).filter(([path]) => !path.startsWith('pages/drafts/') || draftPaths.has(path))),
+      'outline.json': {
+        ...fullBuild.documents['outline.json'] as any,
+        nodes: [...allNodes.filter((node: any) => node.parentOutlineNodeId === null), ...legacyLeafNodes],
+      },
+      'pages/manifest.json': { ...fullBuild.documents['pages/manifest.json'] as any, pages: legacyPages },
+    }
+    const serializedLegacy = JSON.stringify(legacyDocuments)
+    const legacyIds = Object.fromEntries(Object.entries(fullBuild.stableIds).filter(([, id]) => serializedLegacy.includes(id)))
+    const legacy = await publishPresentationStandardProject({
+      workspaceRoot,
+      build: { ...fullBuild, documents: legacyDocuments, stableIds: legacyIds },
+      operationId: 'seed-legacy-two-level-directory',
+      expectedExistingFileHashes: emptyBinding.lastExportedFileHashes,
+    })
+    await bindings.put({
+      ...emptyBinding,
+      stableIds: legacyIds,
+      lastExportedPreDesignRevision: source.revision,
+      lastExportedObjectHashes: fullBuild.semanticObjectHashes,
+      lastExportedFileHashes: legacy.fileHashes,
+    })
+
+    const expanded = await service.exportProject({ frozenProject: source, rules: STANDARD_TEST_RULES })
+    expect(expanded.validation.valid).toBe(true)
+    expect(expanded.directoryRoot).toBe(legacy.directoryRoot)
+    const expandedBinding = bindings.read(source.projectId)!
+    expect(expandedBinding.lastExportedPreDesignRevision).toBe(source.revision)
+    const expandedManifest = JSON.parse(await readFile(join(expanded.directoryRoot, 'pages/manifest.json'), 'utf8'))
+    expect(expandedManifest.pages.length).toBeGreaterThan(10)
+    for (const oldPage of legacyPages) {
+      expect(expandedManifest.pages).toContainEqual(expect.objectContaining({
+        pageId: oldPage.pageId, outlineNodeId: oldPage.outlineNodeId, draftPath: oldPage.draftPath, titleBlockId: oldPage.titleBlockId,
+      }))
+    }
+    for (const [key, id] of Object.entries(legacyIds)) expect(expanded.stableIds[key]).toBe(id)
+    const repeated = await service.exportProject({ frozenProject: source, rules: STANDARD_TEST_RULES })
+    expect(repeated.stableIds).toEqual(expanded.stableIds)
+    expect(bindings.read(source.projectId)!.lastExportedFileHashes).toEqual(expandedBinding.lastExportedFileHashes)
+
+    const editedPath = join(expanded.directoryRoot, legacyPages[0]!.draftPath)
+    const editedDraft = JSON.parse(await readFile(editedPath, 'utf8'))
+    editedDraft.contentBlocks.find((block: any) => block.role === 'page_title').content = '用户手动修改的专题综合判断'
+    await writeFile(editedPath, `${JSON.stringify(editedDraft, null, 2)}\n`)
+    await expect(service.exportProject({ frozenProject: source, rules: STANDARD_TEST_RULES }))
+      .rejects.toMatchObject({ code: 'PRESENTATION_EXTERNAL_CHANGE_REVIEW_REQUIRED' })
+    expect(await readFile(editedPath, 'utf8')).toContain('用户手动修改的专题综合判断')
+  })
+
   it('creates an empty legal directory, fills it, validates it and preserves stable IDs across restart', async () => {
     const { root, ctx, bindings } = await openStorage()
     const workspaceRoot = join(root, 'presentation-projects')

@@ -9,6 +9,7 @@ import type { ProjectRepository } from '../state/repository.ts'
 import type { VisualAssetStore } from '../visual/asset-store.ts'
 import type { ClientProjectProfile } from './client-types.ts'
 import { createDefaultClientProjectProfile } from './default-profile.ts'
+import { createFrozenReportSections, reportReferenceNames } from './report-content.ts'
 import type { FrozenProjectInput, FrozenSiteBoundary, FrozenStateFact, FrozenStateObject, ReportAsset } from './types.ts'
 
 export interface ReportSourceDependencies {
@@ -394,6 +395,8 @@ export function createFrozenProjectInput(
   const snapshot = dependencies.repository.readProjectRevision(projectId, revision)
   const governed = dependencies.governance.readProject(projectId)
   const descriptors = new Map(dependencies.registry.workflows().map(workflow => [workflow.targetObjectId, workflow]))
+  const references = reportReferenceNames(snapshot.stateSnapshot,
+    new Map([...descriptors].map(([objectId, descriptor]) => [objectId, descriptor.title])))
   const stateObjects: FrozenStateObject[] = Object.entries(snapshot.stateSnapshot)
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([objectId, value]) => {
@@ -409,6 +412,7 @@ export function createFrozenProjectInput(
         title,
         summary,
         facts,
+        reportSections: createFrozenReportSections(record, title, CLIENT_FACT_LABELS, references),
       }
     })
   const recommendation = stateObjects

@@ -52,9 +52,9 @@ import type {
   PresentationStandardProjectBuild,
   PresentationStandardProjectBuildInput,
 } from './standard-project-types.ts'
-import { adaptFrozenProjectToPresentationFindings } from './projector/frozen-project-adapter.ts'
+import { compileReportOutline } from './projector/report-outline.ts'
 import { DEFAULT_PRESENTATION_TOPICS } from './projector/topics.ts'
-import type { ProfessionalFinding } from './projector/types.ts'
+import type { ProfessionalFinding, SupportingBlock } from './projector/types.ts'
 
 const RULES_KEY = 'document:rules'
 const OUTLINE_KEY = 'document:outline'
@@ -200,6 +200,7 @@ function sourceSnapshot(
       title: object.title,
       summary: object.summary,
       facts: object.facts,
+      ...(object.reportSections === undefined ? {} : { reportSections: object.reportSections }),
     }))
     .sort((left, right) => left.objectId.localeCompare(right.objectId))
   return sha256CanonicalJson({
@@ -465,28 +466,91 @@ async function buildAssets(
   }
 }
 
-function findingMembers(
+function supportingContentBlocks(
   finding: ProfessionalFinding,
-  objects: ReadonlyMap<string, FrozenStateObject>,
-): readonly FrozenStateObject[] {
-  return finding.objectIds.map(objectId => {
-    const object = objects.get(objectId)
-    if (object === undefined) fail('PRESENTATION_FINDING_SOURCE_MISSING', `finding '${finding.findingId}' references unknown object '${objectId}'`)
-    return object
+  refs: SourceRef[],
+  ledger: PresentationStableIdLedger,
+): DraftContentBlock[] {
+  const prefix = `finding:${normalizeString(finding.findingId, 'finding.findingId')}`
+  const occurrences = new Map<string, number>()
+  const firstType = new Set<SupportingBlock['type']>()
+  return finding.supportingBlocks.flatMap((block, index): DraftContentBlock[] => {
+    if ((block.type === 'list' && block.items.length === 0)
+      || (block.type === 'metric_group' && block.metrics.length === 0)
+      || (block.type === 'table' && block.rows.length === 0)) return []
+    const roleKey = `${block.type}:${block.role ?? 'body'}`
+    const occurrence = occurrences.get(roleKey) ?? 0
+    occurrences.set(roleKey, occurrence + 1)
+    const legacyKey = !firstType.has(block.type)
+      ? ({ list: 'list', metric_group: 'metrics', table: 'table' } as const)[block.type as 'list' | 'metric_group' | 'table']
+      : undefined
+    firstType.add(block.type)
+    const key = `${prefix}:block:${legacyKey ?? `support:${roleKey}:${occurrence}`}`
+    const base = {
+      contentBlockId: ledger.resolve('contentBlock', key) as DraftContentBlock['contentBlockId'],
+      order: (index + 2) * 10,
+      sourceRefs: refs,
+    }
+    switch (block.type) {
+      case 'heading':
+        return [{ ...base, type: 'heading', role: block.role ?? 'section_title', content: normalizeString(block.content, 'supporting heading') }]
+      case 'text':
+        return [{ ...base, type: 'text', role: block.role ?? 'body', content: normalizeString(block.content, 'supporting text'), contentNature: block.contentNature ?? finding.contentNature }]
+      case 'list': {
+        const items: ListItem[] = block.items.map((content, order) => ({
+          listItemId: ledger.resolve('listItem', `${key}:item:${order}`) as ListItem['listItemId'],
+          order,
+          content: normalizeString(content, 'supporting list item'),
+          contentNature: finding.contentNature,
+          sourceRefs: refs,
+        }))
+        return [{ ...base, type: 'list', role: 'body', listStyle: block.listStyle, items }]
+      }
+      case 'metric_group': {
+        const metrics: MetricRecord[] = block.metrics.map((metric, order) => ({
+          metricId: ledger.resolve('metric', `${key}:metric:${order}`) as MetricRecord['metricId'],
+          order,
+          label: normalizeString(metric.label, 'supporting metric label'),
+          value: typeof metric.value === 'string' ? metric.value.normalize('NFC') : metric.value,
+          unit: metric.unit?.normalize('NFC').trim() || null,
+          note: metric.note?.normalize('NFC').trim() || null,
+          contentNature: finding.contentNature,
+          sourceRefs: refs,
+        }))
+        return [{ ...base, type: 'metric_group', role: 'body', metrics }]
+      }
+      case 'table': {
+        const columns: TableColumn[] = block.columns.map((label, order) => ({
+          tableColumnId: ledger.resolve('tableColumn', `${key}:column:${order}`) as TableColumn['tableColumnId'],
+          order,
+          label: normalizeString(label, 'supporting table column'),
+        }))
+        const rows: TableRow[] = block.rows.map((values, order) => {
+          if (values.length !== columns.length) fail('PRESENTATION_SUPPORTING_TABLE_INVALID', `finding '${finding.findingId}' has mismatched table cells`)
+          const cells: TableCell[] = columns.map((column, columnIndex) => ({
+            tableCellId: ledger.resolve('tableCell', `${key}:row:${order}:cell:${columnIndex}`) as TableCell['tableCellId'],
+            tableColumnId: column.tableColumnId,
+            content: typeof values[columnIndex] === 'string' ? values[columnIndex].normalize('NFC') : values[columnIndex] ?? null,
+            contentNature: finding.contentNature,
+            sourceRefs: refs,
+          }))
+          return {
+            tableRowId: ledger.resolve('tableRow', `${key}:row:${order}`) as TableRow['tableRowId'],
+            order,
+            label: String(values[0] ?? '').normalize('NFC'),
+            cells,
+            sourceRefs: refs,
+          }
+        })
+        return [{ ...base, type: 'table', role: 'body', columns, rows }]
+      }
+    }
   })
-}
-
-function blockSourceRef(
-  frozenProject: FrozenProjectInput,
-  object: FrozenStateObject,
-): SourceRef[] {
-  return [sourceRef(frozenProject, [object.objectId])]
 }
 
 function buildDraft(
   frozenProject: FrozenProjectInput,
   finding: ProfessionalFinding,
-  members: readonly FrozenStateObject[],
   projectId: ProjectId,
   pageId: PageId,
   ledger: PresentationStableIdLedger,
@@ -496,63 +560,8 @@ function buildDraft(
   const refs = [sourceRef(frozenProject, finding.objectIds, finding.evidenceIds)]
   const titleId = ledger.resolve('contentBlock', `finding:${findingKey}:block:title`) as DraftContentBlock['contentBlockId']
   const messageId = ledger.resolve('contentBlock', `finding:${findingKey}:block:key-message`) as DraftContentBlock['contentBlockId']
-  const listId = ledger.resolve('contentBlock', `finding:${findingKey}:block:list`) as DraftContentBlock['contentBlockId']
-  const metricId = ledger.resolve('contentBlock', `finding:${findingKey}:block:metrics`) as DraftContentBlock['contentBlockId']
-  const tableId = ledger.resolve('contentBlock', `finding:${findingKey}:block:table`) as DraftContentBlock['contentBlockId']
-
-  const listItems: ListItem[] = members.map((member, order) => ({
-    listItemId: ledger.resolve('listItem', `finding:${findingKey}:object:${member.objectId}:list-item`) as ListItem['listItemId'],
-    order,
-    content: member.summary.trim() === '' ? normalizeString(member.title, 'stateObject.title') : member.summary.normalize('NFC').trim(),
-    contentNature: finding.contentNature as ContentNature,
-    sourceRefs: blockSourceRef(frozenProject, member),
-  }))
-  const metrics: MetricRecord[] = members.flatMap((member, order) => {
-    const fact = member.facts.find(candidate => candidate.label.trim() !== '')
-    if (fact === undefined) return []
-    return [{
-      metricId: ledger.resolve('metric', `finding:${findingKey}:object:${member.objectId}:primary-metric`) as MetricRecord['metricId'],
-      order,
-      label: normalizeString(fact.label, 'stateObject.fact.label'),
-      value: fact.value.normalize('NFC'),
-      unit: null,
-      note: fact.basis.trim() === '' ? null : fact.basis.normalize('NFC').trim(),
-      contentNature: 'fact' as const,
-      sourceRefs: blockSourceRef(frozenProject, member),
-    }]
-  })
-
-  const columns: TableColumn[] = [
-    { key: 'object', label: '成果对象' },
-    { key: 'conclusion', label: '结论' },
-    { key: 'basis', label: '依据' },
-  ].map((column, order) => ({
-    tableColumnId: ledger.resolve('tableColumn', `finding:${findingKey}:table-column:${column.key}`) as TableColumn['tableColumnId'],
-    label: column.label,
-    order,
-  }))
-  const rows: TableRow[] = members.map((member, order) => {
-    const fact = member.facts.find(candidate => candidate.label.trim() !== '')
-    const values: readonly (string | null)[] = [
-      member.objectId,
-      member.summary.trim() === '' ? member.title.normalize('NFC').trim() : member.summary.normalize('NFC').trim(),
-      fact?.basis.trim() === '' || fact === undefined ? null : fact.basis.normalize('NFC').trim(),
-    ]
-    const cells: TableCell[] = columns.map((column, columnIndex) => ({
-      tableCellId: ledger.resolve('tableCell', `finding:${findingKey}:object:${member.objectId}:cell:${['object', 'conclusion', 'basis'][columnIndex]}`) as TableCell['tableCellId'],
-      tableColumnId: column.tableColumnId,
-      content: values[columnIndex] ?? null,
-      contentNature: columnIndex === 2 ? 'fact' : finding.contentNature as ContentNature,
-      sourceRefs: blockSourceRef(frozenProject, member),
-    }))
-    return {
-      tableRowId: ledger.resolve('tableRow', `finding:${findingKey}:object:${member.objectId}:table-row`) as TableRow['tableRowId'],
-      label: member.title.normalize('NFC').trim(),
-      order,
-      cells,
-      sourceRefs: blockSourceRef(frozenProject, member),
-    }
-  })
+  // Keep the legacy primary identities available even when a report page has no metric/table.
+  for (const role of ['list', 'metrics', 'table']) ledger.resolve('contentBlock', `finding:${findingKey}:block:${role}`)
 
   const contentBlocks: DraftContentBlock[] = [
     {
@@ -572,32 +581,7 @@ function buildDraft(
       contentNature: finding.contentNature as ContentNature,
       sourceRefs: refs,
     },
-    {
-      contentBlockId: listId,
-      type: 'list',
-      role: 'body',
-      order: 20,
-      listStyle: finding.contentNature === 'decision' ? 'ordered' : 'unordered',
-      items: listItems,
-      sourceRefs: refs,
-    },
-    ...(metrics.length === 0 ? [] : [{
-      contentBlockId: metricId,
-      type: 'metric_group' as const,
-      role: 'body' as const,
-      order: 30,
-      metrics,
-      sourceRefs: refs,
-    }]),
-    {
-      contentBlockId: tableId,
-      type: 'table',
-      role: 'body',
-      order: 40,
-      columns,
-      rows,
-      sourceRefs: refs,
-    },
+    ...supportingContentBlocks(finding, refs, ledger),
   ]
 
   const pageAssets: PageAssetReference[] = matchingAssets.map(({ input, record }, order) => ({
@@ -699,9 +683,10 @@ export async function buildPresentationStandardProject(
     sourceMaterials.idsBySourceKey,
   )
 
-  const findings = adaptFrozenProjectToPresentationFindings(frozenProject)
+  const findings = compileReportOutline(frozenProject)
   const objects = objectById(frozenProject)
   const topicNodes: OutlineNode[] = []
+  const subjectNodes: OutlineNode[] = []
   const sectionNodes: OutlineNode[] = []
   const pageRecords: PageRecord[] = []
   const drafts: Record<string, DraftPageDocument> = {}
@@ -721,39 +706,63 @@ export async function buildPresentationStandardProject(
       sourceRefs: [sourceRef(frozenProject, topicObjectIds)],
     })
 
-    for (const finding of topicFindings.sort((left, right) => left.order - right.order || left.findingId.localeCompare(right.findingId))) {
-      const findingKey = normalizeString(finding.findingId, 'finding.findingId')
-      const sectionNodeId = ledger.resolve('outlineNode', `finding:${findingKey}`) as OutlineNodeId
-      const refs = [sourceRef(frozenProject, finding.objectIds, finding.evidenceIds)]
-      sectionNodes.push({
-        outlineNodeId: sectionNodeId,
+    const subjects = new Map<string, typeof topicFindings>()
+    for (const finding of topicFindings) {
+      const sectionKey = normalizeString(finding.sectionKey, 'finding.sectionKey')
+      const subjectFindings = subjects.get(sectionKey) ?? []
+      subjectFindings.push(finding)
+      subjects.set(sectionKey, subjectFindings)
+    }
+    const orderedSubjects = [...subjects.entries()].sort(([leftKey, left], [rightKey, right]) =>
+      left[0]!.sectionOrder - right[0]!.sectionOrder || leftKey.localeCompare(rightKey))
+    for (const [subjectOrder, [sectionKey, subjectFindings]] of orderedSubjects.entries()) {
+      const subjectNodeId = ledger.resolve('outlineNode', `section:${topic.key}:${sectionKey}`) as OutlineNodeId
+      subjectNodes.push({
+        outlineNodeId: subjectNodeId,
         parentOutlineNodeId: topicNodeId,
         kind: 'section',
-        title: normalizeString(finding.title, 'finding.title'),
-        summary: normalizeString(finding.keyMessage, 'finding.keyMessage'),
-        order: finding.order,
-        sourceRefs: refs,
+        title: normalizeString(subjectFindings[0]!.sectionTitle, 'finding.sectionTitle'),
+        summary: distinctStrings(subjectFindings.map(finding => finding.keyMessage)).join('；'),
+        order: subjectOrder,
+        sourceRefs: [sourceRef(frozenProject, subjectFindings.flatMap(finding => finding.objectIds))],
       })
-      const pageId = ledger.resolve('page', `finding:${findingKey}`) as PageId
-      const draft = buildDraft(
-        frozenProject,
-        finding,
-        findingMembers(finding, objects),
-        projectId,
-        pageId,
-        ledger,
-        matchingAssetsForFinding(finding, input.assets ?? [], assets.recordsBySourceKey),
-      )
-      const draftPath = `pages/drafts/${pageId}.json`
-      pageRecords.push({
-        pageId,
-        outlineNodeId: sectionNodeId,
-        order: finding.order,
-        titleBlockId: draft.contentBlocks.find(block => block.type === 'heading' && block.role === 'page_title')?.contentBlockId ?? null,
-        draftPath,
-        sourceRefs: refs,
-      })
-      drafts[draftPath] = draft
+      const orderedFindings = [...subjectFindings].sort((left, right) => left.order - right.order || left.findingId.localeCompare(right.findingId))
+      for (const [findingOrder, finding] of orderedFindings.entries()) {
+        const findingKey = normalizeString(finding.findingId, 'finding.findingId')
+        for (const objectId of finding.objectIds) {
+          if (!objects.has(objectId)) fail('PRESENTATION_FINDING_SOURCE_MISSING', `finding '${findingKey}' references unknown object '${objectId}'`)
+        }
+        const sectionNodeId = ledger.resolve('outlineNode', `finding:${findingKey}`) as OutlineNodeId
+        const refs = [sourceRef(frozenProject, finding.objectIds, finding.evidenceIds)]
+        sectionNodes.push({
+          outlineNodeId: sectionNodeId,
+          parentOutlineNodeId: subjectNodeId,
+          kind: 'section',
+          title: normalizeString(finding.title, 'finding.title'),
+          summary: normalizeString(finding.keyMessage, 'finding.keyMessage'),
+          order: findingOrder,
+          sourceRefs: refs,
+        })
+        const pageId = ledger.resolve('page', `finding:${findingKey}`) as PageId
+        const draft = buildDraft(
+          frozenProject,
+          finding,
+          projectId,
+          pageId,
+          ledger,
+          matchingAssetsForFinding(finding, input.assets ?? [], assets.recordsBySourceKey),
+        )
+        const draftPath = `pages/drafts/${pageId}.json`
+        pageRecords.push({
+          pageId,
+          outlineNodeId: sectionNodeId,
+          order: pageRecords.length,
+          titleBlockId: draft.contentBlocks.find(block => block.type === 'heading' && block.role === 'page_title')?.contentBlockId ?? null,
+          draftPath,
+          sourceRefs: refs,
+        })
+        drafts[draftPath] = draft
+      }
     }
   }
 
@@ -773,7 +782,7 @@ export async function buildPresentationStandardProject(
     ...(plan.documents['outline.json'] as OutlineDocument),
     outlineDocumentId,
     projectId,
-    nodes: [...topicNodes, ...sectionNodes]
+    nodes: [...topicNodes, ...subjectNodes, ...sectionNodes]
       .sort((left, right) => left.order - right.order || left.outlineNodeId.localeCompare(right.outlineNodeId)),
   }
   const pageManifest: PageManifest = {

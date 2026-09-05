@@ -29,6 +29,67 @@ afterEach(async () => {
 })
 
 describe('pre-design Presentation 0.1.0 Adapter', () => {
+  it('builds chapter, report subject and detailed page nodes with real source detail', async () => {
+    const frozenProject = createStandardFrozenProject()
+    const source = {
+      ...frozenProject,
+      stateObjects: frozenProject.stateObjects.map(object => ({
+        ...object,
+        reportSections: [{
+          key: 'analysis',
+          title: '现状证据与行动依据',
+          entries: [{
+            key: `${object.objectId}-detail`,
+            text: `${object.objectId} 的完整调研细节必须进入正式草案，而不能只导出摘要。`,
+            basis: '项目实地踏勘记录',
+            fieldPath: 'analysis.details[0]',
+          }],
+        }],
+      })),
+    }
+    const build = await buildPresentationStandardProject({ frozenProject: source, rules: STANDARD_TEST_RULES })
+    const outline = build.documents['outline.json'] as any
+    const manifest = build.documents['pages/manifest.json'] as any
+    const nodes = new Map<string, any>(outline.nodes.map((node: any) => [node.outlineNodeId, node]))
+    for (const page of manifest.pages) {
+      const pageNode = nodes.get(page.outlineNodeId)
+      const subjectNode = nodes.get(pageNode.parentOutlineNodeId)
+      const chapterNode = nodes.get(subjectNode.parentOutlineNodeId)
+      expect(chapterNode?.kind).toBe('chapter')
+      expect(chapterNode?.parentOutlineNodeId).toBeNull()
+      expect(subjectNode.kind).toBe('section')
+      expect(pageNode.kind).toBe('section')
+    }
+    expect(new Set(manifest.pages.map((page: any) => page.order)).size).toBe(manifest.pages.length)
+    for (const parent of [null, ...nodes.keys()]) {
+      const siblings = outline.nodes.filter((node: any) => node.parentOutlineNodeId === parent)
+      expect(new Set(siblings.map((node: any) => node.order)).size).toBe(siblings.length)
+    }
+    const drafts = manifest.pages.map((page: any) => build.documents[page.draftPath])
+    for (const object of source.stateObjects) {
+      expect(JSON.stringify(drafts)).toContain(object.reportSections[0]!.entries[0]!.text)
+    }
+  })
+
+  it('changes provenance snapshots when structured detail changes without changing the summary', async () => {
+    const base = createStandardFrozenProject()
+    const source = (detail: string) => ({
+      ...base,
+      stateObjects: base.stateObjects.slice(0, 1).map(object => ({
+        ...object,
+        reportSections: [{ key: 'scope', title: '服务范围', entries: [
+          { key: 'scope-1', text: detail, basis: '任务书', fieldPath: 'scope' },
+        ] }],
+      })),
+    })
+    const first = await buildPresentationStandardProject({ frozenProject: source('重点覆盖校园东区') })
+    const second = await buildPresentationStandardProject({ frozenProject: source('重点覆盖校园西区'), stableIds: first.stableIds })
+    const firstOutline = first.documents['outline.json'] as any
+    const secondOutline = second.documents['outline.json'] as any
+    expect(firstOutline.nodes.find((node: any) => node.kind === 'chapter').sourceRefs[0].sourceSnapshotSha256)
+      .not.toBe(secondOutline.nodes.find((node: any) => node.kind === 'chapter').sourceRefs[0].sourceSnapshotSha256)
+  })
+
   it('maps professional content into canonical semantic documents and managed-file records', async () => {
     const root = await mkdtemp(join(tmpdir(), 'pre-design-standard-adapter-'))
     roots.push(root)
@@ -59,15 +120,16 @@ describe('pre-design Presentation 0.1.0 Adapter', () => {
     expect(outline.nodes.length).toBeGreaterThan(10)
     expect(outline.nodes.some((node: any) => node.kind === 'chapter' && node.parentOutlineNodeId === null)).toBe(true)
     expect(outline.nodes.some((node: any) => node.kind === 'section' && node.parentOutlineNodeId !== null)).toBe(true)
-    expect(pageManifest.pages).toHaveLength(10)
+    expect(pageManifest.pages.length).toBeGreaterThanOrEqual(10)
 
     const draftEntries = Object.entries(build.documents)
       .filter(([path]) => /^pages\/drafts\/page_[a-f0-9-]+\.json$/u.test(path))
-    expect(draftEntries).toHaveLength(10)
+    expect(draftEntries).toHaveLength(pageManifest.pages.length)
     for (const [path, draft] of draftEntries) {
       const document = draft as any
       const blockTypes = new Set(document.contentBlocks.map((block: any) => block.type))
-      expect(blockTypes).toEqual(new Set(['heading', 'text', 'list', 'metric_group', 'table']))
+      expect(blockTypes.has('heading')).toBe(true)
+      expect(blockTypes.has('text')).toBe(true)
       expect(document.contentBlocks.filter((block: any) => block.role === 'page_title')).toHaveLength(1)
       expect(document.contentBlocks.filter((block: any) => block.role === 'key_message')).toHaveLength(1)
       expect(document.scriptBlocks).toHaveLength(1)
