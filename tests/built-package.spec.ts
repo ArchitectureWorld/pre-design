@@ -1,5 +1,11 @@
 import { execFile as execFileCallback } from 'node:child_process'
-import { readFile, readdir } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { Context } from '@deepseek-ai/cordis'
+import Storage from '@deepseek-ai/dsh-storage'
+import * as StorageDomain from '@deepseek-ai/dsh-storage-domain'
+import * as StorageJson from '@deepseek-ai/dsh-storage-json'
+import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
@@ -46,6 +52,24 @@ async function packedFilePaths(): Promise<string[]> {
 }
 
 describe('built npm package', () => {
+  it('registers the current-page candidate tool and frozen fail-closed capability from the built Host', async () => {
+    const storageRoot = await mkdtemp(resolve(tmpdir(), 'pre-built-visual-'))
+    const ctx = new Context()
+    try {
+      await ctx.plugin(Storage); await ctx.plugin(StorageJson, { root: storageRoot }); await ctx.plugin(StorageDomain, { backend: 'json' })
+      const tools: ToolDefinition[] = []
+      ctx.provide('commands', { register: () => () => {} } as never)
+      ctx.provide('tools', { register: (tool: ToolDefinition) => { tools.push(tool); return () => {} } } as never)
+      ctx.provide('attachments', {} as never); ctx.provide('llm', {} as never); ctx.provide('sessions', {} as never); ctx.provide('subagents', {} as never)
+      ctx.provide('systemPrompt', { section: () => () => {} } as never); ctx.provide('webServer', { register: () => () => {} } as never)
+      const manifest = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'))
+      const host = await import(pathToFileURL(resolve(root, manifest.exports['.'].default)).href)
+      await host.apply(ctx)
+      expect(tools.map(tool => tool.name)).toContain('preplanning_generate_page_visual')
+      expect(Object.isFrozen(ctx.preplanning.designVisualBridge)).toBe(true)
+      await expect(ctx.preplanning.designVisualBridge.generate({ id: 'session' } as never, { runId: 'run', studioProjectId: 'studio', pageId: 'page', sourceStateHash: 'a'.repeat(64), requestId: 'request', prompt: '概念图' })).rejects.toThrow('RESOLVER_UNAVAILABLE')
+    } finally { await ctx.fiber.dispose(); await rm(storageRoot, { recursive: true, force: true }) }
+  })
   it('loads the Host export path declared by package.json', async () => {
     const manifest = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8')) as {
       exports: { '.': { default: string } }

@@ -1,4 +1,5 @@
 import { lstat, readFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
 import { resolve } from 'node:path'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { DraftPageDocument, PageManifest } from '@architectureworld/presentation-contracts'
@@ -13,7 +14,7 @@ import { preparePresentationMaterials, type PreparePresentationMaterialsInput } 
 import { buildPresentationStandardProject } from './standard-project-adapter.ts'
 import type { PresentationAdoptedAssetInput } from './standard-project-types.ts'
 import { compileReportOutline } from './projector/report-outline.ts'
-import { readPageVisualState, savePageVisualRequest, withPageVisualLock, type PageVisualRequest } from './page-visual-state.ts'
+import { readPageVisualState, savePageVisualRequest, withPageVisualLock, type PageVisualRequest, type StudioPageVisualTarget } from './page-visual-state.ts'
 
 export const DEFAULT_PAGE_VISUAL_STYLE = '统一使用克制的低饱和自然材料、专业建筑可视化与清晰空间层次；无文字、标尺、水印或伪造数据。'
 const IMAGE_MIME = /^image\/(?:avif|bmp|gif|jpeg|png|svg\+xml|webp|x-icon|vnd\.microsoft\.icon)$/iu
@@ -52,6 +53,33 @@ interface Dependencies {
   readonly governance: Pick<GovernanceRepository, 'readProject'>
   readonly resolveAsset: (fileName: string) => string
   readonly adoptedAssets?: (project: FrozenProjectInput) => readonly PresentationAdoptedAssetInput[]
+}
+export interface StudioVisualInput extends PageVisualInput {
+  readonly target: StudioPageVisualTarget
+  readonly requestId: string
+  readonly title: string
+  readonly keyMessage: string
+  readonly chapterId: string
+  readonly workItemId: string
+  readonly prompt: string
+  readonly style?: string
+  readonly signal?: AbortSignal
+}
+interface GeneratedAssetResult {
+  readonly taskId: string
+  readonly assetId: string
+  readonly status: 'candidate' | 'adopted'
+  readonly reused: boolean
+}
+export interface StudioVisualResult extends Omit<GeneratedAssetResult, 'status'> {
+  readonly status: 'candidate' | 'adopted_unlinked'
+  readonly requestId: string
+  readonly target: StudioPageVisualTarget
+  readonly image: { readonly bytes: Uint8Array; readonly mimeType: 'image/png' | 'image/jpeg' | 'image/webp'; readonly sha256: string; readonly width: number; readonly height: number }
+  readonly provenance: { readonly kind: 'ai_concept'; readonly preDesignProjectId: string; readonly preDesignRevision: number;
+    readonly studioProjectId: string; readonly pageId: string; readonly sourceStateHash: string; readonly sourceObjectIds: readonly string[];
+    readonly provider?: string; readonly model?: string; readonly promptSummary?: string; readonly createdAt: string; readonly adoptedRevision?: number;
+    readonly declarations: readonly ['AI 概念示意（非现场实拍）'] }
 }
 
 function contentOnly(value: unknown): unknown {
@@ -95,7 +123,7 @@ async function verifyPageImage(asset: PresentationAdoptedAssetInput): Promise<vo
 }
 
 export class PageVisualFillService {
-  private readonly inFlight = new Map<string, Promise<PageVisualFillResult>>()
+  private readonly inFlight = new Map<string, Promise<GeneratedAssetResult>>()
   constructor(private readonly dependencies: Dependencies) {}
 
   /** Builds in memory only: no requests, candidates, files or model calls. */
@@ -164,6 +192,11 @@ export class PageVisualFillService {
     input.signal?.throwIfAborted()
     const page = await this.page(input)
     const brief = this.brief(input, page)
+    return { ...await this.generateTarget(parent, input, page, brief), findingId: page.findingId }
+  }
+
+  private async generateTarget(parent: Agent, input: PageVisualInput & { signal?: AbortSignal },
+    page: Pick<PageVisualPlanEntry, 'title' | 'keyMessage' | 'covered' | 'chapterId' | 'workItemId'>, brief: PageVisualRequest): Promise<GeneratedAssetResult> {
     const key = `${resolve(input.workspaceRoot)}\0${brief.taskId}`
     const running = this.inFlight.get(key)
     if (running) return running
@@ -171,14 +204,18 @@ export class PageVisualFillService {
       input.signal?.throwIfAborted()
       const projectId = input.frozenProject.projectId
       const previous = (await readPageVisualState(input.workspaceRoot, projectId)).requests.find(item => item.taskId === brief.taskId)
+      if (brief.target) {
+        const request = (await readPageVisualState(input.workspaceRoot, projectId)).requests.find(item => item.target && item.requestId === brief.requestId)
+        if (request && request.briefHash !== brief.briefHash) throw new Error('DESIGN_VISUAL_REQUEST_CONFLICT: requestId 已用于不同内容')
+      }
       const existing = await this.usableAsset(projectId, brief.taskId, previous?.assetId)
-      if (previous && previous.status !== 'failed' && (!existing || (previous.status === 'adopted' && existing.status !== 'adopted'))) {
+      if (previous && previous.status !== 'failed' && (!existing || (['adopted', 'adopted_unlinked'].includes(previous.status) && existing.status !== 'adopted'))) {
         throw new Error('PAGE_VISUAL_RECOVERY_REQUIRED: 已有补图请求暂无法从治理状态恢复，未再次生成；请重新加载治理状态并核查原请求')
       }
       if (existing) {
         const status = existing.status as 'candidate' | 'adopted'
-        await savePageVisualRequest(input.workspaceRoot, projectId, { ...brief, assetId: existing.assetId, status })
-        return { taskId: brief.taskId, findingId: brief.findingId, assetId: existing.assetId, status, reused: true }
+        await savePageVisualRequest(input.workspaceRoot, projectId, { ...brief, assetId: existing.assetId, status: brief.target && status === 'adopted' ? 'adopted_unlinked' : status })
+        return { taskId: brief.taskId, assetId: existing.assetId, status, reused: true }
       }
       if (page.covered) throw new Error('PAGE_VISUAL_ALREADY_COVERED: 当前页已有可用图片，不自动替换')
       if (!page.chapterId || !page.workItemId) throw new Error('PAGE_VISUAL_SOURCE_REQUIRED: 页面缺少真实工作项归属')
@@ -194,7 +231,7 @@ export class PageVisualFillService {
         if (!await this.usableAsset(projectId, brief.taskId, asset.assetId)) throw new Error('PAGE_VISUAL_INVALID_RESULT: 候选图未保存')
         const status = asset.status as 'candidate' | 'adopted'
         await savePageVisualRequest(input.workspaceRoot, projectId, { ...brief, status, assetId: asset.assetId })
-        return { taskId: brief.taskId, findingId: brief.findingId, assetId: asset.assetId, status, reused: false }
+        return { taskId: brief.taskId, assetId: asset.assetId, status, reused: false }
       } catch (error) {
         await savePageVisualRequest(input.workspaceRoot, projectId, { ...brief, status: 'failed', message: error instanceof Error ? error.message : String(error) })
         throw error
@@ -202,6 +239,58 @@ export class PageVisualFillService {
     })
     this.inFlight.set(key, job)
     try { return await job } finally { this.inFlight.delete(key) }
+  }
+
+  private studioBrief(input: StudioVisualInput): PageVisualRequest {
+    const prompt = required(input.prompt, 'prompt')
+    const style = required(input.style ?? DEFAULT_PAGE_VISUAL_STYLE, 'style')
+    const requestId = required(input.requestId, 'requestId')
+    const briefHash = sha256CanonicalJson({ target: input.target, requestId, prompt, style })
+    return { taskId: `page-fill-${briefHash}`, target: input.target, requestId, briefHash, prompt, style, status: 'generating' }
+  }
+
+  private async studioResult(input: StudioVisualInput, result: GeneratedAssetResult): Promise<StudioVisualResult> {
+    const asset = await this.usableAsset(input.frozenProject.projectId, result.taskId, result.assetId)
+    if (!asset) throw new Error('PAGE_VISUAL_CANDIDATE_INVALID: 候选图不可用')
+    const sourcePath = this.dependencies.resolveAsset(asset.fileName)
+    const bytes = await readFile(sourcePath)
+    if (createHash('sha256').update(bytes).digest('hex') !== asset.sha256) throw new Error('PAGE_VISUAL_ASSET_UNAVAILABLE: 返回图像字节哈希不匹配')
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(asset.mimeType)) throw new Error('PAGE_VISUAL_IMAGE_UNAVAILABLE: 不支持的图像格式')
+    const mimeType = asset.mimeType as StudioVisualResult['image']['mimeType']
+    const dimensions = verifiedRasterImageDimensions(mimeType, bytes)
+    if (dimensions.width !== asset.width || dimensions.height !== asset.height) throw new Error('PAGE_VISUAL_IMAGE_UNAVAILABLE: 尺寸不匹配')
+    return { ...result, status: asset.status === 'adopted' ? 'adopted_unlinked' : 'candidate', requestId: input.requestId, target: input.target,
+      image: { bytes, mimeType, sha256: asset.sha256, ...dimensions },
+      provenance: { kind: 'ai_concept', preDesignProjectId: input.frozenProject.projectId, preDesignRevision: input.frozenProject.revision,
+        studioProjectId: input.target.studioProjectId, pageId: input.target.pageId, sourceStateHash: input.target.sourceStateHash,
+        sourceObjectIds: input.target.sourceObjectIds, provider: asset.provider, model: asset.model, promptSummary: asset.promptSummary,
+        createdAt: asset.createdAt, adoptedRevision: asset.adoptedRevision, declarations: ['AI 概念示意（非现场实拍）'] } }
+  }
+
+  async generateStudioPage(parent: Agent, input: StudioVisualInput): Promise<StudioVisualResult> {
+    input.signal?.throwIfAborted()
+    const result = await this.generateTarget(parent, input, { ...input, covered: false }, this.studioBrief(input))
+    return this.studioResult(input, result)
+  }
+
+  async adoptStudioPage(input: StudioVisualInput & { assetId: string },
+    authorize: (candidate: { requestId: string; assetId: string }) => Promise<void>): Promise<StudioVisualResult> {
+    input.signal?.throwIfAborted()
+    return withPageVisualLock(input.workspaceRoot, async () => {
+      const projectId = input.frozenProject.projectId
+      const brief = this.studioBrief(input)
+      const request = (await readPageVisualState(input.workspaceRoot, projectId)).requests.find(item => item.target && item.requestId === input.requestId)
+      if (!request || request.briefHash !== brief.briefHash || request.assetId !== input.assetId) throw new Error('PAGE_VISUAL_CANDIDATE_MISMATCH: 候选图与页面请求不匹配')
+      const asset = await this.usableAsset(projectId, request.taskId, request.assetId)
+      if (!asset) throw new Error('PAGE_VISUAL_CANDIDATE_INVALID: 候选图不可采用')
+      const result = await this.studioResult(input, { taskId: request.taskId, assetId: asset.assetId, status: asset.status as 'candidate' | 'adopted', reused: asset.status === 'adopted' })
+      await authorize({ requestId: request.requestId!, assetId: asset.assetId })
+      input.signal?.throwIfAborted()
+      const adopted = asset.status === 'adopted' ? asset : await this.dependencies.visual.adopt(projectId, asset.assetId, input.frozenProject.revision)
+      await savePageVisualRequest(input.workspaceRoot, projectId, { ...request, status: 'adopted_unlinked' })
+      input.signal?.throwIfAborted()
+      return { ...result, status: 'adopted_unlinked', provenance: { ...result.provenance, adoptedRevision: adopted.adoptedRevision } }
+    })
   }
 
   async adopt(input: PageVisualInput & { readonly findingId: string; readonly assetId: string }): Promise<PageVisualFillResult> {
@@ -218,7 +307,7 @@ export class PageVisualFillService {
       if (page.covered && asset.status !== 'adopted') throw new Error('PAGE_VISUAL_ALREADY_COVERED: 当前页已有可用图片，不自动替换')
       const adopted = asset.status === 'adopted' ? asset : await this.dependencies.visual.adopt(projectId, asset.assetId, input.frozenProject.revision)
       await savePageVisualRequest(input.workspaceRoot, projectId, { ...request, status: 'adopted' })
-      return { taskId: request.taskId, findingId: request.findingId, assetId: adopted.assetId, status: 'adopted', reused: asset.status === 'adopted' }
+      return { taskId: request.taskId, findingId: input.findingId, assetId: adopted.assetId, status: 'adopted', reused: asset.status === 'adopted' }
     })
   }
 }

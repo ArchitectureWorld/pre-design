@@ -36,6 +36,8 @@ import { ProjectRepository } from './state/repository.ts'
 import { registerPreplanningTools } from './tools/register.ts'
 import { VisualAgentService } from './visual/agent.ts'
 import { PageVisualFillService } from './presentation/page-visual-fill.ts'
+import { createDesignVisualBridge, type DesignVisualBridge } from './presentation/design-visual-bridge.ts'
+export type { DesignVisualBridge, DesignVisualInput, ResolvedDesignVisualContext, TrustedStudioVisualResolver } from './presentation/design-visual-bridge.ts'
 import { VisualAssetStore } from './visual/asset-store.ts'
 import { SessionImageCollector } from './visual/session-image-collector.ts'
 import { registerWorkspaceOpenRoute, type WorkspaceOpenRegistrar } from './workspace/open-workspace-route.ts'
@@ -48,6 +50,7 @@ interface PreplanningHost {
   readonly presentationBindings: PresentationBindingRepository
   readonly standardProjects: PresentationStandardProjectService
   readonly presentationSync: PresentationAutoSyncService
+  readonly designVisualBridge: DesignVisualBridge
   readonly presentationProjectRoot: string
   readonly gateway: ProposalGateway
   readonly registry: ContractRegistry
@@ -84,9 +87,10 @@ export async function apply(ctx: Context): Promise<void> {
   const repository = await ProjectRepository.open(ctx.storage.domain)
   const governance = await GovernanceRepository.open(ctx.storage.domain)
   const presentationBindings = await PresentationBindingRepository.open(ctx.storage.domain)
+  const dshHome = resolve(process.env.DSH_HOME?.trim() || join(homedir(), '.dsh'))
   const presentationProjectRoot = resolve(
     process.env.PRE_DESIGN_PRESENTATION_PROJECT_ROOT?.trim()
-      || join(homedir(), '.dsh', 'presentation-projects'),
+      || join(dshHome, 'presentation-projects'),
   )
   const standardProjects = new PresentationStandardProjectService({
     bindings: presentationBindings,
@@ -100,7 +104,7 @@ export async function apply(ctx: Context): Promise<void> {
   const revisions = new RevisionService(registry, runtime)
   const questions = new QuestionService(repository, runtime, now)
   const gateway = new ProposalGateway(repository, registry, now, governance)
-  const visualAssetRoot = join(homedir(), '.dsh', 'preplanning-agent', 'visual-assets')
+  const visualAssetRoot = join(dshHome, 'preplanning-agent', 'visual-assets')
   const visualStore = new VisualAssetStore(visualAssetRoot)
   const siteBoundaryAssets = new SiteBoundaryAssetStore(visualAssetRoot, {
     readImage: (ref, signal) => ctx.attachments.readImage(ref, signal),
@@ -150,6 +154,7 @@ export async function apply(ctx: Context): Promise<void> {
     now,
   })
   const pageVisualFill = new PageVisualFillService({ visual, governance, resolveAsset: fileName => visualStore.resolveAsset(fileName), adoptedAssets: adoptedPresentationAssets })
+  const designVisualBridge = createDesignVisualBridge({ repository, registry, standardProjects, source: frozenProjectSource, pageVisualFill, now })
   const workflowAnalyzer = new DshSubagentWorkflowAnalyzer({
     subagents: ctx.subagents,
     repository,
@@ -181,8 +186,8 @@ export async function apply(ctx: Context): Promise<void> {
     maxConcurrency: 4,
   })
   const coordinator = new AutomationCoordinator(runtime, parallel)
-  const reportPackageRoot = join(homedir(), '.dsh', 'preplanning-agent', 'report-packages')
-  const clientProfileRoot = join(homedir(), '.dsh', 'preplanning-agent', 'client-profiles')
+  const reportPackageRoot = join(dshHome, 'preplanning-agent', 'report-packages')
+  const clientProfileRoot = join(dshHome, 'preplanning-agent', 'client-profiles')
   const reports = new ReportPackageService({
     governance,
     boundaryIntegrity: boundaries,
@@ -228,6 +233,7 @@ export async function apply(ctx: Context): Promise<void> {
     now,
   })
   registerPreplanningTools(ctx, {
+    designVisualBridge,
     repository,
     gateway,
     governance,
@@ -248,6 +254,7 @@ export async function apply(ctx: Context): Promise<void> {
     text: PREPLANNING_SYSTEM_PROMPT,
   })
   ctx.provide('preplanning', Object.freeze({
+    designVisualBridge,
     pluginId: 'preplanning-agent',
     contractVersion: '0.6.0',
     repository,

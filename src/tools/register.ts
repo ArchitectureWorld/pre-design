@@ -9,6 +9,8 @@ import type { ProposalGateway } from '../proposals/gateway.ts'
 import type { WorkflowRuntime } from '../runtime/workflow-runtime.ts'
 import { buildPreplanningStatus } from '../session/events.ts'
 import type { ProjectRepository } from '../state/repository.ts'
+import type { DesignVisualBridge } from '../presentation/design-visual-bridge.ts'
+import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 
 export interface ToolDependencies {
   readonly repository: ProjectRepository
@@ -18,6 +20,7 @@ export interface ToolDependencies {
   readonly registry: ContractRegistry
   readonly presentationSync?: Pick<PresentationAutoSyncService, 'request' | 'status'>
   readonly gateApprover?: Pick<AutomaticGateApprover, 'approveReady'>
+  readonly designVisualBridge?: DesignVisualBridge
 }
 
 function sessionIdOf(exec: { readonly agent?: { readonly id: unknown } }): string {
@@ -116,6 +119,38 @@ const PROPOSAL_ENVELOPE_PARAMETER = {
 } as const
 
 export function registerPreplanningTools(ctx: Context, dependencies: ToolDependencies): void {
+  if (dependencies.designVisualBridge) ctx.tools.register(defineTool({
+    name: 'preplanning_generate_page_visual',
+    description: '按 Studio 当前页面上下文和宿主设计 run 授权生成一张 AI 概念候选图；采用须走 Studio Proposal，不自动挂页。',
+    parameters: {
+      runId: { type: 'string', required: true }, studioProjectId: { type: 'string', required: true },
+      pageId: { type: 'string', required: true }, sourceStateHash: { type: 'string', required: true },
+      requestId: { type: 'string', required: true }, prompt: { type: 'string', required: true }, style: { type: 'string' },
+    },
+    output: {
+      schema: { type: 'json' },
+      render: (_args, value) => {
+        const { attachment, ...metadata } = value as unknown as { attachment: ImageAttachmentRef; [key: string]: unknown }
+        return [{ type: 'text', text: JSON.stringify(metadata, null, 2) }, { type: 'image', attachment }]
+      },
+    },
+    async execute(args, exec) {
+      sessionIdOf(exec)
+      const parent = exec.agent!
+      exec.signal.throwIfAborted()
+      const config = parent.session?.requestHeader?.()?.config ?? parent.options
+      if (!config?.provider || !config.model || typeof ctx.llm?.resolveModelInfo !== 'function') throw new Error('DESIGN_VISUAL_TEST_FAILED: 当前 Agent 模型路由无法核验图像能力')
+      const model = await ctx.llm.resolveModelInfo(config.provider, config.model, exec.signal)
+      if (model.provider !== config.provider || model.id !== config.model || !model.inputModalities?.includes('image')) throw new Error('DESIGN_VISUAL_TEST_FAILED: 当前 Agent 模型未声明图像能力；未切换模型')
+      if (typeof ctx.attachments?.saveImage !== 'function') throw new Error('DESIGN_VISUAL_TEST_FAILED: 宿主图像附件服务不可用')
+      const candidate = await dependencies.designVisualBridge!.generate(parent, args, exec.signal)
+      exec.signal.throwIfAborted()
+      const attachment = await ctx.attachments.saveImage({ data: candidate.image.bytes, mediaType: candidate.image.mimeType })
+      exec.signal.throwIfAborted()
+      const { image, ...metadata } = candidate
+      return jsonSnapshot({ ...metadata, image: { mimeType: image.mimeType, sha256: image.sha256, width: image.width, height: image.height }, attachment })
+    },
+  }))
   ctx.tools.register(defineTool({
     name: 'preplanning_get_context',
     description: '读取当前 DSH Session 绑定项目的受控前期策划上下文。',

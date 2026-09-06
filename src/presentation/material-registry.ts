@@ -289,12 +289,14 @@ export async function preparePresentationMaterials(input: PreparePresentationMat
     const state = await readPageVisualState(root, input.frozenProject.projectId)
     for (const request of state.requests) {
       if (!request.assetId) continue
+      // Studio owns importing/linking these assets. Never infer canonical page links.
+      if (request.target?.kind === 'studio_current_page') { assets.delete(request.assetId); continue }
       const asset = assets.get(request.assetId)
       if (!asset) {
         if (request.status === 'adopted') warnings.push(`补图 ${request.findingId} 的已采用素材 ${request.assetId} 暂不可读取，未视为覆盖`)
         continue
       }
-      assets.set(asset.sourceKey, { ...asset, pageBindingOnly: true, pageBindings: [{ findingId: request.findingId, role: 'primary' }],
+      assets.set(asset.sourceKey, { ...asset, pageBindingOnly: true, pageBindings: [{ findingId: request.findingId!, role: 'primary' }],
         displayName: asset.displayName.includes('AI概念示意') ? asset.displayName : `AI概念示意（非现场实拍）｜${asset.displayName}`,
         origin: { ...asset.origin, method: JSON.stringify({ pageBindingOnly: true, disclosure: 'AI概念示意（非现场实拍）',
           taskId: request.taskId, prompt: request.prompt, style: request.style }) } })

@@ -2,15 +2,26 @@ import { lstat, open, realpath, unlink } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { writeCanonicalJsonAtomically } from './filesystem.ts'
 import { readFile, mkdir } from 'node:fs/promises'
+import { sha256CanonicalJson } from './canonical-json.ts'
 
 export const PAGE_VISUAL_STATE_PATH = '.pre-design/page-visual-fill.json'
+export interface StudioPageVisualTarget {
+  readonly kind: 'studio_current_page'
+  readonly preDesignProjectId: string
+  readonly studioProjectId: string
+  readonly pageId: string
+  readonly sourceStateHash: string
+  readonly sourceObjectIds: readonly string[]
+}
 export interface PageVisualRequest {
   readonly taskId: string
-  readonly findingId: string
+  readonly findingId?: string
+  readonly target?: StudioPageVisualTarget
+  readonly requestId?: string
   readonly briefHash: string
   readonly prompt: string
   readonly style: string
-  readonly status: 'generating' | 'candidate' | 'adopted' | 'failed'
+  readonly status: 'generating' | 'candidate' | 'adopted' | 'adopted_unlinked' | 'failed'
   readonly assetId?: string
   readonly message?: string
 }
@@ -45,12 +56,24 @@ export async function readPageVisualState(root: string, projectId: string): Prom
     for (const item of value.requests) {
       if (!item || typeof item.taskId !== 'string' || !/^page-fill-[a-f0-9]{64}$/u.test(item.taskId)
         || ids.has(item.taskId) || !/^[a-f0-9]{64}$/u.test(item.briefHash)
-        || typeof item.findingId !== 'string' || item.findingId.trim() === ''
+        || (item.target === undefined ? typeof item.findingId !== 'string' || item.findingId.trim() === ''
+          : item.findingId !== undefined || item.target.kind !== 'studio_current_page'
+            || item.target.preDesignProjectId !== projectId || typeof item.target.studioProjectId !== 'string' || !item.target.studioProjectId.trim()
+            || typeof item.target.pageId !== 'string' || !item.target.pageId.trim() || !/^[a-f0-9]{64}$/u.test(item.target.sourceStateHash)
+            || !Array.isArray(item.target.sourceObjectIds) || !item.target.sourceObjectIds.length
+            || item.target.sourceObjectIds.some((id: unknown) => typeof id !== 'string' || !id.trim())
+            || new Set(item.target.sourceObjectIds).size !== item.target.sourceObjectIds.length
+            || typeof item.requestId !== 'string' || !item.requestId.trim())
         || typeof item.prompt !== 'string' || item.prompt.trim() === '' || typeof item.style !== 'string' || item.style.trim() === ''
-        || !['generating', 'candidate', 'adopted', 'failed'].includes(item.status)
+        || !['generating', 'candidate', 'adopted', 'adopted_unlinked', 'failed'].includes(item.status)
+        || (item.status === 'adopted_unlinked' && item.target === undefined)
         || (item.assetId !== undefined && (typeof item.assetId !== 'string' || item.assetId.trim() === ''))
-        || (['candidate', 'adopted'].includes(item.status) && !item.assetId)) throw new Error('PAGE_VISUAL_STATE_INVALID: 补图请求损坏')
+        || (['candidate', 'adopted', 'adopted_unlinked'].includes(item.status) && !item.assetId)) throw new Error('PAGE_VISUAL_STATE_INVALID: 补图请求损坏')
       ids.add(item.taskId)
+      if (item.target && (item.taskId !== `page-fill-${item.briefHash}`
+        || item.briefHash !== sha256CanonicalJson({ target: item.target, requestId: item.requestId, prompt: item.prompt, style: item.style }))) {
+        throw new Error('PAGE_VISUAL_STATE_INVALID: Studio 请求身份与目标内容不匹配')
+      }
     }
     return value
   } catch (error) {

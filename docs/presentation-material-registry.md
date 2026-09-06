@@ -141,3 +141,19 @@ const { sourceMaterials, assets, materialWarnings } = await preparePresentationM
 候选与采用仍经过现有视觉治理；程序生成图沿 `generated_by_plugin` 来源进入标准素材库，sidecar 仅覆盖同一 sourceKey 的精确页面关联，不额外注入一个宽泛别名。普通 `preplan-presentation-sync` 和自动同步始终只读取已采用的结果。
 
 补图 sidecar 缺失时，从已管理标准清单恢复的精确 pageBindings、pageBindingOnly、来源与披露说明不会被实时治理的宽泛 adopted 输入清空。新的显式登记/补图状态仍可应用；没有精确限制的旧原件继续保持原对象/证据关联语义。
+
+## Studio 当前页设计视觉桥
+
+主 Agent 的 `preplanning_generate_page_visual` 面向用户明确启动的报告设计任务。它接受 `runId、studioProjectId、pageId、sourceStateHash、requestId、prompt` 及可选 `style`；不接受工作区路径、Pre 项目身份、来源列表、actor 或 approved。它只请求候选，使用当前 Agent request-header 配置（没有时使用 options）向 `llm.resolveModelInfo` 核验图像能力，并通过 `attachments.saveImage` 返回原生 image 内容块。缺少图像能力时明确返回 `DESIGN_VISUAL_TEST_FAILED`，不替换当前路由或既有 VisualAgent 生图模型。
+
+宿主发布冻结的 `ctx.preplanning.designVisualBridge`，协议为 `pre-design.page-visual.v1`，方法为 `bindStudioResolver、inspect、generate、adopt`。Studio 服务端以同协议 resolver 独占绑定并持有 disposer；未绑定、版本不支持或重复所有者均拒绝。
+
+resolver 每次从当前 Studio 页面和服务端 run 授权重读 `preDesignProjectId、studioProjectId、pageId、workspaceRoot、studioProjectRevision、sourceStateHash、sourceObjectIds、title、keyMessage` 以及 `grant`（`runId、sessionId、allowVisualGeneration、allowApply、expiresAt`）。Pre 交叉验证真实 SessionBinding、持久 Presentation binding、当前冻结对象和工作流归属。`sourceStateHash` 由 Studio 重算，Pre 不推测合并页或新建页的 canonical finding。
+
+Studio 请求在同一 sidecar 中使用 `target.kind=studio_current_page`，没有伪造的 findingId。请求身份由 Pre/Studio 项目、当前页面 hash、全部真实来源、requestId、提示词和风格组成；全局 Studio revision 不参与付费去重。相同 requestId 改变内容会冲突，取消后晚到图保留可恢复，丢失治理快照时不再次生成。
+
+采用先核验持久请求、目标和素材，再以 `resolve(operation='adopt', candidate:{requestId,assetId})` 询问宿主确切候选授权。这个 candidate 由桥从已核验状态提供，不能由 Agent 赋予授权。Studio 可以根据用户接受的确切 Proposal 为本次操作返回 `allowApply=true`，无需打开整个 run 的自动采用。生成许可不等于采用许可。
+
+Pre 采用仅返回 `adopted_unlinked`、真实 image bytes/MIME/SHA-256/尺寸、target 和来源说明；重复采用复用同一治理资产。Studio 负责后续资产清单与当前页 pageAssets 的事务，失败可重试挂接。桥不调用 `presentationSync.flush`。普通 canonical 同步排除 Studio 请求的素材自动挂页；如果 Studio 已修改 Pre 管理草案，保留现有 `PRESENTATION_EXTERNAL_CHANGE_REVIEW_REQUIRED` 审阅边界，默认停止且不覆盖页面、素材或布局。
+
+Host 默认素材、报告包、客户 profile 和 Presentation 目录均位于 `DSH_HOME`，未设置时仍使用用户目录下 `.dsh`；`PRE_DESIGN_PRESENTATION_PROJECT_ROOT` 显式覆盖保持优先。隔离宿主验收应设置独立 `DSH_HOME`。
