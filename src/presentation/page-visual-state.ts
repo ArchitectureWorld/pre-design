@@ -21,7 +21,7 @@ export interface PageVisualRequest {
   readonly briefHash: string
   readonly prompt: string
   readonly style: string
-  readonly status: 'generating' | 'candidate' | 'adopted' | 'adopted_unlinked' | 'failed'
+  readonly status: 'generating' | 'candidate' | 'adopted' | 'adopted_unlinked' | 'recovery_required' | 'failed'
   readonly assetId?: string
   readonly message?: string
 }
@@ -65,7 +65,7 @@ export async function readPageVisualState(root: string, projectId: string): Prom
             || new Set(item.target.sourceObjectIds).size !== item.target.sourceObjectIds.length
             || typeof item.requestId !== 'string' || !item.requestId.trim())
         || typeof item.prompt !== 'string' || item.prompt.trim() === '' || typeof item.style !== 'string' || item.style.trim() === ''
-        || !['generating', 'candidate', 'adopted', 'adopted_unlinked', 'failed'].includes(item.status)
+        || !['generating', 'candidate', 'adopted', 'adopted_unlinked', 'recovery_required', 'failed'].includes(item.status)
         || (item.status === 'adopted_unlinked' && item.target === undefined)
         || (item.assetId !== undefined && (typeof item.assetId !== 'string' || item.assetId.trim() === ''))
         || (['candidate', 'adopted', 'adopted_unlinked'].includes(item.status) && !item.assetId)) throw new Error('PAGE_VISUAL_STATE_INVALID: 补图请求损坏')

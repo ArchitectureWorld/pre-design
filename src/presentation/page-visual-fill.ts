@@ -7,7 +7,7 @@ import type { GovernanceRepository } from '../governance/repository.ts'
 import type { VisualAssetRecord } from '../governance/types.ts'
 import { verifiedRasterImageDimensions } from '../governance/site-boundary-asset-store.ts'
 import type { FrozenProjectInput } from '../report/types.ts'
-import type { VisualAgentService } from '../visual/agent.ts'
+import { VisualAgentError, type VisualAgentService, type VisualDispatchGuard } from '../visual/agent.ts'
 import { sha256CanonicalJson } from './canonical-json.ts'
 import { sha256File } from './filesystem.ts'
 import { preparePresentationMaterials, type PreparePresentationMaterialsInput } from './material-registry.ts'
@@ -55,6 +55,8 @@ interface Dependencies {
   readonly adoptedAssets?: (project: FrozenProjectInput) => readonly PresentationAdoptedAssetInput[]
 }
 export interface StudioVisualInput extends PageVisualInput {
+  readonly assertCurrent?: () => void
+  readonly beforeStart?: VisualDispatchGuard
   readonly target: StudioPageVisualTarget
   readonly requestId: string
   readonly title: string
@@ -195,7 +197,7 @@ export class PageVisualFillService {
     return { ...await this.generateTarget(parent, input, page, brief), findingId: page.findingId }
   }
 
-  private async generateTarget(parent: Agent, input: PageVisualInput & { signal?: AbortSignal },
+  private async generateTarget(parent: Agent, input: PageVisualInput & { signal?: AbortSignal; beforeStart?: VisualDispatchGuard },
     page: Pick<PageVisualPlanEntry, 'title' | 'keyMessage' | 'covered' | 'chapterId' | 'workItemId'>, brief: PageVisualRequest): Promise<GeneratedAssetResult> {
     const key = `${resolve(input.workspaceRoot)}\0${brief.taskId}`
     const running = this.inFlight.get(key)
@@ -209,7 +211,8 @@ export class PageVisualFillService {
         if (request && request.briefHash !== brief.briefHash) throw new Error('DESIGN_VISUAL_REQUEST_CONFLICT: requestId 已用于不同内容')
       }
       const existing = await this.usableAsset(projectId, brief.taskId, previous?.assetId)
-      if (previous && previous.status !== 'failed' && (!existing || (['adopted', 'adopted_unlinked'].includes(previous.status) && existing.status !== 'adopted'))) {
+      const recoveryOnly = !!previous && (previous.status === 'recovery_required' || (!!brief.target && previous.status === 'generating')) && !existing
+      if (previous && previous.status !== 'failed' && ((!existing && !recoveryOnly) || (['adopted', 'adopted_unlinked'].includes(previous.status) && existing?.status !== 'adopted'))) {
         throw new Error('PAGE_VISUAL_RECOVERY_REQUIRED: 已有补图请求暂无法从治理状态恢复，未再次生成；请重新加载治理状态并核查原请求')
       }
       if (existing) {
@@ -219,11 +222,12 @@ export class PageVisualFillService {
       }
       if (page.covered) throw new Error('PAGE_VISUAL_ALREADY_COVERED: 当前页已有可用图片，不自动替换')
       if (!page.chapterId || !page.workItemId) throw new Error('PAGE_VISUAL_SOURCE_REQUIRED: 页面缺少真实工作项归属')
-      await savePageVisualRequest(input.workspaceRoot, projectId, brief)
+      await savePageVisualRequest(input.workspaceRoot, projectId, recoveryOnly ? { ...brief, status: 'recovery_required' } : brief)
       try {
         const asset = await this.dependencies.visual.generate(parent, { taskId: brief.taskId, projectId, chapterId: page.chapterId,
           workItemId: page.workItemId, kind: 'concept', required: false,
-          prompt: `页面：${page.title}\n核心判断：${page.keyMessage}\n${brief.prompt}`, projectStyle: brief.style }, input.signal)
+          prompt: `页面：${page.title}\n核心判断：${page.keyMessage}\n${brief.prompt}`, projectStyle: brief.style }, input.signal,
+        { preserveUncertain: true, recoveryOnly, beforeStart: input.beforeStart })
         input.signal?.throwIfAborted()
         if (asset.taskId !== brief.taskId || asset.projectId !== projectId || !['candidate', 'adopted'].includes(asset.status) || asset.quality?.accepted !== true) {
           throw new Error('PAGE_VISUAL_INVALID_RESULT: 未获得通过质量检查的候选图')
@@ -233,7 +237,8 @@ export class PageVisualFillService {
         await savePageVisualRequest(input.workspaceRoot, projectId, { ...brief, status, assetId: asset.assetId })
         return { taskId: brief.taskId, assetId: asset.assetId, status, reused: false }
       } catch (error) {
-        await savePageVisualRequest(input.workspaceRoot, projectId, { ...brief, status: 'failed', message: error instanceof Error ? error.message : String(error) })
+        const uncertain = input.signal?.aborted || (error instanceof VisualAgentError && error.code === 'visual-recovery-required')
+        await savePageVisualRequest(input.workspaceRoot, projectId, { ...brief, status: uncertain ? 'recovery_required' : 'failed', message: error instanceof Error ? error.message : String(error) })
         throw error
       }
     })
@@ -274,7 +279,7 @@ export class PageVisualFillService {
   }
 
   async adoptStudioPage(input: StudioVisualInput & { assetId: string },
-    authorize: (candidate: { requestId: string; assetId: string }) => Promise<void>): Promise<StudioVisualResult> {
+    authorize: (candidate: { requestId: string; assetId: string }) => Promise<() => void>): Promise<StudioVisualResult> {
     input.signal?.throwIfAborted()
     return withPageVisualLock(input.workspaceRoot, async () => {
       const projectId = input.frozenProject.projectId
@@ -284,8 +289,9 @@ export class PageVisualFillService {
       const asset = await this.usableAsset(projectId, request.taskId, request.assetId)
       if (!asset) throw new Error('PAGE_VISUAL_CANDIDATE_INVALID: 候选图不可采用')
       const result = await this.studioResult(input, { taskId: request.taskId, assetId: asset.assetId, status: asset.status as 'candidate' | 'adopted', reused: asset.status === 'adopted' })
-      await authorize({ requestId: request.requestId!, assetId: asset.assetId })
+      const assertAuthorized = await authorize({ requestId: request.requestId!, assetId: asset.assetId })
       input.signal?.throwIfAborted()
+      assertAuthorized()
       const adopted = asset.status === 'adopted' ? asset : await this.dependencies.visual.adopt(projectId, asset.assetId, input.frozenProject.revision)
       await savePageVisualRequest(input.workspaceRoot, projectId, { ...request, status: 'adopted_unlinked' })
       input.signal?.throwIfAborted()

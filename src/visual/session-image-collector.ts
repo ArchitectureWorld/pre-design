@@ -70,6 +70,14 @@ export class SessionImageCollector {
     return this.dependencies.sessions.get(childId)?.seq ?? 0
   }
 
+  /** Only a terminal event for the latest child turn settles an unknown paid attempt. */
+  hasCompleted(childId: string): boolean {
+    const events = this.dependencies.sessions.get(childId)?.events ?? []
+    const start = events.filter(event => event.type === 'turn/start').at(-1)?.seq ?? -1
+    const end = events.filter(event => event.type === 'turn/end').at(-1)?.seq ?? -1
+    return end >= 0 && end >= start
+  }
+
   async waitUntilIdle(childId: string, signal: AbortSignal): Promise<void> {
     while (true) {
       if (signal.aborted) throw signal.reason

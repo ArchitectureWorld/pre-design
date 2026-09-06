@@ -230,9 +230,11 @@ describe('explicit page visual fill', () => {
     const plan = await service.plan(input)
     expect(plan.pages.find(page => page.findingId === input.findingId)).toMatchObject({ covered: false, requestStatus: 'failed' })
     expect(plan.warnings.join()).toContain('fixed model unavailable')
+    await expect(service.generate({} as never, input)).rejects.toThrow('fixed model unavailable')
+    expect(calls).toBe(2)
     await writeFile(join(root, '.pre-design/page-visual-fill.lock'), '')
     await expect(service.generate({} as never, input)).rejects.toThrow('PAGE_VISUAL_BUSY')
-    expect(calls).toBe(1)
+    expect(calls).toBe(2)
   })
   it('does not count CAD or reference images as covered', async () => {
     const { PageVisualFillService } = await import('../src/presentation/page-visual-fill.ts')

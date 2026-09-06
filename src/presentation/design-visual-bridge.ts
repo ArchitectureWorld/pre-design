@@ -70,23 +70,48 @@ export function createDesignVisualBridge(dependencies: Dependencies): DesignVisu
     if (!parent || !text(String(parent.id ?? '')) || String(parent.session?.id ?? '') !== String(parent.id)) fail('SESSION')
     const sessionId = String(parent.id)
     const pre = dependencies.repository.readContext(sessionId)
-    const context = structuredClone(await active.resolver.resolve({ parent, operation, runId: input.runId,
-      studioProjectId: input.studioProjectId, pageId: input.pageId, sourceStateHash: input.sourceStateHash, ...(candidate ? { candidate } : {}) }))
+    const resolverInput = { parent, operation, runId: input.runId,
+      studioProjectId: input.studioProjectId, pageId: input.pageId, sourceStateHash: input.sourceStateHash, ...(candidate ? { candidate } : {}) }
+    let context = structuredClone(await active.resolver.resolve(resolverInput))
     signal?.throwIfAborted()
     if (owner !== active) fail('RESOLVER_UNAVAILABLE')
     if (context.preDesignProjectId !== pre.project.projectId || context.studioProjectId !== input.studioProjectId || context.pageId !== input.pageId
       || context.sourceStateHash !== input.sourceStateHash || !Number.isInteger(context.studioProjectRevision) || context.studioProjectRevision < 0
       || !text(context.title) || !text(context.keyMessage)) fail('CONTEXT')
-    const grant = context.grant
-    if (!grant || grant.runId !== input.runId || grant.sessionId !== sessionId || !(Date.parse(grant.expiresAt) > Date.parse(dependencies.now?.() ?? new Date().toISOString()))
-      || (operation === 'generate' && grant.allowVisualGeneration !== true) || (operation === 'adopt' && grant.allowApply !== true)) fail('GRANT')
+    const checkGrant = () => {
+      const grant = context.grant
+      if (!grant || grant.runId !== input.runId || grant.sessionId !== sessionId || !(Date.parse(grant.expiresAt) > Date.parse(dependencies.now?.() ?? new Date().toISOString()))
+        || (operation === 'generate' && grant.allowVisualGeneration !== true) || (operation === 'adopt' && grant.allowApply !== true)) fail('GRANT')
+    }
+    checkGrant()
     const binding = dependencies.standardProjects.findByPreDesignProjectId(pre.project.projectId)
     const root = binding?.workspaceRoot ?? binding?.directoryRoot
     if (!binding || binding.state !== 'ready' || binding.preDesignProjectId !== context.preDesignProjectId || binding.presentationProjectId !== context.studioProjectId
       || !root || !text(context.workspaceRoot) || await realpath(root) !== await realpath(context.workspaceRoot)) fail('BINDING')
     const frozen = await dependencies.source(pre.project.projectId, pre.project.currentRevision)
-    if (frozen.projectId !== pre.project.projectId || frozen.revision !== pre.project.currentRevision
-      || dependencies.repository.readContext(sessionId).project.currentRevision !== frozen.revision) fail('CONTEXT')
+    const assertCurrent = () => {
+      signal?.throwIfAborted()
+      if (owner !== active || active.resolver.protocol !== DESIGN_VISUAL_PROTOCOL) fail('RESOLVER_UNAVAILABLE')
+      if (String(parent.id) !== sessionId || String(parent.session?.id) !== sessionId) fail('SESSION')
+      const current = dependencies.repository.readContext(sessionId)
+      if (current.binding.projectId !== pre.binding.projectId || current.binding.projectId !== frozen.projectId
+        || current.project.projectId !== pre.project.projectId || current.project.projectId !== frozen.projectId
+        || current.project.currentRevision !== frozen.revision || frozen.revision !== pre.project.currentRevision) fail('CONTEXT')
+      const latestBinding = dependencies.standardProjects.findByPreDesignProjectId(frozen.projectId)
+      if (!latestBinding || latestBinding.state !== 'ready' || latestBinding.preDesignProjectId !== binding.preDesignProjectId
+        || latestBinding.presentationProjectId !== binding.presentationProjectId || latestBinding.workspaceRoot !== binding.workspaceRoot
+        || latestBinding.directoryRoot !== binding.directoryRoot) fail('BINDING')
+      checkGrant()
+    }
+    assertCurrent()
+    // Refresh the authority after asynchronous filesystem/source work, then perform only synchronous guards.
+    const refreshed = structuredClone(await active.resolver.resolve(resolverInput))
+    const identity = (value: ResolvedDesignVisualContext) => ({ preDesignProjectId: value.preDesignProjectId, studioProjectId: value.studioProjectId,
+      pageId: value.pageId, workspaceRoot: value.workspaceRoot, sourceStateHash: value.sourceStateHash,
+      sourceObjectIds: [...new Set(value.sourceObjectIds)].sort(), title: value.title, keyMessage: value.keyMessage })
+    if (sha256CanonicalJson(identity(context)) !== sha256CanonicalJson(identity(refreshed))) fail('CONTEXT')
+    context = refreshed
+    assertCurrent()
     if (!Array.isArray(context.sourceObjectIds) || !context.sourceObjectIds.length || !context.sourceObjectIds.every(text)) fail('SOURCE_REQUIRED')
     const sourceObjectIds = [...new Set(context.sourceObjectIds)].sort()
     const sources = sourceObjectIds.map(id => frozen.stateObjects.find(object => object.objectId === id))
@@ -98,7 +123,7 @@ export function createDesignVisualBridge(dependencies: Dependencies): DesignVisu
       target: { kind: 'studio_current_page', preDesignProjectId: frozen.projectId, studioProjectId: context.studioProjectId,
         pageId: context.pageId, sourceStateHash: context.sourceStateHash, sourceObjectIds }, requestId: input.requestId,
       title: context.title, keyMessage: context.keyMessage, chapterId: anchor.chapterId, workItemId: anchor.workItemId,
-      prompt: input.prompt, style: input.style, signal } }
+      prompt: input.prompt, style: input.style, signal, assertCurrent } }
   }
   const unchanged = (before: StudioVisualInput, after: StudioVisualInput) => {
     if (sha256CanonicalJson(before.target) !== sha256CanonicalJson(after.target) || before.frozenProject.revision !== after.frozenProject.revision) fail('CONTEXT')
@@ -114,7 +139,11 @@ export function createDesignVisualBridge(dependencies: Dependencies): DesignVisu
     async generate(parent: Agent, input: DesignVisualInput, signal?: AbortSignal) {
       const validated = await resolveContext(parent, input, 'generate', signal)
       let result: StudioVisualResult
-      try { result = await dependencies.pageVisualFill.generateStudioPage(parent, validated.fill) }
+      try { result = await dependencies.pageVisualFill.generateStudioPage(parent, { ...validated.fill, beforeStart: async () => {
+        const authorized = await resolveContext(parent, input, 'generate', signal)
+        unchanged(validated.fill, authorized.fill)
+        return authorized.fill.assertCurrent!
+      } }) }
       catch (error) { signal?.throwIfAborted(); throw error }
       unchanged(validated.fill, (await resolveContext(parent, input, 'generate', signal)).fill)
       return result
@@ -122,7 +151,9 @@ export function createDesignVisualBridge(dependencies: Dependencies): DesignVisu
     async adopt(parent: Agent, input: DesignVisualInput & { assetId: string }, signal?: AbortSignal) {
       const validated = await resolveContext(parent, input, 'inspect', signal)
       const result = await dependencies.pageVisualFill.adoptStudioPage({ ...validated.fill, assetId: input.assetId }, async candidate => {
-        unchanged(validated.fill, (await resolveContext(parent, input, 'adopt', signal, candidate)).fill)
+        const authorized = await resolveContext(parent, input, 'adopt', signal, candidate)
+        unchanged(validated.fill, authorized.fill)
+        return authorized.fill.assertCurrent!
       })
       unchanged(validated.fill, (await resolveContext(parent, input, 'adopt', signal, { requestId: result.requestId, assetId: result.assetId })).fill)
       return result

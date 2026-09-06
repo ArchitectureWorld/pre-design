@@ -32,9 +32,10 @@ export interface VisualAgentDependencies {
   readonly store: VisualAssetStore
   readonly now?: () => string
 }
+export type VisualDispatchGuard = () => void | Promise<void | (() => void)>
 
 export class VisualAgentError extends Error {
-  constructor(readonly code: 'visual-model-unavailable' | 'visual-generation-failed', message: string, options?: ErrorOptions) {
+  constructor(readonly code: 'visual-model-unavailable' | 'visual-generation-failed' | 'visual-recovery-required', message: string, options?: ErrorOptions) {
     super(message, options)
     this.name = 'VisualAgentError'
   }
@@ -88,10 +89,17 @@ export class VisualAgentService {
     task: VisualGenerationTask,
     attempt: number,
     signal: AbortSignal,
+    beforeStart?: VisualDispatchGuard,
+    onDispatch?: () => void,
   ): Promise<string> {
     await this.probeModel()
+    signal.throwIfAborted()
+    const finalCheck = await beforeStart?.()
+    finalCheck?.()
+    signal.throwIfAborted()
     const childId = reservedTaskChildId(task, attempt)
     try {
+      onDispatch?.()
       const started = await this.dependencies.subagents.startContinuable({
         provider: VISUAL_SUBAGENT_PROVIDER,
         label: `preplanning_visual_task:${task.projectId}:${task.taskId}:${attempt}`,
@@ -119,6 +127,7 @@ export class VisualAgentService {
     parent: Agent,
     task: VisualGenerationTask,
     signal: AbortSignal = AbortSignal.timeout(600_000),
+    options: { readonly preserveUncertain?: boolean; readonly recoveryOnly?: boolean; readonly beforeStart?: VisualDispatchGuard } = {},
   ): Promise<VisualAssetRecord> {
     const existing = this.dependencies.governance.readProject(task.projectId).visualTasks
       .find(row => row.taskId === task.taskId)
@@ -134,7 +143,9 @@ export class VisualAgentService {
       updatedAt: this.now(),
     }
     await this.dependencies.governance.putVisualTask(queued)
+    let dispatched = false
     try {
+      signal.throwIfAborted()
       if (existing?.childId !== undefined && existing.attempts > 0
         && String(existing.childId) === reservedTaskChildId(task, existing.attempts)) {
         const lateImage = await this.dependencies.collector.findExistingImage(String(existing.childId), 0, signal)
@@ -151,16 +162,24 @@ export class VisualAgentService {
           return await this.recordCandidate(task, recoveredRunning, lateImage)
         }
       }
+      if (options.recoveryOnly || (options.preserveUncertain && existing && existing.attempts > 0 && existing.status !== 'failed')) {
+        const completed = existing?.childId !== undefined && String(existing.childId) === reservedTaskChildId(task, existing.attempts)
+          && this.dependencies.collector.hasCompleted?.(String(existing.childId)) === true
+        if (!completed) throw new VisualAgentError('visual-recovery-required', 'PAGE_VISUAL_RECOVERY_REQUIRED: 原付费任务尚未终结或结果未知，未启动新 attempt')
+        if (options.recoveryOnly) throw new VisualAgentError('visual-generation-failed', '原付费任务已终结且未获得图像；可显式重试')
+      }
       const attempt = queued.attempts + 1
       const { blockedReason: _previousBlockedReason, ...attemptBase } = queued
       const starting: VisualTaskRecord = {
         ...attemptBase,
         status: 'running',
         attempts: attempt,
+        // Reserve durable recovery identity before the transport can submit a paid request.
+        ...(options.preserveUncertain ? { childId: reservedTaskChildId(task, attempt) as SessionId } : {}),
         updatedAt: this.now(),
       }
       await this.dependencies.governance.putVisualTask(starting)
-      const childId = await this.startTaskAgent(parent, task, attempt, signal)
+      const childId = await this.startTaskAgent(parent, task, attempt, signal, options.beforeStart, () => { dispatched = true })
       const running: VisualTaskRecord = { ...starting, childId: childId as SessionId, updatedAt: this.now() }
       let interrupted = false
       const interruptChild = () => {
@@ -182,12 +201,17 @@ export class VisualAgentService {
         signal.removeEventListener('abort', interruptChild)
       }
     } catch (error) {
+      if (error instanceof VisualAgentError && error.code === 'visual-recovery-required') throw error
       const latest = this.dependencies.governance.readProject(task.projectId).visualTasks
         .find(row => row.taskId === task.taskId) ?? queued
+      if (options.preserveUncertain && dispatched && (!latest.childId || this.dependencies.collector.hasCompleted?.(String(latest.childId)) !== true)) {
+        await this.dependencies.governance.putVisualTask({ ...latest, status: 'running', blockedReason: '原付费任务结果未知，等待恢复；未允许再次付费', updatedAt: this.now() })
+        throw new VisualAgentError('visual-recovery-required', 'PAGE_VISUAL_RECOVERY_REQUIRED: 原付费任务结果未知，保留原 child 等待恢复', { cause: error })
+      }
       if (latest.status !== 'blocked') {
         await this.dependencies.governance.putVisualTask({
           ...latest,
-          status: 'blocked',
+          status: options.preserveUncertain ? 'failed' : 'blocked',
           blockedReason: error instanceof Error ? error.message : '视觉生成失败',
           updatedAt: this.now(),
         })

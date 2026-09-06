@@ -56,15 +56,22 @@ async function fixture() {
   const jpeg = await readFile(new URL('./fixtures/golden-project/assets/concept-01.jpg', import.meta.url))
   let paidCalls = 0
   let paidAction = async () => {}
+  let probeAction = async () => {}
+  let publishImages = true
   const sessions = new Map<string, { seq: number; events: unknown[] }>()
+  const publishImage = (childId: string) => sessions.set(childId, { seq: 2, events: [{ seq: 1, type: 'assistant/message', data: { message: { content: [{ type: 'text', text: `data:image/jpeg;base64,${jpeg.toString('base64')}` }] } } }, { seq: 2, type: 'turn/end', data: {} }] })
+  const endWithoutImage = (childId: string) => sessions.set(childId, { seq: 2, events: [{ seq: 1, type: 'turn/start', data: {} }, { seq: 2, type: 'turn/end', data: {} }] })
   const visual = new VisualAgentService({ governance, store, now,
-    llm: { listModels: async () => [] },
+    llm: { listModels: async () => { await probeAction(); return [] } },
     subagents: { startContinuable: async (spec: { childId: string }) => {
       paidCalls++; await paidAction()
-      sessions.set(spec.childId, { seq: 2, events: [{ seq: 1, type: 'assistant/message', data: { message: { content: [{ type: 'text', text: `data:image/jpeg;base64,${jpeg.toString('base64')}` }] } } }, { seq: 2, type: 'turn/end', data: {} }] })
+      if (publishImages) publishImage(spec.childId)
       return { childId: spec.childId, messageId: 'image-message' }
     }, interrupt: () => {} } as never,
-    collector: new SessionImageCollector({ sessions: { get: id => sessions.get(id) as never }, attachments: { readImage: async () => { throw new Error('unexpected attachment') } }, waitForEvent: async () => { throw new Error('missing paid response') } }),
+    collector: new SessionImageCollector({ sessions: { get: id => sessions.get(id) as never }, attachments: { readImage: async () => { throw new Error('unexpected attachment') } }, waitForEvent: async (_id, signal) => new Promise<void>((_resolve, reject) => {
+      if (signal.aborted) reject(signal.reason)
+      else signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+    }) }),
   })
   const fill = new PageVisualFillService({ visual, governance, resolveAsset: name => store.resolveAsset(name) })
   const source = (id: string, revision: number) => createFrozenProjectInput(id, revision, { repository, governance, registry, visualStore: store })
@@ -74,7 +81,8 @@ async function fixture() {
   const resolved = { preDesignProjectId: 'pre-test', studioProjectId: input.studioProjectId, pageId: input.pageId, workspaceRoot: workspace, studioProjectRevision: 1, sourceStateHash: input.sourceStateHash, sourceObjectIds: ['PS01'], title: '合并后的新页', keyMessage: '改善公共空间', grant: { runId: input.runId, sessionId: 'session-1', allowVisualGeneration: true, allowApply: true, expiresAt: '2026-09-07T00:00:00.000Z' } }
   const resolver = { protocol: 'pre-design.page-visual.v1' as const, resolve: async () => structuredClone(resolved) }
   const dispose = bridge.bindStudioResolver(resolver)
-  return { root, workspace, repository, governance, store, source, bridge, dependencies, module, resolved, resolver, dispose, jpeg, paidCalls: () => paidCalls, paidAction: (fn: typeof paidAction) => { paidAction = fn } }
+  return { root, workspace, repository, governance, bindings, store, source, bridge, dependencies, module, resolved, resolver, dispose, jpeg, publishImage, endWithoutImage,
+    publishImages: (value: boolean) => { publishImages = value }, paidCalls: () => paidCalls, paidAction: (fn: typeof paidAction) => { paidAction = fn }, probeAction: (fn: typeof probeAction) => { probeAction = fn } }
 }
 
 it('uses real current-page sources and persists one paid candidate across duplicate calls, restart and unrelated revisions', async () => {
@@ -281,4 +289,132 @@ it('rejects a tampered sidecar that rebinds a governed asset to a different page
   f.resolved.pageId = 'forged-page'
   await expect(f.bridge.adopt(parent, { ...input, pageId: 'forged-page', assetId: candidate.assetId }).then(result => result.status)).rejects.toThrow('STATE_INVALID')
   expect(f.governance.readProject('pre-test').visualAssets[0]?.status).toBe('candidate')
+})
+
+function barrier() {
+  let release!: () => void
+  const promise = new Promise<void>(resolve => { release = resolve })
+  return { promise, release }
+}
+
+it.each([
+  ['studio', 'cancel-before-image'], ['studio', 'submitted-start-throws'],
+  ['canonical', 'cancel-before-image'], ['canonical', 'submitted-start-throws'],
+] as const)('never charges twice for %s while %s is unresolved, and later recovers the original child', async (target, mode) => {
+  const f = await fixture(); f.publishImages(false)
+  const entered = barrier(); const released = barrier(); const controller = new AbortController()
+  f.paidAction(async () => { entered.release(); await released.promise; if (mode === 'submitted-start-throws') throw new Error('transport lost after submission') })
+  const generate = (signal?: AbortSignal) => target === 'studio' ? f.bridge.generate(parent, input, signal)
+    : f.dependencies.pageVisualFill.generate(parent, { frozenProject: f.source('pre-test', 1), workspaceRoot: f.workspace,
+      findingId: 'pre-design:project-brief', prompt: input.prompt, signal })
+  const result = generate(controller.signal).then(() => 'unexpected-success', error => error)
+  await entered.promise; released.release()
+  if (mode === 'cancel-before-image') {
+    await vi.waitFor(() => expect(f.governance.readProject('pre-test').visualTasks[0]?.childId).toBeDefined())
+    controller.abort(new Error('cancelled'))
+  }
+  expect(await result).toBeInstanceOf(Error)
+  f.publishImages(true); f.paidAction(async () => {})
+  await expect(generate().then(value => value.status)).rejects.toThrow('RECOVERY_REQUIRED')
+  expect(f.paidCalls()).toBe(1)
+  const task = f.governance.readProject('pre-test').visualTasks[0]!
+  expect(task.attempts).toBe(1)
+  expect(task.childId).toBeDefined()
+  f.publishImage(String(task.childId))
+  expect(await generate()).toMatchObject({ status: 'candidate' })
+  expect(f.paidCalls()).toBe(1)
+})
+
+async function otherProjectAtSameRevision(f: Awaited<ReturnType<typeof fixture>>) {
+  const actor = { actorId: 'owner', name: '负责人', role: 'decision_owner' }
+  await f.repository.createProject({ projectId: 'pre-other', name: '另一项目', sessionId: 'other-session', createdAt: now(), actor })
+  await f.repository.saveProposal({ proposalId: 'other-p', projectId: 'pre-other', expectedRevision: 0, idempotencyKey: 'other-p', createdAt: now(), envelope: { target_object_id: 'PS01' } })
+  await f.repository.confirmProposal({ proposalId: 'other-p', actor, confirmedAt: now(), eventId: 'other-e', stateObject: { objectId: 'PS01', value: { object_id: 'PS01', revision: 1 } } })
+}
+
+it.each([['generate', 'source'], ['adopt', 'source'], ['generate', 'resolver'], ['adopt', 'resolver']] as const)('blocks %s when asynchronous %s yields to a same-revision Session rebind', async (operation, stage) => {
+  const f = await fixture(); await otherProjectAtSameRevision(f)
+  const candidate = operation === 'adopt' ? await f.bridge.generate(parent, input) : undefined
+  const entered = barrier(); const released = barrier(); let pause = operation === 'generate'
+  const bridge = f.module.createDesignVisualBridge({ ...f.dependencies, source: async (id, revision) => {
+    const frozen = f.source(id, revision)
+    if (pause && stage === 'source') { entered.release(); await released.promise }
+    return frozen
+  } })
+  bridge.bindStudioResolver({ ...f.resolver, resolve: async request => {
+    if (request.operation === 'adopt') pause = true
+    if (pause && stage === 'resolver') { entered.release(); await released.promise }
+    return structuredClone(f.resolved)
+  } })
+  const result = (operation === 'generate' ? bridge.generate(parent, input) : bridge.adopt(parent, { ...input, assetId: candidate!.assetId })).then(() => 'success', error => error)
+  await entered.promise
+  await f.repository.bindSession('session-1', 'pre-other', now())
+  released.release()
+  expect(await result).toBeInstanceOf(Error)
+  expect(f.paidCalls()).toBe(operation === 'generate' ? 0 : 1)
+  expect(f.governance.readProject('pre-test').visualAssets.every(asset => asset.status === 'candidate')).toBe(true)
+})
+
+it('rechecks Session binding at the paid dispatch boundary after asynchronous model probing', async () => {
+  const f = await fixture(); await otherProjectAtSameRevision(f)
+  const entered = barrier(); const released = barrier()
+  f.probeAction(async () => { entered.release(); await released.promise })
+  const pending = f.bridge.generate(parent, input).then(() => 'success', error => error)
+  await entered.promise; await f.repository.bindSession('session-1', 'pre-other', now()); released.release()
+  expect(await pending).toBeInstanceOf(Error)
+  expect(f.paidCalls()).toBe(0)
+  expect(f.governance.readProject('pre-test').visualAssets).toHaveLength(0)
+})
+
+it('refreshes revoked generation permission at the paid dispatch boundary after asynchronous model probing', async () => {
+  const f = await fixture(); const entered = barrier(); const released = barrier()
+  f.probeAction(async () => { entered.release(); await released.promise })
+  const pending = f.bridge.generate(parent, input).then(() => 'success', error => error)
+  await entered.promise; f.resolved.grant.allowVisualGeneration = false; released.release()
+  expect(await pending).toBeInstanceOf(Error)
+  expect(f.paidCalls()).toBe(0)
+})
+
+it.each(['resolver-owner', 'presentation-binding', 'expired-grant', 'revoked-grant'] as const)('rechecks %s after asynchronous frozen source before any paid dispatch', async change => {
+  const f = await fixture(); const entered = barrier(); const released = barrier(); let time = now()
+  const bridge = f.module.createDesignVisualBridge({ ...f.dependencies, now: () => time, source: async (id, revision) => {
+    const frozen = f.source(id, revision); entered.release(); await released.promise; return frozen
+  } })
+  const dispose = bridge.bindStudioResolver(f.resolver)
+  const pending = bridge.generate(parent, input).then(() => 'success', error => error)
+  await entered.promise
+  if (change === 'resolver-owner') { dispose(); bridge.bindStudioResolver(f.resolver) }
+  if (change === 'presentation-binding') await f.bindings.put({ ...f.bindings.read('pre-test')!, state: 'recovery_required' })
+  if (change === 'expired-grant') time = '2026-09-08T00:00:00.000Z'
+  if (change === 'revoked-grant') f.resolved.grant.allowVisualGeneration = false
+  released.release()
+  expect(await pending).toBeInstanceOf(Error)
+  expect(f.paidCalls()).toBe(0)
+})
+
+it.each(['studio', 'canonical'] as const)('reports confirmed terminal failure for %s and permits an explicit retry without treating failure as success', async target => {
+  const f = await fixture(); f.publishImages(false)
+  const generate = () => target === 'studio' ? f.bridge.generate(parent, input)
+    : f.dependencies.pageVisualFill.generate(parent, { frozenProject: f.source('pre-test', 1), workspaceRoot: f.workspace, findingId: 'pre-design:project-brief', prompt: input.prompt })
+  f.paidAction(async () => { f.endWithoutImage(String(f.governance.readProject('pre-test').visualTasks[0]!.childId)) })
+  await expect(generate().then(result => result.status)).rejects.toThrow()
+  expect(f.governance.readProject('pre-test').visualAssets).toHaveLength(0)
+  expect((await readPageVisualState(f.workspace, 'pre-test')).requests[0]?.status).toBe('failed')
+  f.publishImages(true); f.paidAction(async () => {})
+  expect(await generate()).toMatchObject({ status: 'candidate' })
+  expect(f.paidCalls()).toBe(2)
+})
+
+it('requires an observed terminal event before releasing a previously uncertain paid attempt for explicit retry', async () => {
+  const f = await fixture(); f.publishImages(false)
+  f.paidAction(async () => { throw new Error('transport lost after submission') })
+  await expect(f.bridge.generate(parent, input)).rejects.toThrow('RECOVERY_REQUIRED')
+  const task = f.governance.readProject('pre-test').visualTasks[0]!
+  f.endWithoutImage(String(task.childId))
+  f.publishImages(true); f.paidAction(async () => {})
+  await expect(f.bridge.generate(parent, input).then(result => result.status)).rejects.toThrow('已终结')
+  expect(f.paidCalls()).toBe(1)
+  expect((await readPageVisualState(f.workspace, 'pre-test')).requests[0]?.status).toBe('failed')
+  expect(await f.bridge.generate(parent, input)).toMatchObject({ status: 'candidate' })
+  expect(f.paidCalls()).toBe(2)
 })
