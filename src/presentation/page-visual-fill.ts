@@ -237,7 +237,10 @@ export class PageVisualFillService {
         await savePageVisualRequest(input.workspaceRoot, projectId, { ...brief, status, assetId: asset.assetId })
         return { taskId: brief.taskId, assetId: asset.assetId, status, reused: false }
       } catch (error) {
-        const uncertain = input.signal?.aborted || (error instanceof VisualAgentError && error.code === 'visual-recovery-required')
+        // VisualAgent classifies actual dispatch/terminal evidence; an aborted signal alone
+        // must not override its confirmed pre-dispatch failure and strand an unstarted child.
+        const confirmedUnsubmitted = error instanceof VisualAgentError && error.code === 'visual-not-dispatched'
+        const uncertain = !confirmedUnsubmitted && (input.signal?.aborted || (error instanceof VisualAgentError && error.code === 'visual-recovery-required'))
         await savePageVisualRequest(input.workspaceRoot, projectId, { ...brief, status: uncertain ? 'recovery_required' : 'failed', message: error instanceof Error ? error.message : String(error) })
         throw error
       }

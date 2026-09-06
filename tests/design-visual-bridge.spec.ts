@@ -418,3 +418,20 @@ it('requires an observed terminal event before releasing a previously uncertain 
   expect(await f.bridge.generate(parent, input)).toMatchObject({ status: 'candidate' })
   expect(f.paidCalls()).toBe(2)
 })
+
+it.each(['studio', 'canonical'] as const)('retries %s after cancellation during probe without waiting on a child that was never dispatched', async target => {
+  const f = await fixture(); const entered = barrier(); const released = barrier(); const controller = new AbortController()
+  f.probeAction(async () => { entered.release(); await released.promise })
+  const generate = (signal?: AbortSignal) => target === 'studio' ? f.bridge.generate(parent, input, signal)
+    : f.dependencies.pageVisualFill.generate(parent, { frozenProject: f.source('pre-test', 1), workspaceRoot: f.workspace,
+      findingId: 'pre-design:project-brief', prompt: input.prompt, signal })
+  const first = generate(controller.signal).then(() => 'unexpected-success', error => error)
+  await entered.promise; controller.abort(new Error('cancelled before dispatch')); released.release()
+  expect(await first).toBeInstanceOf(Error)
+  expect(f.paidCalls()).toBe(0)
+  expect(f.governance.readProject('pre-test').visualTasks[0]?.status).toBe('failed')
+  f.probeAction(async () => {})
+  const retry = await generate().then(result => result.status, error => error.message)
+  expect(retry).toBe('candidate')
+  expect(f.paidCalls()).toBe(1)
+})

@@ -35,7 +35,7 @@ export interface VisualAgentDependencies {
 export type VisualDispatchGuard = () => void | Promise<void | (() => void)>
 
 export class VisualAgentError extends Error {
-  constructor(readonly code: 'visual-model-unavailable' | 'visual-generation-failed' | 'visual-recovery-required', message: string, options?: ErrorOptions) {
+  constructor(readonly code: 'visual-model-unavailable' | 'visual-generation-failed' | 'visual-recovery-required' | 'visual-not-dispatched', message: string, options?: ErrorOptions) {
     super(message, options)
     this.name = 'VisualAgentError'
   }
@@ -144,6 +144,7 @@ export class VisualAgentService {
     }
     await this.dependencies.governance.putVisualTask(queued)
     let dispatched = false
+    let preparedNewAttempt = false
     try {
       signal.throwIfAborted()
       if (existing?.childId !== undefined && existing.attempts > 0
@@ -178,6 +179,7 @@ export class VisualAgentService {
         ...(options.preserveUncertain ? { childId: reservedTaskChildId(task, attempt) as SessionId } : {}),
         updatedAt: this.now(),
       }
+      preparedNewAttempt = true
       await this.dependencies.governance.putVisualTask(starting)
       const childId = await this.startTaskAgent(parent, task, attempt, signal, options.beforeStart, () => { dispatched = true })
       const running: VisualTaskRecord = { ...starting, childId: childId as SessionId, updatedAt: this.now() }
@@ -215,6 +217,9 @@ export class VisualAgentService {
           blockedReason: error instanceof Error ? error.message : '视觉生成失败',
           updatedAt: this.now(),
         })
+      }
+      if (options.preserveUncertain && preparedNewAttempt && !dispatched) {
+        throw new VisualAgentError('visual-not-dispatched', '视觉请求在实际提交前停止，可显式重试', { cause: error })
       }
       if (error instanceof VisualAgentError) throw error
       throw new VisualAgentError('visual-generation-failed', `视觉任务 '${task.taskId}' 生成失败`, { cause: error })
