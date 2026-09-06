@@ -54,4 +54,14 @@
 - [x] Inspect representative layouts and the complete per-page asset/overflow check. Existing manual layouts remain unchanged; new layouts should use adopted imagery and disclose concepts without obscuring text.
 - [x] Independently review Task 1 diff and resolve issues. Run final build/typecheck/full tests, package checksum and package-source consistency checks.
 - [x] Install tested package into the exact Web profile; restart only its DSH process if needed, preserve Tailscale and the unsent input. Use standard sync without force; verify real API, files and rendered page consumption.
-- [ ] Commit delivery changes and push HEAD to the existing original remote branch without force. Verify local/remote commit and installed artifact consistency. Report actual coverage, limits and pending host checks honestly.
+- [x] Commit delivery changes and push HEAD to the existing original remote branch without force. Verify local/remote commit and installed artifact consistency. Report actual coverage, limits and pending host checks honestly.
+
+## Verified release outcome (2026-09-06)
+
+- Pre full suite: 655/655 tests; typecheck, built-package tests and Presentation integration passed.
+- All 90 pages have linked imagery; 47 distinct images, including 9 AI concepts and 37 deterministic diagrams plus the original satellite image.
+- Formal Studio data advanced from revision 22 to 111 while publishing 89 new layouts. The existing first-page layout, text, scripts and review history were preserved.
+- Browser audit: 90 pages, 738 text elements, 90 images; no text overflow, out-of-canvas elements, broken images or image/frame mismatches. Formal image endpoints passed 47/47 hash and MIME checks.
+- Formal package bytes match the tested tarball. Studio package and model configuration were not upgraded or changed by this release.
+- Three original evidence assets remain unresolved; conceptual imagery does not claim to fill those evidence gaps.
+- Source changes were pushed to the existing feat/pre-v2.0.0 branch. This final checklist commit records that verified outcome without changing runtime code.
