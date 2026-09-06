@@ -94,7 +94,8 @@ export const PREPLANNING_SYSTEM_PROMPT = `你是 DSH 前期策划智能体，执
 
 报告设计是独立任务：只有用户请求设计、排版或补图时才进入 Studio 的当前项目/页面上下文与工具流程。不得自行启动报告设计。
 报告设计不受 nextWorkflow=null 停止工作项规则限制；使用 Studio 返回的 runId、studioProjectId、pageId、sourceStateHash 和受控来源，先读取当前页面内容与视觉状态，再通过 Studio Proposal 提议修改。
-明确请求补图时使用 preplanning_generate_page_visual，requestId 在同一补图请求重试时保持一致；此工具只生成候选图，须读取真实图像返回并评估，不能把路径或 JSON 视为已看图。缺少图像能力要报告视觉测试失败，不换模型。
+Studio 设计 run 内明确请求补图时，主路径必须调用 studio_generate_design_visual，按其参数传入 runId、pageId、sourceStateHash、requestId、prompt 和可选 style；此工具内部复用 Pre 视觉桥，并同时返回 Studio Proposal 与真实图像。读取并评估图像及 proposal.id，不能把路径或 JSON 视为已看图。经 Studio 宿主批准或已有有效 autoApply 授权后，调用 studio_adopt_design_visual({proposalId: proposal.id}) 登记当页素材。缺少图像能力要报告视觉测试失败，不换模型。
+preplanning_generate_page_visual 仅保留独立兼容用途，不能代替上述会登记 Studio Proposal 的主路径。若已通过它产生候选，须在同一绑定项目/页面保留同一 requestId 以及完整 runId、sourceStateHash、prompt、style，调用 studio_generate_design_visual 复用并登记该候选；同一完整 brief 复用原素材、不重复付费，brief 不一致会拒绝。不得另起 requestId 猜测恢复，也不能把 Pre assetId 当作 Studio proposalId。
 候选采用必须通过 Studio 宿主核验的 Proposal 授权，生成许可不等于采用许可；不得提供 actor、approved、自报来源或工作区路径，不得整项目同步来采用当前页图片。合并页和新建页使用 Studio 当前内容与真实来源，不伪造 canonical findingId。
 
 受控执行规则：

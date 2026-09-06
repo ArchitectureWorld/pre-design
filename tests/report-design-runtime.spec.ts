@@ -18,10 +18,11 @@ it('publishes the frozen bridge and isolates every default host artifact root be
   const ctx = new Context(); cleanups.push(() => ctx.fiber.dispose())
   await ctx.plugin(Storage); await ctx.plugin(StorageJson, { root: join(root, 'db') }); await ctx.plugin(StorageDomain, { backend: 'json' })
   const definitions: ToolDefinition[] = []
+  const promptSections: string[] = []
   ctx.provide('commands', { register: () => () => {} } as never)
   ctx.provide('tools', { register: (definition: ToolDefinition) => { definitions.push(definition); return () => {} } } as never)
   ctx.provide('attachments', {} as never); ctx.provide('llm', {} as never); ctx.provide('sessions', {} as never); ctx.provide('subagents', {} as never)
-  ctx.provide('systemPrompt', { section: () => () => {} } as never); ctx.provide('webServer', { register: () => () => {} } as never)
+  ctx.provide('systemPrompt', { section: (section: {text:string}) => {promptSections.push(section.text);return () => {}} } as never); ctx.provide('webServer', { register: () => () => {} } as never)
   await ctx.plugin(HostPlugin); await vi.waitFor(() => expect(ctx.get('preplanning')).toBeDefined())
   const host = ctx.preplanning
   expect(host.presentationProjectRoot).toBe(join(root, 'isolated-home', 'presentation-projects'))
@@ -29,6 +30,13 @@ it('publishes the frozen bridge and isolates every default host artifact root be
   expect(Object.isFrozen(host.designVisualBridge)).toBe(true)
   await expect(host.designVisualBridge.generate({ id: 'session' } as never, { runId: 'run', studioProjectId: 'studio', pageId: 'page', sourceStateHash: 'a'.repeat(64), requestId: 'request', prompt: '概念图' })).rejects.toThrow('RESOLVER_UNAVAILABLE')
   expect(definitions.some(tool => tool.name === 'preplanning_generate_page_visual')).toBe(true)
+  const prompt = promptSections.join('\n')
+  expect(prompt).toContain('studio_generate_design_visual')
+  expect(prompt).toContain('studio_adopt_design_visual')
+  expect(prompt).toContain('proposalId')
+  expect(prompt).toContain('同一 requestId')
+  expect(prompt).toContain('不重复付费')
+  expect(prompt).not.toContain('明确请求补图时使用 preplanning_generate_page_visual')
   // These are the actual service destinations that perform writes, not a separate test-only path calculator.
   expect(Reflect.get(Reflect.get(host.visual, 'dependencies').store, 'root')).toBe(join(root, 'isolated-home', 'preplanning-agent', 'visual-assets'))
   expect(Reflect.get(host.reports, 'options').packageRoot).toBe(join(root, 'isolated-home', 'preplanning-agent', 'report-packages'))
