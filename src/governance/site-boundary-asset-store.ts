@@ -188,6 +188,8 @@ function intrinsicDimensions(mimeType: BoundaryMimeType, data: Uint8Array): { re
   return dimensions
 }
 
+export { intrinsicDimensions as verifiedRasterImageDimensions }
+
 function attachmentRefsMatch(expected: ImageAttachmentRef, actual: ImageAttachmentRef): boolean {
   return expected.attachmentId === actual.attachmentId
     && expected.mediaType === actual.mediaType

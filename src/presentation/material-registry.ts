@@ -215,7 +215,12 @@ export async function preparePresentationMaterials(input: PreparePresentationMat
   const assets = new Map<string, PresentationAdoptedAssetInput>()
   const warnings: string[] = []
   await preserveImportedMaterials(input, sources, assets)
-  for (const asset of input.assets ?? []) assets.set(asset.sourceKey, asset)
+  for (const asset of input.assets ?? []) {
+    const preserved = assets.get(asset.sourceKey)
+    assets.set(asset.sourceKey, preserved?.pageBindingOnly === true
+      ? { ...asset, pageBindingOnly: true, pageBindings: preserved.pageBindings, origin: preserved.origin, displayName: preserved.displayName }
+      : asset)
+  }
   const root = input.workspaceRoot === undefined ? undefined : resolve(input.workspaceRoot)
   const findings = new Set(compileReportOutline(input.frozenProject).map(finding => finding.findingId))
   const raw = root === undefined ? undefined : await readOptional(join(root, PRESENTATION_MATERIAL_REGISTRY_PATH))

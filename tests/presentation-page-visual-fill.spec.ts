@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, rm, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
@@ -7,12 +7,99 @@ import { createStandardFrozenProject } from './presentation-standard-fixture.ts'
 import { preparePresentationMaterials } from '../src/presentation/material-registry.ts'
 import { buildPresentationStandardProject } from '../src/presentation/standard-project-adapter.ts'
 import { publishPresentationStandardProjectIntoWorkspace } from '../src/presentation/workspace-project-writer.ts'
+import { adoptedPresentationAssets } from '../src/presentation/runtime-integration.ts'
 import type { VisualAssetRecord } from '../src/governance/types.ts'
 
 const roots: string[] = []
+const PNG_1X1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }) })
 
 describe('explicit page visual fill', () => {
+  it.each([
+    ['empty', Buffer.alloc(0)],
+    ['not an image', Buffer.from('not PNG data')],
+    ['truncated PNG', PNG_1X1.subarray(0, 24)],
+    ['damaged PNG payload', Buffer.from(PNG_1X1.map((byte, index) => index === 45 ? byte ^ 0xff : byte))],
+  ] as const)('does not count a registered %s PNG as covered', async (_label, bytes) => {
+    const { PageVisualFillService } = await import('../src/presentation/page-visual-fill.ts')
+    const root = await mkdtemp(join(tmpdir(), 'pre-page-fill-invalid-image-')); roots.push(root)
+    const source = createStandardFrozenProject()
+    await mkdir(join(root, '.pre-design'))
+    await writeFile(join(root, 'concept.png'), bytes)
+    await writeFile(join(root, '.pre-design/materials.json'), JSON.stringify({ version: 1, projectId: source.projectId, materials: [{
+      sourceKey: 'concept', sourcePath: 'concept.png', mimeType: 'image/png', importedAt: source.generatedAt,
+      metadata: { widthPx: 1, heightPx: 1 }, pageBindings: [{ findingId: 'pre-design:project-brief', role: 'primary' }],
+      provenance: { kind: 'ai_concept', tool: { name: 'test-image-tool', version: '1' }, model: 'test-model', prompt: '实际概念图提示词' },
+    }] }))
+    const service = new PageVisualFillService({} as never)
+    const plan = await service.plan({ frozenProject: source, workspaceRoot: root })
+    expect(plan.pages.find(page => page.findingId === 'pre-design:project-brief')).toMatchObject({ covered: false, imageCount: 0 })
+    expect(plan.warnings.join('\n')).toContain('PAGE_VISUAL_IMAGE_UNAVAILABLE')
+    expect(await readFile(join(root, 'concept.png'))).toEqual(bytes)
+    await expect(readFile(join(root, '.pre-design/page-visual-fill.json'))).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+  it('counts a structurally valid PNG but rejects falsely declared dimensions without changing its bytes', async () => {
+    const { PageVisualFillService } = await import('../src/presentation/page-visual-fill.ts')
+    const root = await mkdtemp(join(tmpdir(), 'pre-page-fill-valid-image-')); roots.push(root)
+    const source = createStandardFrozenProject()
+    await mkdir(join(root, '.pre-design'))
+    await writeFile(join(root, 'image.png'), PNG_1X1)
+    const service = new PageVisualFillService({} as never)
+    for (const widthPx of [1, 2]) {
+      await writeFile(join(root, '.pre-design/materials.json'), JSON.stringify({ version: 1, projectId: source.projectId, materials: [{
+        sourceKey: 'image', sourcePath: 'image.png', mimeType: 'image/png', importedAt: source.generatedAt,
+        metadata: { widthPx, heightPx: 1 }, pageBindings: [{ findingId: 'pre-design:project-brief', role: 'primary' }],
+      }] }))
+      const plan = await service.plan({ frozenProject: source, workspaceRoot: root })
+      expect(plan.pages.find(page => page.findingId === 'pre-design:project-brief')).toMatchObject({ covered: widthPx === 1, imageCount: widthPx === 1 ? 1 : 0 })
+      expect(plan.warnings.length).toBe(widthPx === 1 ? 0 : 1)
+    }
+    expect(await readFile(join(root, 'image.png'))).toEqual(PNG_1X1)
+  })
+  it.each(['candidate', 'adopted', 'generating', 'adopted-stale-candidate'] as const)('does not charge again or downgrade persisted %s with another process stale governance snapshot', async status => {
+    const { PageVisualFillService } = await import('../src/presentation/page-visual-fill.ts')
+    const root = await mkdtemp(join(tmpdir(), 'pre-page-fill-stale-')); roots.push(root)
+    const source = createStandardFrozenProject()
+    const records: VisualAssetRecord[] = []
+    const staleRecords: VisualAssetRecord[] = []
+    let calls = 0
+    const visual = {
+      generate: async (_parent: unknown, task: { taskId: string }) => {
+        calls += 1
+        const bytes = Buffer.from('candidate image bytes')
+        const asset: VisualAssetRecord = { assetId: `candidate-${calls}`, taskId: task.taskId, projectId: source.projectId,
+          kind: 'concept', required: false, status: 'candidate', mimeType: 'image/png', fileName: `candidate-${calls}.png`,
+          sha256: createHash('sha256').update(bytes).digest('hex'), width: 1600, height: 900,
+          createdAt: source.generatedAt, quality: { accepted: true, score: 1, issues: [] } }
+        await writeFile(join(root, asset.fileName), bytes)
+        records.push(asset)
+        return asset
+      },
+      adopt: async (_projectId: string, assetId: string, revision: number) => {
+        const index = records.findIndex(asset => asset.assetId === assetId)
+        records[index] = { ...records[index]!, status: 'adopted', adoptedRevision: revision }
+        return records[index]!
+      },
+    }
+    const dependencies = { visual, resolveAsset: (fileName: string) => join(root, fileName) }
+    const writer = new PageVisualFillService({ ...dependencies, governance: { readProject: () => ({ visualAssets: records }) } } as never)
+    const staleReader = new PageVisualFillService({ ...dependencies, governance: { readProject: () => ({ visualAssets: staleRecords }) } } as never)
+    const input = { frozenProject: source, workspaceRoot: root, findingId: 'pre-design:project-brief', prompt: '陆侧安全公共空间' }
+    const generated = await writer.generate({} as never, input)
+    if (status === 'adopted-stale-candidate') staleRecords.push({ ...records[0]! })
+    if (status === 'adopted' || status === 'adopted-stale-candidate') await writer.adopt({ ...input, assetId: generated.assetId })
+    const statePath = join(root, '.pre-design/page-visual-fill.json')
+    if (status === 'generating') {
+      const state = JSON.parse(await readFile(statePath, 'utf8'))
+      state.requests[0].status = 'generating'
+      delete state.requests[0].assetId
+      await writeFile(statePath, JSON.stringify(state))
+    }
+    const before = await readFile(statePath, 'utf8')
+    await expect(staleReader.generate({} as never, input)).rejects.toThrow('PAGE_VISUAL_RECOVERY_REQUIRED')
+    expect(calls).toBe(1)
+    expect(await readFile(statePath, 'utf8')).toBe(before)
+  })
   it('reuses in-flight, persisted candidate and adopted requests while changed content gets a new identity', async () => {
     const { PageVisualFillService } = await import('../src/presentation/page-visual-fill.ts')
     const root = await mkdtemp(join(tmpdir(), 'pre-page-fill-')); roots.push(root)
@@ -83,6 +170,42 @@ describe('explicit page visual fill', () => {
     expect(requests).toBe(3)
     const state = JSON.parse(await readFile(join(root, '.pre-design/page-visual-fill.json'), 'utf8'))
     expect(state.requests.map((request: { findingId: string }) => request.findingId)).toEqual([input.findingId, input.findingId, input.findingId])
+  })
+
+  it('restores exact page bindings after the sidecar disappears despite fresh broad adopted inputs', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'pre-page-fill-recovery-')); roots.push(root)
+    const source = createStandardFrozenProject()
+    const liveSource = { ...source, adoptedAssetIds: ['adopted-concept'], visualAssets: [{
+      assetId: 'adopted-concept', kind: 'concept' as const, workItemId: source.stateObjects.find(object => object.objectId === 'PS01')!.workItemId,
+      caption: '已采用概念图', sourcePath: join(root, 'candidate.png'), mimeType: 'image/png' as const, width: 1, height: 1,
+    }] }
+    await mkdir(join(root, '.pre-design'))
+    await mkdir(join(root, 'layouts'))
+    await writeFile(join(root, 'layouts/manual.json'), '{"manualFrame":"keep"}')
+    await writeFile(join(root, 'candidate.png'), PNG_1X1)
+    const sidecarPath = join(root, '.pre-design/page-visual-fill.json')
+    await writeFile(sidecarPath, JSON.stringify({ version: 1, projectId: source.projectId, requests: [{
+      taskId: `page-fill-${'a'.repeat(64)}`, briefHash: 'a'.repeat(64), findingId: 'pre-design:project-brief',
+      prompt: '陆侧安全公共空间', style: '低饱和', status: 'adopted', assetId: 'adopted-concept',
+    }] }))
+    const rawAssets = adoptedPresentationAssets(liveSource)
+    expect(rawAssets[0]?.pageBindingOnly).toBeUndefined()
+    const prepared = await preparePresentationMaterials({ frozenProject: liveSource, workspaceRoot: root, assets: rawAssets })
+    const build = await buildPresentationStandardProject({ frozenProject: liveSource, ...prepared })
+    const published = await publishPresentationStandardProjectIntoWorkspace({ directoryRoot: root, build, operationId: 'before-sidecar-recovery' })
+    await unlink(sidecarPath)
+    const recovered = await preparePresentationMaterials({ frozenProject: liveSource, workspaceRoot: root, assets: adoptedPresentationAssets(liveSource),
+      previous: { stableIds: build.stableIds, lastExportedFileHashes: published.fileHashes } })
+    expect(recovered.assets[0]?.pageBindingOnly).toBe(true)
+    expect(recovered.assets[0]?.origin).toMatchObject(prepared.assets[0]!.origin)
+    const recoveredBuild = await buildPresentationStandardProject({ frozenProject: liveSource, ...recovered, stableIds: build.stableIds })
+    const pages = (build.documents['pages/manifest.json'] as any).pages
+    for (const page of pages) expect((recoveredBuild.documents[page.draftPath] as any).pageAssets).toEqual((build.documents[page.draftPath] as any).pageAssets)
+    expect(pages.filter((page: any) => (recoveredBuild.documents[page.draftPath] as any).pageAssets.length > 0).map((page: any) => page.pageId))
+      .toEqual([build.stableIds['page:finding:pre-design:project-brief']])
+    await publishPresentationStandardProjectIntoWorkspace({ directoryRoot: root, build: recoveredBuild, operationId: 'after-sidecar-recovery', expectedExistingFileHashes: published.fileHashes })
+    expect(await readFile(join(root, 'layouts/manual.json'), 'utf8')).toBe('{"manualFrame":"keep"}')
+    await expect(readFile(sidecarPath)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it('rejects unknown pages and cancellation before creating state or calling a model', async () => {

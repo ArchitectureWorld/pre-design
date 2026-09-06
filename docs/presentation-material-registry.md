@@ -132,6 +132,12 @@ const { sourceMaterials, assets, materialWarnings } = await preparePresentationM
 
 `plan` 只在内存编制 canonical 页面配图清单，不写文件、不生图。CAD、PDF、未知图片 MIME 和 `reference` 角色不计为可上版图片。`generate` 每次只显式处理一页，固定使用现有 VisualAgent 模型，产生候选但不自动采用或同步；`adopt` 验证候选归属和页面内容未变后采用，再请求标准同步。已有图不自动替换，手工布局不会重排。
 
+覆盖判定还读取实际图片字节：PNG/JPEG/WebP 复用既有结构完整性与尺寸校验，SVG 检查基础文档、命名空间和尺寸；空文件、明显损坏或声明尺寸不符时给出 `PAGE_VISUAL_IMAGE_UNAVAILABLE`，不计为覆盖。暂不能结构核验的其他图片格式保留原素材登记/同步能力，但计划中明确提示未核验，不默认当作可用图。此检查不是完整浏览器解码或构图质量验收。
+
 状态记录位于 `.pre-design/page-visual-fill.json`，以项目、稳定 findingId、实际页面内容、提示词和风格的 hash 标识请求。同请求复用已确认候选/已采用图片，同进程合并并发请求；工作区独占锁阻止另一进程重复付费请求。异常退出遗留的 `page-visual-fill.lock` 会明确阻断，必须先确认原请求不再运行再人工处理，不能自动偷锁。生成失败/取消不会标为已覆盖，修改内容或提示词会形成新任务身份，但不会因此默认替换已存在图片。
 
+锁释放后，如果持久记录已有 candidate/adopted/generating，而当前进程治理快照不能安全恢复该结果，命令返回 `PAGE_VISUAL_RECOVERY_REQUIRED`，保留原状态且不再次付费；旧快照也不能把 adopted 降回 candidate。重新加载治理状态并核查原请求后才能继续；已有明确 failed 状态仍允许用户显式重试。
+
 候选与采用仍经过现有视觉治理；程序生成图沿 `generated_by_plugin` 来源进入标准素材库，sidecar 仅覆盖同一 sourceKey 的精确页面关联，不额外注入一个宽泛别名。普通 `preplan-presentation-sync` 和自动同步始终只读取已采用的结果。
+
+补图 sidecar 缺失时，从已管理标准清单恢复的精确 pageBindings、pageBindingOnly、来源与披露说明不会被实时治理的宽泛 adopted 输入清空。新的显式登记/补图状态仍可应用；没有精确限制的旧原件继续保持原对象/证据关联语义。

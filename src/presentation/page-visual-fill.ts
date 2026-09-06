@@ -1,9 +1,10 @@
-import { lstat } from 'node:fs/promises'
+import { lstat, readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { DraftPageDocument, PageManifest } from '@architectureworld/presentation-contracts'
 import type { GovernanceRepository } from '../governance/repository.ts'
 import type { VisualAssetRecord } from '../governance/types.ts'
+import { verifiedRasterImageDimensions } from '../governance/site-boundary-asset-store.ts'
 import type { FrozenProjectInput } from '../report/types.ts'
 import type { VisualAgentService } from '../visual/agent.ts'
 import { sha256CanonicalJson } from './canonical-json.ts'
@@ -64,6 +65,35 @@ function required(value: string | undefined, name: string): string {
   return result
 }
 
+async function verifyPageImage(asset: PresentationAdoptedAssetInput): Promise<void> {
+  const info = await lstat(asset.sourcePath)
+  if (!info.isFile() || info.isSymbolicLink() || info.size === 0) throw new Error('图片为空或不是普通文件')
+  const bytes = await readFile(asset.sourcePath)
+  const mime = asset.mimeType.toLowerCase()
+  let dimensions: { width: number; height: number }
+  if (mime === 'image/png' || mime === 'image/jpeg' || mime === 'image/webp') {
+    dimensions = verifiedRasterImageDimensions(mime, bytes)
+  } else if (mime === 'image/svg+xml') {
+    const svg = bytes.toString('utf8').replace(/^\uFEFF/u, '').replace(/^\s*<\?xml[^>]*\?>/u, '').trim()
+    const document = /^<svg\b([^>]*?)(?:\/>|>[\s\S]*<\/svg>)$/u.exec(svg)
+    const attributes = document?.[1] ?? ''
+    const attribute = (name: string): string | undefined => new RegExp(`(?:^|\\s)${name}\\s*=\\s*(["'])(.*?)\\1`, 'u').exec(attributes)?.[2]
+    if (!document || attribute('xmlns') !== 'http://www.w3.org/2000/svg') throw new Error('SVG 文档无效')
+    const viewBox = attribute('viewBox')?.trim().split(/[\s,]+/u).map(Number)
+    const length = (name: string, fallback: number | undefined): number => {
+      const value = attribute(name)
+      return value === undefined ? fallback ?? Number.NaN : /^(?:\d+(?:\.\d+)?|\.\d+)(?:px)?$/u.test(value) ? Number.parseFloat(value) : Number.NaN
+    }
+    dimensions = { width: length('width', viewBox?.length === 4 ? viewBox[2] : undefined), height: length('height', viewBox?.length === 4 ? viewBox[3] : undefined) }
+  } else {
+    throw new Error(`尚不能核验 ${asset.mimeType} 的图像字节，请采用可核验的 PNG/JPEG/WebP/SVG`)
+  }
+  if (!Number.isFinite(dimensions.width) || !Number.isFinite(dimensions.height) || dimensions.width <= 0 || dimensions.height <= 0
+    || (asset.widthPx !== undefined && asset.widthPx !== dimensions.width) || (asset.heightPx !== undefined && asset.heightPx !== dimensions.height)) {
+    throw new Error('图片实际尺寸无效或与登记不一致')
+  }
+}
+
 export class PageVisualFillService {
   private readonly inFlight = new Map<string, Promise<PageVisualFillResult>>()
   constructor(private readonly dependencies: Dependencies) {}
@@ -74,13 +104,22 @@ export class PageVisualFillService {
     const build = await buildPresentationStandardProject({ frozenProject: input.frozenProject, ...materials, stableIds: input.previous?.stableIds })
     const findings = compileReportOutline(input.frozenProject)
     const state = await readPageVisualState(input.workspaceRoot, input.frozenProject.projectId)
-    const assets = new Map(materials.assets.map(asset => [build.stableIds[`asset:asset:${asset.sourceKey}`], asset]))
+    const verifiedImageIds = new Set<string>()
+    const imageWarnings: string[] = []
+    for (const asset of materials.assets) {
+      if (!IMAGE_MIME.test(asset.mimeType)) continue
+      const assetId = build.stableIds[`asset:asset:${asset.sourceKey}`]
+      if (assetId === undefined || verifiedImageIds.has(assetId)) continue
+      try { await verifyPageImage(asset); verifiedImageIds.add(assetId) } catch (error) {
+        imageWarnings.push(`PAGE_VISUAL_IMAGE_UNAVAILABLE: ${asset.sourceKey} 未计为已覆盖：${error instanceof Error ? error.message : String(error)}`)
+      }
+    }
     const pages = (build.documents['pages/manifest.json'] as PageManifest).pages.map(page => {
       const finding = findings.find(item => build.stableIds[`page:finding:${item.findingId}`] === page.pageId)!
       const draft = build.documents[page.draftPath!] as DraftPageDocument
       const source = input.frozenProject.stateObjects.find(object => finding.objectIds.includes(object.objectId) && object.workItemId)
       const images = draft.pageAssets.filter(link => ['primary', 'supporting', 'background'].includes(link.role)
-        && IMAGE_MIME.test(assets.get(link.assetId)?.mimeType ?? ''))
+        && verifiedImageIds.has(link.assetId))
       return { findingId: finding.findingId, pageId: page.pageId, title: finding.title, keyMessage: finding.keyMessage,
         covered: images.length > 0, imageCount: images.length,
         requestStatus: state.requests.filter(request => request.findingId === finding.findingId).at(-1)?.status,
@@ -88,7 +127,7 @@ export class PageVisualFillService {
         ...(source ? { chapterId: source.chapterId, workItemId: source.workItemId } : {}),
       }
     })
-    return { pages, warnings: [...materials.materialWarnings, ...state.requests.filter(request => request.status === 'failed')
+    return { pages, warnings: [...materials.materialWarnings, ...imageWarnings, ...state.requests.filter(request => request.status === 'failed')
       .map(request => `补图 ${request.findingId} 未完成：${request.message ?? '生成失败'}`)] }
   }
 
@@ -133,6 +172,9 @@ export class PageVisualFillService {
       const projectId = input.frozenProject.projectId
       const previous = (await readPageVisualState(input.workspaceRoot, projectId)).requests.find(item => item.taskId === brief.taskId)
       const existing = await this.usableAsset(projectId, brief.taskId, previous?.assetId)
+      if (previous && previous.status !== 'failed' && (!existing || (previous.status === 'adopted' && existing.status !== 'adopted'))) {
+        throw new Error('PAGE_VISUAL_RECOVERY_REQUIRED: 已有补图请求暂无法从治理状态恢复，未再次生成；请重新加载治理状态并核查原请求')
+      }
       if (existing) {
         const status = existing.status as 'candidate' | 'adopted'
         await savePageVisualRequest(input.workspaceRoot, projectId, { ...brief, assetId: existing.assetId, status })
