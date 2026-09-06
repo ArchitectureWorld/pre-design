@@ -652,6 +652,7 @@ function matchingAssetsForFinding(
   for (const input of inputs) {
     const identities = [input.sourceKey, ...(input.aliases ?? [])]
     const pageMatch = input.pageBindings?.some(binding => binding.findingId === finding.findingId) ?? false
+    if (input.pageBindingOnly === true && !pageMatch) continue
     const referenceMatch = identities.some(id => explicitIds.has(id) || evidenceIds.has(id)) || input.evidenceIds.some(id => evidenceIds.has(id))
     const objectMatch = input.objectIds.some(objectId => objectIds.has(objectId))
     if (!pageMatch && !referenceMatch && !objectMatch) continue

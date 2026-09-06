@@ -435,7 +435,7 @@ export function createFrozenProjectInput(
         ...(task === undefined ? {} : { chapterId: task.chapterId, workItemId: task.workItemId }),
         kind: asset.kind,
         caption: asset.kind === 'concept'
-          ? `${snapshot.project.name}项目场景图`
+          ? `AI概念示意（非现场实拍）｜${snapshot.project.name}项目场景图`
           : asset.kind === 'deterministic'
             ? `${snapshot.project.name}分析图`
             : `${snapshot.project.name}项目资料图`,

@@ -35,6 +35,7 @@ import { WorkflowRuntime } from './runtime/workflow-runtime.ts'
 import { ProjectRepository } from './state/repository.ts'
 import { registerPreplanningTools } from './tools/register.ts'
 import { VisualAgentService } from './visual/agent.ts'
+import { PageVisualFillService } from './presentation/page-visual-fill.ts'
 import { VisualAssetStore } from './visual/asset-store.ts'
 import { SessionImageCollector } from './visual/session-image-collector.ts'
 import { registerWorkspaceOpenRoute, type WorkspaceOpenRegistrar } from './workspace/open-workspace-route.ts'
@@ -148,6 +149,7 @@ export async function apply(ctx: Context): Promise<void> {
     delayMs: 750,
     now,
   })
+  const pageVisualFill = new PageVisualFillService({ visual, governance, resolveAsset: fileName => visualStore.resolveAsset(fileName), adoptedAssets: adoptedPresentationAssets })
   const workflowAnalyzer = new DshSubagentWorkflowAnalyzer({
     subagents: ctx.subagents,
     repository,
@@ -215,6 +217,13 @@ export async function apply(ctx: Context): Promise<void> {
     registry,
     reports,
     presentationSync,
+    pageVisualFill,
+    pageVisualInput: async (projectId, revision, requestedRoot) => {
+      const binding = standardProjects.findByPreDesignProjectId(projectId)
+      const workspaceRoot = requestedRoot ?? binding?.workspaceRoot ?? binding?.directoryRoot
+      if (!workspaceRoot) throw new Error('请先绑定工作区并同步标准项目，再执行按页补图')
+      return { frozenProject: await frozenProjectSource(projectId, revision), workspaceRoot, previous: binding }
+    },
     createId: () => `preplan-${randomUUID()}`,
     now,
   })

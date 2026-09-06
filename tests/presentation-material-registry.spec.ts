@@ -37,6 +37,65 @@ async function fixture() {
 }
 
 describe('persistent project material registry', () => {
+  it('exports an external AI concept only as generated_by_tool with visible disclosure and exact page binding', async () => {
+    const { root, source, registry, indexPath } = await fixture()
+    await writeFile(indexPath, JSON.stringify({ ...registry, materials: [{ ...registry.materials[0],
+      sourceKey: 'external-concept', displayName: '滨水公共空间',
+      provenance: { kind: 'ai_concept', tool: { name: 'Codex image_gen', version: '2026-09' }, model: 'test-image-model',
+        prompt: '表现陆侧安全公共空间。\n不冒充项目现场。' },
+      pageBindings: [{ findingId: 'pre-design:project-brief', role: 'primary' }],
+    }] }))
+    const prepared = await preparePresentationMaterials({ frozenProject: source, workspaceRoot: root })
+    expect(prepared.sourceMaterials).toHaveLength(0)
+    const build = await buildPresentationStandardProject({ frozenProject: source, ...prepared })
+    const asset = (build.documents['assets/manifest.json'] as any).assets[0]
+    expect(asset.origin).toMatchObject({ type: 'generated_by_tool', sourceMaterialIds: [], sourceTool: { name: 'Codex image_gen', version: '2026-09' } })
+    expect(asset.displayName).toContain('AI概念示意')
+    expect(asset.origin.method).toContain('test-image-model')
+    const pages = (build.documents['pages/manifest.json'] as any).pages
+    expect(pages.filter((page: any) => (build.documents[page.draftPath] as any).pageAssets.length > 0).map((page: any) => page.pageId))
+      .toEqual([build.stableIds['page:finding:pre-design:project-brief']])
+    const published = await publishPresentationStandardProjectIntoWorkspace({ directoryRoot: root, build, operationId: 'external-ai-first' })
+    await unlink(indexPath)
+    const preserved = await preparePresentationMaterials({ frozenProject: source, workspaceRoot: root,
+      previous: { stableIds: build.stableIds, lastExportedFileHashes: published.fileHashes } })
+    expect(preserved.assets[0]?.pageBindingOnly).toBe(true)
+    const second = await buildPresentationStandardProject({ frozenProject: source, ...preserved, stableIds: build.stableIds })
+    for (const page of pages) expect((second.documents[page.draftPath] as any).pageAssets).toEqual((build.documents[page.draftPath] as any).pageAssets)
+    expect((second.documents['source-materials/manifest.json'] as any).materials).toEqual([])
+  })
+
+  it('keeps deterministic and licensed visuals distinct with their actual sources in canonical provenance', async () => {
+    const { root, source, registry, indexPath } = await fixture()
+    const image = registry.materials[0]!
+    for (const provenance of [
+      { kind: 'deterministic', tool: { name: 'Native SVG', version: '1.0' }, sources: ['PS01/reportSections/analysis：已核对任务边界'] },
+      { kind: 'licensed_reference', sourceUrl: 'https://example.org/reference', license: 'CC-BY-4.0', author: 'Example Author' },
+    ]) {
+      await writeFile(indexPath, JSON.stringify({ ...registry, materials: [{ ...image, provenance }] }))
+      const prepared = await preparePresentationMaterials({ frozenProject: source, workspaceRoot: root })
+      const build = await buildPresentationStandardProject({ frozenProject: source, ...prepared })
+      const asset = (build.documents['assets/manifest.json'] as any).assets[0]
+      expect(asset.origin.type).toBe(provenance.kind === 'deterministic' ? 'generated_by_tool' : 'human_added')
+      expect(JSON.parse(asset.origin.method).provenance).toEqual(provenance)
+      expect(prepared.sourceMaterials).toEqual([])
+      expect(asset.displayName).toContain(provenance.kind === 'deterministic' ? '依据资料绘制的信息图解' : '通用参考图（非项目现场）')
+    }
+  })
+
+  it('rejects unknown page bindings and incomplete licensing without changing originals or registry', async () => {
+    const { root, source, registry, indexPath } = await fixture()
+    for (const entry of [
+      { ...registry.materials[0], pageBindings: [{ findingId: 'unknown-page', role: 'primary' }],
+        provenance: { kind: 'deterministic', tool: { name: 'SVG renderer', version: '1' }, sources: ['PS01/analysis'] } },
+      { ...registry.materials[0], provenance: { kind: 'licensed_reference', sourceUrl: 'https://example.org/image', author: 'Author' } },
+    ]) {
+      await writeFile(indexPath, JSON.stringify({ ...registry, materials: [entry] }))
+      const before = await readFile(indexPath, 'utf8')
+      await expect(preparePresentationMaterials({ frozenProject: source, workspaceRoot: root })).rejects.toThrow('PRESENTATION_MATERIAL_REGISTRY_INVALID')
+      expect(await readFile(indexPath, 'utf8')).toBe(before)
+    }
+  })
   it('imports image/video/PDF/CAD/data originals into both libraries and preserves them across subsequent synchronization', async () => {
     const { root, source, entries, indexPath } = await fixture()
     const before = await Promise.all(entries.map(entry => readFile(join(root, entry.sourcePath))))

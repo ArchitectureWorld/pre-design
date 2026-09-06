@@ -76,6 +76,8 @@ export interface PresentationAdoptedAssetInput {
   readonly evidenceIds: readonly string[]
   readonly aliases?: readonly string[]
   readonly role?: 'primary' | 'supporting' | 'background' | 'reference'
+  /** Explicit fill outputs may only appear in their named finding pages. */
+  readonly pageBindingOnly?: boolean
   readonly pageBindings?: readonly {
     readonly findingId: string
     readonly role?: 'primary' | 'supporting' | 'background' | 'reference'

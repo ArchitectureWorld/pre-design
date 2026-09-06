@@ -276,7 +276,7 @@ describe('createFrozenProjectInput', () => {
       expect.objectContaining({ label: '明塘建筑限高', value: '18 米' }),
     ]))
     expect(source.stateObjects[0]?.summary).not.toContain('成果版本 R57')
-    expect(source.visualAssets[0]?.caption).toBe('明塘＋洋澜湖项目场景图')
+    expect(source.visualAssets[0]?.caption).toBe('AI概念示意（非现场实拍）｜明塘＋洋澜湖项目场景图')
     expect(source.visualAssets[0]?.caption).not.toMatch(/生成一张|苹果产品发布式/u)
   })
 

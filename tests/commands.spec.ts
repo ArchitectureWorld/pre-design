@@ -24,6 +24,28 @@ function commandDependencies(overrides: Record<string, unknown> = {}) {
 }
 
 describe('preplanning commands', () => {
+  it('plans and generates without syncing, then reports an adoption sync conflict honestly', async () => {
+    const definitions: CommandDefinition[] = []
+    const calls: string[] = []
+    const ctx = { commands: { register: (definition: CommandDefinition) => { definitions.push(definition); return () => undefined } } } as unknown as Context
+    registerPreplanningCommands(ctx, commandDependencies({
+      repository: { readContext: () => ({ project: { projectId: 'project-1', currentRevision: 7 } }) },
+      pageVisualInput: async () => ({ workspaceRoot: 'C:/workspace', frozenProject: {} }),
+      pageVisualFill: {
+        plan: async () => { calls.push('plan'); return { pages: [{ findingId: 'one', title: '示意页', covered: false }], warnings: [] } },
+        generate: async () => { calls.push('generate'); return { findingId: 'one', assetId: 'candidate-1', status: 'candidate', reused: false } },
+        adopt: async () => { calls.push('adopt'); return { findingId: 'one', assetId: 'candidate-1', status: 'adopted' } },
+      },
+      presentationSync: { flush: async () => { calls.push('sync'); return { state: 'external_changes', message: '外部修改须复核' } } },
+    }) as never)
+    const handler = definitions.find(row => row.name === 'preplan-visual-fill')!.handler
+    const invocation = { agent: { id: 'session-1' } }
+    expect(await handler({ ...invocation, rawInput: 'plan' } as never)).toMatchObject({ kind: 'success', text: expect.stringContaining('未调用生图') })
+    expect(await handler({ ...invocation, rawInput: 'generate one {"prompt":"概念图"}' } as never)).toMatchObject({ kind: 'success', text: expect.stringContaining('尚未覆盖该页') })
+    expect(calls).toEqual(['plan', 'generate'])
+    expect(await handler({ ...invocation, rawInput: 'adopt one candidate-1' } as never)).toMatchObject({ kind: 'error', text: expect.stringContaining('标准同步未完成') })
+    expect(calls).toEqual(['plan', 'generate', 'adopt', 'sync'])
+  })
   it('provides human-only site boundary registration and independent confirmation commands', async () => {
     const definitions: CommandDefinition[] = []
     const registerGeometry = vi.fn(async () => ({ boundaryId: 'boundary-1' }))
@@ -68,7 +90,7 @@ describe('preplanning commands', () => {
     expect(definitions.map(definition => definition.name)).toEqual([
       'preplan-new', 'preplan-open', 'preplan-list', 'preplan-status', 'preplan-confirm',
       'preplan-mode', 'preplan-run', 'preplan-pause', 'preplan-gate', 'preplan-revise',
-      'preplan-visual', 'preplan-visual-adopt', 'preplan-visual-replace',
+      'preplan-visual-fill', 'preplan-visual', 'preplan-visual-adopt', 'preplan-visual-replace',
       'preplan-boundary-asset', 'preplan-boundary-coordinates', 'preplan-boundary-confirm', 'preplan-export',
     ])
     expect(definitions.every(definition => /[\u4e00-\u9fff]/u.test(definition.description))).toBe(true)

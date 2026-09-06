@@ -4,6 +4,7 @@ import type { ImageBlock } from '@deepseek-ai/dsh-llm'
 import type { ContractRegistry } from '../contracts/registry.ts'
 import type { GovernanceRepository } from '../governance/repository.ts'
 import type { PresentationAutoSyncService } from '../presentation/auto-sync.ts'
+import { DEFAULT_PAGE_VISUAL_STYLE, type PageVisualFillService, type PageVisualInput } from '../presentation/page-visual-fill.ts'
 import type { SiteBoundaryService } from '../governance/site-boundary-service.ts'
 import type { GateDecisionRecord } from '../governance/types.ts'
 import type { ProposalGateway } from '../proposals/gateway.ts'
@@ -32,6 +33,8 @@ export interface CommandDependencies {
   readonly reports: ReportPackageService
   readonly registry: ContractRegistry
   readonly presentationSync?: Pick<PresentationAutoSyncService, 'request' | 'flush' | 'status'>
+  readonly pageVisualFill?: PageVisualFillService
+  readonly pageVisualInput?: (projectId: string, revision: number, workspaceRoot?: string) => Promise<PageVisualInput>
   readonly createId: () => string
   readonly now: () => string
   readonly resolveBoundaryActor?: (invocation: CommandInvocation) => ActorRef | undefined
@@ -389,6 +392,38 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
           requestId: dependencies.createId(), reason, actor: actorOf(invocation),
         })
         return { kind: 'success', text: `已重开 ${affected.length} 个下游对象：${affected.join('、') || '无'}。` }
+      }),
+    },
+    {
+      name: 'preplan-visual-fill',
+      description: '按真实页面规划缺图、显式生成概念候选，并在人工采用后精确同步到当页素材库',
+      input: { hint: 'plan | generate <findingId> <JSON: {"prompt":"...","style":"..."}> | adopt <findingId> <assetId>' },
+      handler: guarded(async invocation => {
+        const match = /^(plan|generate|adopt)(?:\s+(\S+))?(?:\s+([\s\S]+))?$/u.exec(invocation.rawInput.trim() || 'plan')
+        if (!match || (match[1] === 'plan' && match[2]) || (match[1] !== 'plan' && (!match[2] || !match[3]))) {
+          return { kind: 'error', text: '用法：plan；generate <findingId> {"prompt":"概念图要求","style":"可选风格"}；adopt <findingId> <assetId>' }
+        }
+        if (!dependencies.pageVisualFill || !dependencies.pageVisualInput) throw new Error('当前宿主未提供按页补图服务')
+        const context = repository.readContext(String(invocation.agent.id))
+        const input = await dependencies.pageVisualInput(context.project.projectId, context.project.currentRevision, workspaceRootOf(invocation))
+        if (match[1] === 'plan') {
+          const plan = await dependencies.pageVisualFill.plan(input)
+          return { kind: 'success', text: [`按页配图计划：${plan.pages.filter(page => !page.covered).length}/${plan.pages.length} 页尚无可上版图片。未调用生图。`,
+            ...plan.pages.map(page => `${page.covered ? '已有图片' : page.requestStatus === 'candidate' ? '候选待采用（尚未覆盖）' : page.requestStatus === 'generating' ? '生成中（尚未覆盖）' : page.requestStatus === 'failed' ? '生成失败（尚未覆盖）' : '待补图'}｜${page.findingId}｜${page.title}`), ...plan.warnings].join('\n') }
+        }
+        if (match[1] === 'generate') {
+          const brief = JSON.parse(match[3]!) as { prompt?: unknown; style?: unknown }
+          if (typeof brief.prompt !== 'string' || (brief.style !== undefined && typeof brief.style !== 'string')) throw new Error('prompt 和 style 必须为文字')
+          const result = await dependencies.pageVisualFill.generate(invocation.agent, { ...input, findingId: match[2]!, prompt: brief.prompt,
+            style: brief.style ?? DEFAULT_PAGE_VISUAL_STYLE,
+            signal: (invocation as unknown as { signal?: AbortSignal }).signal })
+          return { kind: 'success', text: `${result.reused ? '已复用' : '已生成'}${result.status === 'adopted' ? '已采用图片' : 'AI概念候选图'} ${result.assetId}。${result.status === 'adopted' ? '未重复生成或覆盖排版。' : `尚未覆盖该页；请核对后执行 /preplan-visual-fill adopt ${result.findingId} ${result.assetId}`}` }
+        }
+        if (/\s/u.test(match[3]!)) throw new Error('采用时只提供一个 assetId')
+        const result = await dependencies.pageVisualFill.adopt({ ...input, findingId: match[2]!, assetId: match[3]! })
+        const sync = await dependencies.presentationSync?.flush(context.project.projectId, { workspaceRoot: input.workspaceRoot, reason: `page-visual-adopted:${result.assetId}` })
+        if (sync && sync.state !== 'synced') return { kind: 'error', text: `已采用 AI概念示意 ${result.assetId}，但标准同步未完成：${sync.message ?? sync.state}。未覆盖外部修改或手工布局。` }
+        return { kind: 'success', text: `已采用 AI概念示意 ${result.assetId}，仅关联 ${result.findingId}；${sync ? '标准项目已同步' : '请执行标准同步后查看当页素材库'}，未重排手工布局。` }
       }),
     },
     {

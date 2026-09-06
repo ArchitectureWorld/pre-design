@@ -52,3 +52,86 @@ const { sourceMaterials, assets, materialWarnings } = await preparePresentationM
 ```
 
 手动与自动同步均使用此接口，并把真实资料提示传至同步结果及 DSH 项目面板。
+
+## 外部 AI 概念图、确定性图解与授权通用图
+
+原件继续使用上面的写法，不填 `provenance`。补图需要明确填写 `provenance`，并提供有效的 `pageBindings`。下列三类补图只进入 `assets`，不会伪装成 `source-materials` 原件。同步不调用模型、不搜索图库。
+
+```json
+{
+  "version": 1,
+  "projectId": "当前 Pre 项目 ID",
+  "materials": [
+    {
+      "sourceKey": "page-concept-waterfront-v1",
+      "sourcePath": "配图/滨水公共空间.png",
+      "originalFileName": "滨水公共空间.png",
+      "displayName": "陆侧滨水公共空间意向",
+      "mimeType": "image/png",
+      "semanticRole": "concept_visual",
+      "importedAt": "2026-09-06T02:00:00.000Z",
+      "metadata": { "widthPx": 1536, "heightPx": 1024 },
+      "role": "primary",
+      "pageBindings": [{ "findingId": "pre-design:project-brief", "role": "primary" }],
+      "provenance": {
+        "kind": "ai_concept",
+        "tool": { "name": "Codex image_gen", "version": "2026-09" },
+        "model": "填写实际模型；工具未报告时明确写 not-reported-by-tool",
+        "prompt": "填写实际提交的完整提示词；说明这是概念意向，不冒充项目现场。"
+      }
+    },
+    {
+      "sourceKey": "page-decision-diagram-v1",
+      "sourcePath": "配图/决策条件.svg",
+      "displayName": "决策条件与工作顺序",
+      "mimeType": "image/svg+xml",
+      "semanticRole": "analytical_diagram",
+      "importedAt": "2026-09-06T02:00:00.000Z",
+      "metadata": { "widthPx": 1600, "heightPx": 900 },
+      "role": "primary",
+      "pageBindings": [{ "findingId": "pre-design:decision", "role": "primary" }],
+      "provenance": {
+        "kind": "deterministic",
+        "tool": { "name": "Native SVG renderer", "version": "1.0" },
+        "sources": ["填写实际成果对象、字段或原件路径及采用口径；不得填虚构数值或审批状态"]
+      }
+    },
+    {
+      "sourceKey": "general-waterfront-reference-v1",
+      "sourcePath": "配图/授权滨水参考.jpg",
+      "displayName": "滨水设施通用参考",
+      "mimeType": "image/jpeg",
+      "importedAt": "2026-09-06T02:00:00.000Z",
+      "metadata": { "widthPx": 1600, "heightPx": 1000 },
+      "role": "supporting",
+      "pageBindings": [{ "findingId": "pre-design:project-brief", "role": "supporting" }],
+      "provenance": {
+        "kind": "licensed_reference",
+        "sourceUrl": "https://example.org/actual-source-page",
+        "license": "填写实际许可或授权范围",
+        "author": "填写实际作者/权利人"
+      }
+    }
+  ]
+}
+```
+
+- AI/确定性图解使用现成 `generated_by_tool` 来源；通用参考使用 `human_added`。工具名、版本、模型、提示词或引用依据保存在 `origin.method` 的 JSON 中，工具身份也保留在 `origin.sourceTool`。程序不能代替人工验证授权合法性。
+- AI 自动加可见“AI概念示意（非现场实拍）”标识；确定性图解注明“依据资料绘制的信息图解”；通用图注明“非项目现场”。这些前缀进入 `displayName` 和当页素材说明，不只存在日志。
+- 三类补图强制 `pageBindingOnly=true`：只挂指定 findingId，不因 objectIds、evidenceIds、aliases 或工作项关系扩散。普通原件 `pageBindings` 的角色覆盖行为不变。
+- 不存在的 findingId、无效图片 MIME、缺工具/来源信息或缺许可字段均停止同步。不存在的图片文件给出真实缺失提示，不计为已覆盖。格式、尺寸和来源填写必须对应实际文件。
+- 索引暂时缺失时，已导入的图与其来源、稳定 pageAssetId、精确挂页边界继续保留。此登记只采用外部已经确认的文件，不是生图请求。
+
+## 显式按页补图命令
+
+```text
+/preplan-visual-fill plan
+/preplan-visual-fill generate pre-design:project-brief {"prompt":"陆侧安全公共空间概念示意，不冒充现场实拍","style":"低饱和自然材料、清晰空间层次、无文字"}
+/preplan-visual-fill adopt pre-design:project-brief <candidateAssetId>
+```
+
+`plan` 只在内存编制 canonical 页面配图清单，不写文件、不生图。CAD、PDF、未知图片 MIME 和 `reference` 角色不计为可上版图片。`generate` 每次只显式处理一页，固定使用现有 VisualAgent 模型，产生候选但不自动采用或同步；`adopt` 验证候选归属和页面内容未变后采用，再请求标准同步。已有图不自动替换，手工布局不会重排。
+
+状态记录位于 `.pre-design/page-visual-fill.json`，以项目、稳定 findingId、实际页面内容、提示词和风格的 hash 标识请求。同请求复用已确认候选/已采用图片，同进程合并并发请求；工作区独占锁阻止另一进程重复付费请求。异常退出遗留的 `page-visual-fill.lock` 会明确阻断，必须先确认原请求不再运行再人工处理，不能自动偷锁。生成失败/取消不会标为已覆盖，修改内容或提示词会形成新任务身份，但不会因此默认替换已存在图片。
+
+候选与采用仍经过现有视觉治理；程序生成图沿 `generated_by_plugin` 来源进入标准素材库，sidecar 仅覆盖同一 sourceKey 的精确页面关联，不额外注入一个宽泛别名。普通 `preplan-presentation-sync` 和自动同步始终只读取已采用的结果。

@@ -4,9 +4,15 @@ import type { AssetRecord, SourceMaterialRecord } from '@architectureworld/prese
 import type { FrozenProjectInput } from '../report/types.ts'
 import { classifySourceMaterial } from './material-plan.ts'
 import type { PresentationAdoptedAssetInput, PresentationSourceMaterialInput } from './standard-project-types.ts'
+import { compileReportOutline } from './projector/report-outline.ts'
+import { readPageVisualState } from './page-visual-state.ts'
 
 export const PRESENTATION_MATERIAL_REGISTRY_PATH = '.pre-design/materials.json'
 type PageRole = NonNullable<PresentationAdoptedAssetInput['role']>
+export type RegisteredMaterialProvenance =
+  | { readonly kind: 'ai_concept'; readonly tool: { readonly name: string; readonly version: string }; readonly model: string; readonly prompt: string }
+  | { readonly kind: 'deterministic'; readonly tool: { readonly name: string; readonly version: string }; readonly sources: readonly string[] }
+  | { readonly kind: 'licensed_reference'; readonly sourceUrl: string; readonly license: string; readonly author: string }
 export interface RegisteredPresentationMaterial {
   readonly sourceKey: string
   readonly sourcePath: string
@@ -24,6 +30,7 @@ export interface RegisteredPresentationMaterial {
     readonly pageCount?: number; readonly rowCount?: number; readonly columnCount?: number
   }
   readonly pageBindings?: PresentationAdoptedAssetInput['pageBindings']
+  readonly provenance?: RegisteredMaterialProvenance
 }
 export interface PresentationMaterialRegistry {
   readonly version: 1
@@ -106,6 +113,30 @@ function metadataOf(value: unknown): NonNullable<RegisteredPresentationMaterial[
   }
   return metadata
 }
+function provenanceOf(value: unknown): RegisteredMaterialProvenance | undefined {
+  if (value === undefined) return undefined
+  const record = object(value)
+  if (record.kind === 'licensed_reference') {
+    const sourceUrl = text(record.sourceUrl, 'provenance.sourceUrl')
+    let url: URL
+    try { url = new URL(sourceUrl) } catch { return fail('通用图片来源必须为有效 HTTP(S) URL') }
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) fail('通用图片来源必须为无凭证 HTTP(S) URL')
+    return { kind: 'licensed_reference', sourceUrl, license: text(record.license, 'provenance.license'), author: text(record.author, 'provenance.author') }
+  }
+  if (record.kind !== 'ai_concept' && record.kind !== 'deterministic') fail('无效 provenance.kind')
+  const tool = object(record.tool)
+  const sourceTool = { name: text(tool.name, 'provenance.tool.name'), version: text(tool.version, 'provenance.tool.version') }
+  if (record.kind === 'ai_concept') {
+    if (typeof record.prompt !== 'string' || record.prompt.trim() === '' || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u.test(record.prompt)) fail('provenance.prompt 必须为有效完整提示词')
+    return { kind: 'ai_concept', tool: sourceTool, model: text(record.model, 'provenance.model'), prompt: record.prompt.normalize('NFC').trim() }
+  }
+  const sources = strings(record.sources, 'provenance.sources')
+  if (sources.length === 0) fail('确定性图解必须注明真实来源依据')
+  return { kind: 'deterministic', tool: sourceTool, sources }
+}
+function isPageBoundMethod(method: string): boolean {
+  try { return JSON.parse(method)?.pageBindingOnly === true } catch { return false }
+}
 function ownedPath(root: string, path: string): string {
   const resolved = resolve(root, path)
   if (!within(root, resolved)) fail(`已有清单路径越出工作区：${path}`)
@@ -170,6 +201,7 @@ async function preserveImportedMaterials(
         createdAt: record.createdAt, adoptedAt: record.adoptedAt,
         objectIds: [...new Set(refs.flatMap(ref => ref.objectIds))], evidenceIds: [...new Set(refs.flatMap(ref => ref.evidenceIds))],
         aliases: [record.assetId], pageBindings: pageBindings.get(sourceKey) ?? [],
+        ...(isPageBoundMethod(record.origin.method) ? { pageBindingOnly: true } : {}),
         origin: { ...record.origin, sourceMaterialKeys: record.origin.sourceMaterialIds.flatMap(id => sourceKeys.get(id) ?? fail(`无法恢复原件 ${id}`)),
           parentAssetKeys: record.origin.parentAssetIds.flatMap(id => assetKeys.get(id) ?? fail(`无法恢复父素材 ${id}`)) },
       })
@@ -185,6 +217,7 @@ export async function preparePresentationMaterials(input: PreparePresentationMat
   await preserveImportedMaterials(input, sources, assets)
   for (const asset of input.assets ?? []) assets.set(asset.sourceKey, asset)
   const root = input.workspaceRoot === undefined ? undefined : resolve(input.workspaceRoot)
+  const findings = new Set(compileReportOutline(input.frozenProject).map(finding => finding.findingId))
   const raw = root === undefined ? undefined : await readOptional(join(root, PRESENTATION_MATERIAL_REGISTRY_PATH))
   if (raw !== undefined) {
     const registry = object(raw)
@@ -195,9 +228,19 @@ export async function preparePresentationMaterials(input: PreparePresentationMat
       const sourceKey = text(entry.sourceKey, 'sourceKey')
       if (seen.has(sourceKey)) fail(`sourceKey 重复：${sourceKey}`)
       seen.add(sourceKey)
+      const provenance = provenanceOf(entry.provenance)
+      const pageBindings = entry.pageBindings === undefined ? undefined : (() => {
+        if (!Array.isArray(entry.pageBindings)) fail('pageBindings 必须是数组')
+        return entry.pageBindings.map(binding => { const record = object(binding); return {
+          findingId: text(record.findingId, 'pageBindings.findingId'), ...(record.role === undefined ? {} : { role: role(record.role) }),
+        } })
+      })()
+      if (provenance !== undefined && (!pageBindings?.length || pageBindings.some(binding => !findings.has(binding.findingId)))) {
+        fail(`补图 ${sourceKey} 必须绑定真实存在的 findingId`)
+      }
       const path = text(entry.sourcePath, 'sourcePath')
       const currentOriginal = await registeredPath(root!, path)
-      const previousSource = sources.get(sourceKey)
+      const previousSource = sources.get(sourceKey) ?? assets.get(sourceKey)
       const retainedCopy = currentOriginal === undefined && previousSource !== undefined
         ? await registeredPath(root!, previousSource.sourcePath) : undefined
       if (currentOriginal === undefined && previousSource !== undefined && retainedCopy === undefined) fail(`资料 ${sourceKey} 的登记原件和已导入副本均缺失，无法继续同步`)
@@ -207,6 +250,7 @@ export async function preparePresentationMaterials(input: PreparePresentationMat
       const sourcePath = currentOriginal ?? retainedCopy
       if (sourcePath === undefined) continue
       const mimeType = text(entry.mimeType, 'mimeType')
+      if (provenance !== undefined && !/^image\/(?:avif|bmp|gif|jpeg|png|svg\+xml|webp|x-icon|vnd\.microsoft\.icon)$/iu.test(mimeType)) fail(`补图 ${sourceKey} 必须使用浏览器可显示的图片格式`)
       const originalFileName = entry.originalFileName === undefined ? basename(sourcePath) : text(entry.originalFileName, 'originalFileName')
       const sourceCategory = classifySourceMaterial(originalFileName, mimeType)
       const importedAt = text(entry.importedAt, 'importedAt')
@@ -214,23 +258,41 @@ export async function preparePresentationMaterials(input: PreparePresentationMat
       const metadata = metadataOf(entry.metadata)
       if (mimeType.startsWith('image/') && sourceCategory !== 'drawings' && (metadata.widthPx === undefined || metadata.heightPx === undefined)) fail(`图片 ${sourceKey} 需要 widthPx 和 heightPx`)
       if ((mimeType.startsWith('video/') || mimeType.startsWith('audio/')) && metadata.durationMs === undefined) fail(`视频或音频 ${sourceKey} 需要 durationMs`)
-      const pageBindings = entry.pageBindings === undefined ? undefined : (() => {
-        if (!Array.isArray(entry.pageBindings)) fail('pageBindings 必须是数组')
-        return entry.pageBindings.map(binding => { const record = object(binding); return {
-          findingId: text(record.findingId, 'pageBindings.findingId'), ...(record.role === undefined ? {} : { role: role(record.role) }),
-        } })
-      })()
       const assetRole = entry.role === undefined ? 'reference' : role(entry.role)
       if ((assetRole === 'background' || pageBindings?.some(binding => binding.role === 'background'))
         && (!mimeType.startsWith('image/') || sourceCategory === 'drawings')) fail(`只有图像素材可以作背景：${sourceKey}`)
-      sources.set(sourceKey, { sourceKey, sourcePath, originalFileName, mimeType, importedAt })
+      if (provenance === undefined) sources.set(sourceKey, { sourceKey, sourcePath, originalFileName, mimeType, importedAt })
+      else sources.delete(sourceKey)
+      const disclosure = provenance?.kind === 'ai_concept' ? 'AI概念示意（非现场实拍）'
+        : provenance?.kind === 'deterministic' ? '依据资料绘制的信息图解'
+          : provenance?.kind === 'licensed_reference' ? '通用参考图（非项目现场）' : ''
+      const displayName = entry.displayName === undefined ? originalFileName : text(entry.displayName, 'displayName')
       assets.set(sourceKey, { sourceKey, sourcePath, originalFileName, mimeType, ...metadata,
-        displayName: entry.displayName === undefined ? originalFileName : text(entry.displayName, 'displayName'),
-        semanticRole: entry.semanticRole === undefined ? 'source_evidence' : text(entry.semanticRole, 'semanticRole'), createdAt: importedAt, adoptedAt: importedAt,
+        displayName: disclosure === '' || displayName.includes(disclosure) ? displayName : `${disclosure}｜${displayName}`,
+        semanticRole: provenance?.kind === 'ai_concept' ? 'concept_visual' : entry.semanticRole === undefined ? 'source_evidence' : text(entry.semanticRole, 'semanticRole'), createdAt: importedAt, adoptedAt: importedAt,
         aliases: strings(entry.aliases, 'aliases'), evidenceIds: strings(entry.evidenceIds, 'evidenceIds'), objectIds: strings(entry.objectIds, 'objectIds'),
         role: assetRole, ...(pageBindings === undefined ? {} : { pageBindings }),
-        origin: { type: 'source_material', sourceMaterialKeys: [sourceKey], parentAssetKeys: [], method: '项目资料明确登记并采用', sourceTool: null },
+        ...(provenance === undefined ? {} : { pageBindingOnly: true }),
+        origin: provenance === undefined
+          ? { type: 'source_material', sourceMaterialKeys: [sourceKey], parentAssetKeys: [], method: '项目资料明确登记并采用', sourceTool: null }
+          : { type: provenance.kind === 'licensed_reference' ? 'human_added' : 'generated_by_tool', sourceMaterialKeys: [], parentAssetKeys: [],
+            method: JSON.stringify({ disclosure, pageBindingOnly: true, provenance }), sourceTool: provenance.kind === 'licensed_reference' ? null : provenance.tool },
       })
+    }
+  }
+  if (root !== undefined) {
+    const state = await readPageVisualState(root, input.frozenProject.projectId)
+    for (const request of state.requests) {
+      if (!request.assetId) continue
+      const asset = assets.get(request.assetId)
+      if (!asset) {
+        if (request.status === 'adopted') warnings.push(`补图 ${request.findingId} 的已采用素材 ${request.assetId} 暂不可读取，未视为覆盖`)
+        continue
+      }
+      assets.set(asset.sourceKey, { ...asset, pageBindingOnly: true, pageBindings: [{ findingId: request.findingId, role: 'primary' }],
+        displayName: asset.displayName.includes('AI概念示意') ? asset.displayName : `AI概念示意（非现场实拍）｜${asset.displayName}`,
+        origin: { ...asset.origin, method: JSON.stringify({ pageBindingOnly: true, disclosure: 'AI概念示意（非现场实拍）',
+          taskId: request.taskId, prompt: request.prompt, style: request.style }) } })
     }
   }
   const declared = new Set([...assets.values()].flatMap(asset => [asset.sourceKey, ...(asset.aliases ?? []), ...asset.evidenceIds]))
