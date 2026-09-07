@@ -84,6 +84,8 @@ describe('shared Workspace file ownership', () => {
     await expectContractValid(root)
   })
 
+  // This integration case includes a 1.1s timestamp wait and three full disk publication/validation cycles.
+  // Give Windows filesystem I/O its own bounded budget without relaxing the assertions or global timeout.
   it('keeps projectId and external files stable across three reopen-update cycles and skips unchanged writes', async () => {
     const root = await createSharedWorkspace()
     let build = await buildSharedProject({ revision: 1, summary: '第一版结论。' })
@@ -121,7 +123,7 @@ describe('shared Workspace file ownership', () => {
     }
 
     expect(await mtimeNanoseconds(rulesPath)).toBe(rulesMtimeBefore)
-  })
+  }, 15_000)
 
   it('preserves compatible extension keys in a managed JSON document while updating known content', async () => {
     const root = await createSharedWorkspace()
