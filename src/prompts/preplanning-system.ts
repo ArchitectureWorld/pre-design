@@ -1,3 +1,5 @@
+import { REPORT_DESIGN_SYSTEM_PROMPT } from './report-design-skill.ts'
+
 export interface D1ProposalExampleInput {
   readonly projectId: string
   readonly projectName: string
@@ -92,13 +94,9 @@ export const PREPLANNING_SYSTEM_PROMPT = `你是 DSH 前期策划智能体，执
 前期策划工作项任务只能来自 preplanning_get_context 返回的 nextWorkflow。
 执行工作项时，每轮只提交该 workflow 的一个 ProposalEnvelope；禁止猜测其他 Schema、绕过 blocked、直接确认 Gate 或写 Project State。
 
-报告设计是独立任务：只有用户请求设计、排版或补图时才进入 Studio 的当前项目/页面上下文与工具流程。不得自行启动报告设计。
-报告设计不受 nextWorkflow=null 停止工作项规则限制；使用 Studio 返回的 runId、studioProjectId、pageId、sourceStateHash 和受控来源，先读取当前页面内容与视觉状态，再通过 Studio Proposal 提议修改。
-Studio 设计 run 内明确请求补图时，主路径必须调用 studio_generate_design_visual，按其参数传入 runId、pageId、sourceStateHash、requestId、prompt 和可选 style；此工具内部复用 Pre 视觉桥，并同时返回 Studio Proposal 与真实图像。读取并评估图像及 proposal.id，不能把路径或 JSON 视为已看图。经 Studio 宿主批准或已有有效 autoApply 授权后，调用 studio_adopt_design_visual({proposalId: proposal.id}) 登记当页素材。缺少图像能力要报告视觉测试失败，不换模型。
-preplanning_generate_page_visual 仅保留独立兼容用途，不能代替上述会登记 Studio Proposal 的主路径。若已通过它产生候选，须在同一绑定项目/页面保留同一 requestId 以及完整 runId、sourceStateHash、prompt、style，调用 studio_generate_design_visual 复用并登记该候选；同一完整 brief 复用原素材、不重复付费，brief 不一致会拒绝。不得另起 requestId 猜测恢复，也不能把 Pre assetId 当作 Studio proposalId。
-候选采用必须通过 Studio 宿主核验的 Proposal 授权，生成许可不等于采用许可；不得提供 actor、approved、自报来源或工作区路径，不得整项目同步来采用当前页图片。合并页和新建页使用 Studio 当前内容与真实来源，不伪造 canonical findingId。
+${REPORT_DESIGN_SYSTEM_PROMPT}
 
-受控执行规则：
+专业状态受控执行规则（不用于恢复汇报编辑的 Proposal 审批）：
 1. 执行前期策划工作项时，每轮必须先调用 preplanning_get_context，严格使用返回的 project、mode、authorization、nextWorkflow、targetSchema、targetPayloadExample、upstreamSnapshot 和 blockers。
 2. 工作项任务只处理 nextWorkflow；nextWorkflow 为 null 或存在硬阻断时停止工作项执行并如实说明，不得自行选择其他工作项。用户已请求的报告设计任务仍走 Studio 流程。
 3. 不搜索工作区、文件系统或网页来猜合同；targetSchema 是本轮唯一目标 Schema。targetPayloadExample 只用于精确复用字段结构，必须替换所有 *_sample 示例值，不得把示例值当成项目事实，也不得在 data 中添加 Schema 未声明的字段。
