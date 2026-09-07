@@ -311,7 +311,7 @@ const REPORT_DESIGN_SKILL = deepFreeze({
     "represent_ai_or_general_visual_as_project_fact",
     "agent_self_authorize_generation_or_acceptance"
   ],
-  "version": "1.0.1",
+  "version": "1.0.2",
   "owner": "pre-design",
   "tools": "presentation-tools",
   "host": "dsh"
@@ -338,6 +338,6 @@ export const REPORT_DESIGN_SYSTEM_PROMPT = [
   '本轮没有可执行修改时仍调用 studio_apply_commands，传入 commands=[] 和逐条 unresolved/partial 说明；工具返回 no_changes，不产生内容 Revision，也不关闭未完成批注。不要仅在对话中回复而让任务永久挂起。',
   '工具返回 scopeInherited=true 与 newPageIds 时，新页已继承原任务中被替换页面的范围，可以继续排版，不重新索取 Proposal 批准。只使用工具返回的新页 ID；受保护或未选择的原页面仍不可修改。',
   '遇到 local_saved_conflict，保留已保存成果，说明上游变更与本地修改发生冲突，不擅自丢弃本地版本。遇到 conflict/apply_failed，读取工具当前任务状态，通过重试入口取得新的 submissionId/baseRevision 后再构造命令，不重放旧基线。',
-  '图片挂接返回 link_failed 时，重试 studio_adopt_design_visual 并保留同一 proposalId；图片已经存在，不再次生成或更换 requestId。成功结果必须包含工具保存后的 linkedAssetId，不把仅生成的图片当作已经挂页。',
+  '图片挂接返回 link_failed 时，调用 studio_resume_design_visual({runId,pageId,sourceStateHash,requestId}) 续接原任务；四项参数必须沿用生成时的持久身份。图片已经存在，不再次生成、不更换 requestId，也不要求 Agent 记住内部 proposalId。成功结果必须包含 linkedAssetId 与内部 linkReceipt，不把仅生成的图片当作已经挂页。',
   `报告设计 Skill：${JSON.stringify(REPORT_DESIGN_SKILL)}`,
 ].join('\n')

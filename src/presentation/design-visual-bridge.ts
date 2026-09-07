@@ -5,6 +5,7 @@ import type { ProjectRepository } from '../state/repository.ts'
 import type { FrozenProjectInput } from '../report/types.ts'
 import type { PresentationStandardProjectService } from './standard-project-service.ts'
 import type { PageVisualFillService, StudioVisualInput, StudioVisualResult } from './page-visual-fill.ts'
+import type { StudioPageVisualLinkReceipt } from './page-visual-state.ts'
 import { sha256CanonicalJson } from './canonical-json.ts'
 
 export const DESIGN_VISUAL_PROTOCOL = 'pre-design.page-visual.v1' as const
@@ -44,6 +45,7 @@ export interface DesignVisualBridge {
   inspect(parent: Agent, input: DesignVisualInput, signal?: AbortSignal): Promise<ResolvedDesignVisualContext>
   generate(parent: Agent, input: DesignVisualInput, signal?: AbortSignal): Promise<StudioVisualResult>
   adopt(parent: Agent, input: DesignVisualInput & { readonly assetId: string }, signal?: AbortSignal): Promise<StudioVisualResult>
+  confirmLinked(parent: Agent, input: DesignVisualInput & { readonly assetId: string; readonly linkReceipt: StudioPageVisualLinkReceipt }, signal?: AbortSignal): Promise<StudioPageVisualLinkReceipt>
 }
 interface Dependencies {
   readonly repository: Pick<ProjectRepository, 'readContext'>
@@ -119,14 +121,14 @@ export function createDesignVisualBridge(dependencies: Dependencies): DesignVisu
     const anchor = sources.find(source => source && dependencies.registry.workflows().some(workflow => workflow.targetObjectId === source.objectId
       && workflow.chapterId === source.chapterId && workflow.workItemId === source.workItemId))
     if (!anchor?.workItemId) fail('SOURCE_REQUIRED')
-    return { context: { ...context, sourceObjectIds }, fill: { frozenProject: frozen, workspaceRoot: root,
+    return { context: { ...context, sourceObjectIds }, fill: { frozenProject: frozen, workspaceRoot: root, runId: input.runId,
       target: { kind: 'studio_current_page', preDesignProjectId: frozen.projectId, studioProjectId: context.studioProjectId,
         pageId: context.pageId, sourceStateHash: context.sourceStateHash, sourceObjectIds }, requestId: input.requestId,
       title: context.title, keyMessage: context.keyMessage, chapterId: anchor.chapterId, workItemId: anchor.workItemId,
       prompt: input.prompt, style: input.style, signal, assertCurrent } }
   }
   const unchanged = (before: StudioVisualInput, after: StudioVisualInput) => {
-    if (sha256CanonicalJson(before.target) !== sha256CanonicalJson(after.target) || before.frozenProject.revision !== after.frozenProject.revision) fail('CONTEXT')
+    if (before.runId !== after.runId || sha256CanonicalJson(before.target) !== sha256CanonicalJson(after.target) || before.frozenProject.revision !== after.frozenProject.revision) fail('CONTEXT')
   }
   return Object.freeze({ protocol: DESIGN_VISUAL_PROTOCOL,
     bindStudioResolver(resolver: TrustedStudioVisualResolver) {
@@ -157,6 +159,30 @@ export function createDesignVisualBridge(dependencies: Dependencies): DesignVisu
       })
       unchanged(validated.fill, (await resolveContext(parent, input, 'adopt', signal, { requestId: result.requestId, assetId: result.assetId })).fill)
       return result
+    },
+    async confirmLinked(parent: Agent, input: DesignVisualInput & { assetId: string; linkReceipt: StudioPageVisualLinkReceipt }, signal?: AbortSignal) {
+      signal?.throwIfAborted()
+      const allowed = new Set(['runId', 'studioProjectId', 'pageId', 'sourceStateHash', 'requestId', 'prompt', 'style', 'assetId', 'linkReceipt'])
+      if (Object.keys(input).some(key => !allowed.has(key)) || ![input.runId, input.studioProjectId, input.pageId, input.requestId, input.prompt, input.assetId].every(text)
+        || !/^[a-f0-9]{64}$/u.test(input.sourceStateHash) || (input.style !== undefined && !text(input.style))) fail('RECEIPT')
+      const active = owner
+      if (!active || active.resolver.protocol !== DESIGN_VISUAL_PROTOCOL) fail('RESOLVER_UNAVAILABLE')
+      if (!parent || !text(String(parent.id ?? '')) || String(parent.session?.id ?? '') !== String(parent.id)) fail('SESSION')
+      const sessionId = String(parent.id)
+      const pre = dependencies.repository.readContext(sessionId)
+      const binding = dependencies.standardProjects.findByPreDesignProjectId(pre.project.projectId)
+      const workspaceRoot = binding?.workspaceRoot ?? binding?.directoryRoot
+      if (!binding || binding.state !== 'ready' || binding.preDesignProjectId !== pre.project.projectId
+        || binding.presentationProjectId !== input.studioProjectId || !workspaceRoot) fail('BINDING')
+      const receipt = await dependencies.pageVisualFill.confirmStudioPageLinked({ workspaceRoot, projectId: pre.project.projectId,
+        runId: input.runId, studioProjectId: input.studioProjectId, pageId: input.pageId, sourceStateHash: input.sourceStateHash,
+        requestId: input.requestId, prompt: input.prompt, style: input.style, assetId: input.assetId, signal }, input.linkReceipt)
+      signal?.throwIfAborted()
+      if (owner !== active || dependencies.repository.readContext(sessionId).project.projectId !== pre.project.projectId) fail('CONTEXT')
+      const latest = dependencies.standardProjects.findByPreDesignProjectId(pre.project.projectId)
+      if (!latest || latest.state !== 'ready' || latest.presentationProjectId !== binding.presentationProjectId
+        || latest.workspaceRoot !== binding.workspaceRoot || latest.directoryRoot !== binding.directoryRoot) fail('BINDING')
+      return receipt
     },
   })
 }

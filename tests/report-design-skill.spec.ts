@@ -15,6 +15,7 @@ test('Pre owns the report strategy and the active system prompt loads it', () =>
   assert.equal(skill.tools, 'presentation-tools')
   assert.equal(skill.host, 'dsh')
   assert.equal(skill.schemaVersion, 'pre-design.report-design-skill.v1')
+  assert.equal(skill.version, '1.0.2')
   assertDeepFrozen(skill)
   assert.deepEqual(JSON.parse(JSON.stringify(skill)), skill)
   assert.ok(PREPLANNING_SYSTEM_PROMPT.includes(REPORT_DESIGN_SYSTEM_PROMPT))
@@ -65,7 +66,7 @@ test('direct editing uses native tools and preserves preview, scope, request ide
   assert.equal(skill.authority.agentMayGrantPermission, false)
   assert.equal(skill.concerns.review.maxAutonomousPreviewRefinementRounds, 3)
   assert.deepEqual(skill.concerns.review.separateRecords, ['automaticChecks', 'agentObservation', 'appliedRevision'])
-  for (const tool of ['studio_get_layout_context', 'studio_prepare_design_content', 'studio_prepare_layout_candidate', 'studio_render_layout_preview', 'studio_submit_layout_review', 'studio_generate_design_visual', 'studio_adopt_design_visual']) {
+  for (const tool of ['studio_get_layout_context', 'studio_prepare_design_content', 'studio_prepare_layout_candidate', 'studio_render_layout_preview', 'studio_submit_layout_review', 'studio_generate_design_visual', 'studio_adopt_design_visual', 'studio_resume_design_visual']) {
     assert.ok(REPORT_DESIGN_SYSTEM_PROMPT.includes(tool), tool)
   }
   assert.match(REPORT_DESIGN_SYSTEM_PROMPT, /不再发起 Proposal 二次确认/)
@@ -93,5 +94,6 @@ test('structural descendants inherit only the tool returned scope and retries re
   assert.match(REPORT_DESIGN_SYSTEM_PROMPT, /scopeInherited/)
   assert.match(REPORT_DESIGN_SYSTEM_PROMPT, /newPageIds/)
   assert.match(REPORT_DESIGN_SYSTEM_PROMPT, /link_failed/)
-  assert.match(REPORT_DESIGN_SYSTEM_PROMPT, /同一 proposalId/)
+  assert.match(REPORT_DESIGN_SYSTEM_PROMPT, /runId.*pageId.*sourceStateHash.*requestId/)
+  assert.match(REPORT_DESIGN_SYSTEM_PROMPT, /不再次生成/)
 })

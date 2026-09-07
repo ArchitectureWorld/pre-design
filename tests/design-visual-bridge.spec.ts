@@ -148,6 +148,36 @@ it('adopts only with refreshed apply grant and returns durable adopted_unlinked 
   expect(materials.assets.find(asset => asset.sourceKey === candidate.assetId)).toBeUndefined()
 })
 
+
+it('records the exact Studio link receipt after adopted_unlinked and replays it idempotently', async () => {
+  const f = await fixture()
+  const candidate = await f.bridge.generate(parent, input)
+  await f.bridge.adopt(parent, { ...input, assetId: candidate.assetId })
+  const linkReceipt = {
+    kind: 'presentation-tools.page-visual-link.v1' as const,
+    runId: input.runId,
+    studioProjectId: input.studioProjectId,
+    pageId: input.pageId,
+    sourceStateHash: input.sourceStateHash,
+    requestId: input.requestId,
+    preAssetId: candidate.assetId,
+    studioAssetId: 'asset_00000000-0000-7000-8000-000000000001',
+    pageAssetId: 'pageasset_00000000-0000-7000-8000-000000000001',
+    projectRevision: 2,
+    linkedAt: '2026-09-06T00:01:00.000Z',
+  }
+  const wrongRunReceipt = { ...linkReceipt, runId: 'design-run-other' }
+  await expect(f.bridge.confirmLinked(parent, { ...input, runId: wrongRunReceipt.runId, assetId: candidate.assetId, linkReceipt: wrongRunReceipt })).rejects.toThrow(/RECEIPT|REQUEST/)
+  expect(await f.bridge.confirmLinked(parent, { ...input, assetId: candidate.assetId, linkReceipt })).toEqual(linkReceipt)
+  expect((await readPageVisualState(f.workspace, 'pre-test')).requests[0]).toMatchObject({ status: 'linked', runId: input.runId, linkReceipt })
+  expect(await f.bridge.confirmLinked(parent, { ...input, assetId: candidate.assetId, linkReceipt })).toEqual(linkReceipt)
+  expect(await f.bridge.generate(parent, input)).toMatchObject({ assetId: candidate.assetId, reused: true })
+  expect(await f.bridge.adopt(parent, { ...input, assetId: candidate.assetId })).toMatchObject({ status: 'adopted_unlinked', reused: true })
+  expect((await readPageVisualState(f.workspace, 'pre-test')).requests[0]).toMatchObject({ status: 'linked', linkReceipt })
+  await expect(f.bridge.confirmLinked(parent, { ...input, assetId: candidate.assetId, linkReceipt: { ...linkReceipt, studioAssetId: 'other' } })).rejects.toThrow(/RECEIPT|STATE/)
+  expect(await readFile(join(f.workspace, 'studio-owned.json'), 'utf8')).toBe('{"manual":"keep"}')
+})
+
 it('retains a late cancelled candidate for recovery but never adopts the cancelled request', async () => {
   const f = await fixture(); const controller = new AbortController()
   f.paidAction(async () => { controller.abort(new Error('cancelled')) })

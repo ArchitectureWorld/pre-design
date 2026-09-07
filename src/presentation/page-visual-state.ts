@@ -13,22 +13,41 @@ export interface StudioPageVisualTarget {
   readonly sourceStateHash: string
   readonly sourceObjectIds: readonly string[]
 }
+export interface StudioPageVisualLinkReceipt {
+  readonly kind: 'presentation-tools.page-visual-link.v1'
+  readonly runId: string
+  readonly studioProjectId: string
+  readonly pageId: string
+  readonly sourceStateHash: string
+  readonly requestId: string
+  readonly preAssetId: string
+  readonly studioAssetId: string
+  readonly pageAssetId: string
+  readonly projectRevision: number
+  readonly linkedAt: string
+}
 export interface PageVisualRequest {
   readonly taskId: string
   readonly findingId?: string
   readonly target?: StudioPageVisualTarget
   readonly requestId?: string
+  /** Stable DSH report run identity for Studio-targeted requests. Optional only for legacy unlinked state. */
+  readonly runId?: string
   readonly briefHash: string
   readonly prompt: string
   readonly style: string
-  readonly status: 'generating' | 'candidate' | 'adopted' | 'adopted_unlinked' | 'recovery_required' | 'failed'
+  readonly status: 'generating' | 'candidate' | 'adopted' | 'adopted_unlinked' | 'linked' | 'recovery_required' | 'failed'
   readonly assetId?: string
   readonly message?: string
+  readonly linkReceipt?: StudioPageVisualLinkReceipt
 }
 export interface PageVisualState {
   readonly version: 1
   readonly projectId: string
   readonly requests: readonly PageVisualRequest[]
+}
+function validText(value: unknown): value is string {
+  return typeof value === 'string' && value.trim() === value && value.length > 0 && !/[\u0000-\u001f]/u.test(value)
 }
 
 async function stateDirectory(root: string, create = false): Promise<string> {
@@ -63,12 +82,29 @@ export async function readPageVisualState(root: string, projectId: string): Prom
             || !Array.isArray(item.target.sourceObjectIds) || !item.target.sourceObjectIds.length
             || item.target.sourceObjectIds.some((id: unknown) => typeof id !== 'string' || !id.trim())
             || new Set(item.target.sourceObjectIds).size !== item.target.sourceObjectIds.length
-            || typeof item.requestId !== 'string' || !item.requestId.trim())
+            || typeof item.requestId !== 'string' || !item.requestId.trim()
+            || (item.runId !== undefined && !validText(item.runId)))
         || typeof item.prompt !== 'string' || item.prompt.trim() === '' || typeof item.style !== 'string' || item.style.trim() === ''
-        || !['generating', 'candidate', 'adopted', 'adopted_unlinked', 'recovery_required', 'failed'].includes(item.status)
-        || (item.status === 'adopted_unlinked' && item.target === undefined)
+        || !['generating', 'candidate', 'adopted', 'adopted_unlinked', 'linked', 'recovery_required', 'failed'].includes(item.status)
+        || (['adopted_unlinked', 'linked'].includes(item.status) && item.target === undefined)
         || (item.assetId !== undefined && (typeof item.assetId !== 'string' || item.assetId.trim() === ''))
-        || (['candidate', 'adopted', 'adopted_unlinked'].includes(item.status) && !item.assetId)) throw new Error('PAGE_VISUAL_STATE_INVALID: 补图请求损坏')
+        || (['candidate', 'adopted', 'adopted_unlinked', 'linked'].includes(item.status) && !item.assetId)) throw new Error('PAGE_VISUAL_STATE_INVALID: 补图请求损坏')
+      if (item.status === 'linked') {
+        const receipt = item.linkReceipt
+        const validTimestamp = typeof receipt?.linkedAt === 'string' && !Number.isNaN(Date.parse(receipt.linkedAt))
+          && new Date(receipt.linkedAt).toISOString() === receipt.linkedAt
+        if (!item.target || !validText(item.runId) || !receipt || receipt.kind !== 'presentation-tools.page-visual-link.v1'
+          || receipt.runId !== item.runId || receipt.studioProjectId !== item.target.studioProjectId
+          || receipt.pageId !== item.target.pageId || receipt.sourceStateHash !== item.target.sourceStateHash
+          || receipt.requestId !== item.requestId || receipt.preAssetId !== item.assetId
+          || !validText(receipt.studioAssetId)
+          || !validText(receipt.pageAssetId)
+          || !Number.isSafeInteger(receipt.projectRevision) || receipt.projectRevision < 0 || !validTimestamp) {
+          throw new Error('PAGE_VISUAL_STATE_INVALID: Studio 挂接回执损坏')
+        }
+      } else if (item.linkReceipt !== undefined) {
+        throw new Error('PAGE_VISUAL_STATE_INVALID: 未完成挂接的请求不能携带回执')
+      }
       ids.add(item.taskId)
       if (item.target && (item.taskId !== `page-fill-${item.briefHash}`
         || item.briefHash !== sha256CanonicalJson({ target: item.target, requestId: item.requestId, prompt: item.prompt, style: item.style }))) {

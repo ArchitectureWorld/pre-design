@@ -14,7 +14,7 @@ import { preparePresentationMaterials, type PreparePresentationMaterialsInput } 
 import { buildPresentationStandardProject } from './standard-project-adapter.ts'
 import type { PresentationAdoptedAssetInput } from './standard-project-types.ts'
 import { compileReportOutline } from './projector/report-outline.ts'
-import { readPageVisualState, savePageVisualRequest, withPageVisualLock, type PageVisualRequest, type StudioPageVisualTarget } from './page-visual-state.ts'
+import { readPageVisualState, savePageVisualRequest, withPageVisualLock, type PageVisualRequest, type StudioPageVisualTarget, type StudioPageVisualLinkReceipt } from './page-visual-state.ts'
 
 export const DEFAULT_PAGE_VISUAL_STYLE = '统一使用克制的低饱和自然材料、专业建筑可视化与清晰空间层次；无文字、标尺、水印或伪造数据。'
 const IMAGE_MIME = /^image\/(?:avif|bmp|gif|jpeg|png|svg\+xml|webp|x-icon|vnd\.microsoft\.icon)$/iu
@@ -55,6 +55,7 @@ interface Dependencies {
   readonly adoptedAssets?: (project: FrozenProjectInput) => readonly PresentationAdoptedAssetInput[]
 }
 export interface StudioVisualInput extends PageVisualInput {
+  readonly runId: string
   readonly assertCurrent?: () => void
   readonly beforeStart?: VisualDispatchGuard
   readonly target: StudioPageVisualTarget
@@ -65,6 +66,19 @@ export interface StudioVisualInput extends PageVisualInput {
   readonly workItemId: string
   readonly prompt: string
   readonly style?: string
+  readonly signal?: AbortSignal
+}
+export interface StudioVisualLinkConfirmation {
+  readonly workspaceRoot: string
+  readonly projectId: string
+  readonly runId: string
+  readonly studioProjectId: string
+  readonly pageId: string
+  readonly sourceStateHash: string
+  readonly requestId: string
+  readonly prompt: string
+  readonly style?: string
+  readonly assetId: string
   readonly signal?: AbortSignal
 }
 interface GeneratedAssetResult {
@@ -93,6 +107,9 @@ function required(value: string | undefined, name: string): string {
   const result = value?.normalize('NFC').trim()
   if (!result || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u.test(result)) throw new Error(`PAGE_VISUAL_INVALID: ${name} 不能为空或包含控制字符`)
   return result
+}
+function textValue(value: unknown): value is string {
+  return typeof value === 'string' && value.trim() === value && value.length > 0 && !/[\u0000-\u001f]/u.test(value)
 }
 
 async function verifyPageImage(asset: PresentationAdoptedAssetInput): Promise<void> {
@@ -208,16 +225,17 @@ export class PageVisualFillService {
       const previous = (await readPageVisualState(input.workspaceRoot, projectId)).requests.find(item => item.taskId === brief.taskId)
       if (brief.target) {
         const request = (await readPageVisualState(input.workspaceRoot, projectId)).requests.find(item => item.target && item.requestId === brief.requestId)
-        if (request && request.briefHash !== brief.briefHash) throw new Error('DESIGN_VISUAL_REQUEST_CONFLICT: requestId 已用于不同内容')
+        if (request && (request.briefHash !== brief.briefHash || (request.runId !== undefined && request.runId !== brief.runId))) throw new Error('DESIGN_VISUAL_REQUEST_CONFLICT: requestId 已用于不同内容或运行任务')
       }
       const existing = await this.usableAsset(projectId, brief.taskId, previous?.assetId)
       const recoveryOnly = !!previous && (previous.status === 'recovery_required' || (!!brief.target && previous.status === 'generating')) && !existing
-      if (previous && previous.status !== 'failed' && ((!existing && !recoveryOnly) || (['adopted', 'adopted_unlinked'].includes(previous.status) && existing?.status !== 'adopted'))) {
+      if (previous && previous.status !== 'failed' && ((!existing && !recoveryOnly) || (['adopted', 'adopted_unlinked', 'linked'].includes(previous.status) && existing?.status !== 'adopted'))) {
         throw new Error('PAGE_VISUAL_RECOVERY_REQUIRED: 已有补图请求暂无法从治理状态恢复，未再次生成；请重新加载治理状态并核查原请求')
       }
       if (existing) {
         const status = existing.status as 'candidate' | 'adopted'
-        await savePageVisualRequest(input.workspaceRoot, projectId, { ...brief, assetId: existing.assetId, status: brief.target && status === 'adopted' ? 'adopted_unlinked' : status })
+        const requestStatus = brief.target && status === 'adopted' ? (previous?.status === 'linked' ? 'linked' : 'adopted_unlinked') : status
+        await savePageVisualRequest(input.workspaceRoot, projectId, { ...brief, assetId: existing.assetId, status: requestStatus, ...(requestStatus === 'linked' ? { linkReceipt: previous?.linkReceipt } : {}) })
         return { taskId: brief.taskId, assetId: existing.assetId, status, reused: true }
       }
       if (page.covered) throw new Error('PAGE_VISUAL_ALREADY_COVERED: 当前页已有可用图片，不自动替换')
@@ -250,11 +268,12 @@ export class PageVisualFillService {
   }
 
   private studioBrief(input: StudioVisualInput): PageVisualRequest {
+    const runId = required(input.runId, 'runId')
     const prompt = required(input.prompt, 'prompt')
     const style = required(input.style ?? DEFAULT_PAGE_VISUAL_STYLE, 'style')
     const requestId = required(input.requestId, 'requestId')
     const briefHash = sha256CanonicalJson({ target: input.target, requestId, prompt, style })
-    return { taskId: `page-fill-${briefHash}`, target: input.target, requestId, briefHash, prompt, style, status: 'generating' }
+    return { taskId: `page-fill-${briefHash}`, target: input.target, requestId, runId, briefHash, prompt, style, status: 'generating' }
   }
 
   private async studioResult(input: StudioVisualInput, result: GeneratedAssetResult): Promise<StudioVisualResult> {
@@ -288,7 +307,7 @@ export class PageVisualFillService {
       const projectId = input.frozenProject.projectId
       const brief = this.studioBrief(input)
       const request = (await readPageVisualState(input.workspaceRoot, projectId)).requests.find(item => item.target && item.requestId === input.requestId)
-      if (!request || request.briefHash !== brief.briefHash || request.assetId !== input.assetId) throw new Error('PAGE_VISUAL_CANDIDATE_MISMATCH: 候选图与页面请求不匹配')
+      if (!request || request.briefHash !== brief.briefHash || (request.runId !== undefined && request.runId !== input.runId) || request.assetId !== input.assetId) throw new Error('PAGE_VISUAL_CANDIDATE_MISMATCH: 候选图与页面请求不匹配')
       const asset = await this.usableAsset(projectId, request.taskId, request.assetId)
       if (!asset) throw new Error('PAGE_VISUAL_CANDIDATE_INVALID: 候选图不可采用')
       const result = await this.studioResult(input, { taskId: request.taskId, assetId: asset.assetId, status: asset.status as 'candidate' | 'adopted', reused: asset.status === 'adopted' })
@@ -296,9 +315,50 @@ export class PageVisualFillService {
       input.signal?.throwIfAborted()
       assertAuthorized()
       const adopted = asset.status === 'adopted' ? asset : await this.dependencies.visual.adopt(projectId, asset.assetId, input.frozenProject.revision)
-      await savePageVisualRequest(input.workspaceRoot, projectId, { ...request, status: 'adopted_unlinked' })
+      if (request.status !== 'linked') await savePageVisualRequest(input.workspaceRoot, projectId, { ...request, runId: input.runId, status: 'adopted_unlinked' })
       input.signal?.throwIfAborted()
       return { ...result, status: 'adopted_unlinked', provenance: { ...result.provenance, adoptedRevision: adopted.adoptedRevision } }
+    })
+  }
+
+  async confirmStudioPageLinked(input: StudioVisualLinkConfirmation, linkReceipt: StudioPageVisualLinkReceipt): Promise<StudioPageVisualLinkReceipt> {
+    input.signal?.throwIfAborted()
+    return withPageVisualLock(input.workspaceRoot, async () => {
+      const prompt = required(input.prompt, 'prompt')
+      const style = required(input.style ?? DEFAULT_PAGE_VISUAL_STYLE, 'style')
+      const requestId = required(input.requestId, 'requestId')
+      const request = (await readPageVisualState(input.workspaceRoot, input.projectId)).requests.find(item => item.target && item.requestId === requestId)
+      const briefHash = request?.target === undefined ? '' : sha256CanonicalJson({ target: request.target, requestId, prompt, style })
+      if (!request || !request.target || request.target.preDesignProjectId !== input.projectId
+        || request.target.studioProjectId !== input.studioProjectId || request.target.pageId !== input.pageId
+        || request.target.sourceStateHash !== input.sourceStateHash || request.runId !== input.runId || request.briefHash !== briefHash
+        || request.assetId !== input.assetId || !['adopted_unlinked', 'linked'].includes(request.status)) {
+        throw new Error('PAGE_VISUAL_LINK_RECEIPT_MISMATCH: 挂接回执与已采用页面请求不匹配')
+      }
+      const expected = {
+        kind: 'presentation-tools.page-visual-link.v1', runId: input.runId,
+        studioProjectId: input.studioProjectId, pageId: input.pageId, sourceStateHash: input.sourceStateHash,
+        requestId, preAssetId: input.assetId,
+      }
+      const receiptKeys = ['kind', 'runId', 'studioProjectId', 'pageId', 'sourceStateHash', 'requestId', 'preAssetId', 'studioAssetId', 'pageAssetId', 'projectRevision', 'linkedAt']
+      if (!linkReceipt || Object.keys(linkReceipt).length !== receiptKeys.length || receiptKeys.some(key => !Object.hasOwn(linkReceipt, key))) {
+        throw new Error('PAGE_VISUAL_LINK_RECEIPT_INVALID: 挂接回执字段不完整')
+      }
+      for (const [key, value] of Object.entries(expected)) {
+        if (linkReceipt[key as keyof StudioPageVisualLinkReceipt] !== value) throw new Error(`PAGE_VISUAL_LINK_RECEIPT_MISMATCH: ${key} 不匹配`)
+      }
+      const validTimestamp = typeof linkReceipt.linkedAt === 'string' && !Number.isNaN(Date.parse(linkReceipt.linkedAt))
+        && new Date(linkReceipt.linkedAt).toISOString() === linkReceipt.linkedAt
+      if (!textValue(linkReceipt.studioAssetId) || !textValue(linkReceipt.pageAssetId)
+        || !Number.isSafeInteger(linkReceipt.projectRevision) || linkReceipt.projectRevision < 0 || !validTimestamp) {
+        throw new Error('PAGE_VISUAL_LINK_RECEIPT_INVALID: 挂接回执内容无效')
+      }
+      if (request.status === 'linked') {
+        if (sha256CanonicalJson(request.linkReceipt) !== sha256CanonicalJson(linkReceipt)) throw new Error('PAGE_VISUAL_LINK_RECEIPT_CONFLICT: 同一请求已有不同挂接回执')
+        return request.linkReceipt!
+      }
+      await savePageVisualRequest(input.workspaceRoot, input.projectId, { ...request, status: 'linked', linkReceipt })
+      return linkReceipt
     })
   }
 
