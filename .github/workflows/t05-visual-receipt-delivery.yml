@@ -1,0 +1,84 @@
+name: T05 visual receipt verified delivery
+
+on:
+  push:
+    branches: [feat/pre-v2.0.0]
+    paths:
+      - '.delivery-t05/**'
+      - '.github/workflows/t05-visual-receipt-delivery.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pre-t05-visual-receipt
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.11.0
+          cache: pnpm
+      - name: Materialize exact reviewed patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d .delivery-t05/changes.patch.gz.b64 | gzip -d > "$RUNNER_TEMP/changes.patch"
+          echo '69208140e2a4ec4d6749d7e1ddf8d540a86d31fab609df53454eb3a4ea0e11a4  '"$RUNNER_TEMP/changes.patch" | sha256sum -c -
+          git apply --check "$RUNNER_TEMP/changes.patch"
+          git apply "$RUNNER_TEMP/changes.patch"
+          git diff --check
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Verify report Skill and page-visual receipt lifecycle
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm exec vitest run tests/report-design-skill.spec.ts --maxWorkers=1
+          pnpm exec vitest run tests/presentation-page-visual-fill.spec.ts --maxWorkers=1
+          pnpm exec vitest run tests/design-visual-bridge.spec.ts --maxWorkers=1
+          pnpm typecheck
+          pnpm build
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Publish verified source to the same existing branch
+        env:
+          EXPECTED_HEAD: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch=feat/pre-v2.0.0
+          current=$(git ls-remote origin "refs/heads/$branch" | cut -f1)
+          test "$current" = "$EXPECTED_HEAD" || { echo 'Branch advanced; refusing to overwrite'; exit 1; }
+          base64 -d .delivery-t05/changes.patch.gz.b64 | gzip -d > "$RUNNER_TEMP/changes.patch"
+          echo '69208140e2a4ec4d6749d7e1ddf8d540a86d31fab609df53454eb3a4ea0e11a4  '"$RUNNER_TEMP/changes.patch" | sha256sum -c -
+          git apply --check "$RUNNER_TEMP/changes.patch"
+          git apply "$RUNNER_TEMP/changes.patch"
+          git rm .delivery-t05/changes.patch.gz.b64
+          git rm .github/workflows/t05-visual-receipt-delivery.yml .github/workflows/current-source-snapshot.yml
+          git diff --check
+          git add -A
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat: close Studio page-visual link receipts in Pre'
+          git push origin "HEAD:refs/heads/$branch"
