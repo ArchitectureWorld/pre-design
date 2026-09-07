@@ -1,0 +1,20 @@
+name: Current source snapshot
+on:
+  push:
+    branches: [feat/pre-v2.0.0]
+    paths: [.github/workflows/current-source-snapshot.yml]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Archive exact source
+        shell: bash
+        run: tar --exclude=.git --exclude=node_modules --exclude=.tmp -czf "$RUNNER_TEMP/pre-design-source.tar.gz" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pre-design-current-source
+          path: ${{ runner.temp }}/pre-design-source.tar.gz
+          retention-days: 1
