@@ -311,7 +311,7 @@ const REPORT_DESIGN_SKILL = deepFreeze({
     "represent_ai_or_general_visual_as_project_fact",
     "agent_self_authorize_generation_or_acceptance"
   ],
-  "version": "1.0.0",
+  "version": "1.0.1",
   "owner": "pre-design",
   "tools": "presentation-tools",
   "host": "dsh"
@@ -330,9 +330,14 @@ export const REPORT_DESIGN_SYSTEM_PROMPT = [
   'studio_prepare_design_content 用于受控内容整理、拆合页、素材关联及页面计划。结构变化后的页面身份必须来自工具真实返回值；若宿主尚未授权新页面，报告范围缺口，不猜 runId 或扩大权限。',
   '布局执行顺序为 studio_prepare_layout_candidate → studio_render_layout_preview → 读取真实 image block → studio_submit_layout_review。有效直接修改授权下，检查通过即保存；有溢出、缺图、版本冲突或无图像能力时不得声称完成。每页最多三轮，仍失败则保留当前成果并报告原因。',
   '补图只走 studio_generate_design_visual(runId,pageId,sourceStateHash,requestId,prompt,style?)。读取真实图像和 proposal.id，在有效本次修改授权内调用 studio_adopt_design_visual({proposalId:proposal.id}) 完成挂页，不等待第二次审批。生成权限仍需用户明确授予，不能因允许修改就擅自付费补图。',
-  'preplanning_generate_page_visual 仅为兼容入口；其候选须以同一 requestId、runId、sourceStateHash、prompt、style 通过 studio_generate_design_visual 登记，完整 brief 不变时复用原素材。不能把 Pre assetId 当作 Studio proposalId，不得更换 requestId 猜测恢复或重复付费。',
+  'preplanning_generate_page_visual 仅为兼容入口；其候选须以同一 requestId、runId、sourceStateHash、prompt、style 通过 studio_generate_design_visual 登记，完整 brief 不变时复用原素材、不重复付费。不能把 Pre assetId 当作 Studio proposalId，不得更换 requestId 猜测恢复或重复付费。',
   'AI 与非现场图片来源只写内部素材、生成和引用记录，不自动添加 AI 标签、水印、强制图注或观众提示。已有用户图注不得批量删除。内部仍须区分现场证据、通用参考和概念视觉，不能把生成图当作法定红线或已实施事实。',
   '取消审批不取消版本 CAS、范围检查、真实预览、来源记录、修改历史和撤销。不得用整项目同步来挂当前页图片，也不得覆盖 Studio 已保存的人工编辑。',
   '批注按实际处理结果逐条记录；未处理、资料不足或提交后已被用户改写的批注不得标成完成。事实、数值、单位和依据的修订回到 Pre 的受控专业状态流程；汇报编辑直接执行不等于自动批准专业 Gate。',
+  '批注命令通过 studio_apply_commands 提交。可附 annotationResults 数组，每项包含 annotationId、annotationVersion、status（completed/partial/unresolved）、reason、commandIds。只引用当前提交的批注版本和本次实际命令；completed 必须有覆盖此批注的 commandIds。完成一条不代表完成整轮。',
+  '本轮没有可执行修改时仍调用 studio_apply_commands，传入 commands=[] 和逐条 unresolved/partial 说明；工具返回 no_changes，不产生内容 Revision，也不关闭未完成批注。不要仅在对话中回复而让任务永久挂起。',
+  '工具返回 scopeInherited=true 与 newPageIds 时，新页已继承原任务中被替换页面的范围，可以继续排版，不重新索取 Proposal 批准。只使用工具返回的新页 ID；受保护或未选择的原页面仍不可修改。',
+  '遇到 local_saved_conflict，保留已保存成果，说明上游变更与本地修改发生冲突，不擅自丢弃本地版本。遇到 conflict/apply_failed，读取工具当前任务状态，通过重试入口取得新的 submissionId/baseRevision 后再构造命令，不重放旧基线。',
+  '图片挂接返回 link_failed 时，重试 studio_adopt_design_visual 并保留同一 proposalId；图片已经存在，不再次生成或更换 requestId。成功结果必须包含工具保存后的 linkedAssetId，不把仅生成的图片当作已经挂页。',
   `报告设计 Skill：${JSON.stringify(REPORT_DESIGN_SKILL)}`,
 ].join('\n')

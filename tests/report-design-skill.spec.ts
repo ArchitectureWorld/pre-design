@@ -80,3 +80,18 @@ test('report editing does not silently migrate professional state or Gate approv
   assert.equal(example.requested_state, 'pending_review')
   assert.match(PREPLANNING_SYSTEM_PROMPT, /不用于恢复汇报编辑的 Proposal 审批/)
 })
+
+test('the active skill explains exact per-annotation result and empty-command protocol', () => {
+  for (const field of ['annotationResults', 'annotationId', 'annotationVersion', 'commandIds', 'completed', 'partial', 'unresolved', 'commands=[]']) {
+    assert.ok(REPORT_DESIGN_SYSTEM_PROMPT.includes(field), field)
+  }
+  assert.match(REPORT_DESIGN_SYSTEM_PROMPT, /no_changes/)
+  assert.match(REPORT_DESIGN_SYSTEM_PROMPT, /local_saved_conflict/)
+})
+
+test('structural descendants inherit only the tool returned scope and retries reuse the operation', () => {
+  assert.match(REPORT_DESIGN_SYSTEM_PROMPT, /scopeInherited/)
+  assert.match(REPORT_DESIGN_SYSTEM_PROMPT, /newPageIds/)
+  assert.match(REPORT_DESIGN_SYSTEM_PROMPT, /link_failed/)
+  assert.match(REPORT_DESIGN_SYSTEM_PROMPT, /同一 proposalId/)
+})
