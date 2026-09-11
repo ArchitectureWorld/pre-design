@@ -72,6 +72,27 @@ describe('WorkflowRuntime', () => {
     ])
   })
 
+  it('persists the trusted workflow quality report on human-review and confirmed transitions', async () => {
+    const runtime = await openRuntime()
+    await runtime.initializeProject('project-1')
+    await runtime.transition('project-1', 'preplan.wf.01.01', { to: 'running' })
+    const quality = {
+      workflowId: 'preplan.wf.01.01', targetObjectId: 'PS01', disposition: 'needs_human' as const,
+      score: 0.84, completionCoverage: 1, evidenceCoverage: 1, confidence: 0.9,
+      attempt: 1, maxAttempts: 3, reasons: ['高风险工作项需要局部人工审核'], blockers: [], assumptions: [],
+    }
+
+    await runtime.transition('project-1', 'preplan.wf.01.01', { to: 'pending_review', quality })
+    expect(runtime.snapshot('project-1').runs[0]?.quality).toEqual(quality)
+
+    await runtime.transition('project-1', 'preplan.wf.01.01', {
+      to: 'confirmed', revision: 1, quality: { ...quality, disposition: 'auto_pass', reasons: [] },
+    })
+    expect(runtime.snapshot('project-1').runs[0]?.quality).toMatchObject({
+      disposition: 'auto_pass', workflowId: 'preplan.wf.01.01', targetObjectId: 'PS01',
+    })
+  })
+
   it('fails closed on illegal transitions and missing required transition data', async () => {
     const runtime = await openRuntime()
     await runtime.initializeProject('project-1')
