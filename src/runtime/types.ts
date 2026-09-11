@@ -1,4 +1,8 @@
-import type { WorkflowRunRecord, WorkflowRunStatus } from '../governance/types.ts'
+import type {
+  WorkflowRunQualityRecord,
+  WorkflowRunRecord,
+  WorkflowRunStatus,
+} from '../governance/types.ts'
 
 export interface ChapterWorkflowSummary {
   readonly chapterId: string
@@ -22,4 +26,5 @@ export interface WorkflowTransitionCommand {
   readonly revision?: number
   readonly reason?: string
   readonly proposalId?: string
+  readonly quality?: WorkflowRunQualityRecord
 }
