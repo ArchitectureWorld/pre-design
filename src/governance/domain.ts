@@ -51,6 +51,25 @@ const authorizationSchema = z.object({
   revocationReason: z.string().min(1).optional(),
 }).strict()
 
+const workflowQualitySchema = z.object({
+  workflowId: z.string().min(1),
+  targetObjectId: z.string().min(1),
+  disposition: z.enum(['auto_pass', 'auto_revise', 'needs_human', 'blocked_external']),
+  score: z.number().min(0).max(1),
+  completionCoverage: z.number().min(0).max(1),
+  evidenceCoverage: z.number().min(0).max(1),
+  confidence: z.number().min(0).max(1),
+  attempt: z.number().int().positive(),
+  maxAttempts: z.number().int().positive(),
+  reasons: z.array(z.string().min(1)),
+  blockers: z.array(z.object({
+    code: z.string().min(1),
+    kind: z.enum(['external', 'quality', 'conflict']),
+    message: z.string().min(1),
+  }).strict()),
+  assumptions: z.array(z.string().min(1)),
+}).strict()
+
 const workflowRunSchema = z.object({
   runId: z.string().min(1),
   projectId: z.string().min(1),
@@ -63,8 +82,14 @@ const workflowRunSchema = z.object({
   proposalId: z.string().min(1).optional(),
   confirmedRevision: z.number().int().nonnegative().optional(),
   blockedReason: z.string().min(1).optional(),
+  quality: workflowQualitySchema.optional(),
   updatedAt: z.string().min(1),
-}).strict()
+}).strict().superRefine((record, context) => {
+  if (record.quality !== undefined
+    && (record.quality.workflowId !== record.workflowId || record.quality.targetObjectId !== record.targetObjectId)) {
+    context.addIssue({ code: 'custom', message: 'workflow quality identity must match workflow run' })
+  }
+})
 
 const gateDecisionSchema = z.object({
   decisionId: z.string().min(1),
