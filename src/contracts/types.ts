@@ -19,11 +19,12 @@ export interface WorkflowDescriptor {
   readonly risk: string
   readonly humanReviewMandatory: boolean
   readonly missingDataPolicy: string
-  readonly evidencePolicy: readonly string[]
-  readonly completionCriteria: readonly string[]
-  readonly reopenTriggers: readonly string[]
-  readonly forbiddenActions: readonly string[]
-  readonly reviewPolicy: WorkflowReviewPolicy
+  /** Runtime v2 fields are populated by ContractRegistry; optional keeps test/external descriptor literals source-compatible. */
+  readonly evidencePolicy?: readonly string[]
+  readonly completionCriteria?: readonly string[]
+  readonly reopenTriggers?: readonly string[]
+  readonly forbiddenActions?: readonly string[]
+  readonly reviewPolicy?: WorkflowReviewPolicy
 }
 
 export interface GatePrecheckPolicy {
@@ -53,9 +54,10 @@ export interface GateDescriptor {
   readonly purpose: string
   readonly requiredObjectIds: readonly string[]
   readonly allowedDecisions: readonly string[]
-  readonly precheck: GatePrecheckPolicy
-  readonly approvalPolicy: GateApprovalPolicy
-  readonly returnPolicy: GateReturnPolicy
+  /** Registry-populated Runtime v2 policy; optional for source compatibility with legacy descriptor literals. */
+  readonly precheck?: GatePrecheckPolicy
+  readonly approvalPolicy?: GateApprovalPolicy
+  readonly returnPolicy?: GateReturnPolicy
 }
 
 export interface DependencyNode {
