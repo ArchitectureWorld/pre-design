@@ -12,11 +12,20 @@ const descriptors = Array.from({ length: 5 }, (_, index) => ({
   targetSchemaId: `urn:preplan:v0.6:BL0${index + 1}`,
   gateId: 'G2',
   requiredUpstream: ['PS03', 'PS07'],
-  atomicToolIds: [],
+  atomicToolIds: ['T01', 'T02'],
   automationLevel: 'automatic',
-  risk: 'medium',
+  risk: 'M',
   humanReviewMandatory: false,
   missingDataPolicy: 'explicit_unknown',
+  evidencePolicy: ['所有事实必须绑定 EvidenceRef。'],
+  completionCriteria: ['完成核心判断并记录限制条件。'],
+  reopenTriggers: ['关键事实变化'],
+  forbiddenActions: ['fabricate_missing_values'],
+  reviewPolicy: {
+    humanReviewMandatory: false,
+    provisionalAutoCommitAllowed: true,
+    gateStillHuman: false,
+  },
 }))
 
 describe('ParallelWorkflowExecutor', () => {
@@ -134,15 +143,25 @@ describe('ParallelWorkflowExecutor', () => {
 })
 
 describe('DshSubagentWorkflowAnalyzer', () => {
-  it('uses one-shot spawn with no tools, one delegation level and a structured payload', async () => {
+  it('uses the executable contract and returns structured quality evidence with the candidate payload', async () => {
     const dispose = vi.fn(async () => undefined)
+    const qualityEvidence = {
+      completionChecks: [{ criterion: '完成核心判断并记录限制条件。', status: 'pass', rationale: '已覆盖核心判断' }],
+      evidenceChecks: [{ policy: '所有事实必须绑定 EvidenceRef。', status: 'pass', rationale: '事实均绑定来源' }],
+      assumptions: [],
+      blockers: [],
+      confidence: 0.88,
+    }
     const start = vi.fn(async (_provider: string, _request: any) => ({
       id: 'child-1',
       localAgent: undefined,
       result: Promise.resolve({
         stopReason: 'completed',
         output: [],
-        structured: { payload: { object_type: 'EnvironmentalBaseline', data: { summary: '候选结论' } } },
+        structured: {
+          payload: { object_type: 'EnvironmentalBaseline', data: { summary: '候选结论' } },
+          qualityEvidence,
+        },
       }),
       dispose,
     }))
@@ -167,6 +186,7 @@ describe('DshSubagentWorkflowAnalyzer', () => {
     const result = await analyzer.analyze({ id: 'session-1' } as never, 'preplan-1', descriptors[2]!)
 
     expect(result.payload).toMatchObject({ object_type: 'EnvironmentalBaseline' })
+    expect(result.qualityEvidence).toEqual(qualityEvidence)
     expect(start).toHaveBeenCalledOnce()
     expect(start.mock.calls[0]?.[0]).toBe('spawn')
     expect(start.mock.calls[0]?.[1]).toMatchObject({
@@ -178,6 +198,12 @@ describe('DshSubagentWorkflowAnalyzer', () => {
     expect(prompt).toContain('preplan.wf.02.03')
     expect(prompt).toContain('PS03')
     expect(prompt).toContain('禁止复制示例事实')
+    expect(prompt).toContain('完成条件')
+    expect(prompt).toContain('完成核心判断并记录限制条件。')
+    expect(prompt).toContain('证据规则')
+    expect(prompt).toContain('所有事实必须绑定 EvidenceRef。')
+    expect(prompt).toContain('允许的原子工具')
+    expect(prompt).toContain('T01')
     expect(dispose).toHaveBeenCalledOnce()
   })
 })
