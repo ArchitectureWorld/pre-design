@@ -29,7 +29,7 @@ afterEach(async () => {
 })
 
 describe('pre-design Presentation 0.1.0 Adapter', () => {
-  it('builds chapter, report subject and detailed page nodes with real source detail', async () => {
+  it('builds chapters and detailed page nodes while collapsing singleton report subjects with real source detail', async () => {
     const frozenProject = createStandardFrozenProject()
     const source = {
       ...frozenProject,
@@ -53,12 +53,18 @@ describe('pre-design Presentation 0.1.0 Adapter', () => {
     const nodes = new Map<string, any>(outline.nodes.map((node: any) => [node.outlineNodeId, node]))
     for (const page of manifest.pages) {
       const pageNode = nodes.get(page.outlineNodeId)
-      const subjectNode = nodes.get(pageNode.parentOutlineNodeId)
-      const chapterNode = nodes.get(subjectNode.parentOutlineNodeId)
-      expect(chapterNode?.kind).toBe('chapter')
-      expect(chapterNode?.parentOutlineNodeId).toBeNull()
-      expect(subjectNode.kind).toBe('section')
+      const parentNode = nodes.get(pageNode.parentOutlineNodeId)
       expect(pageNode.kind).toBe('section')
+      if (parentNode.kind === 'chapter') {
+        expect(parentNode.parentOutlineNodeId).toBeNull()
+      } else {
+        expect(parentNode.kind).toBe('section')
+        const chapterNode = nodes.get(parentNode.parentOutlineNodeId)
+        expect(chapterNode?.kind).toBe('chapter')
+        expect(chapterNode?.parentOutlineNodeId).toBeNull()
+        expect(outline.nodes.filter((node: any) => node.parentOutlineNodeId === parentNode.outlineNodeId).length)
+          .toBeGreaterThan(1)
+      }
     }
     expect(new Set(manifest.pages.map((page: any) => page.order)).size).toBe(manifest.pages.length)
     for (const parent of [null, ...nodes.keys()]) {

@@ -745,17 +745,21 @@ export async function buildPresentationStandardProject(
     const orderedSubjects = [...subjects.entries()].sort(([leftKey, left], [rightKey, right]) =>
       left[0]!.sectionOrder - right[0]!.sectionOrder || leftKey.localeCompare(rightKey))
     for (const [subjectOrder, [sectionKey, subjectFindings]] of orderedSubjects.entries()) {
-      const subjectNodeId = ledger.resolve('outlineNode', `section:${topic.key}:${sectionKey}`) as OutlineNodeId
-      subjectNodes.push({
-        outlineNodeId: subjectNodeId,
-        parentOutlineNodeId: topicNodeId,
-        kind: 'section',
-        title: normalizeString(subjectFindings[0]!.sectionTitle, 'finding.sectionTitle'),
-        summary: distinctStrings(subjectFindings.map(finding => finding.keyMessage)).join('；'),
-        order: subjectOrder,
-        sourceRefs: [sourceRef(frozenProject, subjectFindings.flatMap(finding => finding.objectIds))],
-      })
       const orderedFindings = [...subjectFindings].sort((left, right) => left.order - right.order || left.findingId.localeCompare(right.findingId))
+      let findingParentOutlineNodeId: OutlineNodeId = topicNodeId
+      if (orderedFindings.length > 1) {
+        const subjectNodeId = ledger.resolve('outlineNode', `section:${topic.key}:${sectionKey}`) as OutlineNodeId
+        subjectNodes.push({
+          outlineNodeId: subjectNodeId,
+          parentOutlineNodeId: topicNodeId,
+          kind: 'section',
+          title: normalizeString(subjectFindings[0]!.sectionTitle, 'finding.sectionTitle'),
+          summary: distinctStrings(subjectFindings.map(finding => finding.keyMessage)).join('；'),
+          order: subjectOrder,
+          sourceRefs: [sourceRef(frozenProject, subjectFindings.flatMap(finding => finding.objectIds))],
+        })
+        findingParentOutlineNodeId = subjectNodeId
+      }
       for (const [findingOrder, finding] of orderedFindings.entries()) {
         const findingKey = normalizeString(finding.findingId, 'finding.findingId')
         for (const objectId of finding.objectIds) {
@@ -765,11 +769,11 @@ export async function buildPresentationStandardProject(
         const refs = [sourceRef(frozenProject, finding.objectIds, finding.evidenceIds)]
         sectionNodes.push({
           outlineNodeId: sectionNodeId,
-          parentOutlineNodeId: subjectNodeId,
+          parentOutlineNodeId: findingParentOutlineNodeId,
           kind: 'section',
           title: normalizeString(finding.title, 'finding.title'),
           summary: normalizeString(finding.keyMessage, 'finding.keyMessage'),
-          order: findingOrder,
+          order: orderedFindings.length > 1 ? findingOrder : subjectOrder,
           sourceRefs: refs,
         })
         const pageId = ledger.resolve('page', `finding:${findingKey}`) as PageId

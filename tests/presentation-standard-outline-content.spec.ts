@@ -123,7 +123,7 @@ describe('standard report outline integration', () => {
     expect(repeated.stableIds).toEqual(build.stableIds)
   })
 
-  it('assigns unique sibling order and global page order across multiple report subjects', async () => {
+  it('collapses singleton report subjects while preserving branching subjects and sibling order', async () => {
     planner.compile.mockReturnValue([
       finding({ findingId: 'detail-b', sectionKey: 'conditions', sectionTitle: '实施条件' }),
       finding(),
@@ -132,13 +132,21 @@ describe('standard report outline integration', () => {
     const build = await buildPresentationStandardProject({ frozenProject: createStandardFrozenProject() })
     const outline = build.documents['outline.json'] as any
     const manifest = build.documents['pages/manifest.json'] as any
-    const parents = new Map(outline.nodes.map((node: any) => [node.outlineNodeId, node.parentOutlineNodeId]))
+    const byId = new Map<string, any>(outline.nodes.map((node: any) => [String(node.outlineNodeId), node] as [string, any]))
+    const topicId = build.stableIds['outlineNode:topic:project_brief']
+    const singletonLeafId = build.stableIds['outlineNode:finding:detail-b']
+    const singletonSubjectId = build.stableIds['outlineNode:section:project_brief:conditions']
+    const branchingSubjectId = build.stableIds['outlineNode:section:project_brief:project-task']
+    const primaryLeafId = build.stableIds['outlineNode:finding:pre-design:project-brief']
+    const siblingLeafId = build.stableIds['outlineNode:finding:detail-a']
+
     expect(manifest.pages.map((page: any) => page.order)).toEqual([0, 1, 2])
-    for (const page of manifest.pages) {
-      const subjectId = parents.get(page.outlineNodeId)
-      const chapterId = parents.get(subjectId)
-      expect(parents.get(chapterId)).toBeNull()
-    }
+    expect(byId.get(singletonLeafId)?.parentOutlineNodeId).toBe(topicId)
+    expect(byId.has(singletonSubjectId)).toBe(false)
+    expect(byId.get(branchingSubjectId)?.parentOutlineNodeId).toBe(topicId)
+    expect(byId.get(primaryLeafId)?.parentOutlineNodeId).toBe(branchingSubjectId)
+    expect(byId.get(siblingLeafId)?.parentOutlineNodeId).toBe(branchingSubjectId)
+
     for (const parentId of new Set(outline.nodes.map((node: any) => node.parentOutlineNodeId))) {
       const siblings = outline.nodes.filter((node: any) => node.parentOutlineNodeId === parentId)
       expect(new Set(siblings.map((node: any) => node.order)).size).toBe(siblings.length)
