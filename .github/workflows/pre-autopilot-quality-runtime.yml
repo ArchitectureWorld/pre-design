@@ -13,7 +13,9 @@ on:
       - 'src/prompts/**'
       - 'tests/contracts.spec.ts'
       - 'tests/workflow-quality.spec.ts'
+      - 'tests/autopilot-workflow-executor.spec.ts'
       - 'tests/parallel-workflow-executor.spec.ts'
+      - 'tests/workflow-runtime.spec.ts'
       - 'tests/governance-contracts.spec.ts'
       - 'tests/proposal-gateway.spec.ts'
       - 'tests/automation-workflow-committer.spec.ts'
@@ -73,7 +75,9 @@ jobs:
           pnpm exec vitest run
           tests/contracts.spec.ts
           tests/workflow-quality.spec.ts
+          tests/autopilot-workflow-executor.spec.ts
           tests/parallel-workflow-executor.spec.ts
+          tests/workflow-runtime.spec.ts
           tests/governance-contracts.spec.ts
           tests/proposal-gateway.spec.ts
           tests/automation-workflow-committer.spec.ts
