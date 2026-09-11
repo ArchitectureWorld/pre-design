@@ -6,6 +6,7 @@ import type { GovernanceRepository } from '../governance/repository.ts'
 import type { ProposalGateway } from '../proposals/gateway.ts'
 import type { ProjectRepository } from '../state/repository.ts'
 import type { WorkflowAnalysisCandidate } from './subagent-workflow-analyzer.ts'
+import type { WorkflowQualityReport } from './workflow-quality.ts'
 
 interface AutomationWorkflowCommitterDependencies {
   readonly repository: Pick<ProjectRepository, 'readContext'>
@@ -37,6 +38,23 @@ function stringArray(value: unknown, fallback: readonly string[] = []): string[]
     : [...fallback]
 }
 
+function requireTrustedQuality(
+  descriptor: WorkflowDescriptor,
+  quality: WorkflowQualityReport | undefined,
+): WorkflowQualityReport {
+  if (quality === undefined) throw new Error('trusted workflow quality is required for automatic commit')
+  if (quality.workflowId !== descriptor.workflowId || quality.targetObjectId !== descriptor.targetObjectId) {
+    throw new Error('trusted workflow quality identity does not match automatic commit target')
+  }
+  if (quality.disposition !== 'auto_pass') {
+    throw new Error(`automatic commit requires auto_pass quality, got '${quality.disposition}'`)
+  }
+  if (descriptor.risk.trim().toUpperCase() === 'H' || descriptor.risk.trim().toLowerCase() === 'high') {
+    throw new Error('high-risk workflow cannot be automatically committed')
+  }
+  return quality
+}
+
 export class AutomationWorkflowCommitter {
   private readonly now: () => string
   private readonly createId: () => string
@@ -51,7 +69,9 @@ export class AutomationWorkflowCommitter {
     projectId: string,
     descriptor: WorkflowDescriptor,
     candidate: WorkflowAnalysisCandidate,
+    quality?: WorkflowQualityReport,
   ): Promise<AutomationWorkflowCommitResult> {
+    const trustedQuality = requireTrustedQuality(descriptor, quality)
     const sessionId = String(parent.id)
     const context = this.dependencies.repository.readContext(sessionId)
     if (context.project.projectId !== projectId) {
@@ -150,6 +170,7 @@ export class AutomationWorkflowCommitter {
     const committed = await this.dependencies.gateway.commitProposal(proposal.proposalId, {
       source: 'automation_authorization',
       authorizationId,
+      quality: trustedQuality,
       actor: {
         actorId: 'preplanning-automation',
         name: '前期策划自动化服务',
