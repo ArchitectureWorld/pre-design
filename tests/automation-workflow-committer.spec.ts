@@ -14,15 +14,25 @@ const descriptor = {
   requiredUpstream: ['PS03', 'PS07'],
   atomicToolIds: [],
   automationLevel: 'automatic',
-  risk: 'medium',
+  risk: 'M',
   humanReviewMandatory: false,
   missingDataPolicy: 'explicit_unknown',
 }
 
+const passingQuality = {
+  workflowId: 'preplan.wf.02.03', targetObjectId: 'BL03', disposition: 'auto_pass' as const,
+  score: 0.9, completionCoverage: 1, evidenceCoverage: 1, confidence: 0.9,
+  attempt: 1, maxAttempts: 3, reasons: [], blockers: [], assumptions: [],
+}
+
 describe('AutomationWorkflowCommitter', () => {
-  it('normalizes protected metadata and commits against the latest Revision', async () => {
+  it('normalizes protected metadata and commits against the latest Revision only after trusted quality passes', async () => {
     let capturedEnvelope: Record<string, unknown> | undefined
     const validateStateObject = vi.fn(() => ({ valid: true, errors: [] }))
+    const commitProposal = vi.fn(async () => ({
+      projectId: 'preplan-1', proposalId: 'proposal-1', revision: 5,
+      replayed: false, status: 'confirmed',
+    }))
     const committer = new AutomationWorkflowCommitter({
       repository: {
         readContext: () => ({
@@ -56,10 +66,7 @@ describe('AutomationWorkflowCommitter', () => {
             envelope, createdAt: '2026-09-04T00:00:00Z', status: 'pending_review',
           }
         },
-        commitProposal: async () => ({
-          projectId: 'preplan-1', proposalId: 'proposal-1', revision: 5,
-          replayed: false, status: 'confirmed',
-        }),
+        commitProposal,
       },
       now: () => '2026-09-04T00:00:00Z',
     } as never)
@@ -81,6 +88,7 @@ describe('AutomationWorkflowCommitter', () => {
           quality: { completeness: 0.3, consistency: 0.8, timeliness: 0.5, traceability: 0.2, reproducibility: 0.2, issues: ['缺少正式资料'], grade: 'D' },
         },
       },
+      passingQuality,
     )
 
     expect(result.revision).toBe(5)
@@ -101,9 +109,46 @@ describe('AutomationWorkflowCommitter', () => {
       approval: { status: 'pending', required_role: 'chapter_reviewer', approver: null, approved_at: null },
     })
     expect(validateStateObject).toHaveBeenCalledWith('BL03', envelope.change_set.payload)
+    expect(commitProposal).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+      source: 'automation_authorization',
+      quality: passingQuality,
+    }), 'session-1')
   })
 
-  it('rejects an invalid candidate before submitting a Proposal', async () => {
+  it('rejects automatic commit when trusted quality is missing or not auto_pass', async () => {
+    const submitProposal = vi.fn()
+    const committer = new AutomationWorkflowCommitter({
+      repository: { readContext: () => ({ project: { projectId: 'preplan-1', currentRevision: 1 }, stateObjects: [] }) },
+      governance: { readProject: () => ({ policy: { mode: 'automatic', automationAuthorizationId: 'authorization-1' } }) },
+      registry: { validateStateObject: () => ({ valid: true, errors: [] }), stateExample: () => ({ approval: {} }) },
+      gateway: { submitProposal, commitProposal: vi.fn() },
+    } as never)
+
+    await expect(committer.commit({ id: 'session-1' } as never, 'preplan-1', { ...descriptor, requiredUpstream: [] }, { payload: {} }))
+      .rejects.toThrow(/quality/i)
+    await expect(committer.commit(
+      { id: 'session-1' } as never, 'preplan-1', { ...descriptor, requiredUpstream: [] }, { payload: {} },
+      { ...passingQuality, disposition: 'auto_revise' as const },
+    )).rejects.toThrow(/auto_pass/i)
+    expect(submitProposal).not.toHaveBeenCalled()
+  })
+
+  it('rejects high-risk automatic commit even when the candidate quality passes', async () => {
+    const submitProposal = vi.fn()
+    const committer = new AutomationWorkflowCommitter({
+      repository: { readContext: () => ({ project: { projectId: 'preplan-1', currentRevision: 1 }, stateObjects: [] }) },
+      governance: { readProject: () => ({ policy: { mode: 'automatic', automationAuthorizationId: 'authorization-1' } }) },
+      registry: { validateStateObject: () => ({ valid: true, errors: [] }), stateExample: () => ({ approval: {} }) },
+      gateway: { submitProposal, commitProposal: vi.fn() },
+    } as never)
+
+    await expect(committer.commit(
+      { id: 'session-1' } as never, 'preplan-1', { ...descriptor, risk: 'H', requiredUpstream: [] }, { payload: {} }, passingQuality,
+    )).rejects.toThrow(/high-risk/i)
+    expect(submitProposal).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invalid candidate before submitting a Proposal once quality has passed', async () => {
     const submitProposal = vi.fn()
     const committer = new AutomationWorkflowCommitter({
       repository: {
@@ -128,14 +173,14 @@ describe('AutomationWorkflowCommitter', () => {
 
     await expect(committer.commit(
       { id: 'session-1' } as never,
-      'preplan-1', descriptor, { payload: {} },
+      'preplan-1', descriptor, { payload: {} }, passingQuality,
     )).rejects.toThrow('BL03 validation failed: /data required')
     expect(submitProposal).not.toHaveBeenCalled()
   })
 })
 
 describe('AutomaticGateApprover', () => {
-  it('approves newly Ready gates once and leaves existing decisions unchanged', async () => {
+  it('approves newly quality-ready gates once and leaves existing decisions unchanged', async () => {
     const decideGate = vi.fn(async (_projectId: string, gateId: string, _input: unknown) => ({ gateId }))
     const approver = new AutomaticGateApprover({
       registry: { gates: () => [{ gateId: 'G1' }, { gateId: 'G2' }, { gateId: 'G3' }] },
@@ -147,7 +192,7 @@ describe('AutomaticGateApprover', () => {
       },
       gates: {
         evaluateGate: (_projectId: string, gateId: string) => ({
-          gateId, ready: gateId !== 'G3', revision: 7,
+          gateId, ready: gateId !== 'G3', qualityReady: gateId !== 'G3', revision: 7,
         }),
         decideGate,
       },
