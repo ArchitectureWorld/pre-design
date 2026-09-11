@@ -12,6 +12,28 @@ export type WorkflowRunStatus =
   | 'not_applicable'
   | 'superseded'
 export type GateDecisionSource = 'human_review' | 'automation_authorization'
+export type WorkflowQualityDisposition = 'auto_pass' | 'auto_revise' | 'needs_human' | 'blocked_external'
+
+export interface WorkflowRunQualityBlocker {
+  readonly code: string
+  readonly kind: 'external' | 'quality' | 'conflict'
+  readonly message: string
+}
+
+export interface WorkflowRunQualityRecord {
+  readonly workflowId: string
+  readonly targetObjectId: string
+  readonly disposition: WorkflowQualityDisposition
+  readonly score: number
+  readonly completionCoverage: number
+  readonly evidenceCoverage: number
+  readonly confidence: number
+  readonly attempt: number
+  readonly maxAttempts: number
+  readonly reasons: readonly string[]
+  readonly blockers: readonly WorkflowRunQualityBlocker[]
+  readonly assumptions: readonly string[]
+}
 
 export interface ProjectPolicyRecord {
   readonly projectId: string
@@ -57,6 +79,7 @@ export interface WorkflowRunRecord {
   readonly proposalId?: string
   readonly confirmedRevision?: number
   readonly blockedReason?: string
+  readonly quality?: WorkflowRunQualityRecord
   readonly updatedAt: string
 }
 
