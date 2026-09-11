@@ -68,6 +68,22 @@ describe('GovernanceContractRegistry', () => {
     })
   })
 
+  it('accepts a workflow run with the trusted Autopilot quality record', async () => {
+    const registry = await GovernanceContractRegistry.open(contractRoot)
+    const workflowRun = {
+      runId: 'project-1:preplan.wf.01.01', projectId: 'project-1', workflowId: 'preplan.wf.01.01',
+      chapterId: '01', workItemId: '01-01', targetObjectId: 'PS01', status: 'confirmed', attempt: 1,
+      confirmedRevision: 1, updatedAt: now,
+      quality: {
+        workflowId: 'preplan.wf.01.01', targetObjectId: 'PS01', disposition: 'auto_pass', score: 0.93,
+        completionCoverage: 1, evidenceCoverage: 1, confidence: 0.9, attempt: 2, maxAttempts: 3,
+        reasons: [], blockers: [], assumptions: [],
+      },
+    }
+
+    expect(registry.validate('workflow-run', workflowRun)).toEqual({ valid: true, errors: [] })
+  })
+
   it('fails closed for synthetic formal boundaries and geometry maps without lineage', async () => {
     const registry = await GovernanceContractRegistry.open(contractRoot)
     const syntheticConfirmed = siteBoundaryFixture({
