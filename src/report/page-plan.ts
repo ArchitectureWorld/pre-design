@@ -135,25 +135,10 @@ function analyticalVisualFor(
     const teams = (parsedTeams.length >= 3 ? parsedTeams : ['建设', '内容策划', '运营']).slice(0, 3)
     return { kind: 'operating-model', layers, teams, outcome: '共同支撑长期活力' }
   }
+  // No evidence means no synthetic research result. In particular, do not manufacture
+  // audience/daypart rows or high/medium/low values merely to increase visual coverage.
   if (chapter.role === 'operation' && block.type === 'evidence' && block.assetIds.length === 0) {
-    const product = report.products[0]
-    const columns = (product?.usageScenarios ?? ['日常', '周末', '节庆']).slice(0, 4)
-    const rows = (product?.audiences ?? ['社区居民', '城市家庭', '青年客群']).slice(0, 4)
-    const levels = [
-      ['高', '中', '低', '中'],
-      ['中', '高', '高', '中'],
-      ['中', '高', '高', '高'],
-      ['低', '中', '高', '高'],
-    ] as const
-    return {
-      kind: 'daypart-matrix',
-      columns,
-      rows,
-      values: rows.map((_row, rowIndex) => columns.map(
-        (_column, columnIndex) => levels[rowIndex]?.[columnIndex] ?? '中',
-      )),
-      disclosure: '需求重叠关系为策划示例，须由客流、访谈与时段数据校核。',
-    }
+    return undefined
   }
   if (chapter.role === 'decision' && block.type === 'narrative') {
     const asks = decisionAsks(chapter).slice(0, 3)
