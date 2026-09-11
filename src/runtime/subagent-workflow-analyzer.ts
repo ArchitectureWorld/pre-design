@@ -8,7 +8,8 @@ import type { WorkflowQualityEvidence } from './workflow-quality.ts'
 
 export interface WorkflowAnalysisCandidate {
   readonly payload: Readonly<Record<string, unknown>>
-  readonly qualityEvidence: WorkflowQualityEvidence
+  /** Analyzer-produced evidence is required by the automatic executor; optional keeps legacy/manual callers source-compatible. */
+  readonly qualityEvidence?: WorkflowQualityEvidence
 }
 
 interface DshSubagentWorkflowAnalyzerDependencies {
@@ -17,8 +18,6 @@ interface DshSubagentWorkflowAnalyzerDependencies {
   readonly registry: Pick<ContractRegistry, 'stateSchema' | 'stateExample'>
   readonly timeoutMs?: number
 }
-
-const QUALITY_STATUS_SCHEMA = { type: 'string', enum: ['pass', 'gap', 'block'] } as const
 
 const ANALYSIS_OUTPUT_SCHEMA: ObjectJsonSchema = {
   type: 'object',
@@ -42,7 +41,7 @@ const ANALYSIS_OUTPUT_SCHEMA: ObjectJsonSchema = {
             required: ['criterion', 'status', 'rationale'],
             properties: {
               criterion: { type: 'string' },
-              status: QUALITY_STATUS_SCHEMA,
+              status: { type: 'string', enum: ['pass', 'gap', 'block'] },
               rationale: { type: 'string' },
             },
           },
@@ -55,7 +54,7 @@ const ANALYSIS_OUTPUT_SCHEMA: ObjectJsonSchema = {
             required: ['policy', 'status', 'rationale'],
             properties: {
               policy: { type: 'string' },
-              status: QUALITY_STATUS_SCHEMA,
+              status: { type: 'string', enum: ['pass', 'gap', 'block'] },
               rationale: { type: 'string' },
             },
           },
@@ -74,7 +73,7 @@ const ANALYSIS_OUTPUT_SCHEMA: ObjectJsonSchema = {
             },
           },
         },
-        confidence: { type: 'number', minimum: 0, maximum: 1 },
+        confidence: { type: 'number' },
       },
     },
   },
@@ -102,7 +101,10 @@ function qualityEvidenceOf(value: unknown, workflowId: string): WorkflowQualityE
     || !Array.isArray(record.evidenceChecks)
     || !Array.isArray(record.assumptions)
     || !Array.isArray(record.blockers)
-    || typeof record.confidence !== 'number') {
+    || typeof record.confidence !== 'number'
+    || !Number.isFinite(record.confidence)
+    || record.confidence < 0
+    || record.confidence > 1) {
     throw new Error(`workflow '${workflowId}' returned no structured quality evidence`)
   }
   return structuredClone(record) as unknown as WorkflowQualityEvidence
