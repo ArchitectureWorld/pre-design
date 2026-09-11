@@ -5,9 +5,7 @@ on:
     branches:
       - feat/pre-v2.0.0
     paths:
-      - 'scripts/apply-deployability-fixes.mjs'
-      - 'scripts/apply-deployability-fixes-2.mjs'
-      - 'scripts/apply-deployability-fixes-3.mjs'
+      - 'scripts/apply-outline-singleton-collapse.mjs'
       - '.github/workflows/deployability-fix-pass.yml'
 
 permissions:
@@ -15,7 +13,6 @@ permissions:
 
 jobs:
   apply-and-verify:
-    if: ${{ !contains(github.event.head_commit.message, 'apply deployability fix pass') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -38,39 +35,31 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Apply deterministic patch passes
-        run: |
-          node scripts/apply-deployability-fixes.mjs
-          node scripts/apply-deployability-fixes-2.mjs
-          node scripts/apply-deployability-fixes-3.mjs
+      - name: Apply outline singleton collapse
+        run: node scripts/apply-outline-singleton-collapse.mjs
 
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Run deploy-critical regression set
+      - name: Run outline and standard-project regression set
         run: >-
           pnpm exec vitest run
-          tests/proposal-gateway-quality.spec.ts
-          tests/proposal-gateway-all-workflows.spec.ts
-          tests/report-no-fake-analysis.spec.ts
-          tests/report-page-plan.spec.ts
-          tests/report-html.spec.ts
-          tests/report-pdf.spec.ts
-          tests/report-pptx.spec.ts
-          tests/full-flow-golden.spec.ts
-          tests/presentation-material-runtime.spec.ts
-          tests/presentation-material-registry.spec.ts
-          tests/presentation-page-visual-fill.spec.ts
+          tests/presentation-standard-outline-content.spec.ts
+          tests/presentation-standard-adapter.spec.ts
+          tests/presentation-standard-project-e2e.spec.ts
+          tests/presentation-standard-contract.spec.ts
+          tests/presentation-projection.spec.ts
+          tests/workspace-project-root.spec.ts
           --maxWorkers=1
 
       - name: Check diff hygiene
         run: git diff --check
 
-      - name: Commit verified fixes
+      - name: Commit verified fix
         run: |
           git config user.name 'ArchitectureWorld'
           git config user.email '140295054+ArchitectureWorld@users.noreply.github.com'
           git add src tests
           git diff --cached --quiet && exit 0
-          git commit -m 'fix: apply deployability fix pass'
+          git commit -m 'fix: collapse singleton outline subjects'
           git push origin HEAD:feat/pre-v2.0.0
