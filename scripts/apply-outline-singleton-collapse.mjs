@@ -92,7 +92,7 @@ await replaceOnce(
     const build = await buildPresentationStandardProject({ frozenProject: createStandardFrozenProject() })
     const outline = build.documents['outline.json'] as any
     const manifest = build.documents['pages/manifest.json'] as any
-    const byId = new Map(outline.nodes.map((node: any) => [node.outlineNodeId, node]))
+    const byId = new Map<string, any>(outline.nodes.map((node: any) => [String(node.outlineNodeId), node] as [string, any]))
     const topicId = build.stableIds['outlineNode:topic:project_brief']
     const singletonLeafId = build.stableIds['outlineNode:finding:detail-b']
     const singletonSubjectId = build.stableIds['outlineNode:section:project_brief:conditions']
