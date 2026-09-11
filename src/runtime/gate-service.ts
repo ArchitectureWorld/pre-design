@@ -8,7 +8,12 @@ import type { WorkflowRuntime } from './workflow-runtime.ts'
 export interface GateEvaluation {
   readonly projectId: string
   readonly gateId: string
+  /** Structural completeness. Manual reviewers may still approve a complete legacy/human-reviewed Gate. */
   readonly ready: boolean
+  /** Automatic approval requires every confirmed workflow to carry trusted auto_pass quality. */
+  readonly qualityReady: boolean
+  readonly qualityIssues: readonly string[]
+  readonly needsHuman: boolean
   readonly completed: number
   readonly total: number
   readonly blocked: number
@@ -47,10 +52,35 @@ export class GateService {
     const completed = runs.filter(run => run.status === 'confirmed' || run.status === 'not_applicable')
     const blocked = runs.filter(run => run.status === 'blocked').length
     const revision = Math.max(0, ...completed.map(run => run.confirmedRevision ?? 0))
+    const ready = runs.length === gate.requiredObjectIds.length && completed.length === runs.length && blocked === 0
+    const qualityIssues: string[] = []
+    let needsHuman = false
+
+    for (const run of runs) {
+      if (run.status === 'not_applicable') continue
+      if (run.status === 'pending_review' || run.quality?.disposition === 'needs_human') needsHuman = true
+      if (run.status !== 'confirmed') {
+        qualityIssues.push(`${run.workflowId} 尚未确认`)
+        continue
+      }
+      if (run.quality === undefined) {
+        qualityIssues.push(`${run.workflowId} 缺少可信质量记录`)
+        continue
+      }
+      if (run.quality.disposition !== 'auto_pass') {
+        const detail = run.quality.reasons.length > 0 ? `：${run.quality.reasons.join('；')}` : ''
+        qualityIssues.push(`${run.workflowId} 未通过自动质量门（${run.quality.disposition}）${detail}`)
+      }
+    }
+    const qualityReady = ready && qualityIssues.length === 0 && !needsHuman
+
     return {
       projectId,
       gateId,
-      ready: runs.length === gate.requiredObjectIds.length && completed.length === runs.length && blocked === 0,
+      ready,
+      qualityReady,
+      qualityIssues: Object.freeze(qualityIssues),
+      needsHuman,
       completed: completed.length,
       total: gate.requiredObjectIds.length,
       blocked,
@@ -69,6 +99,9 @@ export class GateService {
       if (input.actor.role !== 'decision_owner') throw new Error('human gate review requires decision_owner')
     } else {
       if (input.actor.role !== 'system_service') throw new Error('automatic gate decision requires system_service')
+      if ((input.decision === 'approved' || input.decision === 'approved_with_conditions') && !evaluation.qualityReady) {
+        throw new Error(`gate '${gateId}' quality is not ready for automatic approval: ${evaluation.qualityIssues.join('; ') || 'needs human review'}`)
+      }
       const authorization = this.automation.requireValid(projectId, evaluation.revision, undefined, gateId)
       if (authorization.authorizationId !== input.authorizationId) {
         throw new Error(`automation authorization '${input.authorizationId}' is not active for gate '${gateId}'`)
@@ -90,6 +123,9 @@ export class GateService {
         completed: evaluation.completed,
         total: evaluation.total,
         blocked: evaluation.blocked,
+        qualityReady: evaluation.qualityReady,
+        qualityIssues: [...evaluation.qualityIssues],
+        needsHuman: evaluation.needsHuman,
         requiredObjectIds: [...evaluation.requiredObjectIds],
       },
     }
