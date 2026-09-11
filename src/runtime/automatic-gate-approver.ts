@@ -21,7 +21,7 @@ export class AutomaticGateApprover {
     let approved = 0
     for (const descriptor of this.dependencies.registry.gates()) {
       const evaluation = this.dependencies.gates.evaluateGate(projectId, descriptor.gateId)
-      if (!evaluation.ready) continue
+      if (!evaluation.ready || !evaluation.qualityReady || evaluation.needsHuman) continue
       const alreadyApproved = governed.gateDecisions.some(decision =>
         decision.gateId === descriptor.gateId
         && decision.revision >= evaluation.revision
