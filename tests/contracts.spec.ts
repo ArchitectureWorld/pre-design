@@ -58,6 +58,53 @@ describe('ContractRegistry', () => {
     expect(registry.atomicToolIds().at(-1)).toBe('T47')
   })
 
+  it('exposes executable workflow and gate quality rules instead of dropping contract semantics', async () => {
+    const registry = await ContractRegistry.open(contractRoot)
+    const workflow = registry.workflow('preplan.wf.01.01')
+
+    expect(workflow.evidencePolicy).toEqual([
+      '所有事实与材料原结论必须绑定 EvidenceRef。',
+      'Agent 推断和假设必须显式分类。',
+      '冲突证据不得静默覆盖。',
+    ])
+    expect(workflow.completionCriteria).toEqual([
+      '非参与人员能够准确复述项目；背景与触发分开；不得提前推导方案。',
+      '项目发起人或项目负责人确认项目对象及启动原因。',
+    ])
+    expect(workflow.reopenTriggers).toEqual([
+      '项目对象、主任务来源、硬性时间或资料归属发生变化',
+    ])
+    expect(workflow.forbiddenActions).toEqual(expect.arrayContaining([
+      'agent_approve_gate',
+      'direct_project_state_write',
+      'fabricate_missing_values',
+    ]))
+    expect(workflow.reviewPolicy).toEqual({
+      humanReviewMandatory: true,
+      provisionalAutoCommitAllowed: false,
+      gateStillHuman: true,
+    })
+
+    expect(registry.gate('G1')).toMatchObject({
+      precheck: {
+        schemaAndVersion: expect.stringContaining('required_objects'),
+        hardBlockers: expect.stringContaining('gate_blocking'),
+        conditionalRule: expect.stringContaining('non_blocking'),
+      },
+      approvalPolicy: {
+        role: 'decision_owner',
+        assignmentRequired: true,
+        agentAllowed: false,
+        systemServiceAllowed: false,
+        artifactAllowed: false,
+      },
+      returnPolicy: {
+        preserveConfirmedHistory: true,
+        recheckAfterRevision: true,
+      },
+    })
+  })
+
   it('serves dependency closure and raw state schemas without a handwritten work-item list', async () => {
     const registry = await ContractRegistry.open(contractRoot)
 
