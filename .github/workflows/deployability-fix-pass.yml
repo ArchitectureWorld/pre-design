@@ -6,6 +6,7 @@ on:
       - feat/pre-v2.0.0
     paths:
       - 'scripts/apply-deployability-fixes.mjs'
+      - 'scripts/apply-deployability-fixes-2.mjs'
       - '.github/workflows/deployability-fix-pass.yml'
 
 permissions:
@@ -36,8 +37,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Apply deterministic patch pass
-        run: node scripts/apply-deployability-fixes.mjs
+      - name: Apply deterministic patch passes
+        run: |
+          node scripts/apply-deployability-fixes.mjs
+          node scripts/apply-deployability-fixes-2.mjs
 
       - name: Typecheck
         run: pnpm typecheck
