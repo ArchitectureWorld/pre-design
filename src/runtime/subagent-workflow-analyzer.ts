@@ -4,7 +4,7 @@ import type { ObjectJsonSchema } from '@deepseek-ai/dsh-tools'
 import type { ContractRegistry } from '../contracts/registry.ts'
 import type { WorkflowDescriptor } from '../contracts/types.ts'
 import type { ProjectRepository } from '../state/repository.ts'
-import type { WorkflowQualityEvidence } from './workflow-quality.ts'
+import type { WorkflowQualityEvidence, WorkflowQualityReport } from './workflow-quality.ts'
 
 export interface WorkflowAnalysisCandidate {
   readonly payload: Readonly<Record<string, unknown>>
@@ -24,52 +24,33 @@ const ANALYSIS_OUTPUT_SCHEMA: ObjectJsonSchema = {
   additionalProperties: false,
   required: ['payload', 'qualityEvidence'],
   properties: {
-    payload: {
-      type: 'object',
-      additionalProperties: true,
-    },
+    payload: { type: 'object', additionalProperties: true },
     qualityEvidence: {
-      type: 'object',
-      additionalProperties: false,
+      type: 'object', additionalProperties: false,
       required: ['completionChecks', 'evidenceChecks', 'assumptions', 'blockers', 'confidence'],
       properties: {
         completionChecks: {
-          type: 'array',
-          items: {
-            type: 'object',
-            additionalProperties: false,
-            required: ['criterion', 'status', 'rationale'],
+          type: 'array', items: {
+            type: 'object', additionalProperties: false, required: ['criterion', 'status', 'rationale'],
             properties: {
-              criterion: { type: 'string' },
-              status: { type: 'string', enum: ['pass', 'gap', 'block'] },
-              rationale: { type: 'string' },
+              criterion: { type: 'string' }, status: { type: 'string', enum: ['pass', 'gap', 'block'] }, rationale: { type: 'string' },
             },
           },
         },
         evidenceChecks: {
-          type: 'array',
-          items: {
-            type: 'object',
-            additionalProperties: false,
-            required: ['policy', 'status', 'rationale'],
+          type: 'array', items: {
+            type: 'object', additionalProperties: false, required: ['policy', 'status', 'rationale'],
             properties: {
-              policy: { type: 'string' },
-              status: { type: 'string', enum: ['pass', 'gap', 'block'] },
-              rationale: { type: 'string' },
+              policy: { type: 'string' }, status: { type: 'string', enum: ['pass', 'gap', 'block'] }, rationale: { type: 'string' },
             },
           },
         },
         assumptions: { type: 'array', items: { type: 'string' } },
         blockers: {
-          type: 'array',
-          items: {
-            type: 'object',
-            additionalProperties: false,
-            required: ['code', 'kind', 'message'],
+          type: 'array', items: {
+            type: 'object', additionalProperties: false, required: ['code', 'kind', 'message'],
             properties: {
-              code: { type: 'string' },
-              kind: { type: 'string', enum: ['external', 'quality', 'conflict'] },
-              message: { type: 'string' },
+              code: { type: 'string' }, kind: { type: 'string', enum: ['external', 'quality', 'conflict'] }, message: { type: 'string' },
             },
           },
         },
@@ -115,11 +96,8 @@ function analysisPrompt(
   descriptor: WorkflowDescriptor,
   schema: Readonly<Record<string, unknown>>,
   example: Readonly<Record<string, unknown>>,
-  upstream: readonly {
-    readonly objectId: string
-    readonly revision: number
-    readonly value: unknown
-  }[],
+  upstream: readonly { readonly objectId: string; readonly revision: number; readonly value: unknown }[],
+  revisionFeedback?: WorkflowQualityReport,
 ): string {
   return [
     `项目：${project.name}（${project.projectId}）`,
@@ -130,26 +108,32 @@ function analysisPrompt(
     `目的：${descriptor.purpose}`,
     `缺失资料策略：${descriptor.missingDataPolicy}`,
     '',
-    '完成条件（必须逐条检查）：',
-    JSON.stringify(descriptor.completionCriteria ?? [], null, 2),
+    '完成条件（必须逐条检查）：', JSON.stringify(descriptor.completionCriteria ?? [], null, 2),
     '',
-    '证据规则（必须逐条检查）：',
-    JSON.stringify(descriptor.evidencePolicy ?? [], null, 2),
+    '证据规则（必须逐条检查）：', JSON.stringify(descriptor.evidencePolicy ?? [], null, 2),
     '',
-    '禁止动作：',
-    JSON.stringify(descriptor.forbiddenActions ?? [], null, 2),
+    '禁止动作：', JSON.stringify(descriptor.forbiddenActions ?? [], null, 2),
     '',
-    '允许的原子工具/方法依赖（仅作为方法约束；当前子 Agent 无工具权限）：',
-    JSON.stringify(descriptor.atomicToolIds, null, 2),
+    '允许的原子工具/方法依赖（仅作为方法约束；当前子 Agent 无工具权限）：', JSON.stringify(descriptor.atomicToolIds, null, 2),
+    ...(revisionFeedback === undefined ? [] : [
+      '',
+      '上一轮中央质量评估（本轮必须针对原因修订，不能原样重放）：',
+      JSON.stringify({
+        attempt: revisionFeedback.attempt,
+        score: revisionFeedback.score,
+        reasons: revisionFeedback.reasons,
+        blockers: revisionFeedback.blockers,
+        completionCoverage: revisionFeedback.completionCoverage,
+        evidenceCoverage: revisionFeedback.evidenceCoverage,
+        confidence: revisionFeedback.confidence,
+      }, null, 2),
+    ]),
     '',
-    '目标 JSON Schema：',
-    JSON.stringify(schema, null, 2),
+    '目标 JSON Schema：', JSON.stringify(schema, null, 2),
     '',
-    '目标对象结构示例（只允许参考字段结构，禁止复制示例事实）：',
-    JSON.stringify(example, null, 2),
+    '目标对象结构示例（只允许参考字段结构，禁止复制示例事实）：', JSON.stringify(example, null, 2),
     '',
-    '本工作项实际可用的上游对象：',
-    JSON.stringify(upstream, null, 2),
+    '本工作项实际可用的上游对象：', JSON.stringify(upstream, null, 2),
     '',
     '输出要求：只返回结构化对象 {"payload": <完整候选对象>, "qualityEvidence": {...}}。',
     'qualityEvidence.completionChecks 必须逐条对应上面的完成条件；evidenceChecks 必须逐条对应上面的证据规则；不得省略未通过项。',
@@ -176,32 +160,24 @@ export class DshSubagentWorkflowAnalyzer {
     projectId: string,
     descriptor: WorkflowDescriptor,
     signal: AbortSignal = AbortSignal.timeout(this.timeoutMs),
+    revisionFeedback?: WorkflowQualityReport,
   ): Promise<WorkflowAnalysisCandidate> {
     if (!this.available()) throw new Error("subagent provider 'spawn' is unavailable")
     const context = this.dependencies.repository.readContext(String(parent.id))
-    if (context.project.projectId !== projectId) {
-      throw new Error(`parent Session is bound to '${context.project.projectId}', not '${projectId}'`)
-    }
+    if (context.project.projectId !== projectId) throw new Error(`parent Session is bound to '${context.project.projectId}', not '${projectId}'`)
     const stateByObject = new Map(context.stateObjects.map(record => [record.objectId, record]))
-    const upstream = descriptor.requiredUpstream
-      .filter(objectId => objectId !== 'ProjectSeed')
-      .map((objectId) => {
-        const record = stateByObject.get(objectId)
-        if (record === undefined) {
-          throw new Error(`required upstream object '${objectId}' is unavailable`)
-        }
-        return {
-          objectId,
-          revision: record.revision,
-          value: record.value,
-        }
-      })
+    const upstream = descriptor.requiredUpstream.filter(objectId => objectId !== 'ProjectSeed').map((objectId) => {
+      const record = stateByObject.get(objectId)
+      if (record === undefined) throw new Error(`required upstream object '${objectId}' is unavailable`)
+      return { objectId, revision: record.revision, value: record.value }
+    })
     const prompt = analysisPrompt(
       context.project,
       descriptor,
       this.dependencies.registry.stateSchema(descriptor.targetObjectId),
       this.dependencies.registry.stateExample(descriptor.targetObjectId),
       upstream,
+      revisionFeedback,
     )
     const run = await this.dependencies.subagents.start('spawn', {
       parent,
@@ -215,19 +191,13 @@ export class DshSubagentWorkflowAnalyzer {
     })
     try {
       const result = await run.result
-      if (result.stopReason !== 'completed') {
-        throw new Error(result.diagnostic
-          ?? `workflow analysis ended with ${result.stopReason}`)
-      }
+      if (result.stopReason !== 'completed') throw new Error(result.diagnostic ?? `workflow analysis ended with ${result.stopReason}`)
       const structured = recordOf(result.structured)
       const payload = recordOf(structured?.payload)
-      if (payload === undefined) {
-        throw new Error(`workflow '${descriptor.workflowId}' returned no structured payload`)
-      }
-      const qualityEvidence = qualityEvidenceOf(structured?.qualityEvidence, descriptor.workflowId)
+      if (payload === undefined) throw new Error(`workflow '${descriptor.workflowId}' returned no structured payload`)
       return Object.freeze({
         payload: structuredClone(payload),
-        qualityEvidence,
+        qualityEvidence: qualityEvidenceOf(structured?.qualityEvidence, descriptor.workflowId),
       })
     } finally {
       await run.dispose()
