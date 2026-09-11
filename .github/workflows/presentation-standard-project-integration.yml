@@ -153,3 +153,5 @@ jobs:
             git status --short
             exit 1
           fi
+
+# validation-marker: outline-singleton-collapse-20260911
