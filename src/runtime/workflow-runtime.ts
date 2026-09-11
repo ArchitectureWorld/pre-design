@@ -100,6 +100,10 @@ export class WorkflowRuntime {
     if (command.to === 'confirmed' && !Number.isInteger(command.revision)) {
       throw new Error('confirmed transition requires a revision')
     }
+    if (command.quality !== undefined
+      && (command.quality.workflowId !== workflowId || command.quality.targetObjectId !== current.targetObjectId)) {
+      throw new Error('workflow quality identity does not match transition target')
+    }
 
     const { blockedReason: _blockedReason, confirmedRevision: _confirmedRevision, ...base } = current
     const updated: WorkflowRunRecord = {
@@ -108,6 +112,7 @@ export class WorkflowRuntime {
       attempt: current.attempt + (command.to === 'running' ? 1 : 0),
       updatedAt: this.now(),
       ...(command.proposalId === undefined ? {} : { proposalId: command.proposalId }),
+      ...(command.quality === undefined ? {} : { quality: structuredClone(command.quality) }),
       ...(command.to === 'blocked' ? { blockedReason: command.reason } : {}),
       ...(command.to === 'confirmed' ? { confirmedRevision: command.revision } : {}),
     }
