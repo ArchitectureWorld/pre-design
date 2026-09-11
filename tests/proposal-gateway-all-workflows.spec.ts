@@ -53,6 +53,23 @@ async function openHarness() {
   return { gateway, governance, registry, repository }
 }
 
+function qualityFor(descriptor: WorkflowDescriptor, attempt = 1) {
+  return {
+    workflowId: descriptor.workflowId,
+    targetObjectId: descriptor.targetObjectId,
+    disposition: 'auto_pass' as const,
+    score: 0.95,
+    completionCoverage: 1,
+    evidenceCoverage: 1,
+    confidence: 0.9,
+    attempt,
+    maxAttempts: 3,
+    reasons: [],
+    blockers: [],
+    assumptions: [],
+  }
+}
+
 async function envelopeFor(descriptor: WorkflowDescriptor, expectedRevision = 0) {
   const payload = JSON.parse(await readFile(
     new URL(`tests/fixtures/valid/${descriptor.targetObjectId}.json`, contractRoot),
@@ -177,9 +194,11 @@ describe('ProposalGateway 57-item matrix', () => {
     })
     await gateway.submitProposal(await envelopeFor(registry.workflow('preplan.wf.01.01')), sessionId)
 
+    const ps01 = registry.workflow('preplan.wf.01.01')
     const result = await gateway.commitProposal('proposal-PS01', {
       source: 'automation_authorization',
       authorizationId: 'authorization-1',
+      quality: qualityFor(ps01),
       actor: { actorId: 'system-1', name: '前期策划运行时', role: 'system_service' },
     }, sessionId)
 
@@ -201,7 +220,7 @@ describe('ProposalGateway 57-item matrix', () => {
     })
   })
 
-  it('automatically commits every schema-valid workflow payload without injecting unsupported data fields', async () => {
+  it('automatically commits quality-passing L/M workflows while keeping H-risk workflows for local review', async () => {
     const { gateway, governance, registry, repository } = await openHarness()
     await governance.createPolicy({
       projectId,
@@ -231,11 +250,18 @@ describe('ProposalGateway 57-item matrix', () => {
     for (const descriptor of registry.workflows()) {
       const envelope = await envelopeFor(descriptor, revision)
       await gateway.submitProposal(envelope, sessionId)
-      const result = await gateway.commitProposal(envelope.proposal_id, {
-        source: 'automation_authorization',
+      const automaticDecision = {
+        source: 'automation_authorization' as const,
         authorizationId: 'authorization-all',
+        quality: qualityFor(descriptor),
         actor: { actorId: 'system-1', name: '前期策划运行时', role: 'system_service' },
-      }, sessionId)
+      }
+      if (descriptor.risk.trim().toUpperCase() === 'H' || descriptor.risk.trim().toLowerCase() === 'high') {
+        await expect(gateway.commitProposal(envelope.proposal_id, automaticDecision, sessionId), descriptor.targetObjectId)
+          .rejects.toMatchObject({ code: 'high-risk-human-review' })
+        continue
+      }
+      const result = await gateway.commitProposal(envelope.proposal_id, automaticDecision, sessionId)
       revision += 1
       expect(result.revision, descriptor.targetObjectId).toBe(revision)
       const committed = repository.readContext(sessionId).stateObjects

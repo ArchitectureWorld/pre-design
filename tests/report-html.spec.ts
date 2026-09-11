@@ -698,9 +698,10 @@ describe('renderHtml', () => {
     await renderHtml({ report: bundle.report, plan: planClientPages(bundle.report, 'html'), identity: bundle.identity }, root)
     const html = await readFile(join(root, 'html', 'index.html'), 'utf8')
 
-    for (const kind of ['urgency-signals', 'spatial-sequence', 'public-operation', 'daypart-matrix', 'decision-triad', 'decision-flow']) {
+    for (const kind of ['urgency-signals', 'spatial-sequence', 'public-operation', 'decision-triad', 'decision-flow']) {
       expect(html).toContain(`data-analysis-kind="${kind}"`)
     }
+    expect(html).not.toContain('data-analysis-kind="daypart-matrix"')
     const investment = new JSDOM(html).window.document.querySelector<HTMLElement>('#chapter-09-block-02')
     expect(investment?.textContent?.match(/测试阶段示例测算/gu)).toHaveLength(1)
     expect(investment?.querySelector('.analysis-shared-basis')?.textContent).toContain('测试阶段示例测算')

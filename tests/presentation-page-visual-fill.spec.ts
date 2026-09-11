@@ -250,7 +250,11 @@ describe('explicit page visual fill', () => {
       visual: { generate: () => { throw new Error('MODEL_MUST_NOT_RUN') } } } as never)
     const result = await service.plan({ frozenProject: source, workspaceRoot: root })
     expect(result.pages.find(page => page.findingId === 'pre-design:project-brief')).toMatchObject({ covered: false, imageCount: 0 })
-    expect((await preparePresentationMaterials({ frozenProject: source, workspaceRoot: root })).assets).toHaveLength(1)
+    const preparedCad = await preparePresentationMaterials({ frozenProject: source, workspaceRoot: root })
+    expect(preparedCad.assets).toHaveLength(0)
+    expect(preparedCad.sourceMaterials).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sourceKey: 'cad', mimeType: 'image/vnd.dwg' }),
+    ]))
     await writeFile(join(root, 'reference.svg'), '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"/>')
     await writeFile(join(root, '.pre-design/materials.json'), JSON.stringify({ version: 1, projectId: source.projectId, materials: [{
       sourceKey: 'reference', sourcePath: 'reference.svg', mimeType: 'image/svg+xml', importedAt: source.generatedAt,

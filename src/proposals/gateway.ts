@@ -183,7 +183,6 @@ export class ProposalGateway {
     const committedAt = this.now()
     let approvalActor = decision.actor
     if (decision.source === 'automation_authorization') {
-      requireAutomaticQuality(descriptor, decision.quality)
       approvalActor = this.requireValidAuthorization(
         context.project.projectId,
         context.project.currentRevision,
@@ -191,6 +190,7 @@ export class ProposalGateway {
         decision.authorizationId,
         committedAt,
       )
+      requireAutomaticQuality(descriptor, decision.quality)
     }
 
     const confirmed = decision.source === 'automation_authorization'

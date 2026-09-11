@@ -588,22 +588,33 @@ function appendixIntroductionPage(): ClientPage {
 function applyHtmlBackdrops(report: ClientReport, pages: readonly ClientPage[]): ClientPage[] {
   const materialConcepts = report.assets.filter(asset => asset.role === 'material' && asset.sourceKind === 'ai-concept')
   const usedBackdropIds = new Set<string>()
-  const fallback = (page: ClientPage): string | undefined => {
+  const fallback = (page: ClientPage, reserve = true): string | undefined => {
     const candidates = [
       ...report.assets.filter(asset => asset.chapterId === page.chapterId && asset.role !== 'material'),
       ...report.assets.filter(asset => asset.role === 'hero'),
       ...report.assets.filter(asset => asset.sourceKind === 'ai-concept' && asset.role !== 'material'),
     ]
     const asset = candidates.find(candidate => !usedBackdropIds.has(candidate.assetId)) ?? candidates[0]
-    if (asset !== undefined) usedBackdropIds.add(asset.assetId)
+    if (asset !== undefined && reserve) usedBackdropIds.add(asset.assetId)
     return asset?.assetId
   }
   return pages.map(page => {
     const isTarget = page.pageId === 'opening-project' || page.pageId === 'opening-value' || page.kind === 'chapter-divider'
-    if (!isTarget) return page
-    const material = materialConcepts.find(asset => !usedBackdropIds.has(asset.assetId))
+    const isSparseContentPage = page.assetIds.length === 0
+      && page.analyticalVisual === undefined
+      && page.backdropAssetId === undefined
+      && page.kind !== 'cover'
+      && page.kind !== 'opening-claim'
+      && page.kind !== 'chapter-divider'
+      && page.kind !== 'appendix'
+      && page.kind !== 'decision'
+      && page.pageId !== 'closing-decision'
+    if (!isTarget && !isSparseContentPage) return page
+    const material = isTarget
+      ? materialConcepts.find(asset => !usedBackdropIds.has(asset.assetId))
+      : undefined
     if (material !== undefined) usedBackdropIds.add(material.assetId)
-    const backdropAssetId = material?.assetId ?? fallback(page)
+    const backdropAssetId = material?.assetId ?? fallback(page, isTarget)
     return backdropAssetId === undefined ? page : { ...page, backdropAssetId }
   })
 }

@@ -30,7 +30,7 @@ async function registeredWorkspace() {
 }
 
 describe('registered materials in formal runtime synchronization', () => {
-  it('loads registered originals and formal data assets in manual synchronization', async () => {
+  it('loads registered originals without promoting non-renderable data into visual assets in manual synchronization', async () => {
     const { root, frozenProject, published } = await registeredWorkspace()
     const exportProject = vi.fn(async () => published)
     await syncPresentationProject({
@@ -40,7 +40,7 @@ describe('registered materials in formal runtime synchronization', () => {
     } as never, 'session-materials', false, root)
     expect(exportProject).toHaveBeenCalledWith(expect.objectContaining({
       sourceMaterials: [expect.objectContaining({ sourceKey: 'site-metrics', sourcePath: join(root, '原件', '指标.csv') })],
-      assets: [expect.objectContaining({ sourceKey: 'site-metrics', evidenceIds: ['ev-site-metrics'], aliases: ['legacy-data-asset'], role: 'reference', rowCount: 1 })],
+      assets: [],
     }))
   })
 
@@ -57,7 +57,7 @@ describe('registered materials in formal runtime synchronization', () => {
       expect(result.state).toBe('synced')
       expect(exportProject).toHaveBeenCalledWith(expect.objectContaining({
         sourceMaterials: [expect.objectContaining({ sourceKey: 'site-metrics' })],
-        assets: [expect.objectContaining({ sourceKey: 'site-metrics' })],
+        assets: [],
       }))
     } finally { await service.close() }
   })

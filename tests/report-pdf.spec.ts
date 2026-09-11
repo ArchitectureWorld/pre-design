@@ -559,7 +559,7 @@ describe('renderPdf', () => {
     expect(investment?.querySelector('.analysis-shared-basis')?.textContent).toContain('测试阶段示例测算')
     expect(operationEvidence?.querySelector('.focus.implementation-judgement')?.textContent)
       .toContain('明确公共服务底线，并以活动、内容与轻商业支撑长期活力。')
-    expect(operationEvidence?.querySelector('[data-analysis-kind="daypart-matrix"]')).not.toBeNull()
+    expect(operationEvidence?.querySelector('[data-analysis-kind="daypart-matrix"]')).toBeNull()
     expect(evidence?.querySelector('.focus.implementation-judgement')?.textContent)
       .toContain('三项共同决策是进入概念深化与专题测算的前提。')
     expect(evidence?.querySelector('.evidence-feature')).not.toBeNull()
@@ -619,11 +619,8 @@ describe('renderPdf', () => {
     expect(operation?.querySelectorAll('[data-from="operation-outcome"]')).toHaveLength(3)
 
     const matrix = page('28')
-    expect(Array.from(matrix?.querySelectorAll('.analysis-matrix td') ?? []).map(cell => cell.textContent?.trim())).toEqual([
-      '高', '中', '低',
-      '中', '高', '高',
-      '中', '高', '高',
-    ])
+    expect(Array.from(matrix?.querySelectorAll('.analysis-matrix td') ?? []).map(cell => cell.textContent?.trim())).toEqual([])
+    expect(matrix?.querySelector('[data-analysis-kind="daypart-matrix"]')).toBeNull()
 
     const triad = page('33')
     expect(triad?.querySelectorAll('[data-to="triad-common-unlock"]')).toHaveLength(3)

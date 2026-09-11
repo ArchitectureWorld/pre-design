@@ -1227,8 +1227,10 @@ describe('renderPptx', () => {
     expect(deck.shapeObjects.filter(object => object.slideNumber === operating
       && object.name.startsWith('AnalysisVisual Operating Team Rule ')), 'P27 不应保留穿越连接线的橙色结构线').toEqual([])
 
-    for (const label of ['日常休闲', '周末活动', '城市节庆', '周边居民', '城市家庭', '青年客群']) {
-      expect(deck.slideTexts[matrix - 1]).toContain(label)
+    expect(deck.slideTexts[matrix - 1]).toContain('多时段内容组合提升设施与空间使用效率')
+    expect(deck.slideTexts[matrix - 1]).toContain('项目证据 9 支撑对应的客户判断。')
+    for (const fabricatedLabel of ['周边居民', '城市家庭', '青年客群']) {
+      expect(deck.slideTexts[matrix - 1]).not.toContain(fabricatedLabel)
     }
     for (const label of ['01 公共空间', '02 基础设施', '03 运营启动', '相对优先级，不代表造价金额']) {
       expect(deck.slideTexts[investment - 1]).toContain(label)

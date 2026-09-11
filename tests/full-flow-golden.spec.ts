@@ -259,17 +259,18 @@ describe('Golden Project full flow', () => {
       expect(primaryLines.filter(line => /^[。！？；：，、]+$/u.test(line)),
         `PPTX 第${slideNumber}页出现独立标点行`).toEqual([])
     }
-    const matrixContent = deck.textObjects.filter(object => object.slideNumber === 28
+    const operationEvidenceContent = deck.textObjects.filter(object => object.slideNumber === 28
       && object.y >= 2
       && object.y < 6.4
       && object.fontSize >= 10)
-    expect(matrixContent.length, 'PPTX 第28页缺少客群与场景矩阵内容').toBeGreaterThanOrEqual(10)
-    expect(matrixContent.filter(object => object.height > 2.45), 'PPTX 第28页仍存在纵向居中的大空白卡').toEqual([])
-    for (const label of ['日常休闲', '周末活动', '城市节庆', '周边居民', '城市家庭', '青年客群']) {
-      expect(deck.slideTexts[27], `PPTX 第28页矩阵缺少标签：${label}`).toContain(label)
+    expect(operationEvidenceContent.length, 'PPTX 第28页缺少有证据支撑的运营判断').toBeGreaterThanOrEqual(2)
+    expect(operationEvidenceContent.filter(object => object.height > 2.45), 'PPTX 第28页仍存在纵向居中的大空白卡').toEqual([])
+    expect(deck.slideTexts[27]).toContain('多时段内容组合提升设施与空间使用效率')
+    expect(deck.slideTexts[27]).toContain('家庭、青年与社区居民对全天候共享场景具有重叠需求。')
+    expect(deck.slideTexts[27]).toContain('示例人群观察（待项目实测校核）')
+    for (const fabricatedLabel of ['周边居民', '城市家庭', '青年客群']) {
+      expect(deck.slideTexts[27], `PPTX 第28页不得出现无证据客群标签：${fabricatedLabel}`).not.toContain(fabricatedLabel)
     }
-    expect(matrixContent.filter(object => ['高', '中', '低'].includes(object.text.trim())),
-      'PPTX 第28页矩阵缺少独立需求强度单元').toHaveLength(9)
     for (const slideNumber of [1, 4, 5, 6, 8, 9, 11, 12, 14, 16, 17, 19, 20, 22, 23, 26, 29, 32, 35]) {
       const footer = deck.textObjects.find(object => object.slideNumber === slideNumber
         && object.text === '前期策划成果提案'

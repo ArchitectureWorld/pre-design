@@ -746,15 +746,8 @@ describe('planClientPages', () => {
 
     expect(visualKind('opening-urgency')).toBe('urgency-signals')
     expect(visualKind('chapter-08-block-01')).toBe('operating-model')
-    expect(visualKind('chapter-08-block-02')).toBe('daypart-matrix')
-    expect(pages.find(page => page.pageId === 'chapter-08-block-02')?.analyticalVisual).toMatchObject({
-      kind: 'daypart-matrix',
-      values: [
-        ['高', '中', '低'],
-        ['中', '高', '高'],
-        ['中', '高', '高'],
-      ],
-    })
+    expect(visualKind('chapter-08-block-02')).toBeUndefined()
+    expect(pages.find(page => page.pageId === 'chapter-08-block-02')?.analyticalVisual).toBeUndefined()
     expect(visualKind('chapter-10-block-01')).toBe('decision-triad')
     expect(visualKind('chapter-10-block-02')).toBe('decision-flow')
     const decisionDividerIndex = pages.findIndex(page => page.pageId === 'chapter-10-divider')
@@ -793,7 +786,7 @@ describe('planClientPages', () => {
     ]))
   })
 
-  it('assigns material concept backdrops only to HTML opening and chapter divider pages', () => {
+  it('assigns real project backdrops to HTML opening, chapter dividers, and sparse content pages', () => {
     const materialAssets = Array.from({ length: 12 }, (_, index) => ({
       ...CLIENT_REPORT.assets[0]!,
       assetId: `material-backdrop-${index + 1}`,
@@ -811,7 +804,13 @@ describe('planClientPages', () => {
     expect(backdropTargets).toHaveLength(12)
     expect(backdropTargets.map(page => page.backdropAssetId)).toEqual(materialAssets.map(asset => asset.assetId))
     expect(new Set(backdropTargets.map(page => page.backdropAssetId))).toHaveLength(12)
-    expect(htmlPlan.pages.filter(page => !backdropTargets.includes(page)).every(page => page.backdropAssetId === undefined)).toBe(true)
+    const sparseContentPages = htmlPlan.pages.filter(page => !backdropTargets.includes(page)
+      && page.assetIds.length === 0
+      && page.analyticalVisual === undefined
+      && page.kind !== 'cover'
+      && page.kind !== 'opening-claim'
+      && page.kind !== 'decision')
+    expect(sparseContentPages.some(page => page.backdropAssetId !== undefined)).toBe(true)
     expect(pptxPlan.pages.every(page => page.backdropAssetId === undefined)).toBe(true)
   })
 
@@ -851,7 +850,7 @@ describe('planClientPages', () => {
   it('rejects an architectural HTML plan with more than two or consecutive text-only pages', () => {
     const base = planClientPages(CLIENT_REPORT, 'html')
     const source = base.pages.find(page => page.kind === 'evidence')!
-    const { analyticalVisual: _analyticalVisual, ...textOnlySource } = source
+    const { analyticalVisual: _analyticalVisual, backdropAssetId: _backdropAssetId, ...textOnlySource } = source
     const textOnlyPages = ['one', 'two', 'three'].map((suffix, index) => ({
       ...textOnlySource,
       pageId: `html-text-${suffix}`,
