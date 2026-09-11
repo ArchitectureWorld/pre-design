@@ -1,0 +1,71 @@
+name: Deployability Fix Pass
+
+on:
+  push:
+    branches:
+      - feat/pre-v2.0.0
+    paths:
+      - 'scripts/apply-deployability-fixes.mjs'
+      - '.github/workflows/deployability-fix-pass.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    if: ${{ !contains(github.event.head_commit.message, 'apply deployability fix pass') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: feat/pre-v2.0.0
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.11.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply deterministic patch pass
+        run: node scripts/apply-deployability-fixes.mjs
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Run deploy-critical regression set
+        run: >-
+          pnpm exec vitest run
+          tests/proposal-gateway-quality.spec.ts
+          tests/proposal-gateway-all-workflows.spec.ts
+          tests/report-no-fake-analysis.spec.ts
+          tests/report-page-plan.spec.ts
+          tests/report-html.spec.ts
+          tests/report-pdf.spec.ts
+          tests/report-pptx.spec.ts
+          tests/full-flow-golden.spec.ts
+          tests/presentation-material-runtime.spec.ts
+          tests/presentation-material-registry.spec.ts
+          tests/presentation-page-visual-fill.spec.ts
+          --maxWorkers=1
+
+      - name: Check diff hygiene
+        run: git diff --check
+
+      - name: Commit verified fixes
+        run: |
+          git config user.name 'ArchitectureWorld'
+          git config user.email '140295054+ArchitectureWorld@users.noreply.github.com'
+          git add src tests
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix: apply deployability fix pass'
+          git push origin HEAD:feat/pre-v2.0.0
