@@ -22,9 +22,15 @@ interface WorkflowContract {
   readonly input_contract: {
     readonly required_upstream: readonly string[]
     readonly missing_data_policy: string
+    readonly evidence_policy?: readonly string[]
   }
+  readonly completion_criteria?: readonly string[]
+  readonly reopen_triggers?: readonly string[]
+  readonly forbidden_actions?: readonly string[]
   readonly review_policy: {
     readonly human_review_mandatory: boolean
+    readonly provisional_auto_commit_allowed?: boolean
+    readonly gate_still_human?: boolean
   }
 }
 
@@ -43,6 +49,23 @@ interface GateContract {
   readonly purpose: string
   readonly required_objects: readonly string[]
   readonly allowed_decisions: readonly string[]
+  readonly precheck?: {
+    readonly schema_and_version?: string
+    readonly hard_blockers?: string
+    readonly conditional_rule?: string
+  }
+  readonly approval?: {
+    readonly role?: string
+    readonly assignment_required?: boolean
+    readonly agent_allowed?: boolean
+    readonly system_service_allowed?: boolean
+    readonly artifact_allowed?: boolean
+  }
+  readonly return_policy?: {
+    readonly minimum_targets?: string
+    readonly preserve_confirmed_history?: boolean
+    readonly recheck_after_revision?: boolean
+  }
 }
 
 interface DependencyGraphContract {
@@ -69,6 +92,10 @@ function formatErrors(errors: ErrorObject[] | null | undefined): string[] {
     const location = error.instancePath === '' ? '/' : error.instancePath
     return `${location} ${error.message ?? error.keyword}`
   })
+}
+
+function frozenStrings(values: readonly string[] | undefined): readonly string[] {
+  return Object.freeze([...(values ?? [])])
 }
 
 export class ContractRegistry {
@@ -120,6 +147,11 @@ export class ContractRegistry {
       if (typeof targetSchemaId !== 'string') {
         throw new Error(`state object '${contract.writes}' has no schema id`)
       }
+      const reviewPolicy = Object.freeze({
+        humanReviewMandatory: contract.review_policy.human_review_mandatory,
+        provisionalAutoCommitAllowed: contract.review_policy.provisional_auto_commit_allowed ?? false,
+        gateStillHuman: contract.review_policy.gate_still_human ?? true,
+      })
       workflowDescriptors.push(Object.freeze({
         workflowId: contract.workflow_id,
         chapterId: contract.chapter_id,
@@ -129,12 +161,17 @@ export class ContractRegistry {
         targetObjectId: contract.writes,
         targetSchemaId,
         gateId: contract.gate_id,
-        requiredUpstream: Object.freeze([...contract.input_contract.required_upstream]),
-        atomicToolIds: Object.freeze([...contract.atomic_tools]),
+        requiredUpstream: frozenStrings(contract.input_contract.required_upstream),
+        atomicToolIds: frozenStrings(contract.atomic_tools),
         automationLevel: contract.automation_level,
         risk: contract.risk,
-        humanReviewMandatory: contract.review_policy.human_review_mandatory,
+        humanReviewMandatory: reviewPolicy.humanReviewMandatory,
         missingDataPolicy: contract.input_contract.missing_data_policy,
+        evidencePolicy: frozenStrings(contract.input_contract.evidence_policy),
+        completionCriteria: frozenStrings(contract.completion_criteria),
+        reopenTriggers: frozenStrings(contract.reopen_triggers),
+        forbiddenActions: frozenStrings(contract.forbidden_actions),
+        reviewPolicy,
       }))
     }
     workflowDescriptors.sort((left, right) =>
@@ -151,8 +188,25 @@ export class ContractRegistry {
         chapterId: contract.chapter_id,
         title: contract.title,
         purpose: contract.purpose,
-        requiredObjectIds: Object.freeze([...contract.required_objects]),
-        allowedDecisions: Object.freeze([...contract.allowed_decisions]),
+        requiredObjectIds: frozenStrings(contract.required_objects),
+        allowedDecisions: frozenStrings(contract.allowed_decisions),
+        precheck: Object.freeze({
+          schemaAndVersion: contract.precheck?.schema_and_version ?? '',
+          hardBlockers: contract.precheck?.hard_blockers ?? '',
+          conditionalRule: contract.precheck?.conditional_rule ?? '',
+        }),
+        approvalPolicy: Object.freeze({
+          role: contract.approval?.role ?? 'decision_owner',
+          assignmentRequired: contract.approval?.assignment_required ?? true,
+          agentAllowed: contract.approval?.agent_allowed ?? false,
+          systemServiceAllowed: contract.approval?.system_service_allowed ?? false,
+          artifactAllowed: contract.approval?.artifact_allowed ?? false,
+        }),
+        returnPolicy: Object.freeze({
+          minimumTargets: contract.return_policy?.minimum_targets ?? '',
+          preserveConfirmedHistory: contract.return_policy?.preserve_confirmed_history ?? true,
+          recheckAfterRevision: contract.return_policy?.recheck_after_revision ?? true,
+        }),
       }))
     }
     gateDescriptors.sort((left, right) => left.chapterId.localeCompare(right.chapterId))
