@@ -18,6 +18,7 @@ on:
       - 'tests/workflow-runtime.spec.ts'
       - 'tests/governance-contracts.spec.ts'
       - 'tests/proposal-gateway.spec.ts'
+      - 'tests/proposal-gateway-quality.spec.ts'
       - 'tests/automation-workflow-committer.spec.ts'
       - 'tests/gate-service.spec.ts'
       - 'tests/automatic-gate-after-serial.spec.ts'
@@ -80,6 +81,7 @@ jobs:
           tests/workflow-runtime.spec.ts
           tests/governance-contracts.spec.ts
           tests/proposal-gateway.spec.ts
+          tests/proposal-gateway-quality.spec.ts
           tests/automation-workflow-committer.spec.ts
           tests/gate-service.spec.ts
           tests/automatic-gate-after-serial.spec.ts
