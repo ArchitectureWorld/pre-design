@@ -7,6 +7,7 @@ on:
     paths:
       - 'scripts/apply-deployability-fixes.mjs'
       - 'scripts/apply-deployability-fixes-2.mjs'
+      - 'scripts/apply-deployability-fixes-3.mjs'
       - '.github/workflows/deployability-fix-pass.yml'
 
 permissions:
@@ -41,6 +42,7 @@ jobs:
         run: |
           node scripts/apply-deployability-fixes.mjs
           node scripts/apply-deployability-fixes-2.mjs
+          node scripts/apply-deployability-fixes-3.mjs
 
       - name: Typecheck
         run: pnpm typecheck
