@@ -114,4 +114,96 @@ await replaceOnce(
   })`,
 )
 
+await replaceOnce(
+  'tests/presentation-standard-adapter.spec.ts',
+`  it('builds chapter, report subject and detailed page nodes with real source detail', async () => {
+    const frozenProject = createStandardFrozenProject()
+    const source = {
+      ...frozenProject,
+      stateObjects: frozenProject.stateObjects.map(object => ({
+        ...object,
+        reportSections: [{
+          key: 'analysis',
+          title: '现状证据与行动依据',
+          entries: [{
+            key: \`\${object.objectId}-detail\`,
+            text: \`\${object.objectId} 的完整调研细节必须进入正式草案，而不能只导出摘要。\`,
+            basis: '项目实地踏勘记录',
+            fieldPath: 'analysis.details[0]',
+          }],
+        }],
+      })),
+    }
+    const build = await buildPresentationStandardProject({ frozenProject: source, rules: STANDARD_TEST_RULES })
+    const outline = build.documents['outline.json'] as any
+    const manifest = build.documents['pages/manifest.json'] as any
+    const nodes = new Map<string, any>(outline.nodes.map((node: any) => [node.outlineNodeId, node]))
+    for (const page of manifest.pages) {
+      const pageNode = nodes.get(page.outlineNodeId)
+      const subjectNode = nodes.get(pageNode.parentOutlineNodeId)
+      const chapterNode = nodes.get(subjectNode.parentOutlineNodeId)
+      expect(chapterNode?.kind).toBe('chapter')
+      expect(chapterNode?.parentOutlineNodeId).toBeNull()
+      expect(subjectNode.kind).toBe('section')
+      expect(pageNode.kind).toBe('section')
+    }
+    expect(new Set(manifest.pages.map((page: any) => page.order)).size).toBe(manifest.pages.length)
+    for (const parent of [null, ...nodes.keys()]) {
+      const siblings = outline.nodes.filter((node: any) => node.parentOutlineNodeId === parent)
+      expect(new Set(siblings.map((node: any) => node.order)).size).toBe(siblings.length)
+    }
+    const drafts = manifest.pages.map((page: any) => build.documents[page.draftPath])
+    for (const object of source.stateObjects) {
+      expect(JSON.stringify(drafts)).toContain(object.reportSections[0]!.entries[0]!.text)
+    }
+  })`,
+`  it('builds chapters and detailed page nodes while collapsing singleton report subjects with real source detail', async () => {
+    const frozenProject = createStandardFrozenProject()
+    const source = {
+      ...frozenProject,
+      stateObjects: frozenProject.stateObjects.map(object => ({
+        ...object,
+        reportSections: [{
+          key: 'analysis',
+          title: '现状证据与行动依据',
+          entries: [{
+            key: \`\${object.objectId}-detail\`,
+            text: \`\${object.objectId} 的完整调研细节必须进入正式草案，而不能只导出摘要。\`,
+            basis: '项目实地踏勘记录',
+            fieldPath: 'analysis.details[0]',
+          }],
+        }],
+      })),
+    }
+    const build = await buildPresentationStandardProject({ frozenProject: source, rules: STANDARD_TEST_RULES })
+    const outline = build.documents['outline.json'] as any
+    const manifest = build.documents['pages/manifest.json'] as any
+    const nodes = new Map<string, any>(outline.nodes.map((node: any) => [node.outlineNodeId, node]))
+    for (const page of manifest.pages) {
+      const pageNode = nodes.get(page.outlineNodeId)
+      const parentNode = nodes.get(pageNode.parentOutlineNodeId)
+      expect(pageNode.kind).toBe('section')
+      if (parentNode.kind === 'chapter') {
+        expect(parentNode.parentOutlineNodeId).toBeNull()
+      } else {
+        expect(parentNode.kind).toBe('section')
+        const chapterNode = nodes.get(parentNode.parentOutlineNodeId)
+        expect(chapterNode?.kind).toBe('chapter')
+        expect(chapterNode?.parentOutlineNodeId).toBeNull()
+        expect(outline.nodes.filter((node: any) => node.parentOutlineNodeId === parentNode.outlineNodeId).length)
+          .toBeGreaterThan(1)
+      }
+    }
+    expect(new Set(manifest.pages.map((page: any) => page.order)).size).toBe(manifest.pages.length)
+    for (const parent of [null, ...nodes.keys()]) {
+      const siblings = outline.nodes.filter((node: any) => node.parentOutlineNodeId === parent)
+      expect(new Set(siblings.map((node: any) => node.order)).size).toBe(siblings.length)
+    }
+    const drafts = manifest.pages.map((page: any) => build.documents[page.draftPath])
+    for (const object of source.stateObjects) {
+      expect(JSON.stringify(drafts)).toContain(object.reportSections[0]!.entries[0]!.text)
+    }
+  })`,
+)
+
 console.log('outline singleton collapse patch completed')
