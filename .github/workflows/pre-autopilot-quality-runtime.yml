@@ -1,0 +1,114 @@
+name: Pre Autopilot Quality Runtime
+
+on:
+  push:
+    branches:
+      - feat/pre-v2.0.0
+    paths:
+      - 'src/contracts/**'
+      - 'src/runtime/**'
+      - 'src/governance/**'
+      - 'src/proposals/**'
+      - 'src/report/**'
+      - 'src/prompts/**'
+      - 'tests/contracts.spec.ts'
+      - 'tests/workflow-quality.spec.ts'
+      - 'tests/parallel-workflow-executor.spec.ts'
+      - 'tests/governance-contracts.spec.ts'
+      - 'tests/proposal-gateway.spec.ts'
+      - 'tests/automation-workflow-committer.spec.ts'
+      - 'tests/gate-service.spec.ts'
+      - 'tests/automatic-gate-after-serial.spec.ts'
+      - 'tests/report-page-plan.spec.ts'
+      - 'tests/report-design-skill.spec.ts'
+      - '.github/workflows/pre-autopilot-quality-runtime.yml'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+  pull_request:
+    paths:
+      - 'src/contracts/**'
+      - 'src/runtime/**'
+      - 'src/governance/**'
+      - 'src/proposals/**'
+      - 'src/report/**'
+      - 'src/prompts/**'
+      - 'tests/**'
+      - '.github/workflows/pre-autopilot-quality-runtime.yml'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pre-autopilot-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  targeted:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.11.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Run Autopilot targeted tests
+        run: >-
+          pnpm exec vitest run
+          tests/contracts.spec.ts
+          tests/workflow-quality.spec.ts
+          tests/parallel-workflow-executor.spec.ts
+          tests/governance-contracts.spec.ts
+          tests/proposal-gateway.spec.ts
+          tests/automation-workflow-committer.spec.ts
+          tests/gate-service.spec.ts
+          tests/automatic-gate-after-serial.spec.ts
+          tests/report-page-plan.spec.ts
+          tests/report-design-skill.spec.ts
+          --maxWorkers=1
+
+  full-regression:
+    needs: targeted
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.11.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run full test suite
+        run: pnpm test
+
+      - name: Test built package
+        run: pnpm test:built
+
+      - name: Check diff hygiene
+        run: git diff --check HEAD^ HEAD
