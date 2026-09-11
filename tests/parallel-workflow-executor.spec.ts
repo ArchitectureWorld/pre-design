@@ -28,6 +28,14 @@ const descriptors = Array.from({ length: 5 }, (_, index) => ({
   },
 }))
 
+function passingQuality() {
+  return {
+    completionChecks: [{ criterion: '完成核心判断并记录限制条件。', status: 'pass' as const, rationale: '已完成' }],
+    evidenceChecks: [{ policy: '所有事实必须绑定 EvidenceRef。', status: 'pass' as const, rationale: '已绑定来源' }],
+    assumptions: [], blockers: [], confidence: 0.9,
+  }
+}
+
 describe('ParallelWorkflowExecutor', () => {
   it('analyzes at most four Ready workflows concurrently and commits in Contract order', async () => {
     let active = 0
@@ -58,7 +66,10 @@ describe('ParallelWorkflowExecutor', () => {
           analysisOrder.push(descriptor.workflowId)
           await new Promise(resolve => setTimeout(resolve, (6 - Number(descriptor.workItemId.slice(-1))) * 5))
           active -= 1
-          return { payload: { object_id: descriptor.targetObjectId, data: { summary: descriptor.title } } }
+          return {
+            payload: { object_id: descriptor.targetObjectId, data: { summary: descriptor.title } },
+            qualityEvidence: passingQuality(),
+          }
         },
       },
       committer: {
@@ -84,7 +95,7 @@ describe('ParallelWorkflowExecutor', () => {
       .toEqual(descriptors.slice(0, 4).map(row => row.workflowId))
     expect(sync.request).toHaveBeenCalledTimes(4)
     expect(sync.flush).toHaveBeenCalledOnce()
-    expect(result).toEqual({ attempted: 4, completed: 4, blocked: 0, approvedGates: 1 })
+    expect(result).toEqual({ attempted: 4, completed: 4, blocked: 0, needsHuman: 0, revised: 0, approvedGates: 1 })
   })
 
   it('does not select the parallel path without automatic authorization, provider capacity, or two Ready tasks', () => {
@@ -118,7 +129,10 @@ describe('ParallelWorkflowExecutor', () => {
         available: () => true,
         analyze: async (_parent: unknown, _projectId: string, descriptor: any) => {
           if (descriptor.workflowId === descriptors[1]!.workflowId) throw new Error('research transport failed')
-          return { payload: { object_id: descriptor.targetObjectId, data: {} } }
+          return {
+            payload: { object_id: descriptor.targetObjectId, data: {} },
+            qualityEvidence: passingQuality(),
+          }
         },
       },
       committer: {
@@ -138,7 +152,7 @@ describe('ParallelWorkflowExecutor', () => {
     expect(transitions).toContainEqual(expect.objectContaining({
       workflowId: descriptors[1]!.workflowId, to: 'blocked', reason: 'research transport failed',
     }))
-    expect(result).toMatchObject({ attempted: 3, completed: 2, blocked: 1 })
+    expect(result).toMatchObject({ attempted: 3, completed: 2, blocked: 1, needsHuman: 0, revised: 0 })
   })
 })
 
