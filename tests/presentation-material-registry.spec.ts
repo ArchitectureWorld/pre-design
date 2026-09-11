@@ -96,24 +96,24 @@ describe('persistent project material registry', () => {
       expect(await readFile(indexPath, 'utf8')).toBe(before)
     }
   })
-  it('imports image/video/PDF/CAD/data originals into both libraries and preserves them across subsequent synchronization', async () => {
+  it('keeps every original in source materials but only promotes renderable image/video into presentation assets', async () => {
     const { root, source, entries, indexPath } = await fixture()
     const before = await Promise.all(entries.map(entry => readFile(join(root, entry.sourcePath))))
     const prepared = await preparePresentationMaterials({ frozenProject: source, workspaceRoot: root })
     expect(prepared.sourceMaterials).toHaveLength(5)
-    expect(prepared.assets).toHaveLength(5)
+    expect(prepared.assets).toHaveLength(1)
     expect(prepared.materialWarnings).toEqual([])
     expect(prepared.assets.find(asset => asset.sourceKey === 'photo')?.semanticRole).toBe('map')
     const build = await buildPresentationStandardProject({ frozenProject: source, ...prepared })
     const first = await publishPresentationStandardProjectIntoWorkspace({ directoryRoot: root, build, operationId: 'initial-material-export' })
     expect(first.validation.valid).toBe(true)
     const assets = (build.documents['assets/manifest.json'] as any).assets
-    expect(new Set(assets.map((asset: any) => asset.mediaType))).toEqual(new Set(['image', 'video', 'document', 'other', 'data']))
+    expect(new Set(assets.map((asset: any) => asset.mediaType))).toEqual(new Set(['image']))
     expect(assets.every((asset: any) => asset.origin.sourceMaterialIds.length === 1)).toBe(true)
     const pages = (build.documents['pages/manifest.json'] as any).pages
     const mainPage = pages.find((page: any) => page.pageId === build.stableIds['page:finding:pre-design:project-brief'])
     const mainDraft = build.documents[mainPage.draftPath] as any
-    expect(mainDraft.pageAssets).toHaveLength(5)
+    expect(mainDraft.pageAssets).toHaveLength(1)
     expect(mainDraft.pageAssets.filter((asset: any) => asset.role === 'background')).toHaveLength(1)
     expect(await Promise.all(entries.map(entry => readFile(join(root, entry.sourcePath))))).toEqual(before)
 
@@ -121,13 +121,13 @@ describe('persistent project material registry', () => {
     await unlink(join(root, entries[0]!.sourcePath))
     const missingOriginal = await preparePresentationMaterials({ frozenProject: source, workspaceRoot: root, previous })
     expect(missingOriginal.materialWarnings).toContainEqual(expect.stringContaining('保留此前导入的副本'))
-    expect(missingOriginal.assets).toHaveLength(5)
+    expect(missingOriginal.assets).toHaveLength(1)
     expect(missingOriginal.assets.find(asset => asset.sourceKey === 'photo')?.sourcePath).toContain('source-materials')
     expect(missingOriginal.assets.find(asset => asset.sourceKey === 'photo')?.aliases).toContain('legacy-photo')
     await unlink(indexPath)
     const preserved = await preparePresentationMaterials({ frozenProject: source, workspaceRoot: root, previous })
     expect(preserved.sourceMaterials).toHaveLength(5)
-    expect(preserved.assets).toHaveLength(5)
+    expect(preserved.assets).toHaveLength(1)
     const secondBuild = await buildPresentationStandardProject({ frozenProject: source, ...preserved, stableIds: build.stableIds })
     const repeated = await publishPresentationStandardProjectIntoWorkspace({ directoryRoot: root, build: secondBuild, operationId: 'repeat-material-export', expectedExistingFileHashes: first.fileHashes })
     expect(repeated.validation.valid).toBe(true)
@@ -154,7 +154,7 @@ describe('persistent project material registry', () => {
       ] }],
     }] })) }
     const prepared = await preparePresentationMaterials({ frozenProject, workspaceRoot: root })
-    expect(prepared.assets).toHaveLength(5)
+    expect(prepared.assets).toHaveLength(1)
     expect(prepared.materialWarnings).toContainEqual(expect.stringContaining('missing'))
     expect(prepared.materialWarnings).toContainEqual(expect.stringContaining('not-registered'))
     expect(prepared.materialWarnings.join()).not.toContain('BL01')

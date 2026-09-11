@@ -137,6 +137,15 @@ function provenanceOf(value: unknown): RegisteredMaterialProvenance | undefined 
 function isPageBoundMethod(method: string): boolean {
   try { return JSON.parse(method)?.pageBindingOnly === true } catch { return false }
 }
+
+/** Only browser-renderable visual media may enter the presentation asset library.
+ * PDFs, CAD, data files and archives remain traceable source materials until a
+ * separate render/conversion step creates a new image, chart or video asset.
+ */
+function isRenderablePresentationAsset(originalFileName: string, mimeType: string): boolean {
+  if (/\.(?:dwg|dxf|cad|rar|zip|7z|pdf|csv|json|xlsx?|docx?)$/iu.test(originalFileName)) return false
+  return mimeType.startsWith('image/') || mimeType.startsWith('video/')
+}
 function ownedPath(root: string, path: string): string {
   const resolved = resolve(root, path)
   if (!within(root, resolved)) fail(`已有清单路径越出工作区：${path}`)
@@ -194,6 +203,7 @@ async function preserveImportedMaterials(
   }
   for (const record of assetDoc?.assets ?? []) {
     if (hashes[record.relativePath] === undefined || record.adoptionStatus !== 'adopted') continue
+    if (!isRenderablePresentationAsset(record.displayName ?? record.relativePath, record.mimeType)) continue
     const refs = record.sourceRefs?.filter(ref => ref.provider === 'pre-design' && ref.sourceProjectId === input.frozenProject.projectId) ?? []
     for (const sourceKey of assetKeys.get(record.assetId) ?? []) {
       assets.set(sourceKey, { sourceKey, sourcePath: ownedPath(root, record.relativePath), originalFileName: basename(record.relativePath),
@@ -268,6 +278,12 @@ export async function preparePresentationMaterials(input: PreparePresentationMat
         && (!mimeType.startsWith('image/') || sourceCategory === 'drawings')) fail(`只有图像素材可以作背景：${sourceKey}`)
       if (provenance === undefined) sources.set(sourceKey, { sourceKey, sourcePath, originalFileName, mimeType, importedAt })
       else sources.delete(sourceKey)
+      if (provenance === undefined && (!isRenderablePresentationAsset(originalFileName, mimeType) || !pageBindings?.length)) {
+        // Source-only materials are deliberately excluded from presentationAssets.
+        // They remain available through sourceMaterials and provenance refs.
+        assets.delete(sourceKey)
+        continue
+      }
       const disclosure = provenance?.kind === 'ai_concept' ? 'AI概念示意（非现场实拍）'
         : provenance?.kind === 'deterministic' ? '依据资料绘制的信息图解'
           : provenance?.kind === 'licensed_reference' ? '通用参考图（非项目现场）' : ''

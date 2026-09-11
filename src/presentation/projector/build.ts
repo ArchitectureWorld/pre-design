@@ -23,8 +23,20 @@ function fail(code: string, detail: string): never {
   throw new Error(`${code}: ${detail}`)
 }
 
+function sanitizeExternalText(value: string): string {
+  return value
+    .replace(/(?:[\p{L}\p{N}_()（）\-]+\.)+(?:rar|zip|7z)\b/giu, '原始地形资料')
+    .replace(/(?:[\w\-.\u4e00-\u9fff/\\]+\/)?(?:source-materials|assets)\/(?:[^\s；;，,]+)?/giu, '相关来源资料')
+    .replace(/资料目录\s*[:：]/gu, '资料依据：')
+    .replace(/待解压(?:解析坐标系)?/gu, '尚待完成坐标系解析与专业校核')
+    .replace(/压缩包/gu, '原始资料')
+    .replace(/(?:文件夹|目录路径|工作流编号|对象ID|\bobjectId\b|\brevision\b|\bgate\b|\bjson\b|日志)/giu, '内部资料')
+    .replace(/\s{2,}/gu, ' ')
+    .trim()
+}
+
 function requiredString(value: string, code: string, field: string): string {
-  const normalized = value.normalize('NFC').trim()
+  const normalized = sanitizeExternalText(value.normalize('NFC').trim())
   if (normalized === '') fail(code, `${field} is required`)
   return normalized
 }
@@ -62,7 +74,7 @@ function uniqueStrings(
   const result: string[] = []
   const seen = new Set<string>()
   for (const value of values) {
-    const normalized = value.normalize('NFC').trim()
+    const normalized = sanitizeExternalText(value.normalize('NFC').trim())
     if (normalized === '') {
       if (allowEmpty) continue
       fail(code, `${field} contains an empty value`)
@@ -86,7 +98,7 @@ function validateScalar<T extends ProjectionScalar>(value: T, field: string): T 
   if (typeof value === 'number' && !Number.isFinite(value)) {
     fail('PRESENTATION_PROJECTION_SCALAR_INVALID', `${field} must be finite`)
   }
-  return (typeof value === 'string' ? value.normalize('NFC') : value) as T
+  return (typeof value === 'string' ? sanitizeExternalText(value.normalize('NFC')) : value) as T
 }
 
 function buildSourceRef(
