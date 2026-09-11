@@ -1,7 +1,7 @@
 import type { ContractRegistry } from '../contracts/registry.ts'
 import type { WorkflowDescriptor } from '../contracts/types.ts'
 import type { GovernanceRepository } from '../governance/repository.ts'
-import type { AutomationAuthorizationRecord } from '../governance/types.ts'
+import type { AutomationAuthorizationRecord, WorkflowRunQualityRecord } from '../governance/types.ts'
 import type { ProjectRepository } from '../state/repository.ts'
 import type { ActorRef, ConfirmProposalResult, ProposalRecord } from '../state/types.ts'
 
@@ -46,11 +46,39 @@ export type ProposalCommitDecision =
   | {
     readonly source: 'automation_authorization'
     readonly authorizationId: string
+    /** Trusted central Runtime quality report. The model cannot grant this authority to itself. */
+    readonly quality?: WorkflowRunQualityRecord
     readonly actor: ActorRef
   }
 
 export interface ProposalCommitResult extends ConfirmProposalResult {
   readonly status: 'provisionally_committed' | 'confirmed'
+}
+
+function requireAutomaticQuality(
+  descriptor: WorkflowDescriptor,
+  quality: WorkflowRunQualityRecord | undefined,
+): WorkflowRunQualityRecord {
+  if (quality === undefined) {
+    throw new GatewayError('quality-required', 'trusted workflow quality is required for automatic confirmation')
+  }
+  if (quality.workflowId !== descriptor.workflowId || quality.targetObjectId !== descriptor.targetObjectId) {
+    throw new GatewayError('quality-mismatch', 'trusted workflow quality identity does not match proposal target')
+  }
+  if (quality.disposition !== 'auto_pass'
+    || quality.completionCoverage !== 1
+    || quality.evidenceCoverage !== 1
+    || quality.score < 0
+    || quality.score > 1
+    || quality.confidence < 0
+    || quality.confidence > 1) {
+    throw new GatewayError('quality-not-approved', `automatic confirmation requires auto_pass quality for '${descriptor.workflowId}'`)
+  }
+  const risk = descriptor.risk.trim().toUpperCase()
+  if (risk === 'H' || descriptor.risk.trim().toLowerCase() === 'high') {
+    throw new GatewayError('high-risk-human-review', `high-risk workflow '${descriptor.workflowId}' requires local human review`)
+  }
+  return quality
 }
 
 export class ProposalGateway {
@@ -99,7 +127,7 @@ export class ProposalGateway {
       )
     }
     if (envelope.validation_intent !== 'human_review' || envelope.requested_state !== 'pending_review') {
-      throw new GatewayError('human-review-required', 'preplan.wf.01.01 requires pending human review')
+      throw new GatewayError('human-review-required', `${descriptor.workflowId} requires pending human review semantics before commit routing`)
     }
     const stateValidation = this.registry.validateStateObject(descriptor.targetObjectId, envelope.change_set.payload)
     if (!stateValidation.valid) {
@@ -155,6 +183,7 @@ export class ProposalGateway {
     const committedAt = this.now()
     let approvalActor = decision.actor
     if (decision.source === 'automation_authorization') {
+      requireAutomaticQuality(descriptor, decision.quality)
       approvalActor = this.requireValidAuthorization(
         context.project.projectId,
         context.project.currentRevision,
