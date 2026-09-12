@@ -94,6 +94,8 @@ export interface ResearchValidationResult {
 
 export interface EvidenceRecord {
   readonly evidenceId: string
+  readonly workflowId: string
+  readonly dataPointId: string
   readonly sourceId: string
   readonly sourceType: ResearchAccessMode
   readonly sourceUri: string
