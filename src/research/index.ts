@@ -20,6 +20,9 @@ export type {
   ResearchReliabilityGrade,
   ResearchSourcePreference,
   ResearchSourcePriority,
+  ResearchStep,
+  ResearchStepAction,
+  ResearchStepProduct,
   ResearchValidationResult,
   WorkflowResearchSpec,
 } from './types.ts'
