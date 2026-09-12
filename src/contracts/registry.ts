@@ -1,6 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises'
 import Ajv2020, { type ErrorObject, type ValidateFunction } from 'ajv/dist/2020.js'
 import addFormats from 'ajv-formats'
+import { effectiveWorkflowAutomationPolicy } from './automation-policy.ts'
 import type { DependencyNode, GateDescriptor, WorkflowDescriptor } from './types.ts'
 
 export interface ValidationResult {
@@ -172,6 +173,7 @@ export class ContractRegistry {
         reopenTriggers: frozenStrings(contract.reopen_triggers),
         forbiddenActions: frozenStrings(contract.forbidden_actions),
         reviewPolicy,
+        automationPolicy: effectiveWorkflowAutomationPolicy(contract.risk),
       }))
     }
     workflowDescriptors.sort((left, right) =>
