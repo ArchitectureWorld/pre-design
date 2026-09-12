@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import Ajv2020, { type ErrorObject, type ValidateFunction } from 'ajv/dist/2020.js'
 import addFormats from 'ajv-formats'
 import type {
@@ -28,6 +28,22 @@ async function readJson<T>(url: URL): Promise<T> {
   return JSON.parse(await readFile(url, 'utf8')) as T
 }
 
+async function readWorkflowDocuments(root: URL, validator: ValidateFunction): Promise<WorkflowResearchSpecDocument[]> {
+  const names = (await readdir(root))
+    .filter(name => name === 'workflow-research-specs.json' || /^workflow-research-specs-ch\d{2}\.json$/u.test(name))
+    .sort((left, right) => left.localeCompare(right))
+  if (!names.includes('workflow-research-specs.json')) throw new Error('workflow research base document is missing')
+  const documents: WorkflowResearchSpecDocument[] = []
+  for (const name of names) {
+    const document = await readJson<WorkflowResearchSpecDocument>(new URL(name, root))
+    if (!validator(document)) {
+      throw new Error(`workflow research specs invalid in '${name}': ${formatErrors(validator.errors).join('; ')}`)
+    }
+    documents.push(document)
+  }
+  return documents
+}
+
 function normalizedDomain(value: string): string {
   return value.normalize('NFC').trim().toLowerCase().replace(/^\.+|\.+$/gu, '')
 }
@@ -39,11 +55,7 @@ function validDomain(value: string): boolean {
 function hostAllowed(uri: string, allowedDomains: readonly string[]): boolean {
   if (allowedDomains.length === 0) return true
   let host: string
-  try {
-    host = new URL(uri).hostname.toLowerCase()
-  } catch {
-    return false
-  }
+  try { host = new URL(uri).hostname.toLowerCase() } catch { return false }
   return allowedDomains.some(domain => host === domain || host.endsWith(`.${domain}`))
 }
 
@@ -93,17 +105,11 @@ function validateResearchSteps(workflow: WorkflowResearchSpec, sourceById: Reado
     stepById.set(step.stepId, step)
     orders.add(step.order)
     for (const dataPointId of step.dataPointIds) {
-      if (!dataPointIds.has(dataPointId)) {
-        throw new Error(`workflow '${workflow.workflowId}' research step '${step.stepId}' references unknown data point '${dataPointId}'`)
-      }
+      if (!dataPointIds.has(dataPointId)) throw new Error(`workflow '${workflow.workflowId}' research step '${step.stepId}' references unknown data point '${dataPointId}'`)
     }
     for (const sourceId of step.sourceIds) {
-      if (!sourceById.has(sourceId)) {
-        throw new Error(`workflow '${workflow.workflowId}' research step '${step.stepId}' references unknown research source '${sourceId}'`)
-      }
-      if (!preferredSourceIds.has(sourceId)) {
-        throw new Error(`workflow '${workflow.workflowId}' research step '${step.stepId}' uses source '${sourceId}' outside preferredSources`)
-      }
+      if (!sourceById.has(sourceId)) throw new Error(`workflow '${workflow.workflowId}' research step '${step.stepId}' references unknown research source '${sourceId}'`)
+      if (!preferredSourceIds.has(sourceId)) throw new Error(`workflow '${workflow.workflowId}' research step '${step.stepId}' uses source '${sourceId}' outside preferredSources`)
     }
   }
 
@@ -112,12 +118,8 @@ function validateResearchSteps(workflow: WorkflowResearchSpec, sourceById: Reado
     if (step.order !== index + 1) throw new Error(`workflow '${workflow.workflowId}' research steps must use contiguous order starting at 1`)
     for (const dependencyId of step.dependsOnStepIds) {
       const dependency = stepById.get(dependencyId)
-      if (dependency === undefined) {
-        throw new Error(`workflow '${workflow.workflowId}' research step '${step.stepId}' references unknown dependency '${dependencyId}'`)
-      }
-      if (dependency.order >= step.order) {
-        throw new Error(`workflow '${workflow.workflowId}' research step '${step.stepId}' depends on non-earlier step '${dependencyId}'`)
-      }
+      if (dependency === undefined) throw new Error(`workflow '${workflow.workflowId}' research step '${step.stepId}' references unknown dependency '${dependencyId}'`)
+      if (dependency.order >= step.order) throw new Error(`workflow '${workflow.workflowId}' research step '${step.stepId}' depends on non-earlier step '${dependencyId}'`)
     }
   })
 }
@@ -145,9 +147,8 @@ export class ResearchRegistry {
     const traceValidator = ajv.compile(traceSchema)
 
     const sourceDocument = await readJson<DataSourceCatalogDocument>(new URL('data-sources.json', root))
-    const workflowDocument = await readJson<WorkflowResearchSpecDocument>(new URL('workflow-research-specs.json', root))
     if (!sourceValidator(sourceDocument)) throw new Error(`research data source catalog invalid: ${formatErrors(sourceValidator.errors).join('; ')}`)
-    if (!workflowValidator(workflowDocument)) throw new Error(`workflow research specs invalid: ${formatErrors(workflowValidator.errors).join('; ')}`)
+    const workflowDocuments = await readWorkflowDocuments(root, workflowValidator)
 
     const sourceById = new Map<string, DataSourceDefinition>()
     const sources: DataSourceDefinition[] = []
@@ -165,15 +166,17 @@ export class ResearchRegistry {
 
     const workflowById = new Map<string, WorkflowResearchSpec>()
     const workflows: WorkflowResearchSpec[] = []
-    for (const row of workflowDocument.workflows) {
-      const workflowId = row.workflowId.normalize('NFC').trim()
-      if (workflowById.has(workflowId)) throw new Error(`duplicate workflow research spec '${workflowId}'`)
-      for (const preference of row.preferredSources) if (!sourceById.has(preference.sourceId)) throw new Error(`workflow '${workflowId}' references unknown research source '${preference.sourceId}'`)
-      for (const query of row.queryTemplates) if (!sourceById.has(query.sourceId)) throw new Error(`workflow '${workflowId}' query references unknown research source '${query.sourceId}'`)
-      validateResearchSteps({ ...row, workflowId }, sourceById)
-      const normalized = frozenWorkflow({ ...row, workflowId, researchSteps: [...row.researchSteps].sort((left, right) => left.order - right.order) })
-      workflowById.set(workflowId, normalized)
-      workflows.push(normalized)
+    for (const document of workflowDocuments) {
+      for (const row of document.workflows) {
+        const workflowId = row.workflowId.normalize('NFC').trim()
+        if (workflowById.has(workflowId)) throw new Error(`duplicate workflow research spec '${workflowId}'`)
+        for (const preference of row.preferredSources) if (!sourceById.has(preference.sourceId)) throw new Error(`workflow '${workflowId}' references unknown research source '${preference.sourceId}'`)
+        for (const query of row.queryTemplates) if (!sourceById.has(query.sourceId)) throw new Error(`workflow '${workflowId}' query references unknown research source '${query.sourceId}'`)
+        validateResearchSteps({ ...row, workflowId }, sourceById)
+        const normalized = frozenWorkflow({ ...row, workflowId, researchSteps: [...row.researchSteps].sort((left, right) => left.order - right.order) })
+        workflowById.set(workflowId, normalized)
+        workflows.push(normalized)
+      }
     }
 
     return new ResearchRegistry(
