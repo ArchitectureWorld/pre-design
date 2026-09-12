@@ -49,8 +49,8 @@ function requireTrustedQuality(
   if (quality.disposition !== 'auto_pass') {
     throw new Error(`automatic commit requires auto_pass quality, got '${quality.disposition}'`)
   }
-  if (descriptor.risk.trim().toUpperCase() === 'H' || descriptor.risk.trim().toLowerCase() === 'high') {
-    throw new Error('high-risk workflow cannot be automatically committed')
+  if (descriptor.automationPolicy?.automaticCommitAllowed === false) {
+    throw new Error(`automatic commit is disabled for workflow '${descriptor.workflowId}'`)
   }
   return quality
 }
@@ -161,8 +161,8 @@ export class AutomationWorkflowCommitter {
       },
       evidence_refs: [],
       assumptions: [],
-      validation_intent: 'human_review',
-      requested_state: 'pending_review',
+      validation_intent: 'provisional_commit',
+      requested_state: 'confirmed',
       dependency_versions: sourceSnapshot,
       idempotency_key: `parallel:${projectId}:${descriptor.workflowId}:r${currentRevision}:${unique}`,
     }
