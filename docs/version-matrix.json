@@ -1,18 +1,19 @@
 {
-  "schemaVersion": 5,
-  "updatedAt": "2026-09-04",
+  "schemaVersion": 6,
+  "updatedAt": "2026-09-12",
   "repository": "ArchitectureWorld/pre-design",
   "product": {
     "name": "pre-design",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "packageName": "@architectureworld/dsh-preplanning-agent",
-    "packageVersion": "2.0.0",
-    "status": "verified-development-candidate",
+    "packageVersion": "2.0.1",
+    "status": "research-development-candidate",
     "publishedTag": null
   },
   "activeBranches": {
     "architecture": "architecture/pre-v2.0.0",
-    "development": "feat/pre-v2.0.0"
+    "development": "feat/pre-v2.0.1",
+    "baseline": "feat/pre-v2.0.0"
   },
   "externalContracts": {
     "presentationProjectFormat": {
@@ -66,13 +67,13 @@
   },
   "implementation": {
     "presentationStandardOutput": {
-      "status": "workspace-root-usage-ready-and-verified-on-development-branch",
+      "status": "workspace-root-usage-ready-and-verified-on-baseline-branch",
       "contractVersion": "0.1.0",
       "verificationStatus": "workspace-root-runtime-and-full-regression-passed",
-      "verifiedHead": "700a1675ac5801b4ed824b31de48184be2cc1c6c",
+      "verifiedHead": "c145edeb404e8816bbcad2929d99400823530238",
       "verifiedWorkflow": {
         "name": "Pre 2.0.0 Integration",
-        "runId": 33835245301,
+        "runId": 34611449470,
         "conclusion": "success"
       },
       "runtime": {
@@ -100,11 +101,11 @@
         "openFolderCommand": "/preplan-open-project-folder",
         "agentTool": "preplanning_sync_presentation_project",
         "workspaceDraftPersistence": "localStorage-per-workspace",
-        "uiVersionLabel": "Pre 2.0.0 · Project Format 0.1.0",
+        "uiVersionLabel": "Pre 2.0.1 · Project Format 0.1.0",
         "presentationConsumption": "open-current-dsh-workspace-root"
       },
       "packageRuntime": {
-        "status": "verified",
+        "status": "verified-baseline",
         "assetPreparationScript": "scripts/prepare-presentation-contract-runtime-assets.mjs",
         "schemaSetPath": "SCHEMASET.sha256",
         "schemaRoot": "schemas/0.1.0",
@@ -112,6 +113,12 @@
         "builtRuntimeTest": "tests/built-presentation-runtime.spec.ts",
         "packContentsTest": "tests/built-package.spec.ts"
       }
+    },
+    "sourceTraceableResearch": {
+      "status": "in-development",
+      "branch": "feat/pre-v2.0.1",
+      "spec": "docs/superpowers/specs/2026-09-12-pre-v2.0.1-source-traceable-research-design.md",
+      "plan": "docs/superpowers/plans/2026-09-12-pre-v2.0.1-source-traceable-research.md"
     },
     "releaseStatus": "not-merged-not-published",
     "productionCodeChanged": true
