@@ -6,12 +6,18 @@ on:
       - feat/pre-v2.0.1
     paths:
       - 'src/research/**'
+      - 'src/contracts/**'
+      - 'src/runtime/**'
+      - 'src/proposals/**'
+      - 'src/governance/**'
       - 'research/v2.0.1/**'
       - 'tests/**'
       - 'package.json'
       - 'src/version.ts'
       - 'docs/version-matrix.json'
       - 'docs/VERSIONING.md'
+      - 'docs/superpowers/specs/2026-09-12-pre-v2.0.1-automation-policy-overlay-design.md'
+      - 'docs/superpowers/plans/2026-09-12-pre-v2.0.1-automation-policy-overlay.md'
       - 'scripts/build-research-source-audit.mjs'
       - 'scripts/verify-alignment-version-consistency-v201.mjs'
       - 'scripts/verify-presentation-contract-lock.mjs'
@@ -44,6 +50,9 @@ jobs:
 
       - name: Verify Pre 2.0.1 version authority
         run: pnpm verify:alignment-versions
+
+      - name: Enforce automatic-mode invariants
+        run: pnpm test:automation-invariants
 
       - name: Run research foundation tests
         run: pnpm test:research
