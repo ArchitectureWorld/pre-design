@@ -68,18 +68,18 @@ describe('Pre Autopilot workflow quality loop', () => {
     expect(result).toMatchObject({ completed: 1, blocked: 0, needsHuman: 0, revised: 1 })
   })
 
-  it('routes a passing high-risk workflow to local human review without committing it', async () => {
+  it('automatically commits a passing high-risk workflow after stronger machine quality checks', async () => {
     const descriptor = { ...baseDescriptor, risk: 'H' }
-    const { deps, transitions, analyze, commit } = dependencies({ descriptor, analyses: [passEvidence] })
+    const { deps, transitions, analyze, commit } = dependencies({ descriptor, analyses: [{ ...passEvidence, confidence: 0.93 }] })
     const executor = new ParallelWorkflowExecutor(deps as never)
 
     const result = await executor.runReadyBatch({ id: 'session-1' }, 'project-1')
 
     expect(analyze).toHaveBeenCalledOnce()
-    expect(commit).not.toHaveBeenCalled()
-    expect(transitions.map(row => row.to)).toEqual(['running', 'pending_review'])
-    expect(transitions.at(-1)?.quality).toMatchObject({ disposition: 'needs_human' })
-    expect(result).toMatchObject({ completed: 0, blocked: 0, needsHuman: 1 })
+    expect(commit).toHaveBeenCalledOnce()
+    expect(transitions.map(row => row.to)).toEqual(['running', 'confirmed'])
+    expect(transitions.at(-1)?.quality).toMatchObject({ disposition: 'auto_pass' })
+    expect(result).toMatchObject({ completed: 1, blocked: 0, needsHuman: 0 })
   })
 
   it('stops immediately on an external blocker and records the quality reason', async () => {
@@ -100,7 +100,7 @@ describe('Pre Autopilot workflow quality loop', () => {
     expect(result).toMatchObject({ completed: 0, blocked: 1, needsHuman: 0 })
   })
 
-  it('escalates after the automatic revision budget is exhausted', async () => {
+  it('keeps an exhausted automatic revision loop machine-visible as quality_unresolved', async () => {
     const weak: WorkflowQualityEvidence = { ...passEvidence, confidence: 0.4 }
     const { deps, transitions, analyze, commit } = dependencies({ analyses: [weak, weak, weak] })
     const executor = new ParallelWorkflowExecutor(deps as never)
@@ -109,8 +109,8 @@ describe('Pre Autopilot workflow quality loop', () => {
 
     expect(analyze).toHaveBeenCalledTimes(3)
     expect(commit).not.toHaveBeenCalled()
-    expect(transitions.map(row => row.to)).toEqual(['running', 'pending_review'])
-    expect(transitions.at(-1)?.quality).toMatchObject({ disposition: 'needs_human', attempt: 3 })
-    expect(result).toMatchObject({ completed: 0, blocked: 0, needsHuman: 1, revised: 2 })
+    expect(transitions.map(row => row.to)).toEqual(['running', 'blocked'])
+    expect(transitions.at(-1)?.quality).toMatchObject({ disposition: 'quality_unresolved', attempt: 3 })
+    expect(result).toMatchObject({ completed: 0, blocked: 1, needsHuman: 0, revised: 2 })
   })
 })
