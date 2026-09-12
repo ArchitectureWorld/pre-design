@@ -37,12 +37,17 @@ const forbiddenResearchPhrases = [
   '用途确认列为 G1 前置条件',
   'blocked_external/needs_human',
 ]
+const operationalHumanReviewPattern = /人工(?:确认|审批|审核|复核|澄清|裁决)/u
 
 for (const name of specFiles) {
   const path = `research/v2.0.1/${name}`
   const text = await read(path)
   for (const phrase of forbiddenResearchPhrases) {
     if (text.includes(phrase)) fail(`${path} contains operational human-approval phrase: ${phrase}`)
+  }
+  const operationalMatch = text.match(operationalHumanReviewPattern)
+  if (operationalMatch !== null) {
+    fail(`${path} contains operational human-review semantics: ${operationalMatch[0]}`)
   }
   const document = JSON.parse(text)
   for (const workflow of document.workflows ?? []) {
