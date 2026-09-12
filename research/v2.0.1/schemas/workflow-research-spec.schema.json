@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:pre-design:research:v2.0.1:workflow-research-spec",
+  "title": "Pre 2.0.1 Workflow Research Specs",
+  "type": "object",
+  "required": ["schemaVersion", "workflows"],
+  "properties": {
+    "schemaVersion": { "const": "2.0.1" },
+    "workflows": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["workflowId", "requiredDataPoints", "optionalDataPoints", "preferredSources", "queryTemplates", "extractionRules", "normalizationRules", "aggregationMethod", "analysisMethod", "crossCheckRules", "freshnessRules", "minimumEvidence", "fallbackPolicy", "outputClaims"],
+        "properties": {
+          "workflowId": { "type": "string", "pattern": "^preplan\\.wf\\.[0-9]{2}\\.[0-9]{2}$" },
+          "requiredDataPoints": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["dataPointId", "label", "dataKind", "description"],
+              "properties": {
+                "dataPointId": { "type": "string", "minLength": 1 },
+                "label": { "type": "string", "minLength": 1 },
+                "dataKind": { "type": "string", "minLength": 1 },
+                "description": { "type": "string", "minLength": 1 },
+                "unit": { "type": ["string", "null"] }
+              }
+            }
+          },
+          "optionalDataPoints": { "type": "array", "items": { "$ref": "#/$defs/dataPoint" } },
+          "preferredSources": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["sourceId", "purpose", "required"],
+              "properties": {
+                "sourceId": { "type": "string", "minLength": 1 },
+                "purpose": { "type": "string", "minLength": 1 },
+                "required": { "type": "boolean" }
+              }
+            }
+          },
+          "queryTemplates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["sourceId", "template"],
+              "properties": {
+                "sourceId": { "type": "string", "minLength": 1 },
+                "template": { "type": "string", "minLength": 1 }
+              }
+            }
+          },
+          "extractionRules": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+          "normalizationRules": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+          "aggregationMethod": { "$ref": "#/$defs/method" },
+          "analysisMethod": { "$ref": "#/$defs/method" },
+          "crossCheckRules": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+          "freshnessRules": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+          "minimumEvidence": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["minHighAuthority", "minIndependentSources", "highRiskRequiresGradeA"],
+            "properties": {
+              "minHighAuthority": { "type": "integer", "minimum": 0 },
+              "minIndependentSources": { "type": "integer", "minimum": 1 },
+              "highRiskRequiresGradeA": { "type": "boolean" }
+            }
+          },
+          "fallbackPolicy": { "type": "string", "minLength": 1 },
+          "outputClaims": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "dataPoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dataPointId", "label", "dataKind", "description"],
+      "properties": {
+        "dataPointId": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "dataKind": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "unit": { "type": ["string", "null"] }
+      }
+    },
+    "method": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["methodId", "version", "description", "deterministic"],
+      "properties": {
+        "methodId": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "deterministic": { "type": "boolean" }
+      }
+    }
+  },
+  "additionalProperties": false
+}
