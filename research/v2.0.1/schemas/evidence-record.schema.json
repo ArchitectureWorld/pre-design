@@ -4,9 +4,11 @@
   "title": "Pre 2.0.1 Evidence Record",
   "type": "object",
   "additionalProperties": false,
-  "required": ["evidenceId", "sourceId", "sourceType", "sourceUri", "sourceTitle", "publisher", "capturedAt", "locator", "rawValue", "normalizedValue", "contentHash", "reliability", "claimClass"],
+  "required": ["evidenceId", "workflowId", "dataPointId", "sourceId", "sourceType", "sourceUri", "sourceTitle", "publisher", "capturedAt", "locator", "rawValue", "normalizedValue", "contentHash", "reliability", "claimClass"],
   "properties": {
     "evidenceId": { "type": "string", "minLength": 1 },
+    "workflowId": { "type": "string", "pattern": "^preplan\\.wf\\.[0-9]{2}\\.[0-9]{2}$" },
+    "dataPointId": { "type": "string", "minLength": 1 },
     "sourceId": { "type": "string", "minLength": 1 },
     "sourceType": { "enum": ["workspace_file", "web_page", "web_search", "api", "manual_import", "professional_tool"] },
     "sourceUri": { "type": "string", "minLength": 1 },
