@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:pre-design:research:v2.0.1:analysis-trace",
+  "title": "Pre 2.0.1 Analysis Trace",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["traceId", "workflowId", "claimId", "inputEvidenceIds", "inputObjectIds", "methodId", "methodVersion", "parameters", "calculationSteps", "outputValue", "confidence", "limitations"],
+  "properties": {
+    "traceId": { "type": "string", "minLength": 1 },
+    "workflowId": { "type": "string", "pattern": "^preplan\\.wf\\.[0-9]{2}\\.[0-9]{2}$" },
+    "claimId": { "type": "string", "minLength": 1 },
+    "inputEvidenceIds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "inputObjectIds": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "methodId": { "type": "string", "minLength": 1 },
+    "methodVersion": { "type": "string", "minLength": 1 },
+    "parameters": { "type": "object", "additionalProperties": true },
+    "calculationSteps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["step", "description", "inputEvidenceIds", "output"],
+        "properties": {
+          "step": { "type": "integer", "minimum": 1 },
+          "description": { "type": "string", "minLength": 1 },
+          "inputEvidenceIds": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+          "output": {}
+        }
+      }
+    },
+    "outputValue": {},
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "limitations": { "type": "array", "items": { "type": "string" } }
+  }
+}
