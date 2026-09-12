@@ -47,8 +47,6 @@ function failureReason(error: unknown): string {
 }
 
 function legacyQualityEvidence(descriptor: WorkflowDescriptor): WorkflowQualityEvidence | undefined {
-  // Compatibility is intentionally limited to descriptors that predate WorkflowSpec V2.
-  // Registry-backed v2 descriptors always carry these arrays and must fail closed if the analyzer omits quality evidence.
   if (descriptor.completionCriteria !== undefined || descriptor.evidencePolicy !== undefined) return undefined
   return {
     completionChecks: [],
@@ -59,12 +57,11 @@ function legacyQualityEvidence(descriptor: WorkflowDescriptor): WorkflowQualityE
   }
 }
 
-function externalBlockerReason(report: WorkflowQualityReport): string {
-  const messages = report.blockers
-    .filter(blocker => blocker.kind === 'external')
-    .map(blocker => blocker.message.trim())
-    .filter(Boolean)
-  return messages.length > 0 ? messages.join('；') : report.reasons.join('；') || '存在外部阻断'
+function qualityExceptionReason(report: WorkflowQualityReport): string {
+  const messages = report.blockers.map(blocker => blocker.message.trim()).filter(Boolean)
+  if (messages.length > 0) return messages.join('；')
+  if (report.reasons.length > 0) return report.reasons.join('；')
+  return `自动质量状态：${report.disposition}`
 }
 
 interface AnalyzedWorkflow {
@@ -76,12 +73,14 @@ interface AnalyzedWorkflow {
 
 export class ParallelWorkflowExecutor {
   private readonly maxConcurrency: number
-  private readonly maxQualityAttempts: number
+  private readonly maxQualityAttemptsOverride?: number
 
   constructor(private readonly dependencies: ParallelWorkflowExecutorDependencies) {
     const requested = dependencies.maxConcurrency ?? 4
     this.maxConcurrency = Math.max(1, Math.min(4, Math.trunc(requested)))
-    this.maxQualityAttempts = Math.max(1, Math.min(5, Math.trunc(dependencies.maxQualityAttempts ?? 3)))
+    this.maxQualityAttemptsOverride = dependencies.maxQualityAttempts === undefined
+      ? undefined
+      : Math.max(1, Math.min(8, Math.trunc(dependencies.maxQualityAttempts)))
   }
 
   canRun(projectId: string): boolean {
@@ -101,18 +100,21 @@ export class ParallelWorkflowExecutor {
     let candidate = initial.value
     let revised = 0
     let previousQuality: WorkflowQualityReport | undefined
+    const maxAttempts = this.maxQualityAttemptsOverride
+      ?? descriptor.automationPolicy?.maxAutomaticAttempts
+      ?? 3
 
-    for (let attempt = 1; attempt <= this.maxQualityAttempts; attempt += 1) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       const evidence = candidate.qualityEvidence ?? legacyQualityEvidence(descriptor)
       if (evidence === undefined) {
         return { error: new Error(`workflow '${descriptor.workflowId}' returned no quality evidence`), revised }
       }
       const quality = evaluateWorkflowQuality(descriptor, evidence, {
         attempt,
-        maxAttempts: this.maxQualityAttempts,
+        maxAttempts,
       })
       if (quality.disposition !== 'auto_revise') return { candidate, quality, revised }
-      if (attempt >= this.maxQualityAttempts) return { candidate, quality, revised }
+      if (attempt >= maxAttempts) return { candidate, quality, revised }
       revised += 1
       previousQuality = quality
       try {
@@ -144,7 +146,6 @@ export class ParallelWorkflowExecutor {
       await this.dependencies.runtime.transition(projectId, descriptor.workflowId, { to: 'running' })
     }
 
-    // Preserve the original parallel first-pass behavior. Revisions are local to the failing workflow.
     const initialAnalyses = await Promise.allSettled(selected.map(descriptor =>
       this.dependencies.analyzer.analyze(agent, projectId, descriptor)))
     const evaluated = await Promise.all(selected.map((descriptor, index) =>
@@ -175,10 +176,12 @@ export class ParallelWorkflowExecutor {
         continue
       }
 
-      if (result.quality.disposition === 'blocked_external') {
+      if (result.quality.disposition === 'blocked_external'
+        || result.quality.disposition === 'quality_unresolved'
+        || result.quality.disposition === 'evidence_conflict') {
         await this.dependencies.runtime.transition(projectId, descriptor.workflowId, {
           to: 'blocked',
-          reason: externalBlockerReason(result.quality),
+          reason: qualityExceptionReason(result.quality),
           quality: result.quality,
         })
         blocked += 1
@@ -196,10 +199,11 @@ export class ParallelWorkflowExecutor {
 
       if (result.quality.disposition !== 'auto_pass') {
         await this.dependencies.runtime.transition(projectId, descriptor.workflowId, {
-          to: 'pending_review',
+          to: 'blocked',
+          reason: qualityExceptionReason(result.quality),
           quality: result.quality,
         })
-        needsHuman += 1
+        blocked += 1
         continue
       }
 
