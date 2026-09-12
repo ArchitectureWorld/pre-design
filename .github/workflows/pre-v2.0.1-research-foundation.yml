@@ -12,6 +12,7 @@ on:
       - 'src/version.ts'
       - 'docs/version-matrix.json'
       - 'docs/VERSIONING.md'
+      - 'scripts/build-research-source-audit.mjs'
       - 'scripts/verify-alignment-version-consistency-v201.mjs'
       - 'scripts/verify-presentation-contract-lock.mjs'
       - '.github/workflows/pre-v2.0.1-research-foundation.yml'
@@ -49,6 +50,21 @@ jobs:
 
       - name: Typecheck
         run: pnpm typecheck
+
+      - name: Build hierarchical source audit HTML
+        run: |
+          pnpm build:research-audit
+          grep -q 'Chapter → Workflow → ResearchStep → DataPoint → DataSource' research/v2.0.1/source-audit.html
+          grep -q '02-01-S03' research/v2.0.1/source-audit.html
+          grep -q 'cn-mnr' research/v2.0.1/source-audit.html
+
+      - name: Upload source audit HTML
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-v2.0.1-source-audit
+          path: research/v2.0.1/source-audit.html
+          if-no-files-found: error
+          retention-days: 14
 
   full-regression:
     needs: research-foundation
