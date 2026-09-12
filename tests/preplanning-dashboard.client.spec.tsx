@@ -25,7 +25,7 @@ describe('Preplanning full-flow UI', () => {
     expect(form.style.width).toContain('100vw - 32px')
     expect(form.style.maxHeight).toBe('calc(100dvh - 32px)')
     expect(form.style.overflowY).toBe('auto')
-    expect(view.getByText('Pre 2.0.0 · Project Format 0.1.0')).toBeTruthy()
+    expect(view.getByText('Pre 2.0.1 · Project Format 0.1.0')).toBeTruthy()
     expect(view.getByText(/项目总文件夹：\/workspace\/project/u)).toBeTruthy()
 
     fireEvent.click(view.getByRole('button', { name: '关闭前期策划面板' }))
