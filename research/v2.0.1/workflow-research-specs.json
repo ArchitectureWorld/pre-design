@@ -1,0 +1,146 @@
+{
+  "schemaVersion": "2.0.1",
+  "workflows": [
+    {
+      "workflowId": "preplan.wf.01.01",
+      "requiredDataPoints": [
+        { "dataPointId": "canonical-name", "label": "项目正式名称", "dataKind": "project_identity", "description": "项目任务书、批复或用户明确陈述中的项目名称。", "unit": null },
+        { "dataPointId": "project-location", "label": "项目位置", "dataKind": "location", "description": "行政区与项目所在地描述；正式空间边界另行核验。", "unit": null },
+        { "dataPointId": "project-trigger", "label": "启动原因", "dataKind": "project_intent", "description": "项目为何启动、要解决什么问题以及当前阶段。", "unit": null }
+      ],
+      "optionalDataPoints": [
+        { "dataPointId": "project-owner", "label": "项目主体", "dataKind": "enterprise_identity", "description": "业主或项目主体的法定名称。", "unit": null },
+        { "dataPointId": "time-constraint", "label": "关键时间约束", "dataKind": "schedule", "description": "已知截止时间、审批节点或建设窗口。", "unit": null }
+      ],
+      "preferredSources": [
+        { "sourceId": "workspace-project-files", "purpose": "优先提取任务书、批复、合同、会议纪要中的正式项目身份与启动条件。", "required": false },
+        { "sourceId": "dsh-user-statement", "purpose": "资料缺失时保留用户直接陈述，并明确其不是法定证明。", "required": false },
+        { "sourceId": "cn-gsxt", "purpose": "项目主体为企业且主体身份影响后续判断时核验法定企业名称。", "required": false }
+      ],
+      "queryTemplates": [
+        { "sourceId": "cn-gsxt", "template": "{project_owner_name}" }
+      ],
+      "extractionRules": [
+        "优先从正式文件标题页、封面、批复正文和签章页提取名称、主体和时间。",
+        "用户陈述必须保存为 user_statement，不得自动升级为项目正式事实。",
+        "项目位置只提取文本行政区和地址；没有带 CRS 的正式边界时不得生成法定红线。"
+      ],
+      "normalizationRules": [
+        "项目名称保留正式全称，别名另存，不用简称覆盖全称。",
+        "行政区名称统一到当前官方名称；无法确认行政代码时保留为空。",
+        "日期统一为 ISO 日期；模糊时间保留原文并标记不确定。"
+      ],
+      "aggregationMethod": { "methodId": "project-identity-source-priority-merge", "version": "1.0.0", "description": "按 P0>P1>P2>P3>P4>P5 合并同字段候选；同级冲突不自动覆盖。", "deterministic": true },
+      "analysisMethod": { "methodId": "project-identity-professional-interpretation", "version": "1.0.0", "description": "在不新增事实的前提下解释项目任务、启动原因和当前策划问题。", "deterministic": false },
+      "crossCheckRules": [
+        "正式文件与用户陈述冲突时，以正式文件为事实候选并保留冲突记录。",
+        "企业主体名称如影响项目责任边界，优先使用企业信用公示信息或正式合同核验。"
+      ],
+      "freshnessRules": [
+        "项目正式文件按最新 Revision/签发日期选用，旧版本保持历史但标记 stale。",
+        "企业主体信息在项目启动和关键 Gate 前重新核验。"
+      ],
+      "minimumEvidence": { "minHighAuthority": 0, "minIndependentSources": 1, "highRiskRequiresGradeA": false },
+      "fallbackPolicy": "若只有用户陈述，可形成带限制的项目认知草案；未知项目类型、正式主体、法定边界和关键日期保持 unknown，不得推断补齐。",
+      "outputClaims": ["项目身份与名称", "项目启动原因", "当前任务边界与已知时间约束"]
+    },
+    {
+      "workflowId": "preplan.wf.02.01",
+      "requiredDataPoints": [
+        { "dataPointId": "applicable-policies", "label": "适用政策", "dataKind": "policy", "description": "与项目类型、所在地和建设目标直接相关的现行政策及法规。", "unit": null },
+        { "dataPointId": "statutory-planning", "label": "法定规划条件", "dataKind": "spatial_planning", "description": "项目所在地上位国土空间规划、专项规划和已取得的法定规划条件。", "unit": null },
+        { "dataPointId": "land-boundary-conditions", "label": "土地与边界条件", "dataKind": "land", "description": "用地性质、权属/红线、用途管制及相关限制。", "unit": null },
+        { "dataPointId": "applicable-standards", "label": "适用标准", "dataKind": "standard", "description": "与当前策划深度相关的现行国家/行业/地方标准。", "unit": null }
+      ],
+      "optionalDataPoints": [
+        { "dataPointId": "local-policy", "label": "地方政策与实施细则", "dataKind": "policy", "description": "项目所在地政府及主管部门发布的地方性政策、规划和实施细则。", "unit": null }
+      ],
+      "preferredSources": [
+        { "sourceId": "workspace-project-files", "purpose": "读取规划条件、红线、土地证照、批复、会议纪要等项目正式资料。", "required": true },
+        { "sourceId": "cn-gov-policy", "purpose": "核验国家层面现行政策、行政法规和国务院文件。", "required": false },
+        { "sourceId": "cn-mnr", "purpose": "核验国土空间规划、土地用途管制和自然资源相关政策。", "required": false },
+        { "sourceId": "cn-mohurd", "purpose": "核验住建领域政策、工程管理要求和相关标准公告。", "required": false },
+        { "sourceId": "cn-standards", "purpose": "核验标准号、标准名称、现行/废止状态和实施日期。", "required": false }
+      ],
+      "queryTemplates": [
+        { "sourceId": "cn-gov-policy", "template": "{project_type} {project_location} 政策 规划 建设" },
+        { "sourceId": "cn-mnr", "template": "{project_location} 国土空间规划 用途管制 {project_type}" },
+        { "sourceId": "cn-mohurd", "template": "{project_type} 建设 管理 标准 政策" },
+        { "sourceId": "cn-standards", "template": "{standard_keyword_or_number}" }
+      ],
+      "extractionRules": [
+        "每条政策/规划/标准记录标题、发布机关、发布日期、实施日期、现行状态、正式 URL 或文件定位。",
+        "法定边界只能来自已采用正式红线/规划条件/带 CRS 的闭合坐标或主管部门正式成果。",
+        "搜索结果摘要和转载页面只可作为发现线索，不能直接作为 A 级证据。"
+      ],
+      "normalizationRules": [
+        "政策和标准名称使用正式全称，保留文号/标准号。",
+        "标准状态统一为现行、即将实施、废止、未知；必须记录查询日期。",
+        "空间边界保留 CRS、来源文件和几何哈希；文本地点不得转换为法定边界。"
+      ],
+      "aggregationMethod": { "methodId": "policy-standard-authority-merge", "version": "1.0.0", "description": "按来源权威等级、现行状态和生效时间合并适用条件；冲突项保留并进入人工裁决。", "deterministic": true },
+      "analysisMethod": { "methodId": "statutory-applicability-analysis", "version": "1.0.0", "description": "基于项目类型、空间位置、建设内容判断哪些现行政策/规划/标准对项目形成约束或机会。", "deterministic": false },
+      "crossCheckRules": [
+        "高风险法定条件必须至少有 1 条 A 级项目正式资料或政府/法定机构原始证据。",
+        "政策/标准名称相同但版本或状态冲突时，不得静默择一；必须标记 conflict。",
+        "地方规划条件缺失时不得用国家层面政策推断具体地块指标。"
+      ],
+      "freshnessRules": [
+        "政策、标准和规划状态在项目启动时、进入 G2 前以及来源发布日期变化后重新查询。",
+        "标准若存在即将实施版本，必须同时记录当前有效版本与切换日期。"
+      ],
+      "minimumEvidence": { "minHighAuthority": 1, "minIndependentSources": 2, "highRiskRequiresGradeA": true },
+      "fallbackPolicy": "缺少项目所在地正式规划条件、土地/红线或地方主管部门数据时进入 blocked_external；不得根据普通地图、自然语言地址或 LLM 推断法定指标与边界。",
+      "outputClaims": ["适用政策与法规清单", "法定规划与土地约束", "适用标准及版本状态", "待补充的地方正式条件"]
+    },
+    {
+      "workflowId": "preplan.wf.08.02",
+      "requiredDataPoints": [
+        { "dataPointId": "quantities", "label": "工程量/规模基线", "dataKind": "quantity", "description": "可复算的面积、数量、长度、设备或分项工程量。", "unit": null },
+        { "dataPointId": "unit-rates", "label": "单价基线", "dataKind": "cost", "description": "与工程量匹配的含税/不含税单价及其来源。", "unit": "currency_per_unit" },
+        { "dataPointId": "base-date", "label": "价格基准日", "dataKind": "cost", "description": "造价水平对应的明确价格基准日期。", "unit": null },
+        { "dataPointId": "tax-basis", "label": "税费口径", "dataKind": "cost", "description": "含税/不含税、税率和其他费用计取口径。", "unit": null },
+        { "dataPointId": "contingency", "label": "预备费/不确定区间", "dataKind": "cost", "description": "预备费、风险准备及成本区间。", "unit": "percent_or_currency" }
+      ],
+      "optionalDataPoints": [
+        { "dataPointId": "financing-cost", "label": "融资成本", "dataKind": "finance", "description": "融资结构明确时的融资成本。", "unit": "currency" },
+        { "dataPointId": "lifecycle-cost", "label": "生命周期成本", "dataKind": "cost", "description": "运维、更新和全寿命成本。", "unit": "currency" }
+      ],
+      "preferredSources": [
+        { "sourceId": "workspace-project-files", "purpose": "工程量、造价估算表、历史同类项目、正式询价、合同和专业测算。", "required": true },
+        { "sourceId": "cn-mohurd", "purpose": "国家层面的工程造价、建设管理政策和计价规则线索。", "required": false },
+        { "sourceId": "cn-nbs", "purpose": "必要时获取公开价格指数和宏观价格变化作为跨期调整辅助。", "required": false },
+        { "sourceId": "cn-standards", "purpose": "核验影响工程量或计价口径的现行标准状态。", "required": false }
+      ],
+      "queryTemplates": [
+        { "sourceId": "cn-mohurd", "template": "工程造价 计价 {project_location} {project_type}" },
+        { "sourceId": "cn-nbs", "template": "建筑 安装 工程 价格 指数 {base_date}" },
+        { "sourceId": "cn-standards", "template": "{cost_related_standard_number_or_keyword}" }
+      ],
+      "extractionRules": [
+        "每一个工程量保留来源对象、计算口径、单位和 Revision。",
+        "每一个单价保留来源、地区、价格基准日、税费口径和适用范围。",
+        "历史项目指标只能在项目类型、地区、时间和建造标准可比时作为 benchmark，并明确差异。"
+      ],
+      "normalizationRules": [
+        "货币统一到项目指定币种，保留原币种与换算参数。",
+        "单价统一到与工程量一致的计量单位；换算步骤写入 AnalysisTrace。",
+        "跨期价格必须使用明确指数或更新单价，不允许凭经验直接上调百分比。"
+      ],
+      "aggregationMethod": { "methodId": "quantity-times-rate-cost-model", "version": "1.0.0", "description": "按分项工程量×对应单价计算分项成本，叠加税费、其他费、预备费和明确的融资/启动成本，再输出总额与区间。", "deterministic": true },
+      "analysisMethod": { "methodId": "cost-baseline-risk-interpretation", "version": "1.0.0", "description": "解释成本构成、关键敏感项、来源差异和不确定性，不直接创造金额。", "deterministic": false },
+      "crossCheckRules": [
+        "总价必须可由分项工程量、单价和费用参数复算。",
+        "关键单价至少需要 A 级正式询价/造价资料，或明确标注的可比项目/官方价格数据并给出区间。",
+        "来源时间、地区或建设标准不一致时必须做显式调整并记录方法。"
+      ],
+      "freshnessRules": [
+        "进入 G8 前重新核验关键单价、基准日和工程量 Revision。",
+        "超过项目设定有效期的价格数据标记 stale，不自动沿用。"
+      ],
+      "minimumEvidence": { "minHighAuthority": 1, "minIndependentSources": 2, "highRiskRequiresGradeA": true },
+      "fallbackPolicy": "缺少工程量或可信单价时允许输出缺口清单和估算方法，但不得由 LLM 补写金额；采用当地/同类指标必须绑定真实来源、可比条件和不确定区间，否则进入 blocked_external/needs_human。",
+      "outputClaims": ["分项投资估算", "单位造价与价格基准", "总 CAPEX 与成本区间", "关键成本敏感项与缺口"]
+    }
+  ]
+}
