@@ -108,15 +108,18 @@ describe('Pre 2.0.1 ResearchRegistry', () => {
   it('validates EvidenceRecord and forbids inference-only facts', async () => {
     const registry = await ResearchRegistry.open(researchRoot)
     const valid = registry.validateEvidenceRecord({
-      evidenceId: 'ev-1', sourceId: 'cn-nbs', sourceType: 'web_page', sourceUri: 'https://www.stats.gov.cn/',
-      sourceTitle: '国家统计局', publisher: '国家统计局', publishedAt: null, capturedAt: '2026-09-12T00:00:00.000Z',
-      asOf: null, locator: { section: '数据查询' }, rawValue: 100, normalizedValue: 100, unit: '人',
+      evidenceId: 'ev-1', workflowId: 'preplan.wf.02.01', dataPointId: 'applicable-policies',
+      sourceId: 'cn-gov-policy', sourceType: 'web_page', sourceUri: 'https://www.gov.cn/zhengce/',
+      sourceTitle: '中国政府网政策文件库', publisher: '中华人民共和国中央人民政府', publishedAt: null,
+      capturedAt: '2026-09-12T00:00:00.000Z', asOf: null, locator: { section: '政策' },
+      rawValue: '政策原文', normalizedValue: '政策原文', unit: null,
       contentHash: 'a'.repeat(64), reliability: 'A', claimClass: 'fact', notes: '测试证据',
     })
     expect(valid.valid).toBe(true)
 
     const invalid = registry.validateEvidenceRecord({
-      evidenceId: 'ev-2', sourceId: 'llm-inference', sourceType: 'manual_import', sourceUri: 'inference://model',
+      evidenceId: 'ev-2', workflowId: 'preplan.wf.01.01', dataPointId: 'project-trigger',
+      sourceId: 'llm-inference', sourceType: 'manual_import', sourceUri: 'inference://model',
       sourceTitle: '模型推断', publisher: 'LLM', publishedAt: null, capturedAt: '2026-09-12T00:00:00.000Z',
       asOf: null, locator: {}, rawValue: '推测', normalizedValue: '推测', unit: null,
       contentHash: 'b'.repeat(64), reliability: 'inference', claimClass: 'fact', notes: '',
