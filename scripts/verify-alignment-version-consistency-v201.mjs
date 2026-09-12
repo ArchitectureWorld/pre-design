@@ -10,9 +10,10 @@ const requireCondition = (condition, message) => { if (!condition) failures.push
 
 const PRE_VERSION = '2.0.1'
 const PRE_PACKAGE = '@architectureworld/dsh-preplanning-agent'
-const ARCHITECTURE_BRANCH = 'architecture/pre-v2.0.0'
 const DEVELOPMENT_BRANCH = 'feat/pre-v2.0.1'
-const BASELINE_BRANCH = 'feat/pre-v2.0.0'
+const BASELINE_BRANCH = 'main'
+const BASELINE_VERSION = '2.0.0'
+const BASELINE_COMMIT = '49140423e14f3d3abcf3815c9bdf68e8e5e26730'
 const NODE_BASELINE = '>=24.11.0'
 const PRESENTATION_VERSION = '0.1.0'
 const PRESENTATION_PACKAGE = '@architectureworld/presentation-contracts'
@@ -23,20 +24,22 @@ const matrix = json('docs/version-matrix.json')
 const pkg = json('package.json')
 const versionSource = read('src/version.ts')
 
-requireCondition(Number.isInteger(matrix.schemaVersion) && matrix.schemaVersion >= 6,
-  'version matrix schemaVersion must be at least 6 for Pre 2.0.1')
+requireCondition(Number.isInteger(matrix.schemaVersion) && matrix.schemaVersion >= 7,
+  'version matrix schemaVersion must be at least 7 for merged-main Pre 2.0.1 baseline')
 requireCondition(matrix.repository === 'ArchitectureWorld/pre-design', 'version matrix repository mismatch')
 requireCondition(matrix.product?.name === 'pre-design', 'product name must be pre-design')
 requireCondition(matrix.product?.version === PRE_VERSION, 'Pre product version must be 2.0.1')
 requireCondition(matrix.product?.packageName === PRE_PACKAGE, 'Pre package name mismatch')
 requireCondition(matrix.product?.packageVersion === PRE_VERSION, 'Pre package version must be 2.0.1')
 requireCondition(matrix.product?.publishedTag === null, 'Pre 2.0.1 must remain unpublished')
-requireCondition(matrix.activeBranches?.architecture === ARCHITECTURE_BRANCH,
-  `architecture branch must remain ${ARCHITECTURE_BRANCH}`)
 requireCondition(matrix.activeBranches?.development === DEVELOPMENT_BRANCH,
   `development branch must be ${DEVELOPMENT_BRANCH}`)
 requireCondition(matrix.activeBranches?.baseline === BASELINE_BRANCH,
-  `deployable baseline branch must remain ${BASELINE_BRANCH}`)
+  `Pre 2.0.1 baseline branch must be ${BASELINE_BRANCH}`)
+requireCondition(matrix.activeBranches?.baselineVersion === BASELINE_VERSION,
+  `Pre 2.0.1 baseline version must be ${BASELINE_VERSION}`)
+requireCondition(matrix.activeBranches?.baselineCommitSHA === BASELINE_COMMIT,
+  `Pre 2.0.1 baseline commit must be ${BASELINE_COMMIT}`)
 
 requireCondition(pkg.name === PRE_PACKAGE, 'package.json name mismatch')
 requireCondition(pkg.version === PRE_VERSION, 'package.json version mismatch')
@@ -70,8 +73,18 @@ for (const path of [
 
 requireCondition(matrix.implementation?.sourceTraceableResearch?.branch === DEVELOPMENT_BRANCH,
   'sourceTraceableResearch branch authority mismatch')
+requireCondition(matrix.implementation?.sourceTraceableResearch?.baseline === `${BASELINE_BRANCH}@${BASELINE_COMMIT}`,
+  'sourceTraceableResearch merged-main baseline coordinate mismatch')
 requireCondition(matrix.implementation?.releaseStatus === 'not-merged-not-published',
   'Pre 2.0.1 release status must remain not merged and not published')
+
+const forbiddenRuntimeIdentity = [
+  ['src/version.ts', "PRE_DESIGN_VERSION = '2.0.0'"],
+  ['package.json', '"version": "2.0.0"'],
+]
+for (const [path, needle] of forbiddenRuntimeIdentity) {
+  requireCondition(!read(path).includes(needle), `${path} retains forbidden V2.0.0 runtime identity`)
+}
 
 if (failures.length > 0) {
   console.error('PRE_DESIGN_V2_0_1_VERSION_CONSISTENCY_FAIL')
@@ -84,7 +97,8 @@ console.log(JSON.stringify({
   product: `${matrix.product.name}@${matrix.product.version}`,
   package: `${pkg.name}@${pkg.version}`,
   developmentBranch: matrix.activeBranches.development,
-  baselineBranch: matrix.activeBranches.baseline,
+  baseline: `${matrix.activeBranches.baseline}@${matrix.activeBranches.baselineCommitSHA}`,
+  baselineVersion: matrix.activeBranches.baselineVersion,
   presentationFormat: external.standardVersion,
   releaseStatus: matrix.implementation.releaseStatus,
 }, null, 2))
