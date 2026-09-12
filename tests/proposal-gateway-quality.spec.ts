@@ -11,14 +11,14 @@ const payload = {
 const envelope = {
   proposal_id: 'proposal-1', project_id: 'project-1', workflow_id: 'preplan.wf.02.03', target_object_id: 'BL03',
   target_schema_id: 'urn:test:BL03', expected_revision: 4, actor: { role: 'agent', authority_scope: ['propose'] },
-  change_set: { payload }, validation_intent: 'human_review', requested_state: 'pending_review',
+  change_set: { payload }, validation_intent: 'provisional_commit', requested_state: 'confirmed',
   idempotency_key: 'proposal-1-key', created_at: '2026-09-11T00:00:00.000Z',
 }
 
 const passingQuality = {
   workflowId: 'preplan.wf.02.03', targetObjectId: 'BL03', disposition: 'auto_pass' as const,
   score: 0.92, completionCoverage: 1, evidenceCoverage: 1, confidence: 0.9,
-  attempt: 2, maxAttempts: 3, reasons: [], blockers: [], assumptions: [],
+  attempt: 2, maxAttempts: 5, reasons: [], blockers: [], assumptions: [],
 }
 
 function harness(risk = 'M') {
@@ -34,6 +34,7 @@ function harness(risk = 'M') {
     workflow: () => ({
       workflowId: 'preplan.wf.02.03', chapterId: '02', workItemId: '02-03', targetObjectId: 'BL03',
       targetSchemaId: 'urn:test:BL03', gateId: 'G2', risk,
+      automationPolicy: { automaticCommitAllowed: true },
     }),
     validateStateObject: () => ({ valid: true, errors: [] }),
   }
@@ -81,12 +82,13 @@ describe('ProposalGateway automatic quality boundary', () => {
     expect(mismatch.repositoryCommit).not.toHaveBeenCalled()
   })
 
-  it('never auto-confirms a high-risk workflow even when quality passes', async () => {
+  it('auto-confirms high-risk work when central auto_pass quality and authorization are valid', async () => {
     const { gateway, repositoryCommit } = harness('H')
-    await expect(gateway.commitProposal('proposal-1', {
+    const result = await gateway.commitProposal('proposal-1', {
       source: 'automation_authorization', authorizationId: 'authorization-1', quality: passingQuality,
       actor: { actorId: 'system', name: '自动化服务', role: 'system_service' },
-    }, 'session-1')).rejects.toThrow(/high-risk|高风险/i)
-    expect(repositoryCommit).not.toHaveBeenCalled()
+    }, 'session-1')
+    expect(result.status).toBe('confirmed')
+    expect(repositoryCommit).toHaveBeenCalledOnce()
   })
 })
