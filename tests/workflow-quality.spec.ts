@@ -82,24 +82,32 @@ describe('evaluateWorkflowQuality', () => {
     expect(result.blockers).toHaveLength(1)
   })
 
-  it('revises low-confidence work before involving a person', () => {
+  it('revises low-confidence work before declaring the automatic result unresolved', () => {
     const result = evaluateWorkflowQuality(descriptor(), quality({ confidence: 0.55 }), { attempt: 1 })
     expect(result.disposition).toBe('auto_revise')
     expect(result.reasons.join('\n')).toMatch(/置信度/)
   })
 
-  it('routes high-risk work to local human review even when the analysis itself passes', () => {
-    const result = evaluateWorkflowQuality(descriptor({ risk: 'H' }), quality(), { attempt: 1 })
-    expect(result.disposition).toBe('needs_human')
-    expect(result.reasons.join('\n')).toMatch(/高风险/)
+  it('auto-passes high-risk work when stronger machine checks already pass', () => {
+    const result = evaluateWorkflowQuality(descriptor({ risk: 'H' }), quality({ confidence: 0.93 }), { attempt: 1 })
+    expect(result.disposition).toBe('auto_pass')
+    expect(result.reasons.join('\n')).not.toMatch(/人工|human/i)
   })
 
-  it('escalates an exhausted automatic revision loop instead of retrying forever', () => {
+  it('reports evidence conflict as a machine-visible exception instead of generic human review', () => {
+    const result = evaluateWorkflowQuality(descriptor(), quality({
+      blockers: [{ code: 'SOURCE_CONFLICT', kind: 'conflict', message: '两个A级来源结论冲突' }],
+    }), { attempt: 1 })
+    expect(result.disposition).toBe('evidence_conflict')
+    expect(result.reasons.join('\n')).toMatch(/冲突/)
+  })
+
+  it('marks an exhausted automatic revision loop as quality_unresolved instead of requiring a person', () => {
     const result = evaluateWorkflowQuality(descriptor(), quality({ confidence: 0.5 }), {
       attempt: 3,
       maxAttempts: 3,
     })
-    expect(result.disposition).toBe('needs_human')
+    expect(result.disposition).toBe('quality_unresolved')
     expect(result.reasons.join('\n')).toMatch(/自动修订上限/)
   })
 })
