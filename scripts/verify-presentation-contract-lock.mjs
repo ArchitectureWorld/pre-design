@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const readJson = async relativePath => JSON.parse(await readFile(path.join(root, relativePath), 'utf8'))
 const lock = await readJson('docs/contracts/presentation-standard-project-v0.1.0-lock.json')
+const matrix = await readJson('docs/version-matrix.json')
 const artifact = await readJson(lock.installation.artifactMetadataPath)
 const packageJson = await readJson('package.json')
 const lockfile = await readFile(path.join(root, 'pnpm-lock.yaml'), 'utf8')
@@ -52,7 +53,10 @@ requireCondition(lock.successMarker === 'PRESENTATION_STANDARD_PROJECT_V0_1_0_PA
 requireCondition(lock.schemaAuthorityExclusions.includes('feat/report-studio-v0.1.1-hardening'), 'hardening branch exclusion missing')
 
 requireCondition(packageJson.name === '@architectureworld/dsh-preplanning-agent', 'pre-design package identity mismatch')
-requireCondition(packageJson.version === '2.0.0', 'pre-design product version must be 2.0.0')
+requireCondition(typeof matrix.product?.version === 'string' && matrix.product.version.length > 0,
+  'version matrix must declare the current pre-design product version')
+requireCondition(packageJson.version === matrix.product.version,
+  `pre-design package version ${packageJson.version} must match version authority ${matrix.product.version}`)
 requireCondition(preNodeMinimum !== undefined, 'pre-design Node.js engine must be a minimum range')
 requireCondition(contractNodeMinimum !== undefined, 'Contract Node.js engine must be a minimum range')
 requireCondition(
