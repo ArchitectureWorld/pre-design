@@ -16,6 +16,26 @@ export type ResearchAccessMode =
   | 'professional_tool'
 
 export type ResearchReliabilityGrade = 'A' | 'B' | 'C' | 'D' | 'inference'
+export type ResearchStepAction =
+  | 'workspace_extract'
+  | 'official_source_lookup'
+  | 'cross_check'
+  | 'normalize'
+  | 'aggregate'
+  | 'deterministic_calculation'
+  | 'professional_analysis'
+  | 'evidence_validate'
+  | 'produce_claims'
+
+export type ResearchStepProduct =
+  | 'evidence'
+  | 'normalized_data'
+  | 'cross_check_result'
+  | 'aggregated_data'
+  | 'calculation_result'
+  | 'analysis_trace'
+  | 'validated_evidence'
+  | 'claims'
 
 export interface ResearchFreshnessPolicy {
   readonly maxAgeDays: number | null
@@ -70,6 +90,18 @@ export interface ResearchMinimumEvidence {
   readonly highRiskRequiresGradeA: boolean
 }
 
+export interface ResearchStep {
+  readonly stepId: string
+  readonly order: number
+  readonly title: string
+  readonly dependsOnStepIds: readonly string[]
+  readonly dataPointIds: readonly string[]
+  readonly sourceIds: readonly string[]
+  readonly action: ResearchStepAction
+  readonly produces: ResearchStepProduct
+  readonly notes?: string
+}
+
 export interface WorkflowResearchSpec {
   readonly workflowId: string
   readonly requiredDataPoints: readonly ResearchDataPoint[]
@@ -78,6 +110,7 @@ export interface WorkflowResearchSpec {
   readonly queryTemplates: readonly ResearchQueryTemplate[]
   readonly extractionRules: readonly string[]
   readonly normalizationRules: readonly string[]
+  readonly researchSteps: readonly ResearchStep[]
   readonly aggregationMethod: ResearchMethodDefinition
   readonly analysisMethod: ResearchMethodDefinition
   readonly crossCheckRules: readonly string[]
