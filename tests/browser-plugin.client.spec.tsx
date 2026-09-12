@@ -99,7 +99,7 @@ describe('preplanning Browser plugin', () => {
     fireEvent.click(view.getByRole('button', { name: '前期策划' }))
     expect(view.getByText('前期策划项目')).toBeTruthy()
     expect(view.queryByText('主流程使用当前会话所选模型')).toBeNull()
-    expect(view.getByText('Pre 2.0.0 · Project Format 0.1.0')).toBeTruthy()
+    expect(view.getByText('Pre 2.0.1 · Project Format 0.1.0')).toBeTruthy()
     expect(view.getByText(/项目总文件夹：C:\\Projects\\鄂州体育中心项目/u)).toBeTruthy()
     expect(view.queryByText(/Qwen/)).toBeNull()
     fireEvent.change(view.getByLabelText('一句话描述项目和目标'), {
@@ -133,7 +133,7 @@ describe('preplanning Browser plugin', () => {
     const card = render(<PreplanningStatusCard {...cardProps} />)
     expect(card.getByText('验收项目')).toBeTruthy()
     expect(card.getByText(/待人工确认/)).toBeTruthy()
-    expect(card.container.textContent).toContain('Pre 2.0.0 · Project Format 0.1.0')
+    expect(card.container.textContent).toContain('Pre 2.0.1 · Project Format 0.1.0')
     fireEvent.click(card.getByRole('button', { name: '人工确认提案' }))
     await card.findByText('提案已确认，正在刷新项目状态。')
     expect(confirm).toHaveBeenCalledOnce()
