@@ -50,6 +50,7 @@
     "golden:build": "tsx scripts/build-golden-project-cli.ts",
     "golden:build-v080": "tsx scripts/build-golden-project-cli.ts --profile client-v080",
     "golden:inspect-v080": "tsx scripts/inspect-client-artifacts.ts",
+    "build:research-audit": "node scripts/build-research-source-audit.mjs",
     "verify:presentation-contract": "node scripts/verify-presentation-contract-lock.mjs",
     "verify:alignment-versions": "node scripts/verify-alignment-version-consistency-v201.mjs",
     "test:research": "vitest run tests/research-registry.spec.ts tests/research-provider.spec.ts tests/research-evidence-validator.spec.ts --maxWorkers=1",
