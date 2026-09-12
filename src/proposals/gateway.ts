@@ -74,9 +74,8 @@ function requireAutomaticQuality(
     || quality.confidence > 1) {
     throw new GatewayError('quality-not-approved', `automatic confirmation requires auto_pass quality for '${descriptor.workflowId}'`)
   }
-  const risk = descriptor.risk.trim().toUpperCase()
-  if (risk === 'H' || descriptor.risk.trim().toLowerCase() === 'high') {
-    throw new GatewayError('high-risk-human-review', `high-risk workflow '${descriptor.workflowId}' requires local human review`)
+  if (descriptor.automationPolicy?.automaticCommitAllowed === false) {
+    throw new GatewayError('automatic-commit-disabled', `automatic confirmation is disabled for '${descriptor.workflowId}'`)
   }
   return quality
 }
@@ -126,9 +125,26 @@ export class ProposalGateway {
         `expected revision ${envelope.expected_revision}, current revision is ${context.project.currentRevision}`,
       )
     }
-    if (envelope.validation_intent !== 'human_review' || envelope.requested_state !== 'pending_review') {
-      throw new GatewayError('human-review-required', `${descriptor.workflowId} requires pending human review semantics before commit routing`)
+
+    const projectMode = this.governance?.readProject(context.project.projectId).policy?.mode ?? 'manual'
+    const automaticSemantics = envelope.validation_intent === 'provisional_commit'
+      && envelope.requested_state === 'confirmed'
+    const manualSemantics = envelope.validation_intent === 'human_review'
+      && envelope.requested_state === 'pending_review'
+    if (projectMode === 'automatic') {
+      if (!automaticSemantics) {
+        throw new GatewayError(
+          'proposal-routing-invalid',
+          `${descriptor.workflowId} automatic mode requires provisional_commit/confirmed proposal semantics`,
+        )
+      }
+    } else if (!manualSemantics) {
+      throw new GatewayError(
+        'proposal-routing-invalid',
+        `${descriptor.workflowId} manual mode requires human_review/pending_review proposal semantics`,
+      )
     }
+
     const stateValidation = this.registry.validateStateObject(descriptor.targetObjectId, envelope.change_set.payload)
     if (!stateValidation.valid) {
       throw new GatewayError(
@@ -179,6 +195,9 @@ export class ProposalGateway {
     const policy = this.governance?.readProject(context.project.projectId).policy
     if (decision.source === 'manual_workflow' && policy?.mode === 'automatic') {
       throw new GatewayError('mode-mismatch', 'automatic project requires automation authorization')
+    }
+    if (decision.source === 'automation_authorization' && policy?.mode !== 'automatic') {
+      throw new GatewayError('mode-mismatch', 'automation authorization requires automatic project mode')
     }
     const committedAt = this.now()
     let approvalActor = decision.actor
