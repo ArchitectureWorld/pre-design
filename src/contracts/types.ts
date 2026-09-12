@@ -4,6 +4,15 @@ export interface WorkflowReviewPolicy {
   readonly gateStillHuman: boolean
 }
 
+export interface EffectiveWorkflowAutomationPolicy {
+  readonly automaticCommitAllowed: boolean
+  readonly automaticGateAllowed: boolean
+  readonly humanApprovalRequired: boolean
+  readonly humanInteractionMode: 'override_only' | 'review'
+  readonly minimumConfidence: number
+  readonly maxAutomaticAttempts: number
+}
+
 export interface WorkflowDescriptor {
   readonly workflowId: string
   readonly chapterId: string
@@ -25,6 +34,8 @@ export interface WorkflowDescriptor {
   readonly reopenTriggers?: readonly string[]
   readonly forbiddenActions?: readonly string[]
   readonly reviewPolicy?: WorkflowReviewPolicy
+  /** V2.0.1 effective policy overlays legacy review defaults in automatic mode without mutating the source contract. */
+  readonly automationPolicy?: EffectiveWorkflowAutomationPolicy
 }
 
 export interface GatePrecheckPolicy {
