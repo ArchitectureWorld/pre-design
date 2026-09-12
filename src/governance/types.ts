@@ -226,11 +226,44 @@ export interface SiteBoundaryRecord {
 export interface ReportPackageRecord {
   readonly packageId: string
   readonly projectId: string
-  readonly revision: number
-  readonly reportDepth: ReportDepth
-  readonly outputDirectory: string
-  readonly htmlPath: string
-  readonly pdfPath: string
-  readonly pptxPath: string
+  readonly sourceRevision: number
+  readonly status: 'staging' | 'published' | 'failed'
+  readonly sectionIds: readonly string[]
+  readonly adoptedAssetIds: readonly string[]
+  readonly warnings: readonly string[]
+  readonly artifactManifestId?: string
   readonly createdAt: string
+  readonly publishedAt?: string
+}
+
+export interface ArtifactRecord {
+  readonly format: 'pptx' | 'pdf' | 'html'
+  readonly fileName: string
+  readonly sha256: string
+  readonly bytes: number
+}
+
+export interface ArtifactManifestRecord {
+  readonly manifestId: string
+  readonly packageId: string
+  readonly projectId: string
+  readonly sourceRevision: number
+  readonly recommendationId?: string
+  readonly adoptedAssetIds?: readonly string[]
+  readonly artifacts: readonly ArtifactRecord[]
+  readonly createdAt: string
+  readonly siteBoundaryIntegrityDigest?: string
+}
+
+export interface GovernanceProjectContext {
+  readonly projectId: string
+  readonly policy?: ProjectPolicyRecord
+  readonly authorizations: readonly AutomationAuthorizationRecord[]
+  readonly workflowRuns: readonly WorkflowRunRecord[]
+  readonly gateDecisions: readonly GateDecisionRecord[]
+  readonly visualPolicies: readonly VisualGenerationPolicyRecord[]
+  readonly visualTasks: readonly VisualTaskRecord[]
+  readonly visualAssets: readonly VisualAssetRecord[]
+  readonly siteBoundaries: readonly SiteBoundaryRecord[]
+  readonly reportPackages: readonly ReportPackageRecord[]
 }
