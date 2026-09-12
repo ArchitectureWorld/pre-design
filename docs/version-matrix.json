@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 6,
+  "schemaVersion": 7,
   "updatedAt": "2026-09-12",
   "repository": "ArchitectureWorld/pre-design",
   "product": {
@@ -13,7 +13,9 @@
   "activeBranches": {
     "architecture": "architecture/pre-v2.0.0",
     "development": "feat/pre-v2.0.1",
-    "baseline": "feat/pre-v2.0.0"
+    "baseline": "main",
+    "baselineVersion": "2.0.0",
+    "baselineCommitSHA": "49140423e14f3d3abcf3815c9bdf68e8e5e26730"
   },
   "externalContracts": {
     "presentationProjectFormat": {
@@ -42,57 +44,27 @@
       "status": "historical-published-baseline"
     },
     "supersededBranchNames": [
-      {
-        "name": "architecture/presentation-project-alignment-v2.0.0",
-        "replacement": "architecture/pre-v2.0.0"
-      },
-      {
-        "name": "feature/presentation-phase0-foundation-v2.0.0",
-        "replacement": "feat/pre-v2.0.0"
-      },
-      {
-        "name": "feat/presentation-standard-project-v0.1.0-integration",
-        "replacement": "feat/pre-v2.0.0"
-      }
+      { "name": "architecture/presentation-project-alignment-v2.0.0", "replacement": "architecture/pre-v2.0.0" },
+      { "name": "feature/presentation-phase0-foundation-v2.0.0", "replacement": "feat/pre-v2.0.0" },
+      { "name": "feat/presentation-standard-project-v0.1.0-integration", "replacement": "feat/pre-v2.0.0" }
     ],
-    "clientReportCandidate": {
-      "label": "v0.8",
-      "authority": false
-    },
-    "handoffArchive": {
-      "label": "FINAL_v2.0",
-      "authority": false,
-      "path": "handoff/FINAL_v2.0/"
-    }
+    "clientReportCandidate": { "label": "v0.8", "authority": false },
+    "handoffArchive": { "label": "FINAL_v2.0", "authority": false, "path": "handoff/FINAL_v2.0/" }
   },
   "implementation": {
     "presentationStandardOutput": {
-      "status": "workspace-root-usage-ready-and-verified-on-baseline-branch",
+      "status": "workspace-root-usage-ready-and-verified-on-main-v2.0.0-baseline",
       "contractVersion": "0.1.0",
       "verificationStatus": "workspace-root-runtime-and-full-regression-passed",
       "verifiedHead": "c145edeb404e8816bbcad2929d99400823530238",
-      "verifiedWorkflow": {
-        "name": "Pre 2.0.0 Integration",
-        "runId": 34611449470,
-        "conclusion": "success"
-      },
+      "verifiedWorkflow": { "name": "Pre 2.0.0 Integration", "runId": 34611449470, "conclusion": "success" },
       "runtime": {
         "automaticInitialization": "workspace-probe-then-create-or-continue",
         "workspaceBinding": "one-dsh-workspace-one-pre-project-multiple-sessions",
         "primaryProjectRoot": "SessionHeader.cwd",
         "projectRootMode": "dsh-workspace-root-is-standard-project-root",
-        "managedRootEntries": [
-          "project.json",
-          "rules.json",
-          "outline.json",
-          "pages",
-          "source-materials",
-          "assets"
-        ],
-        "preservedWorkspaceEntries": [
-          "layouts",
-          "all-unrelated-user-files-and-directories"
-        ],
+        "managedRootEntries": ["project.json", "rules.json", "outline.json", "pages", "source-materials", "assets"],
+        "preservedWorkspaceEntries": ["layouts", "all-unrelated-user-files-and-directories"],
         "legacyFallbackProjectRoot": "~/.dsh/presentation-projects",
         "legacyFallbackEnvironmentVariable": "PRE_DESIGN_PRESENTATION_PROJECT_ROOT",
         "probeCommand": "/preplan-presentation-sync --probe",
@@ -117,6 +89,7 @@
     "sourceTraceableResearch": {
       "status": "in-development",
       "branch": "feat/pre-v2.0.1",
+      "baseline": "main@49140423e14f3d3abcf3815c9bdf68e8e5e26730",
       "spec": "docs/superpowers/specs/2026-09-12-pre-v2.0.1-source-traceable-research-design.md",
       "plan": "docs/superpowers/plans/2026-09-12-pre-v2.0.1-source-traceable-research.md"
     },
