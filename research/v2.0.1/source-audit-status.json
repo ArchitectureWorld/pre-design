@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "2.0.1",
+  "checkedAt": "2026-09-12T05:13:00Z",
+  "checks": [
+    {
+      "sourceId": "workspace-project-files",
+      "status": "local_source",
+      "checkedUrl": null,
+      "workingUrl": null,
+      "note": "项目 Workspace 内部资料，不属于公开网站；按文件存在性、版本、签发信息和内容哈希核验。"
+    },
+    {
+      "sourceId": "dsh-user-statement",
+      "status": "local_source",
+      "checkedUrl": null,
+      "workingUrl": null,
+      "note": "来自当前 DSH Session 用户陈述，不属于公开网站；必须保持 user_statement。"
+    },
+    {
+      "sourceId": "cn-nbs",
+      "status": "verified_public_access",
+      "checkedUrl": "https://www.stats.gov.cn/",
+      "workingUrl": "https://www.stats.gov.cn/",
+      "note": "主页可公开访问，并提供数据、公开、服务等入口。"
+    },
+    {
+      "sourceId": "cn-gov-policy",
+      "status": "verified_official_content_direct_probe_limited",
+      "checkedUrl": "https://www.gov.cn/zhengce/",
+      "workingUrl": "https://www.gov.cn/zhengce/",
+      "note": "官方政策内容可通过 gov.cn 检索确认；本次自动直接打开主入口返回抓取器内部错误，因此不把自动探测失败等同于网站失效。"
+    },
+    {
+      "sourceId": "cn-mohurd",
+      "status": "official_domain_confirmed_direct_probe_limited",
+      "checkedUrl": "https://www.mohurd.gov.cn/",
+      "workingUrl": "https://www.mohurd.gov.cn/",
+      "note": "mohurd.gov.cn 为住房城乡建设部官方域名，政府门户及部信息中心内容可交叉确认；本次自动直接首页探测未成功，进入运行时需再次探测具体页面。"
+    },
+    {
+      "sourceId": "cn-mnr",
+      "status": "official_domain_confirmed_direct_probe_limited",
+      "checkedUrl": "https://www.mnr.gov.cn/",
+      "workingUrl": "https://www.mnr.gov.cn/",
+      "note": "mnr.gov.cn 为自然资源部官方域名，国家政务服务平台可交叉确认；本次自动直接首页探测未成功，不能据此判定来源不可用。"
+    },
+    {
+      "sourceId": "cn-standards",
+      "status": "verified_public_access",
+      "checkedUrl": "https://std.samr.gov.cn/",
+      "workingUrl": "https://std.samr.gov.cn/",
+      "note": "全国标准信息公共服务平台主页可公开访问。"
+    },
+    {
+      "sourceId": "cn-cma",
+      "status": "verified_official_resources_home_probe_limited",
+      "checkedUrl": "https://data.cma.cn/",
+      "workingUrl": "https://k.data.cma.cn/",
+      "note": "国家气象信息中心公开资源与知识服务页面可访问；部分数据集存在注册/登录/授权要求，禁止绕过权限。"
+    },
+    {
+      "sourceId": "cn-gsxt",
+      "status": "verified_official_service_via_subdomain",
+      "checkedUrl": "https://www.gsxt.gov.cn/",
+      "workingUrl": "https://bt.gsxt.gov.cn/",
+      "note": "国家企业信用信息公示系统公开查询入口可通过 gsxt.gov.cn 子域访问；具体查询可能触发验证码，触发后转人工，不绕过访问控制。"
+    },
+    {
+      "sourceId": "llm-inference",
+      "status": "not_external_source",
+      "checkedUrl": null,
+      "workingUrl": null,
+      "note": "LLM 推断不是外部事实来源，永远不能单独支持 fact。"
+    }
+  ]
+}
