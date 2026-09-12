@@ -71,7 +71,7 @@ describe('Presentation runtime integration', () => {
       evidenceIds: [],
       origin: expect.objectContaining({
         type: 'generated_by_plugin',
-        sourceTool: { name: 'pre-design', version: '2.0.0' },
+        sourceTool: { name: 'pre-design', version: '2.0.1' },
       }),
     })])
   })
