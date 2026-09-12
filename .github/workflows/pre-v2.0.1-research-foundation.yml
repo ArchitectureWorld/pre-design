@@ -40,8 +40,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run research registry tests
-        run: pnpm exec vitest run tests/research-registry.spec.ts --maxWorkers=1
+      - name: Run research foundation tests
+        run: pnpm test:research
 
       - name: Typecheck
         run: pnpm typecheck
