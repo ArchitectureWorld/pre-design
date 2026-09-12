@@ -10,10 +10,10 @@
       "homepage": null,
       "allowedDomains": [],
       "accessModes": ["workspace_file", "manual_import", "professional_tool"],
-      "supportedDataKinds": ["project_document", "survey", "drawing", "cad", "bim", "gis", "spreadsheet", "cost", "schedule", "boundary", "measurement"],
+      "supportedDataKinds": ["*", "project_document", "survey", "drawing", "cad", "bim", "gis", "spreadsheet", "cost", "schedule", "boundary", "measurement"],
       "freshnessPolicy": { "maxAgeDays": null, "refreshOnProjectStart": true, "notes": "按文件版本、签发日期和项目 Revision 复核；新版本出现时旧证据标记 stale。" },
       "reliabilityGrade": "A",
-      "notes": "项目内正式任务书、批复、总平/红线、测量成果、正式表格和专业计算输出优先于外部二手信息。"
+      "notes": "项目内正式任务书、批复、总平/红线、测量成果、正式表格和专业计算输出优先于外部二手信息。星号表示正式项目资料可承载任意项目数据类型，但具体 Evidence 仍必须记录文件定位、版本和原始内容。"
     },
     {
       "sourceId": "dsh-user-statement",
@@ -66,7 +66,7 @@
       "homepage": "https://www.mohurd.gov.cn/",
       "allowedDomains": ["mohurd.gov.cn"],
       "accessModes": ["web_page", "web_search"],
-      "supportedDataKinds": ["housing_policy", "urban_rural_construction", "engineering_standard", "construction_management", "cost_policy"],
+      "supportedDataKinds": ["policy", "standard", "housing_policy", "urban_rural_construction", "engineering_standard", "construction_management", "cost_policy"],
       "freshnessPolicy": { "maxAgeDays": 30, "refreshOnProjectStart": true, "notes": "政策、标准公告和工程管理口径需核对最新有效状态。" },
       "reliabilityGrade": "A",
       "notes": "住建领域国家级官方来源。若站点暂不可自动访问，应记录 blocked_external，不得用转载页面替代为 A 级证据。"
@@ -94,7 +94,7 @@
       "homepage": "https://std.samr.gov.cn/",
       "allowedDomains": ["std.samr.gov.cn", "openstd.samr.gov.cn"],
       "accessModes": ["web_page", "web_search"],
-      "supportedDataKinds": ["national_standard", "industry_standard", "local_standard", "standard_status", "standard_metadata"],
+      "supportedDataKinds": ["standard", "national_standard", "industry_standard", "local_standard", "standard_status", "standard_metadata"],
       "freshnessPolicy": { "maxAgeDays": 30, "refreshOnProjectStart": true, "notes": "标准必须核对现行/即将实施/废止状态及实施日期；旧 openstd 仅作兼容入口。" },
       "reliabilityGrade": "A",
       "notes": "标准号、名称、状态和公开文本的权威入口。"
