@@ -61,16 +61,20 @@ function qualityFor(descriptor: WorkflowDescriptor, attempt = 1) {
     score: 0.95,
     completionCoverage: 1,
     evidenceCoverage: 1,
-    confidence: 0.9,
+    confidence: 0.93,
     attempt,
-    maxAttempts: 3,
+    maxAttempts: 5,
     reasons: [],
     blockers: [],
     assumptions: [],
   }
 }
 
-async function envelopeFor(descriptor: WorkflowDescriptor, expectedRevision = 0) {
+async function envelopeFor(
+  descriptor: WorkflowDescriptor,
+  expectedRevision = 0,
+  mode: 'manual' | 'automatic' = 'manual',
+) {
   const payload = JSON.parse(await readFile(
     new URL(`tests/fixtures/valid/${descriptor.targetObjectId}.json`, contractRoot),
     'utf8',
@@ -89,8 +93,8 @@ async function envelopeFor(descriptor: WorkflowDescriptor, expectedRevision = 0)
     change_set: { operation: 'create', payload, semantic_paths: ['/data'] },
     evidence_refs: [],
     assumptions: [],
-    validation_intent: 'human_review',
-    requested_state: 'pending_review',
+    validation_intent: mode === 'automatic' ? 'provisional_commit' : 'human_review',
+    requested_state: mode === 'automatic' ? 'confirmed' : 'pending_review',
     idempotency_key: `idempotency-${descriptor.targetObjectId}`,
   }
 }
@@ -101,7 +105,7 @@ afterEach(async () => {
 })
 
 describe('ProposalGateway 57-item matrix', () => {
-  it('accepts a schema-valid governed proposal for every canonical workflow target', async () => {
+  it('accepts a schema-valid governed manual proposal for every canonical workflow target', async () => {
     const { gateway, registry, repository } = await openHarness()
 
     for (const descriptor of registry.workflows()) {
@@ -144,7 +148,7 @@ describe('ProposalGateway 57-item matrix', () => {
     })
   })
 
-  it('rejects automatic confirmation without a matching active authorization', async () => {
+  it('accepts automatic proposal intent but rejects confirmation without a matching active authorization', async () => {
     const { gateway, governance, registry, repository } = await openHarness()
     await governance.createPolicy({
       projectId,
@@ -153,7 +157,7 @@ describe('ProposalGateway 57-item matrix', () => {
       automationAuthorizationId: 'authorization-missing',
       updatedAt: '2026-08-28T08:00:00.000Z',
     })
-    await gateway.submitProposal(await envelopeFor(registry.workflow('preplan.wf.01.01')), sessionId)
+    await gateway.submitProposal(await envelopeFor(registry.workflow('preplan.wf.01.01'), 0, 'automatic'), sessionId)
 
     await expect(gateway.commitProposal('proposal-PS01', {
       source: 'automation_authorization',
@@ -162,7 +166,6 @@ describe('ProposalGateway 57-item matrix', () => {
     }, sessionId)).rejects.toMatchObject({ code: 'authorization-invalid' })
     expect(repository.readContext(sessionId)).toMatchObject({
       project: { currentRevision: 0 },
-      proposals: [{ status: 'pending_review' }],
       stateObjects: [],
     })
   })
@@ -192,9 +195,9 @@ describe('ProposalGateway 57-item matrix', () => {
       status: 'active',
       grantedAt: '2026-08-28T08:00:00.000Z',
     })
-    await gateway.submitProposal(await envelopeFor(registry.workflow('preplan.wf.01.01')), sessionId)
-
     const ps01 = registry.workflow('preplan.wf.01.01')
+    await gateway.submitProposal(await envelopeFor(ps01, 0, 'automatic'), sessionId)
+
     const result = await gateway.commitProposal('proposal-PS01', {
       source: 'automation_authorization',
       authorizationId: 'authorization-1',
@@ -220,7 +223,7 @@ describe('ProposalGateway 57-item matrix', () => {
     })
   })
 
-  it('automatically commits quality-passing L/M workflows while keeping H-risk workflows for local review', async () => {
+  it('automatically confirms all 57 quality-passing workflows including H-risk items', async () => {
     const { gateway, governance, registry, repository } = await openHarness()
     await governance.createPolicy({
       projectId,
@@ -248,20 +251,15 @@ describe('ProposalGateway 57-item matrix', () => {
 
     let revision = 0
     for (const descriptor of registry.workflows()) {
-      const envelope = await envelopeFor(descriptor, revision)
+      const envelope = await envelopeFor(descriptor, revision, 'automatic')
+      expect(envelope).toMatchObject({ validation_intent: 'provisional_commit', requested_state: 'confirmed' })
       await gateway.submitProposal(envelope, sessionId)
-      const automaticDecision = {
-        source: 'automation_authorization' as const,
+      const result = await gateway.commitProposal(envelope.proposal_id, {
+        source: 'automation_authorization',
         authorizationId: 'authorization-all',
         quality: qualityFor(descriptor),
         actor: { actorId: 'system-1', name: '前期策划运行时', role: 'system_service' },
-      }
-      if (descriptor.risk.trim().toUpperCase() === 'H' || descriptor.risk.trim().toLowerCase() === 'high') {
-        await expect(gateway.commitProposal(envelope.proposal_id, automaticDecision, sessionId), descriptor.targetObjectId)
-          .rejects.toMatchObject({ code: 'high-risk-human-review' })
-        continue
-      }
-      const result = await gateway.commitProposal(envelope.proposal_id, automaticDecision, sessionId)
+      }, sessionId)
       revision += 1
       expect(result.revision, descriptor.targetObjectId).toBe(revision)
       const committed = repository.readContext(sessionId).stateObjects
@@ -269,5 +267,6 @@ describe('ProposalGateway 57-item matrix', () => {
       expect(registry.validateStateObject(descriptor.targetObjectId, committed?.value), descriptor.targetObjectId)
         .toEqual({ valid: true, errors: [] })
     }
+    expect(repository.readContext(sessionId).stateObjects).toHaveLength(57)
   }, 30_000)
 })
