@@ -51,6 +51,32 @@ describe('Pre 2.0.1 ResearchRegistry', () => {
     expect(cost.aggregationMethod.deterministic).toBe(true)
   })
 
+  it('requires an explicit ordered Workflow -> ResearchStep -> DataPoint -> Source chain', async () => {
+    const registry = await ResearchRegistry.open(researchRoot)
+    const policy = registry.workflow('preplan.wf.02.01')
+    expect(policy.researchSteps.map(step => step.stepId)).toEqual([
+      '02-01-S01', '02-01-S02', '02-01-S03', '02-01-S04', '02-01-S05', '02-01-S06', '02-01-S07', '02-01-S08',
+    ])
+    const landStep = policy.researchSteps.find(step => step.stepId === '02-01-S03')
+    expect(landStep).toMatchObject({
+      order: 3,
+      dataPointIds: ['statutory-planning', 'land-boundary-conditions'],
+      sourceIds: ['cn-mnr'],
+      action: 'official_source_lookup',
+      produces: 'evidence',
+      dependsOnStepIds: ['02-01-S01'],
+    })
+
+    for (const workflow of registry.workflows()) {
+      const dataPointIds = new Set([...workflow.requiredDataPoints, ...workflow.optionalDataPoints].map(item => item.dataPointId))
+      const sourceIds = new Set(workflow.preferredSources.map(item => item.sourceId))
+      for (const step of workflow.researchSteps) {
+        for (const dataPointId of step.dataPointIds) expect(dataPointIds.has(dataPointId)).toBe(true)
+        for (const sourceId of step.sourceIds) expect(sourceIds.has(sourceId)).toBe(true)
+      }
+    }
+  })
+
   it('rejects workflow source references that are absent from the catalog', async () => {
     const root = await tempResearchRoot({
       schemaVersion: '2.0.1',
@@ -68,6 +94,7 @@ describe('Pre 2.0.1 ResearchRegistry', () => {
         optionalDataPoints: [],
         preferredSources: [{ sourceId: 'missing-source', purpose: '不存在的来源', required: true }],
         queryTemplates: [], extractionRules: ['提取正式名称'], normalizationRules: ['统一名称'],
+        researchSteps: [{ stepId: '01-01-S01', order: 1, title: '读取资料', dependsOnStepIds: [], dataPointIds: ['project-name'], sourceIds: ['missing-source'], action: 'workspace_extract', produces: 'evidence' }],
         aggregationMethod: { methodId: 'identity-merge', version: '1', description: '同名归并', deterministic: true },
         analysisMethod: { methodId: 'identity-review', version: '1', description: '身份研判', deterministic: false },
         crossCheckRules: ['正式文件优先'], freshnessRules: ['使用最新版本'],
