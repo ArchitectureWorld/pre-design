@@ -66,12 +66,59 @@ function frozenWorkflow(workflow: WorkflowResearchSpec): WorkflowResearchSpec {
     queryTemplates: Object.freeze(workflow.queryTemplates.map(item => Object.freeze({ ...item }))),
     extractionRules: Object.freeze([...workflow.extractionRules]),
     normalizationRules: Object.freeze([...workflow.normalizationRules]),
+    researchSteps: Object.freeze(workflow.researchSteps.map(step => Object.freeze({
+      ...step,
+      dependsOnStepIds: Object.freeze([...step.dependsOnStepIds]),
+      dataPointIds: Object.freeze([...step.dataPointIds]),
+      sourceIds: Object.freeze([...step.sourceIds]),
+    }))),
     aggregationMethod: Object.freeze({ ...workflow.aggregationMethod }),
     analysisMethod: Object.freeze({ ...workflow.analysisMethod }),
     crossCheckRules: Object.freeze([...workflow.crossCheckRules]),
     freshnessRules: Object.freeze([...workflow.freshnessRules]),
     minimumEvidence: Object.freeze({ ...workflow.minimumEvidence }),
     outputClaims: Object.freeze([...workflow.outputClaims]),
+  })
+}
+
+function validateResearchSteps(workflow: WorkflowResearchSpec, sourceById: ReadonlyMap<string, DataSourceDefinition>): void {
+  const dataPointIds = new Set([...workflow.requiredDataPoints, ...workflow.optionalDataPoints].map(item => item.dataPointId))
+  const preferredSourceIds = new Set(workflow.preferredSources.map(item => item.sourceId))
+  const stepById = new Map<string, WorkflowResearchSpec['researchSteps'][number]>()
+  const orders = new Set<number>()
+
+  for (const step of workflow.researchSteps) {
+    if (stepById.has(step.stepId)) throw new Error(`workflow '${workflow.workflowId}' has duplicate research step '${step.stepId}'`)
+    if (orders.has(step.order)) throw new Error(`workflow '${workflow.workflowId}' has duplicate research step order '${step.order}'`)
+    stepById.set(step.stepId, step)
+    orders.add(step.order)
+    for (const dataPointId of step.dataPointIds) {
+      if (!dataPointIds.has(dataPointId)) {
+        throw new Error(`workflow '${workflow.workflowId}' research step '${step.stepId}' references unknown data point '${dataPointId}'`)
+      }
+    }
+    for (const sourceId of step.sourceIds) {
+      if (!sourceById.has(sourceId)) {
+        throw new Error(`workflow '${workflow.workflowId}' research step '${step.stepId}' references unknown research source '${sourceId}'`)
+      }
+      if (!preferredSourceIds.has(sourceId)) {
+        throw new Error(`workflow '${workflow.workflowId}' research step '${step.stepId}' uses source '${sourceId}' outside preferredSources`)
+      }
+    }
+  }
+
+  const sorted = [...workflow.researchSteps].sort((left, right) => left.order - right.order)
+  sorted.forEach((step, index) => {
+    if (step.order !== index + 1) throw new Error(`workflow '${workflow.workflowId}' research steps must use contiguous order starting at 1`)
+    for (const dependencyId of step.dependsOnStepIds) {
+      const dependency = stepById.get(dependencyId)
+      if (dependency === undefined) {
+        throw new Error(`workflow '${workflow.workflowId}' research step '${step.stepId}' references unknown dependency '${dependencyId}'`)
+      }
+      if (dependency.order >= step.order) {
+        throw new Error(`workflow '${workflow.workflowId}' research step '${step.stepId}' depends on non-earlier step '${dependencyId}'`)
+      }
+    }
   })
 }
 
@@ -99,12 +146,8 @@ export class ResearchRegistry {
 
     const sourceDocument = await readJson<DataSourceCatalogDocument>(new URL('data-sources.json', root))
     const workflowDocument = await readJson<WorkflowResearchSpecDocument>(new URL('workflow-research-specs.json', root))
-    if (!sourceValidator(sourceDocument)) {
-      throw new Error(`research data source catalog invalid: ${formatErrors(sourceValidator.errors).join('; ')}`)
-    }
-    if (!workflowValidator(workflowDocument)) {
-      throw new Error(`workflow research specs invalid: ${formatErrors(workflowValidator.errors).join('; ')}`)
-    }
+    if (!sourceValidator(sourceDocument)) throw new Error(`research data source catalog invalid: ${formatErrors(sourceValidator.errors).join('; ')}`)
+    if (!workflowValidator(workflowDocument)) throw new Error(`workflow research specs invalid: ${formatErrors(workflowValidator.errors).join('; ')}`)
 
     const sourceById = new Map<string, DataSourceDefinition>()
     const sources: DataSourceDefinition[] = []
@@ -112,15 +155,9 @@ export class ResearchRegistry {
       const sourceId = row.sourceId.normalize('NFC').trim()
       if (sourceById.has(sourceId)) throw new Error(`duplicate research source '${sourceId}'`)
       const domains = row.allowedDomains.map(normalizedDomain)
-      for (const domain of domains) {
-        if (!validDomain(domain)) throw new Error(`research source '${sourceId}' has invalid allowed domain '${domain}'`)
-      }
-      if (row.homepage !== null && domains.length > 0 && !hostAllowed(row.homepage, domains)) {
-        throw new Error(`research source '${sourceId}' homepage is outside allowed domains`)
-      }
-      if (row.authorityLevel === 'inference' && (row.priority !== 'P5' || row.reliabilityGrade !== 'inference')) {
-        throw new Error(`inference source '${sourceId}' must use P5/inference classification`)
-      }
+      for (const domain of domains) if (!validDomain(domain)) throw new Error(`research source '${sourceId}' has invalid allowed domain '${domain}'`)
+      if (row.homepage !== null && domains.length > 0 && !hostAllowed(row.homepage, domains)) throw new Error(`research source '${sourceId}' homepage is outside allowed domains`)
+      if (row.authorityLevel === 'inference' && (row.priority !== 'P5' || row.reliabilityGrade !== 'inference')) throw new Error(`inference source '${sourceId}' must use P5/inference classification`)
       const normalized = frozenSource({ ...row, sourceId, allowedDomains: domains })
       sourceById.set(sourceId, normalized)
       sources.push(normalized)
@@ -131,17 +168,10 @@ export class ResearchRegistry {
     for (const row of workflowDocument.workflows) {
       const workflowId = row.workflowId.normalize('NFC').trim()
       if (workflowById.has(workflowId)) throw new Error(`duplicate workflow research spec '${workflowId}'`)
-      for (const preference of row.preferredSources) {
-        if (!sourceById.has(preference.sourceId)) {
-          throw new Error(`workflow '${workflowId}' references unknown research source '${preference.sourceId}'`)
-        }
-      }
-      for (const query of row.queryTemplates) {
-        if (!sourceById.has(query.sourceId)) {
-          throw new Error(`workflow '${workflowId}' query references unknown research source '${query.sourceId}'`)
-        }
-      }
-      const normalized = frozenWorkflow({ ...row, workflowId })
+      for (const preference of row.preferredSources) if (!sourceById.has(preference.sourceId)) throw new Error(`workflow '${workflowId}' references unknown research source '${preference.sourceId}'`)
+      for (const query of row.queryTemplates) if (!sourceById.has(query.sourceId)) throw new Error(`workflow '${workflowId}' query references unknown research source '${query.sourceId}'`)
+      validateResearchSteps({ ...row, workflowId }, sourceById)
+      const normalized = frozenWorkflow({ ...row, workflowId, researchSteps: [...row.researchSteps].sort((left, right) => left.order - right.order) })
       workflowById.set(workflowId, normalized)
       workflows.push(normalized)
     }
@@ -156,13 +186,8 @@ export class ResearchRegistry {
     )
   }
 
-  sources(): readonly DataSourceDefinition[] {
-    return this.sourceRows
-  }
-
-  workflows(): readonly WorkflowResearchSpec[] {
-    return this.workflowRows
-  }
+  sources(): readonly DataSourceDefinition[] { return this.sourceRows }
+  workflows(): readonly WorkflowResearchSpec[] { return this.workflowRows }
 
   source(sourceId: string): DataSourceDefinition {
     const source = this.sourceById.get(sourceId)
@@ -177,36 +202,21 @@ export class ResearchRegistry {
   }
 
   validateEvidenceRecord(value: unknown): ResearchValidationResult {
-    if (!this.evidenceValidator(value)) {
-      return { valid: false, errors: formatErrors(this.evidenceValidator.errors) }
-    }
+    if (!this.evidenceValidator(value)) return { valid: false, errors: formatErrors(this.evidenceValidator.errors) }
     const record = value as EvidenceRecord
     const source = this.sourceById.get(record.sourceId)
     if (source === undefined) return { valid: false, errors: [`unknown research source '${record.sourceId}'`] }
-    if (!source.accessModes.includes(record.sourceType as ResearchAccessMode)) {
-      return { valid: false, errors: [`source '${record.sourceId}' does not allow access mode '${record.sourceType}'`] }
-    }
-    if (['web_page', 'web_search', 'api'].includes(record.sourceType)
-      && !hostAllowed(record.sourceUri, source.allowedDomains)) {
-      return { valid: false, errors: [`source URI is outside allowed domains for '${record.sourceId}'`] }
-    }
-    if (record.reliability === 'inference' && record.claimClass === 'fact') {
-      return { valid: false, errors: ['inference evidence cannot be classified as fact'] }
-    }
-    if (source.authorityLevel === 'inference' && record.claimClass === 'fact') {
-      return { valid: false, errors: ['inference source cannot support fact claim'] }
-    }
+    if (!source.accessModes.includes(record.sourceType as ResearchAccessMode)) return { valid: false, errors: [`source '${record.sourceId}' does not allow access mode '${record.sourceType}'`] }
+    if (['web_page', 'web_search', 'api'].includes(record.sourceType) && !hostAllowed(record.sourceUri, source.allowedDomains)) return { valid: false, errors: [`source URI is outside allowed domains for '${record.sourceId}'`] }
+    if (record.reliability === 'inference' && record.claimClass === 'fact') return { valid: false, errors: ['inference evidence cannot be classified as fact'] }
+    if (source.authorityLevel === 'inference' && record.claimClass === 'fact') return { valid: false, errors: ['inference source cannot support fact claim'] }
     return { valid: true, errors: [] }
   }
 
   validateAnalysisTrace(value: unknown): ResearchValidationResult {
-    if (!this.traceValidator(value)) {
-      return { valid: false, errors: formatErrors(this.traceValidator.errors) }
-    }
+    if (!this.traceValidator(value)) return { valid: false, errors: formatErrors(this.traceValidator.errors) }
     const trace = value as AnalysisTrace
-    if (!this.workflowById.has(trace.workflowId)) {
-      return { valid: false, errors: [`unknown workflow research spec '${trace.workflowId}'`] }
-    }
+    if (!this.workflowById.has(trace.workflowId)) return { valid: false, errors: [`unknown workflow research spec '${trace.workflowId}'`] }
     return { valid: true, errors: [] }
   }
 }
