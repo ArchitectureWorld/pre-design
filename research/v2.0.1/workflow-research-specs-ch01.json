@@ -1,0 +1,214 @@
+{
+  "schemaVersion": "2.0.1",
+  "workflows": [
+    {
+      "workflowId": "preplan.wf.01.02",
+      "requiredDataPoints": [
+        { "dataPointId": "decision-question", "label": "核心决策问题", "dataKind": "decision_input", "description": "本轮前期策划真正需要支持的决定，必须表达为可由决策者作出的选择或判断。", "unit": null },
+        { "dataPointId": "decision-owner", "label": "决策主体", "dataKind": "stakeholder_statement", "description": "对核心决策具有实际决策权或授权确认权的主体。", "unit": null },
+        { "dataPointId": "decision-context", "label": "决策约束与情境", "dataKind": "decision_input", "description": "决策发生时已知的时间、范围、政策、资源或组织约束。", "unit": null }
+      ],
+      "optionalDataPoints": [
+        { "dataPointId": "success-condition", "label": "决策成功条件", "dataKind": "decision_input", "description": "什么结果能够证明本次策划真正支持了目标决策。", "unit": null }
+      ],
+      "preferredSources": [
+        { "sourceId": "workspace-project-files", "purpose": "从委托任务书、合同、会议纪要、批示和已有成果中提取明确决策诉求与授权关系。", "required": false },
+        { "sourceId": "dsh-user-statement", "purpose": "由项目用户补充或确认真正需要支持的决定、使用场景和决策主体。", "required": true }
+      ],
+      "queryTemplates": [],
+      "extractionRules": [
+        "优先提取带有决定、审批、选择、确认、立项、投资、报批等明确决策语义的原文。",
+        "成果名称、宣传口号、预设方案不能直接当作决策问题。",
+        "用户确认的决策问题保存为 user_statement/decision，不伪装成外部事实。"
+      ],
+      "normalizationRules": [
+        "核心决策统一改写为‘谁在什么约束下需要决定什么’。",
+        "决策主体使用正式角色或组织全称；未确认真实姓名时不猜测。",
+        "成功条件保持可验证，避免‘提升品质’等不可检验表述。"
+      ],
+      "researchSteps": [
+        { "stepId": "01-02-S01", "order": 1, "title": "读取委托与既有决策材料", "dependsOnStepIds": [], "dataPointIds": ["decision-question", "decision-owner", "decision-context", "success-condition"], "sourceIds": ["workspace-project-files"], "action": "workspace_extract", "produces": "evidence" },
+        { "stepId": "01-02-S02", "order": 2, "title": "获取项目用户的决策确认", "dependsOnStepIds": [], "dataPointIds": ["decision-question", "decision-owner", "decision-context", "success-condition"], "sourceIds": ["dsh-user-statement"], "action": "workspace_extract", "produces": "evidence" },
+        { "stepId": "01-02-S03", "order": 3, "title": "统一决策问题表达", "dependsOnStepIds": ["01-02-S01", "01-02-S02"], "dataPointIds": ["decision-question", "decision-owner", "decision-context", "success-condition"], "sourceIds": [], "action": "normalize", "produces": "normalized_data" },
+        { "stepId": "01-02-S04", "order": 4, "title": "检查材料诉求与实际决策是否冲突", "dependsOnStepIds": ["01-02-S03"], "dataPointIds": ["decision-question", "decision-owner"], "sourceIds": [], "action": "cross_check", "produces": "cross_check_result" },
+        { "stepId": "01-02-S05", "order": 5, "title": "形成候选决策问题", "dependsOnStepIds": ["01-02-S04"], "dataPointIds": ["decision-question", "decision-owner", "decision-context", "success-condition"], "sourceIds": [], "action": "aggregate", "produces": "aggregated_data" },
+        { "stepId": "01-02-S06", "order": 6, "title": "形成决策任务解释并提交人工确认", "dependsOnStepIds": ["01-02-S05"], "dataPointIds": ["decision-question", "decision-owner", "decision-context", "success-condition"], "sourceIds": [], "action": "professional_analysis", "produces": "claims" }
+      ],
+      "aggregationMethod": { "methodId": "decision-question-evidence-merge", "version": "1.0.0", "description": "按正式委托材料与当前授权主体陈述合并候选决策问题；冲突不自动覆盖。", "deterministic": true },
+      "analysisMethod": { "methodId": "decision-question-framing", "version": "1.0.0", "description": "把模糊策划诉求重构为决策主体、决策对象、约束和成功条件明确的决策问题。", "deterministic": false },
+      "crossCheckRules": ["正式材料与当前决策主体陈述冲突时必须保留冲突并要求确认。", "不得把 Agent 建议的方案反向写成既定决策问题。"],
+      "freshnessRules": ["决策问题在委托目标、决策主体或成果用途改变时立即重新确认。"],
+      "minimumEvidence": { "minHighAuthority": 0, "minIndependentSources": 1, "highRiskRequiresGradeA": false },
+      "fallbackPolicy": "允许保留多个候选决策问题，但在 G1 前必须由实际决策人或授权负责人选定或改写。",
+      "outputClaims": ["本轮核心决策问题", "实际决策主体", "决策约束与成功条件"]
+    },
+    {
+      "workflowId": "preplan.wf.01.03",
+      "requiredDataPoints": [
+        { "dataPointId": "research-scope", "label": "研究范围", "dataKind": "decision_input", "description": "本轮研究需要覆盖的空间、业务、专业和时间范围。", "unit": null },
+        { "dataPointId": "spatial-boundary", "label": "空间边界依据", "dataKind": "boundary", "description": "正式红线、研究范围、管理边界或暂定空间范围及其依据。", "unit": null },
+        { "dataPointId": "scope-exclusions", "label": "明确排除事项", "dataKind": "decision_input", "description": "本轮明确不处理或留待后续阶段处理的内容。", "unit": null },
+        { "dataPointId": "time-horizon", "label": "研究时间尺度", "dataKind": "schedule", "description": "近期、远期或特定实施阶段的时间边界。", "unit": null }
+      ],
+      "optionalDataPoints": [
+        { "dataPointId": "implementation-boundary", "label": "实施边界", "dataKind": "boundary", "description": "研究范围与实际实施范围不一致时的实施边界。", "unit": null }
+      ],
+      "preferredSources": [
+        { "sourceId": "workspace-project-files", "purpose": "读取红线、总平、产权、任务书、分期计划和正式范围文件。", "required": false },
+        { "sourceId": "dsh-user-statement", "purpose": "在正式范围尚未完整时记录项目用户确认的研究范围、排除项和时间尺度。", "required": false }
+      ],
+      "queryTemplates": [],
+      "extractionRules": ["空间边界优先提取正式红线、带 CRS 坐标或明确管理边界。", "研究范围、实施范围、近期范围、远期范围必须分开记录。", "无正式边界时只能形成 provisional 范围，不能伪装为法定红线。"],
+      "normalizationRules": ["边界统一保留来源、CRS/定位方式和 Revision。", "排除事项使用明确对象和阶段，不使用‘其他’等模糊占位。", "时间尺度统一为明确日期、阶段或相对周期。"],
+      "researchSteps": [
+        { "stepId": "01-03-S01", "order": 1, "title": "读取正式范围与边界资料", "dependsOnStepIds": [], "dataPointIds": ["research-scope", "spatial-boundary", "scope-exclusions", "time-horizon", "implementation-boundary"], "sourceIds": ["workspace-project-files"], "action": "workspace_extract", "produces": "evidence" },
+        { "stepId": "01-03-S02", "order": 2, "title": "记录项目方确认的研究边界", "dependsOnStepIds": [], "dataPointIds": ["research-scope", "scope-exclusions", "time-horizon", "implementation-boundary"], "sourceIds": ["dsh-user-statement"], "action": "workspace_extract", "produces": "evidence" },
+        { "stepId": "01-03-S03", "order": 3, "title": "区分研究、实施与时间边界", "dependsOnStepIds": ["01-03-S01", "01-03-S02"], "dataPointIds": ["research-scope", "spatial-boundary", "scope-exclusions", "time-horizon", "implementation-boundary"], "sourceIds": [], "action": "normalize", "produces": "normalized_data" },
+        { "stepId": "01-03-S04", "order": 4, "title": "核验正式边界与暂定边界冲突", "dependsOnStepIds": ["01-03-S03"], "dataPointIds": ["spatial-boundary", "implementation-boundary"], "sourceIds": [], "action": "cross_check", "produces": "cross_check_result" },
+        { "stepId": "01-03-S05", "order": 5, "title": "形成可执行研究边界", "dependsOnStepIds": ["01-03-S04"], "dataPointIds": ["research-scope", "spatial-boundary", "scope-exclusions", "time-horizon", "implementation-boundary"], "sourceIds": [], "action": "aggregate", "produces": "aggregated_data" },
+        { "stepId": "01-03-S06", "order": 6, "title": "输出研究对象与边界结论", "dependsOnStepIds": ["01-03-S05"], "dataPointIds": ["research-scope", "spatial-boundary", "scope-exclusions", "time-horizon", "implementation-boundary"], "sourceIds": [], "action": "produce_claims", "produces": "claims" }
+      ],
+      "aggregationMethod": { "methodId": "scope-boundary-authority-merge", "version": "1.0.0", "description": "按正式边界优先、授权确认次之的规则合并研究范围，并保持 provisional/confirmed 状态。", "deterministic": true },
+      "analysisMethod": { "methodId": "scope-boundary-fit-analysis", "version": "1.0.0", "description": "判断研究范围是否足以支持后续资料采集和决策任务，并识别范围错配。", "deterministic": false },
+      "crossCheckRules": ["正式边界与项目方口头范围冲突时不得静默覆盖。", "文本地址不能转换成法定红线。"],
+      "freshnessRules": ["出现新版红线、范围批复、项目拆分合并或分期变化时立即重开。"],
+      "minimumEvidence": { "minHighAuthority": 1, "minIndependentSources": 1, "highRiskRequiresGradeA": true },
+      "fallbackPolicy": "无正式红线时允许形成暂定 research scope，但必须标记 provisional 并列出待补边界证据；不得以暂定范围完成正式边界确认。",
+      "outputClaims": ["本轮研究范围", "空间与实施边界状态", "明确排除事项", "研究时间尺度"]
+    },
+    {
+      "workflowId": "preplan.wf.01.04",
+      "requiredDataPoints": [
+        { "dataPointId": "stakeholder-map", "label": "参与主体清单", "dataKind": "stakeholder_statement", "description": "发起、参与、决策、确认和受影响主体。", "unit": null },
+        { "dataPointId": "decision-rights", "label": "决策权关系", "dataKind": "stakeholder_statement", "description": "谁对哪些事项具有实际决定或授权权。", "unit": null },
+        { "dataPointId": "confirmation-rights", "label": "最终确认关系", "dataKind": "stakeholder_statement", "description": "谁负责最终确认成果或关键结论。", "unit": null },
+        { "dataPointId": "affected-parties", "label": "受影响主体", "dataKind": "stakeholder_statement", "description": "受到项目结果影响但不一定参与决策的主体。", "unit": null }
+      ],
+      "optionalDataPoints": [
+        { "dataPointId": "enterprise-identities", "label": "企业主体法定身份", "dataKind": "enterprise_identity", "description": "影响责任边界时需要核验的企业法定名称和登记身份。", "unit": null }
+      ],
+      "preferredSources": [
+        { "sourceId": "workspace-project-files", "purpose": "从合同、组织架构、会议纪要、批示和通讯录中提取已确认参与关系。", "required": false },
+        { "sourceId": "dsh-user-statement", "purpose": "由项目发起人补充真实决策、确认与受影响关系。", "required": true },
+        { "sourceId": "cn-gsxt", "purpose": "企业法定身份影响责任或合同边界时核验企业名称。", "required": false }
+      ],
+      "queryTemplates": [{ "sourceId": "cn-gsxt", "template": "{stakeholder_enterprise_name}" }],
+      "extractionRules": ["参与主体按发起、参与、决策、确认、受影响五类标记。", "联系人不等于决策人，会议参与人不等于确认人。", "企业法定身份只在责任边界需要时查询，不泛化采集。"],
+      "normalizationRules": ["主体优先使用组织正式名称与明确角色。", "同一主体承担多个角色时保留多角色关系，不重复造主体。", "无法确认决策权时标记 pending，不由 Agent 推断。"],
+      "researchSteps": [
+        { "stepId": "01-04-S01", "order": 1, "title": "读取组织与参与关系资料", "dependsOnStepIds": [], "dataPointIds": ["stakeholder-map", "decision-rights", "confirmation-rights", "affected-parties", "enterprise-identities"], "sourceIds": ["workspace-project-files"], "action": "workspace_extract", "produces": "evidence" },
+        { "stepId": "01-04-S02", "order": 2, "title": "由项目发起人补全真实权责关系", "dependsOnStepIds": [], "dataPointIds": ["stakeholder-map", "decision-rights", "confirmation-rights", "affected-parties"], "sourceIds": ["dsh-user-statement"], "action": "workspace_extract", "produces": "evidence" },
+        { "stepId": "01-04-S03", "order": 3, "title": "按需核验企业法定身份", "dependsOnStepIds": ["01-04-S01"], "dataPointIds": ["enterprise-identities"], "sourceIds": ["cn-gsxt"], "action": "official_source_lookup", "produces": "evidence" },
+        { "stepId": "01-04-S04", "order": 4, "title": "统一主体身份与角色", "dependsOnStepIds": ["01-04-S01", "01-04-S02", "01-04-S03"], "dataPointIds": ["stakeholder-map", "decision-rights", "confirmation-rights", "affected-parties", "enterprise-identities"], "sourceIds": [], "action": "normalize", "produces": "normalized_data" },
+        { "stepId": "01-04-S05", "order": 5, "title": "检查决策权与确认权冲突", "dependsOnStepIds": ["01-04-S04"], "dataPointIds": ["decision-rights", "confirmation-rights"], "sourceIds": [], "action": "cross_check", "produces": "cross_check_result" },
+        { "stepId": "01-04-S06", "order": 6, "title": "输出参与主体与决策关系", "dependsOnStepIds": ["01-04-S05"], "dataPointIds": ["stakeholder-map", "decision-rights", "confirmation-rights", "affected-parties", "enterprise-identities"], "sourceIds": [], "action": "produce_claims", "produces": "claims" }
+      ],
+      "aggregationMethod": { "methodId": "stakeholder-role-graph-merge", "version": "1.0.0", "description": "按主体身份合并多源角色关系，保留发起、参与、决策、确认和受影响关系。", "deterministic": true },
+      "analysisMethod": { "methodId": "decision-governance-analysis", "version": "1.0.0", "description": "识别真实决策链、确认链和潜在协调断点，不替项目方虚构权责。", "deterministic": false },
+      "crossCheckRules": ["材料记录与项目发起人确认的决策权冲突时必须人工澄清。", "企业登记身份只能证明主体身份，不能单独证明项目内部决策权。"],
+      "freshnessRules": ["组织架构、决策人或跨部门关系变化后重新确认。"],
+      "minimumEvidence": { "minHighAuthority": 0, "minIndependentSources": 1, "highRiskRequiresGradeA": false },
+      "fallbackPolicy": "仅有单一联系人时建立最小关系图，其余角色保持 pending 并生成补充任务；不得按职位名称猜测决策权。",
+      "outputClaims": ["参与主体分类", "实际决策权与确认权关系", "受影响主体与协调缺口"]
+    },
+    {
+      "workflowId": "preplan.wf.01.05",
+      "requiredDataPoints": [
+        { "dataPointId": "fixed-conditions", "label": "已定不可变条件", "dataKind": "decision_input", "description": "有正式依据且当前阶段不可改变的条件。", "unit": null },
+        { "dataPointId": "adjustable-conditions", "label": "可调整条件", "dataKind": "decision_input", "description": "当前阶段允许通过决策或方案调整的条件。", "unit": null },
+        { "dataPointId": "assumptions", "label": "当前假设", "dataKind": "decision_input", "description": "尚未被证据确认、仅用于继续工作的假设。", "unit": null },
+        { "dataPointId": "pending-verification", "label": "待验证前提", "dataKind": "decision_input", "description": "对后续结论有影响且需要补证的前提。", "unit": null }
+      ],
+      "optionalDataPoints": [],
+      "preferredSources": [
+        { "sourceId": "workspace-project-files", "purpose": "从批复、任务书、红线、合同、资金规则及会议决议中提取有正式依据的已定条件。", "required": false },
+        { "sourceId": "dsh-user-statement", "purpose": "记录项目方对偏好、当前路线和待验证前提的说明，并与正式条件区分。", "required": false }
+      ],
+      "queryTemplates": [],
+      "extractionRules": ["只有有正式依据的条件才能进入 fixed。", "领导偏好、内部倾向和当前方案路线不能自动升级为法定或不可变条件。", "无证据前提必须显式进入 assumption 或 pending-verification。"],
+      "normalizationRules": ["每个条件保存类别、依据、影响和可变更主体。", "同一条件存在冲突证据时状态设为 pending/conflict。", "假设被证伪后保留历史，不静默删除。"],
+      "researchSteps": [
+        { "stepId": "01-05-S01", "order": 1, "title": "提取正式已定条件", "dependsOnStepIds": [], "dataPointIds": ["fixed-conditions", "adjustable-conditions", "pending-verification"], "sourceIds": ["workspace-project-files"], "action": "workspace_extract", "produces": "evidence" },
+        { "stepId": "01-05-S02", "order": 2, "title": "记录项目方偏好与当前假设", "dependsOnStepIds": [], "dataPointIds": ["adjustable-conditions", "assumptions", "pending-verification"], "sourceIds": ["dsh-user-statement"], "action": "workspace_extract", "produces": "evidence" },
+        { "stepId": "01-05-S03", "order": 3, "title": "按固定、可调、假设、待验证分类", "dependsOnStepIds": ["01-05-S01", "01-05-S02"], "dataPointIds": ["fixed-conditions", "adjustable-conditions", "assumptions", "pending-verification"], "sourceIds": [], "action": "normalize", "produces": "normalized_data" },
+        { "stepId": "01-05-S04", "order": 4, "title": "检查条件来源和类别冲突", "dependsOnStepIds": ["01-05-S03"], "dataPointIds": ["fixed-conditions", "adjustable-conditions", "assumptions", "pending-verification"], "sourceIds": [], "action": "cross_check", "produces": "cross_check_result" },
+        { "stepId": "01-05-S05", "order": 5, "title": "形成约束与假设基线", "dependsOnStepIds": ["01-05-S04"], "dataPointIds": ["fixed-conditions", "adjustable-conditions", "assumptions", "pending-verification"], "sourceIds": [], "action": "aggregate", "produces": "aggregated_data" },
+        { "stepId": "01-05-S06", "order": 6, "title": "输出已定条件与待验证前提", "dependsOnStepIds": ["01-05-S05"], "dataPointIds": ["fixed-conditions", "adjustable-conditions", "assumptions", "pending-verification"], "sourceIds": [], "action": "produce_claims", "produces": "claims" }
+      ],
+      "aggregationMethod": { "methodId": "condition-evidence-classification", "version": "1.0.0", "description": "根据证据等级和授权状态将条件确定性分类为 fixed/adjustable/assumption/pending。", "deterministic": true },
+      "analysisMethod": { "methodId": "constraint-assumption-impact-analysis", "version": "1.0.0", "description": "解释各类条件对后续研究和方案自由度的影响。", "deterministic": false },
+      "crossCheckRules": ["fixed 条件必须有可定位的正式证据。", "用户偏好与正式条件冲突时不能提升为 fixed。"],
+      "freshnessRules": ["新增批复、土地/资金/产权条件或假设被证伪时立即更新。"],
+      "minimumEvidence": { "minHighAuthority": 1, "minIndependentSources": 1, "highRiskRequiresGradeA": true },
+      "fallbackPolicy": "无法核实的条件保持 pending/assumption，不作为后续否决或定案依据；没有 A 级依据时不得标为 fixed。",
+      "outputClaims": ["已定不可变条件", "可调整条件", "当前假设", "待验证前提及影响"]
+    },
+    {
+      "workflowId": "preplan.wf.01.06",
+      "requiredDataPoints": [
+        { "dataPointId": "output-purpose", "label": "成果用途", "dataKind": "decision_input", "description": "成果用于内部决策、立项、申报、融资、招商、报批或指导设计等具体用途。", "unit": null },
+        { "dataPointId": "output-audience", "label": "成果使用者", "dataKind": "stakeholder_statement", "description": "最终阅读、评审、批准或使用成果的主体。", "unit": null },
+        { "dataPointId": "required-depth", "label": "工作深度", "dataKind": "decision_input", "description": "与用途相匹配的研究、测算、论证和表达深度。", "unit": null }
+      ],
+      "optionalDataPoints": [
+        { "dataPointId": "delivery-deadline", "label": "交付时间约束", "dataKind": "schedule", "description": "评审、汇报、申报或其他交付节点。", "unit": null }
+      ],
+      "preferredSources": [
+        { "sourceId": "workspace-project-files", "purpose": "从委托合同、任务书、申报通知、汇报要求和评审规则中提取成果用途与交付深度。", "required": false },
+        { "sourceId": "dsh-user-statement", "purpose": "由最终成果使用者或项目发起人确认真实用途、受众和深度。", "required": true }
+      ],
+      "queryTemplates": [],
+      "extractionRules": ["优先识别成果实际使用场景和评审对象。", "报告页数、格式不等于工作深度；工作深度应由决策用途决定。", "用途未定时不得默认采用最高深度。"],
+      "normalizationRules": ["成果用途使用受控枚举并保留原始描述。", "工作深度拆为研究、测算、证据和表达要求。", "交付时间统一为明确日期或事件节点。"],
+      "researchSteps": [
+        { "stepId": "01-06-S01", "order": 1, "title": "读取交付与评审要求", "dependsOnStepIds": [], "dataPointIds": ["output-purpose", "output-audience", "required-depth", "delivery-deadline"], "sourceIds": ["workspace-project-files"], "action": "workspace_extract", "produces": "evidence" },
+        { "stepId": "01-06-S02", "order": 2, "title": "确认真实成果用途与使用者", "dependsOnStepIds": [], "dataPointIds": ["output-purpose", "output-audience", "required-depth", "delivery-deadline"], "sourceIds": ["dsh-user-statement"], "action": "workspace_extract", "produces": "evidence" },
+        { "stepId": "01-06-S03", "order": 3, "title": "统一用途与深度口径", "dependsOnStepIds": ["01-06-S01", "01-06-S02"], "dataPointIds": ["output-purpose", "output-audience", "required-depth", "delivery-deadline"], "sourceIds": [], "action": "normalize", "produces": "normalized_data" },
+        { "stepId": "01-06-S04", "order": 4, "title": "匹配用途与最小充分工作深度", "dependsOnStepIds": ["01-06-S03"], "dataPointIds": ["output-purpose", "output-audience", "required-depth", "delivery-deadline"], "sourceIds": [], "action": "aggregate", "produces": "aggregated_data" },
+        { "stepId": "01-06-S05", "order": 5, "title": "检查用途、受众与深度一致性", "dependsOnStepIds": ["01-06-S04"], "dataPointIds": ["output-purpose", "output-audience", "required-depth"], "sourceIds": [], "action": "cross_check", "produces": "cross_check_result" },
+        { "stepId": "01-06-S06", "order": 6, "title": "输出成果用途与工作深度", "dependsOnStepIds": ["01-06-S05"], "dataPointIds": ["output-purpose", "output-audience", "required-depth", "delivery-deadline"], "sourceIds": [], "action": "produce_claims", "produces": "claims" }
+      ],
+      "aggregationMethod": { "methodId": "deliverable-purpose-depth-matrix", "version": "1.0.0", "description": "根据成果用途、使用者和交付节点匹配最小充分工作深度。", "deterministic": true },
+      "analysisMethod": { "methodId": "deliverable-depth-fit-analysis", "version": "1.0.0", "description": "判断工作深度是否足以支撑成果用途，同时避免无必要的过度研究。", "deterministic": false },
+      "crossCheckRules": ["用途和深度必须一致。", "成果使用者未确认时保留限制，不假设评审口径。"],
+      "freshnessRules": ["成果用途、评审规则、交付对象或截止时间变化时重开。"],
+      "minimumEvidence": { "minHighAuthority": 0, "minIndependentSources": 1, "highRiskRequiresGradeA": false },
+      "fallbackPolicy": "用途未定时只采用内部初步决策的最小深度，并把用途确认列为 G1 前置条件。",
+      "outputClaims": ["成果用途", "最终使用者/评审者", "所需工作深度", "交付时间约束"]
+    },
+    {
+      "workflowId": "preplan.wf.01.07",
+      "requiredDataPoints": [
+        { "dataPointId": "source-inventory", "label": "现有资料清单", "dataKind": "project_document", "description": "已取得文件、图纸、表格、模型、数据和会议记录及其版本。", "unit": null },
+        { "dataPointId": "task-coverage", "label": "前六项任务资料覆盖度", "dataKind": "project_document", "description": "现有资料对 PS01–PS06 各任务的实际支持情况。", "unit": null },
+        { "dataPointId": "evidence-gaps", "label": "首轮证据缺口", "dataKind": "project_document", "description": "缺失、过期、冲突或无法验证的关键资料。", "unit": null },
+        { "dataPointId": "gap-impact", "label": "缺口影响", "dataKind": "decision_input", "description": "每个缺口对后续 Workflow、Gate 或结论可信度的影响。", "unit": null }
+      ],
+      "optionalDataPoints": [
+        { "dataPointId": "gap-owner", "label": "补充责任主体", "dataKind": "stakeholder_statement", "description": "负责补充、确认或授权替代处理的主体。", "unit": null }
+      ],
+      "preferredSources": [
+        { "sourceId": "workspace-project-files", "purpose": "扫描当前 Workspace 的实际文件、版本、可读取性和元数据，形成资料清单。", "required": true },
+        { "sourceId": "dsh-user-statement", "purpose": "确认资料可得性、补充责任、已知未上传资料和无法取得事项。", "required": false }
+      ],
+      "queryTemplates": [],
+      "extractionRules": ["不仅统计文件数量，还要记录文件类型、版本、日期、定位和可支持的数据项。", "发现旧版、重复、无法解析或冲突资料时单独标记。", "缺口必须指向受影响 Workflow/DataPoint。"],
+      "normalizationRules": ["资料按稳定 source key 去重，保留不同 Revision。", "缺口统一为 missing/stale/conflict/unreadable/unavailable。", "每个缺口绑定影响级别和后续承接 Workflow。"],
+      "researchSteps": [
+        { "stepId": "01-07-S01", "order": 1, "title": "扫描 Workspace 现有资料", "dependsOnStepIds": [], "dataPointIds": ["source-inventory", "task-coverage", "evidence-gaps"], "sourceIds": ["workspace-project-files"], "action": "workspace_extract", "produces": "evidence" },
+        { "stepId": "01-07-S02", "order": 2, "title": "确认未上传资料与补充责任", "dependsOnStepIds": [], "dataPointIds": ["evidence-gaps", "gap-impact", "gap-owner"], "sourceIds": ["dsh-user-statement"], "action": "workspace_extract", "produces": "evidence" },
+        { "stepId": "01-07-S03", "order": 3, "title": "统一资料版本和缺口状态", "dependsOnStepIds": ["01-07-S01", "01-07-S02"], "dataPointIds": ["source-inventory", "task-coverage", "evidence-gaps", "gap-impact", "gap-owner"], "sourceIds": [], "action": "normalize", "produces": "normalized_data" },
+        { "stepId": "01-07-S04", "order": 4, "title": "映射资料对 PS01–PS06 的覆盖", "dependsOnStepIds": ["01-07-S03"], "dataPointIds": ["source-inventory", "task-coverage", "evidence-gaps"], "sourceIds": [], "action": "aggregate", "produces": "aggregated_data" },
+        { "stepId": "01-07-S05", "order": 5, "title": "评估缺口影响与优先级", "dependsOnStepIds": ["01-07-S04"], "dataPointIds": ["evidence-gaps", "gap-impact", "gap-owner"], "sourceIds": [], "action": "professional_analysis", "produces": "analysis_trace" },
+        { "stepId": "01-07-S06", "order": 6, "title": "输出资料现状与首轮补证清单", "dependsOnStepIds": ["01-07-S05"], "dataPointIds": ["source-inventory", "task-coverage", "evidence-gaps", "gap-impact", "gap-owner"], "sourceIds": [], "action": "produce_claims", "produces": "claims" }
+      ],
+      "aggregationMethod": { "methodId": "source-inventory-coverage-matrix", "version": "1.0.0", "description": "按资料版本和 DataPoint 支持关系建立 PS01–PS06 覆盖矩阵，并确定性标记缺口。", "deterministic": true },
+      "analysisMethod": { "methodId": "evidence-gap-impact-analysis", "version": "1.0.0", "description": "解释资料缺口会阻断哪些后续工作、影响哪些结论以及需要谁补充。", "deterministic": false },
+      "crossCheckRules": ["文件存在不等于证据充分，必须检查版本、可读性和内容支持关系。", "用户声称存在但 Workspace 未获得的资料记录为 unavailable/pending，不视为已取得。"],
+      "freshnessRules": ["新资料到达、旧版被替换、关键事实冲突或资料确认无法取得时重新扫描。"],
+      "minimumEvidence": { "minHighAuthority": 1, "minIndependentSources": 1, "highRiskRequiresGradeA": false },
+      "fallbackPolicy": "即使当前没有资料，也必须输出按任务影响排序的资料获取清单；不得用 LLM 生成内容填补不存在的源文件。",
+      "outputClaims": ["现有资料清单与版本", "PS01–PS06 资料覆盖", "首轮证据缺口", "缺口影响、优先级与补充责任"]
+    }
+  ]
+}
