@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:pre-design:research:v2.0.1:data-source-catalog",
+  "title": "Pre 2.0.1 Data Source Catalog",
+  "type": "object",
+  "required": ["schemaVersion", "sources"],
+  "properties": {
+    "schemaVersion": { "const": "2.0.1" },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sourceId", "name", "publisher", "priority", "authorityLevel", "allowedDomains", "accessModes", "supportedDataKinds", "freshnessPolicy", "reliabilityGrade", "notes"],
+        "properties": {
+          "sourceId": { "type": "string", "minLength": 1 },
+          "name": { "type": "string", "minLength": 1 },
+          "publisher": { "type": "string", "minLength": 1 },
+          "priority": { "enum": ["P0", "P1", "P2", "P3", "P4", "P5"] },
+          "authorityLevel": { "enum": ["project_official", "government_official", "official_standard", "authoritative_industry", "auxiliary", "inference"] },
+          "homepage": { "type": ["string", "null"], "format": "uri" },
+          "allowedDomains": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+          "accessModes": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["workspace_file", "web_page", "web_search", "api", "manual_import", "professional_tool"] } },
+          "supportedDataKinds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+          "freshnessPolicy": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["maxAgeDays", "refreshOnProjectStart", "notes"],
+            "properties": {
+              "maxAgeDays": { "type": ["integer", "null"], "minimum": 0 },
+              "refreshOnProjectStart": { "type": "boolean" },
+              "notes": { "type": "string" }
+            }
+          },
+          "reliabilityGrade": { "enum": ["A", "B", "C", "D", "inference"] },
+          "notes": { "type": "string" }
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}
