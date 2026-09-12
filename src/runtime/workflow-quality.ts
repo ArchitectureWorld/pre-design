@@ -1,3 +1,4 @@
+import { effectiveWorkflowAutomationPolicy } from '../contracts/automation-policy.ts'
 import type { WorkflowDescriptor } from '../contracts/types.ts'
 
 export type WorkflowQualityDisposition =
@@ -5,6 +6,8 @@ export type WorkflowQualityDisposition =
   | 'auto_revise'
   | 'needs_human'
   | 'blocked_external'
+  | 'quality_unresolved'
+  | 'evidence_conflict'
 
 export type WorkflowQualityCheckStatus = 'pass' | 'gap' | 'block'
 
@@ -82,7 +85,7 @@ function reasonList(
   if (evidenceCoverage < 1) reasons.push(`证据规则覆盖不足：${Math.round(evidenceCoverage * 100)}%`)
   if (confidence < minimumConfidence) reasons.push(`分析置信度不足：${confidence.toFixed(2)} < ${minimumConfidence.toFixed(2)}`)
   if (evidence.blockers.some(blocker => blocker.kind === 'quality')) reasons.push('仍存在需要自动修订的质量问题')
-  if (evidence.blockers.some(blocker => blocker.kind === 'conflict')) reasons.push('存在需要人工裁决的证据或结论冲突')
+  if (evidence.blockers.some(blocker => blocker.kind === 'conflict')) reasons.push('存在尚未解决的证据或结论冲突')
   return reasons
 }
 
@@ -91,9 +94,10 @@ export function evaluateWorkflowQuality(
   evidence: WorkflowQualityEvidence,
   options: WorkflowQualityOptions,
 ): WorkflowQualityReport {
+  const policy = descriptor.automationPolicy ?? effectiveWorkflowAutomationPolicy(descriptor.risk)
   const attempt = Math.max(1, Math.trunc(options.attempt))
-  const maxAttempts = Math.max(1, Math.trunc(options.maxAttempts ?? 3))
-  const minimumConfidence = clamp(options.minimumConfidence ?? 0.72)
+  const maxAttempts = Math.max(1, Math.trunc(options.maxAttempts ?? policy.maxAutomaticAttempts))
+  const minimumConfidence = clamp(options.minimumConfidence ?? policy.minimumConfidence)
   const confidence = clamp(evidence.confidence)
   const completionCriteria = descriptor.completionCriteria ?? []
   const evidencePolicy = descriptor.evidencePolicy ?? []
@@ -108,11 +112,9 @@ export function evaluateWorkflowQuality(
   if (external.length > 0) {
     disposition = 'blocked_external'
     reasons.unshift(`存在外部阻断：${external.map(blocker => blocker.message).join('；')}`)
-  } else if (descriptor.risk.toUpperCase() === 'H') {
-    disposition = 'needs_human'
-    reasons.unshift('高风险工作项需要局部人工审核')
   } else if (conflict.length > 0) {
-    disposition = 'needs_human'
+    disposition = 'evidence_conflict'
+    reasons.unshift(`存在证据冲突：${conflict.map(blocker => blocker.message).join('；')}`)
   } else {
     const qualityPass = completionCoverage === 1
       && evidenceCoverage === 1
@@ -120,7 +122,7 @@ export function evaluateWorkflowQuality(
       && qualityBlockers.length === 0
     if (qualityPass) disposition = 'auto_pass'
     else if (attempt >= maxAttempts) {
-      disposition = 'needs_human'
+      disposition = 'quality_unresolved'
       reasons.unshift(`已达到自动修订上限：${attempt}/${maxAttempts}`)
     } else disposition = 'auto_revise'
   }
