@@ -12,25 +12,10 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["workflowId", "requiredDataPoints", "optionalDataPoints", "preferredSources", "queryTemplates", "extractionRules", "normalizationRules", "aggregationMethod", "analysisMethod", "crossCheckRules", "freshnessRules", "minimumEvidence", "fallbackPolicy", "outputClaims"],
+        "required": ["workflowId", "requiredDataPoints", "optionalDataPoints", "preferredSources", "queryTemplates", "extractionRules", "normalizationRules", "researchSteps", "aggregationMethod", "analysisMethod", "crossCheckRules", "freshnessRules", "minimumEvidence", "fallbackPolicy", "outputClaims"],
         "properties": {
           "workflowId": { "type": "string", "pattern": "^preplan\\.wf\\.[0-9]{2}\\.[0-9]{2}$" },
-          "requiredDataPoints": {
-            "type": "array",
-            "minItems": 1,
-            "items": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["dataPointId", "label", "dataKind", "description"],
-              "properties": {
-                "dataPointId": { "type": "string", "minLength": 1 },
-                "label": { "type": "string", "minLength": 1 },
-                "dataKind": { "type": "string", "minLength": 1 },
-                "description": { "type": "string", "minLength": 1 },
-                "unit": { "type": ["string", "null"] }
-              }
-            }
-          },
+          "requiredDataPoints": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/dataPoint" } },
           "optionalDataPoints": { "type": "array", "items": { "$ref": "#/$defs/dataPoint" } },
           "preferredSources": {
             "type": "array",
@@ -60,6 +45,11 @@
           },
           "extractionRules": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
           "normalizationRules": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+          "researchSteps": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "$ref": "#/$defs/researchStep" }
+          },
           "aggregationMethod": { "$ref": "#/$defs/method" },
           "analysisMethod": { "$ref": "#/$defs/method" },
           "crossCheckRules": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
@@ -91,6 +81,22 @@
         "dataKind": { "type": "string", "minLength": 1 },
         "description": { "type": "string", "minLength": 1 },
         "unit": { "type": ["string", "null"] }
+      }
+    },
+    "researchStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stepId", "order", "title", "dependsOnStepIds", "dataPointIds", "sourceIds", "action", "produces"],
+      "properties": {
+        "stepId": { "type": "string", "pattern": "^[0-9]{2}-[0-9]{2}-S[0-9]{2}$" },
+        "order": { "type": "integer", "minimum": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "dependsOnStepIds": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^[0-9]{2}-[0-9]{2}-S[0-9]{2}$" } },
+        "dataPointIds": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "sourceIds": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "action": { "enum": ["workspace_extract", "official_source_lookup", "cross_check", "normalize", "aggregate", "deterministic_calculation", "professional_analysis", "evidence_validate", "produce_claims"] },
+        "produces": { "enum": ["evidence", "normalized_data", "cross_check_result", "aggregated_data", "calculation_result", "analysis_trace", "validated_evidence", "claims"] },
+        "notes": { "type": "string" }
       }
     },
     "method": {
