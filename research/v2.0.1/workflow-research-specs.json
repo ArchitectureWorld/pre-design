@@ -30,16 +30,20 @@
         "行政区名称统一到当前官方名称；无法确认行政代码时保留为空。",
         "日期统一为 ISO 日期；模糊时间保留原文并标记不确定。"
       ],
+      "researchSteps": [
+        { "stepId": "01-01-S01", "order": 1, "title": "读取项目正式资料", "dependsOnStepIds": [], "dataPointIds": ["canonical-name", "project-location", "project-trigger", "project-owner", "time-constraint"], "sourceIds": ["workspace-project-files"], "action": "workspace_extract", "produces": "evidence" },
+        { "stepId": "01-01-S02", "order": 2, "title": "保留用户直接陈述作为辅助输入", "dependsOnStepIds": [], "dataPointIds": ["canonical-name", "project-location", "project-trigger", "project-owner", "time-constraint"], "sourceIds": ["dsh-user-statement"], "action": "workspace_extract", "produces": "evidence", "notes": "仅作为 user_statement，不自动升级为正式事实。" },
+        { "stepId": "01-01-S03", "order": 3, "title": "核验企业项目主体", "dependsOnStepIds": ["01-01-S01"], "dataPointIds": ["project-owner"], "sourceIds": ["cn-gsxt"], "action": "official_source_lookup", "produces": "evidence" },
+        { "stepId": "01-01-S04", "order": 4, "title": "统一名称、行政区与日期口径", "dependsOnStepIds": ["01-01-S01", "01-01-S02", "01-01-S03"], "dataPointIds": ["canonical-name", "project-location", "project-trigger", "project-owner", "time-constraint"], "sourceIds": [], "action": "normalize", "produces": "normalized_data" },
+        { "stepId": "01-01-S05", "order": 5, "title": "交叉核验项目身份冲突", "dependsOnStepIds": ["01-01-S04"], "dataPointIds": ["canonical-name", "project-location", "project-owner"], "sourceIds": [], "action": "cross_check", "produces": "cross_check_result" },
+        { "stepId": "01-01-S06", "order": 6, "title": "按来源优先级合并项目身份", "dependsOnStepIds": ["01-01-S05"], "dataPointIds": ["canonical-name", "project-location", "project-trigger", "project-owner", "time-constraint"], "sourceIds": [], "action": "aggregate", "produces": "aggregated_data" },
+        { "stepId": "01-01-S07", "order": 7, "title": "形成项目任务专业解释", "dependsOnStepIds": ["01-01-S06"], "dataPointIds": ["canonical-name", "project-location", "project-trigger", "project-owner", "time-constraint"], "sourceIds": [], "action": "professional_analysis", "produces": "analysis_trace" },
+        { "stepId": "01-01-S08", "order": 8, "title": "输出项目身份与任务边界结论", "dependsOnStepIds": ["01-01-S07"], "dataPointIds": ["canonical-name", "project-location", "project-trigger", "project-owner", "time-constraint"], "sourceIds": [], "action": "produce_claims", "produces": "claims" }
+      ],
       "aggregationMethod": { "methodId": "project-identity-source-priority-merge", "version": "1.0.0", "description": "按 P0>P1>P2>P3>P4>P5 合并同字段候选；同级冲突不自动覆盖。", "deterministic": true },
       "analysisMethod": { "methodId": "project-identity-professional-interpretation", "version": "1.0.0", "description": "在不新增事实的前提下解释项目任务、启动原因和当前策划问题。", "deterministic": false },
-      "crossCheckRules": [
-        "正式文件与用户陈述冲突时，以正式文件为事实候选并保留冲突记录。",
-        "企业主体名称如影响项目责任边界，优先使用企业信用公示信息或正式合同核验。"
-      ],
-      "freshnessRules": [
-        "项目正式文件按最新 Revision/签发日期选用，旧版本保持历史但标记 stale。",
-        "企业主体信息在项目启动和关键 Gate 前重新核验。"
-      ],
+      "crossCheckRules": ["正式文件与用户陈述冲突时，以正式文件为事实候选并保留冲突记录。", "企业主体名称如影响项目责任边界，优先使用企业信用公示信息或正式合同核验。"],
+      "freshnessRules": ["项目正式文件按最新 Revision/签发日期选用，旧版本保持历史但标记 stale。", "企业主体信息在项目启动和关键 Gate 前重新核验。"],
       "minimumEvidence": { "minHighAuthority": 0, "minIndependentSources": 1, "highRiskRequiresGradeA": false },
       "fallbackPolicy": "若只有用户陈述，可形成带限制的项目认知草案；未知项目类型、正式主体、法定边界和关键日期保持 unknown，不得推断补齐。",
       "outputClaims": ["项目身份与名称", "项目启动原因", "当前任务边界与已知时间约束"]
@@ -68,27 +72,22 @@
         { "sourceId": "cn-mohurd", "template": "{project_type} 建设 管理 标准 政策" },
         { "sourceId": "cn-standards", "template": "{standard_keyword_or_number}" }
       ],
-      "extractionRules": [
-        "每条政策/规划/标准记录标题、发布机关、发布日期、实施日期、现行状态、正式 URL 或文件定位。",
-        "法定边界只能来自已采用正式红线/规划条件/带 CRS 的闭合坐标或主管部门正式成果。",
-        "搜索结果摘要和转载页面只可作为发现线索，不能直接作为 A 级证据。"
-      ],
-      "normalizationRules": [
-        "政策和标准名称使用正式全称，保留文号/标准号。",
-        "标准状态统一为现行、即将实施、废止、未知；必须记录查询日期。",
-        "空间边界保留 CRS、来源文件和几何哈希；文本地点不得转换为法定边界。"
+      "extractionRules": ["每条政策/规划/标准记录标题、发布机关、发布日期、实施日期、现行状态、正式 URL 或文件定位。", "法定边界只能来自已采用正式红线/规划条件/带 CRS 的闭合坐标或主管部门正式成果。", "搜索结果摘要和转载页面只可作为发现线索，不能直接作为 A 级证据。"],
+      "normalizationRules": ["政策和标准名称使用正式全称，保留文号/标准号。", "标准状态统一为现行、即将实施、废止、未知；必须记录查询日期。", "空间边界保留 CRS、来源文件和几何哈希；文本地点不得转换为法定边界。"],
+      "researchSteps": [
+        { "stepId": "02-01-S01", "order": 1, "title": "读取项目已有法定与正式资料", "dependsOnStepIds": [], "dataPointIds": ["applicable-policies", "statutory-planning", "land-boundary-conditions", "applicable-standards", "local-policy"], "sourceIds": ["workspace-project-files"], "action": "workspace_extract", "produces": "evidence" },
+        { "stepId": "02-01-S02", "order": 2, "title": "查询国家政策与行政法规", "dependsOnStepIds": ["02-01-S01"], "dataPointIds": ["applicable-policies"], "sourceIds": ["cn-gov-policy"], "action": "official_source_lookup", "produces": "evidence" },
+        { "stepId": "02-01-S03", "order": 3, "title": "核验国土空间与土地政策", "dependsOnStepIds": ["02-01-S01"], "dataPointIds": ["statutory-planning", "land-boundary-conditions"], "sourceIds": ["cn-mnr"], "action": "official_source_lookup", "produces": "evidence" },
+        { "stepId": "02-01-S04", "order": 4, "title": "核验住建政策与建设管理要求", "dependsOnStepIds": ["02-01-S01"], "dataPointIds": ["applicable-policies", "applicable-standards"], "sourceIds": ["cn-mohurd"], "action": "official_source_lookup", "produces": "evidence" },
+        { "stepId": "02-01-S05", "order": 5, "title": "核验标准现行状态", "dependsOnStepIds": ["02-01-S04"], "dataPointIds": ["applicable-standards"], "sourceIds": ["cn-standards"], "action": "official_source_lookup", "produces": "evidence" },
+        { "stepId": "02-01-S06", "order": 6, "title": "交叉核验来源、版本与冲突", "dependsOnStepIds": ["02-01-S02", "02-01-S03", "02-01-S04", "02-01-S05"], "dataPointIds": ["applicable-policies", "statutory-planning", "land-boundary-conditions", "applicable-standards", "local-policy"], "sourceIds": [], "action": "cross_check", "produces": "cross_check_result" },
+        { "stepId": "02-01-S07", "order": 7, "title": "按权威等级与时效合并适用条件", "dependsOnStepIds": ["02-01-S06"], "dataPointIds": ["applicable-policies", "statutory-planning", "land-boundary-conditions", "applicable-standards", "local-policy"], "sourceIds": [], "action": "aggregate", "produces": "aggregated_data" },
+        { "stepId": "02-01-S08", "order": 8, "title": "形成法定适用性分析与结论", "dependsOnStepIds": ["02-01-S07"], "dataPointIds": ["applicable-policies", "statutory-planning", "land-boundary-conditions", "applicable-standards", "local-policy"], "sourceIds": [], "action": "professional_analysis", "produces": "claims" }
       ],
       "aggregationMethod": { "methodId": "policy-standard-authority-merge", "version": "1.0.0", "description": "按来源权威等级、现行状态和生效时间合并适用条件；冲突项保留并进入人工裁决。", "deterministic": true },
       "analysisMethod": { "methodId": "statutory-applicability-analysis", "version": "1.0.0", "description": "基于项目类型、空间位置、建设内容判断哪些现行政策/规划/标准对项目形成约束或机会。", "deterministic": false },
-      "crossCheckRules": [
-        "高风险法定条件必须至少有 1 条 A 级项目正式资料或政府/法定机构原始证据。",
-        "政策/标准名称相同但版本或状态冲突时，不得静默择一；必须标记 conflict。",
-        "地方规划条件缺失时不得用国家层面政策推断具体地块指标。"
-      ],
-      "freshnessRules": [
-        "政策、标准和规划状态在项目启动时、进入 G2 前以及来源发布日期变化后重新查询。",
-        "标准若存在即将实施版本，必须同时记录当前有效版本与切换日期。"
-      ],
+      "crossCheckRules": ["高风险法定条件必须至少有 1 条 A 级项目正式资料或政府/法定机构原始证据。", "政策/标准名称相同但版本或状态冲突时，不得静默择一；必须标记 conflict。", "地方规划条件缺失时不得用国家层面政策推断具体地块指标。"],
+      "freshnessRules": ["政策、标准和规划状态在项目启动时、进入 G2 前以及来源发布日期变化后重新查询。", "标准若存在即将实施版本，必须同时记录当前有效版本与切换日期。"],
       "minimumEvidence": { "minHighAuthority": 1, "minIndependentSources": 2, "highRiskRequiresGradeA": true },
       "fallbackPolicy": "缺少项目所在地正式规划条件、土地/红线或地方主管部门数据时进入 blocked_external；不得根据普通地图、自然语言地址或 LLM 推断法定指标与边界。",
       "outputClaims": ["适用政策与法规清单", "法定规划与土地约束", "适用标准及版本状态", "待补充的地方正式条件"]
@@ -117,27 +116,22 @@
         { "sourceId": "cn-nbs", "template": "建筑 安装 工程 价格 指数 {base_date}" },
         { "sourceId": "cn-standards", "template": "{cost_related_standard_number_or_keyword}" }
       ],
-      "extractionRules": [
-        "每一个工程量保留来源对象、计算口径、单位和 Revision。",
-        "每一个单价保留来源、地区、价格基准日、税费口径和适用范围。",
-        "历史项目指标只能在项目类型、地区、时间和建造标准可比时作为 benchmark，并明确差异。"
-      ],
-      "normalizationRules": [
-        "货币统一到项目指定币种，保留原币种与换算参数。",
-        "单价统一到与工程量一致的计量单位；换算步骤写入 AnalysisTrace。",
-        "跨期价格必须使用明确指数或更新单价，不允许凭经验直接上调百分比。"
+      "extractionRules": ["每一个工程量保留来源对象、计算口径、单位和 Revision。", "每一个单价保留来源、地区、价格基准日、税费口径和适用范围。", "历史项目指标只能在项目类型、地区、时间和建造标准可比时作为 benchmark，并明确差异。"],
+      "normalizationRules": ["货币统一到项目指定币种，保留原币种与换算参数。", "单价统一到与工程量一致的计量单位；换算步骤写入 AnalysisTrace。", "跨期价格必须使用明确指数或更新单价，不允许凭经验直接上调百分比。"],
+      "researchSteps": [
+        { "stepId": "08-02-S01", "order": 1, "title": "读取工程量、询价与历史造价资料", "dependsOnStepIds": [], "dataPointIds": ["quantities", "unit-rates", "base-date", "tax-basis", "contingency", "financing-cost", "lifecycle-cost"], "sourceIds": ["workspace-project-files"], "action": "workspace_extract", "produces": "evidence" },
+        { "stepId": "08-02-S02", "order": 2, "title": "核验工程造价与计价规则", "dependsOnStepIds": ["08-02-S01"], "dataPointIds": ["unit-rates", "tax-basis", "contingency"], "sourceIds": ["cn-mohurd"], "action": "official_source_lookup", "produces": "evidence" },
+        { "stepId": "08-02-S03", "order": 3, "title": "查询公开价格指数辅助跨期调整", "dependsOnStepIds": ["08-02-S01"], "dataPointIds": ["unit-rates", "base-date"], "sourceIds": ["cn-nbs"], "action": "official_source_lookup", "produces": "evidence" },
+        { "stepId": "08-02-S04", "order": 4, "title": "核验影响工程量与计价的标准", "dependsOnStepIds": ["08-02-S01"], "dataPointIds": ["quantities", "unit-rates", "tax-basis"], "sourceIds": ["cn-standards"], "action": "official_source_lookup", "produces": "evidence" },
+        { "stepId": "08-02-S05", "order": 5, "title": "统一工程量、货币、单位与基准日", "dependsOnStepIds": ["08-02-S01", "08-02-S02", "08-02-S03", "08-02-S04"], "dataPointIds": ["quantities", "unit-rates", "base-date", "tax-basis", "contingency", "financing-cost", "lifecycle-cost"], "sourceIds": [], "action": "normalize", "produces": "normalized_data" },
+        { "stepId": "08-02-S06", "order": 6, "title": "确定性计算分项成本与总成本区间", "dependsOnStepIds": ["08-02-S05"], "dataPointIds": ["quantities", "unit-rates", "base-date", "tax-basis", "contingency", "financing-cost", "lifecycle-cost"], "sourceIds": [], "action": "deterministic_calculation", "produces": "calculation_result" },
+        { "stepId": "08-02-S07", "order": 7, "title": "独立核验成本证据与可复算性", "dependsOnStepIds": ["08-02-S06"], "dataPointIds": ["quantities", "unit-rates", "base-date", "tax-basis", "contingency"], "sourceIds": [], "action": "evidence_validate", "produces": "validated_evidence" },
+        { "stepId": "08-02-S08", "order": 8, "title": "形成成本构成、敏感项与投资结论", "dependsOnStepIds": ["08-02-S07"], "dataPointIds": ["quantities", "unit-rates", "base-date", "tax-basis", "contingency", "financing-cost", "lifecycle-cost"], "sourceIds": [], "action": "professional_analysis", "produces": "claims" }
       ],
       "aggregationMethod": { "methodId": "quantity-times-rate-cost-model", "version": "1.0.0", "description": "按分项工程量×对应单价计算分项成本，叠加税费、其他费、预备费和明确的融资/启动成本，再输出总额与区间。", "deterministic": true },
       "analysisMethod": { "methodId": "cost-baseline-risk-interpretation", "version": "1.0.0", "description": "解释成本构成、关键敏感项、来源差异和不确定性，不直接创造金额。", "deterministic": false },
-      "crossCheckRules": [
-        "总价必须可由分项工程量、单价和费用参数复算。",
-        "关键单价至少需要 A 级正式询价/造价资料，或明确标注的可比项目/官方价格数据并给出区间。",
-        "来源时间、地区或建设标准不一致时必须做显式调整并记录方法。"
-      ],
-      "freshnessRules": [
-        "进入 G8 前重新核验关键单价、基准日和工程量 Revision。",
-        "超过项目设定有效期的价格数据标记 stale，不自动沿用。"
-      ],
+      "crossCheckRules": ["总价必须可由分项工程量、单价和费用参数复算。", "关键单价至少需要 A 级正式询价/造价资料，或明确标注的可比项目/官方价格数据并给出区间。", "来源时间、地区或建设标准不一致时必须做显式调整并记录方法。"],
+      "freshnessRules": ["进入 G8 前重新核验关键单价、基准日和工程量 Revision。", "超过项目设定有效期的价格数据标记 stale，不自动沿用。"],
       "minimumEvidence": { "minHighAuthority": 1, "minIndependentSources": 2, "highRiskRequiresGradeA": true },
       "fallbackPolicy": "缺少工程量或可信单价时允许输出缺口清单和估算方法，但不得由 LLM 补写金额；采用当地/同类指标必须绑定真实来源、可比条件和不确定区间，否则进入 blocked_external/needs_human。",
       "outputClaims": ["分项投资估算", "单位造价与价格基准", "总 CAPEX 与成本区间", "关键成本敏感项与缺口"]
