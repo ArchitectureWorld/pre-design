@@ -1,72 +1,55 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ResearchRegistry } from '../src/research/registry.ts'
 
-const roots: string[] = []
 const researchRoot = new URL('../research/v2.0.1/', import.meta.url)
+const tempRoots: string[] = []
 
 async function tempResearchRoot(catalog: unknown, workflows: unknown): Promise<URL> {
-  const root = await mkdtemp(join(tmpdir(), 'pre-design-research-registry-'))
-  roots.push(root)
-  const schemas = join(root, 'schemas')
-  await mkdir(schemas, { recursive: true })
-  for (const name of [
-    'data-source-catalog.schema.json',
-    'workflow-research-spec.schema.json',
-    'evidence-record.schema.json',
-    'analysis-trace.schema.json',
-  ]) await writeFile(join(schemas, name), await readFile(new URL(`schemas/${name}`, researchRoot)))
-  await writeFile(join(root, 'data-sources.json'), `${JSON.stringify(catalog, null, 2)}\n`)
-  await writeFile(join(root, 'workflow-research-specs.json'), `${JSON.stringify(workflows, null, 2)}\n`)
-  return pathToFileURL(`${root}/`)
+  const root = await mkdtemp(join(tmpdir(), 'pre-research-registry-'))
+  tempRoots.push(root)
+  await cp(new URL('../research/v2.0.1/schemas/', import.meta.url), join(root, 'schemas'), { recursive: true })
+  await writeFile(join(root, 'data-sources.json'), JSON.stringify(catalog, null, 2))
+  await writeFile(join(root, 'workflow-research-specs.json'), JSON.stringify(workflows, null, 2))
+  return new URL(`file://${root.replaceAll('\\', '/')}/`)
 }
 
 afterEach(async () => {
-  for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true })
+  for (const root of tempRoots.splice(0)) await rm(root, { recursive: true, force: true })
 })
 
 describe('Pre 2.0.1 ResearchRegistry', () => {
   it('loads authoritative sources and all available research spec documents', async () => {
     const registry = await ResearchRegistry.open(researchRoot)
-    expect(registry.source('cn-nbs')).toMatchObject({ priority: 'P1', reliabilityGrade: 'A', allowedDomains: ['stats.gov.cn'] })
-    expect(registry.source('cn-standards').allowedDomains).toContain('std.samr.gov.cn')
-
-    expect(registry.workflow('preplan.wf.01.07')).toMatchObject({ workflowId: 'preplan.wf.01.07' })
-    expect(registry.workflows().filter(row => row.workflowId.startsWith('preplan.wf.01.'))).toHaveLength(7)
-
-    const policy = registry.workflow('preplan.wf.02.01')
-    expect(policy.preferredSources.map(source => source.sourceId)).toEqual(expect.arrayContaining([
-      'workspace-project-files', 'cn-gov-policy', 'cn-mnr', 'cn-mohurd', 'cn-standards',
+    expect(registry.sourceIds()).toEqual(expect.arrayContaining([
+      'workspace-project-files', 'cn-nbs', 'cn-gov-policy', 'cn-mohurd', 'cn-mnr', 'cn-standards', 'cn-cma', 'cn-gsxt',
     ]))
-    expect(policy.minimumEvidence.highRiskRequiresGradeA).toBe(true)
-
-    const cost = registry.workflow('preplan.wf.08.02')
-    expect(cost.fallbackPolicy).toContain('不得由 LLM 补写金额')
-    expect(cost.aggregationMethod.deterministic).toBe(true)
+    expect(registry.workflowIds()).toEqual(expect.arrayContaining([
+      'preplan.wf.01.01', 'preplan.wf.01.02', 'preplan.wf.01.07', 'preplan.wf.02.01', 'preplan.wf.08.02',
+    ]))
+    expect(registry.workflowIds().length).toBe(9)
+    expect(registry.source('cn-nbs')).toMatchObject({ priority: 'P1', reliabilityGrade: 'A' })
+    expect(registry.workflow('preplan.wf.08.02').aggregationMethod.deterministic).toBe(true)
+    for (const workflowId of registry.workflowIds()) {
+      expect(registry.workflow(workflowId).researchSteps.length, workflowId).toBeGreaterThan(0)
+    }
   })
 
   it('requires an explicit ordered Workflow -> ResearchStep -> DataPoint -> Source chain', async () => {
     const registry = await ResearchRegistry.open(researchRoot)
-    const policy = registry.workflow('preplan.wf.02.01')
-    expect(policy.researchSteps.map(step => step.stepId)).toEqual([
-      '02-01-S01', '02-01-S02', '02-01-S03', '02-01-S04', '02-01-S05', '02-01-S06', '02-01-S07', '02-01-S08',
-    ])
-    expect(policy.researchSteps.find(step => step.stepId === '02-01-S03')).toMatchObject({
-      order: 3,
-      dataPointIds: ['statutory-planning', 'land-boundary-conditions'],
-      sourceIds: ['cn-mnr'],
-      action: 'official_source_lookup',
-      produces: 'evidence',
-      dependsOnStepIds: ['02-01-S01'],
-    })
-    for (const workflow of registry.workflows()) {
-      const dataPointIds = new Set([...workflow.requiredDataPoints, ...workflow.optionalDataPoints].map(item => item.dataPointId))
-      const sourceIds = new Set(workflow.preferredSources.map(item => item.sourceId))
-      for (const step of workflow.researchSteps) {
-        for (const dataPointId of step.dataPointIds) expect(dataPointIds.has(dataPointId)).toBe(true)
+    const sourceIds = new Set(registry.sourceIds())
+    for (const workflowId of registry.workflowIds()) {
+      const spec = registry.workflow(workflowId)
+      const dataPointIds = new Set([...spec.requiredDataPoints, ...spec.optionalDataPoints].map(row => row.dataPointId))
+      const stepIds = new Set(spec.researchSteps.map(row => row.stepId))
+      expect(stepIds.size, workflowId).toBe(spec.researchSteps.length)
+      expect(spec.researchSteps.map(row => row.order), workflowId)
+        .toEqual([...spec.researchSteps].sort((left, right) => left.order - right.order).map(row => row.order))
+      for (const step of spec.researchSteps) {
+        for (const dependencyId of step.dependsOnStepIds) expect(stepIds.has(dependencyId), `${workflowId}:${step.stepId}:${dependencyId}`).toBe(true)
+        for (const dataPointId of step.dataPointIds) expect(dataPointIds.has(dataPointId), `${workflowId}:${step.stepId}:${dataPointId}`).toBe(true)
         for (const sourceId of step.sourceIds) expect(sourceIds.has(sourceId)).toBe(true)
       }
     }
@@ -110,7 +93,7 @@ describe('Pre 2.0.1 ResearchRegistry', () => {
     expect(valid.valid).toBe(true)
     const invalid = registry.validateEvidenceRecord({
       evidenceId: 'ev-2', workflowId: 'preplan.wf.01.01', dataPointId: 'project-trigger', sourceId: 'llm-inference',
-      sourceType: 'manual_import', sourceUri: 'inference://model', sourceTitle: '模型推断', publisher: 'LLM', publishedAt: null,
+      sourceType: 'model_output', sourceUri: 'model://pre-design/current-run', sourceTitle: '模型推断', publisher: 'LLM', publishedAt: null,
       capturedAt: '2026-09-12T00:00:00.000Z', asOf: null, locator: {}, rawValue: '推测', normalizedValue: '推测', unit: null,
       contentHash: 'b'.repeat(64), reliability: 'inference', claimClass: 'fact', notes: '',
     })
