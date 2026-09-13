@@ -94,7 +94,7 @@
         "dependsOnStepIds": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^[0-9]{2}-[0-9]{2}-S[0-9]{2}$" } },
         "dataPointIds": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
         "sourceIds": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
-        "action": { "enum": ["workspace_extract", "official_source_lookup", "cross_check", "normalize", "aggregate", "deterministic_calculation", "professional_analysis", "evidence_validate", "produce_claims"] },
+        "action": { "enum": ["workspace_extract", "upstream_state_read", "official_source_lookup", "cross_check", "normalize", "aggregate", "deterministic_calculation", "professional_analysis", "evidence_validate", "produce_claims"] },
         "produces": { "enum": ["evidence", "normalized_data", "cross_check_result", "aggregated_data", "calculation_result", "analysis_trace", "validated_evidence", "claims"] },
         "notes": { "type": "string" }
       }
