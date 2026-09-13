@@ -41,7 +41,7 @@ describe('Pre 2.0.1 Chapter 02 traceable research coverage', () => {
       'workspace-project-files', 'cn-local-gov-official', 'cn-moe', 'cn-nhc',
     ]))
     expect(sourceIds(registry, 'preplan.wf.02.07')).toEqual(expect.arrayContaining([
-      'workspace-project-files', 'cn-nbs', 'cn-local-gov-official', 'cn-gsxt',
+      'workspace-project-files', 'cn-nbs', 'cn-local-gov-official', 'cn-ndrc', 'cn-miit',
     ]))
     expect(sourceIds(registry, 'preplan.wf.02.08')).toEqual(expect.arrayContaining([
       'workspace-project-files', 'cn-mot', 'cn-mohurd', 'cn-mem',
