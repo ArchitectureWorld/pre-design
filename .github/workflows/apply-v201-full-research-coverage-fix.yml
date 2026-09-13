@@ -41,13 +41,19 @@ jobs:
       - name: Generate all ResearchSpecs
         run: node scripts/apply-v201-full-research-coverage.mjs
 
-      - name: Verify research and automation semantics
+      - name: Verify all 57 research chains and automation semantics
         run: |
           pnpm verify:automation-semantics
           pnpm test:research
           pnpm typecheck
           pnpm build:research-audit
           grep -q '57/57 已映射' research/v2.0.1/source-audit.html
+          grep -q 'project-state-store' research/v2.0.1/source-audit.html
+          grep -q 'professional-tool-output' research/v2.0.1/source-audit.html
+          if grep -q 'ResearchSpec 待映射' research/v2.0.1/source-audit.html; then
+            echo 'source audit still contains unmapped workflows'
+            exit 1
+          fi
 
       - name: Run complete regression
         run: |
@@ -66,3 +72,5 @@ jobs:
           fi
           git commit -m "feat: complete V2.0.1 57-workflow research coverage"
           git push origin HEAD:feat/pre-v2.0.1
+
+# validation-marker: all-chapters-finalize-20260913
