@@ -1,0 +1,68 @@
+name: Apply V2.0.1 Full Research Coverage Fix
+
+on:
+  push:
+    branches:
+      - feat/pre-v2.0.1
+    paths:
+      - 'scripts/patch-v201-full-research-coverage-fix.mjs'
+      - '.github/workflows/apply-v201-full-research-coverage-fix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-generate-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.11.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Patch generator
+        run: node scripts/patch-v201-full-research-coverage-fix.mjs
+
+      - name: Generate all ResearchSpecs
+        run: node scripts/apply-v201-full-research-coverage.mjs
+
+      - name: Verify research and automation semantics
+        run: |
+          pnpm verify:automation-semantics
+          pnpm test:research
+          pnpm typecheck
+          pnpm build:research-audit
+          grep -q '57/57 已映射' research/v2.0.1/source-audit.html
+
+      - name: Run complete regression
+        run: |
+          pnpm test
+          pnpm test:built
+          git diff --check
+
+      - name: Commit full coverage baseline
+        run: |
+          git config user.name "ArchitectureWorld"
+          git config user.email "140295054+ArchitectureWorld@users.noreply.github.com"
+          git add scripts/apply-v201-full-research-coverage.mjs research/v2.0.1
+          if git diff --cached --quiet; then
+            echo "No changes required."
+            exit 0
+          fi
+          git commit -m "feat: complete V2.0.1 57-workflow research coverage"
+          git push origin HEAD:feat/pre-v2.0.1
