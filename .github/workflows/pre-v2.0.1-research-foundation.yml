@@ -56,7 +56,7 @@ jobs:
       - name: Enforce automatic-mode invariants
         run: pnpm test:automation-invariants
 
-      - name: Run research foundation tests
+      - name: Run complete research coverage tests
         run: pnpm test:research
 
       - name: Typecheck
@@ -66,10 +66,17 @@ jobs:
         run: |
           pnpm build:research-audit
           grep -q 'Chapter → Workflow → ResearchStep → DataPoint → DataSource' research/v2.0.1/source-audit.html
+          grep -q '57/57 已映射' research/v2.0.1/source-audit.html
           grep -q 'V2.0.1 Automatic-first 执行边界' research/v2.0.1/source-audit.html
           grep -q 'risk=H' research/v2.0.1/source-audit.html
+          grep -q 'project-state-store' research/v2.0.1/source-audit.html
+          grep -q 'professional-tool-output' research/v2.0.1/source-audit.html
           grep -q '02-01-S03' research/v2.0.1/source-audit.html
           grep -q 'cn-mnr' research/v2.0.1/source-audit.html
+          if grep -q 'ResearchSpec 待映射' research/v2.0.1/source-audit.html; then
+            echo 'source audit still contains unmapped workflows'
+            exit 1
+          fi
           if grep -q '触发后转人工' research/v2.0.1/source-audit.html; then
             echo 'source audit reintroduced manual fallback semantics'
             exit 1
@@ -121,3 +128,5 @@ jobs:
             git status --short
             exit 1
           fi
+
+# validation-marker: full-research-coverage-20260913
