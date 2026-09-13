@@ -21,7 +21,7 @@
           "authorityLevel": { "enum": ["project_official", "government_official", "official_standard", "authoritative_industry", "auxiliary", "inference"] },
           "homepage": { "type": ["string", "null"], "format": "uri" },
           "allowedDomains": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
-          "accessModes": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["workspace_file", "session_context", "model_output", "web_page", "web_search", "api", "manual_import", "professional_tool"] } },
+          "accessModes": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["workspace_file", "project_state", "session_context", "model_output", "web_page", "web_search", "api", "manual_import", "professional_tool"] } },
           "supportedDataKinds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
           "freshnessPolicy": {
             "type": "object",
