@@ -59,6 +59,21 @@ for (const name of specFiles) {
   }
 }
 
+const sourceCatalogPath = 'research/v2.0.1/data-sources.json'
+const sourceCatalogText = await read(sourceCatalogPath)
+for (const phrase of ['转 manual_import', '必须保留人工导入', '转人工']) {
+  if (sourceCatalogText.includes(phrase)) fail(`${sourceCatalogPath} contains manual fallback phrase: ${phrase}`)
+}
+const sourceCatalog = JSON.parse(sourceCatalogText)
+const userStatement = sourceCatalog.sources?.find(source => source.sourceId === 'dsh-user-statement')
+if (!userStatement?.accessModes?.includes('session_context') || userStatement.accessModes.includes('manual_import')) {
+  fail(`${sourceCatalogPath}: dsh-user-statement must be automatic session_context, not manual_import`)
+}
+const inference = sourceCatalog.sources?.find(source => source.sourceId === 'llm-inference')
+if (!inference?.accessModes?.includes('model_output') || inference.accessModes.includes('manual_import')) {
+  fail(`${sourceCatalogPath}: llm-inference must be model_output, not manual_import`)
+}
+
 const sourceAuditPath = 'research/v2.0.1/source-audit-status.json'
 const sourceAuditText = await read(sourceAuditPath)
 for (const phrase of ['转人工', '人工处理', '人工登录']) {
@@ -81,4 +96,4 @@ if (failures.length > 0) {
 }
 
 console.log('PRE_V2_0_1_AUTOMATION_SEMANTICS_PASS')
-console.log(JSON.stringify({ checkedResearchSpecFiles: specFiles.length, checkedSourceAudit: true }, null, 2))
+console.log(JSON.stringify({ checkedResearchSpecFiles: specFiles.length, checkedSourceCatalog: true, checkedSourceAudit: true }, null, 2))
