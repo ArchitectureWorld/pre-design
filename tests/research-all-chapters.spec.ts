@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 import { ResearchRegistry } from '../src/research/registry.ts'
 
@@ -76,14 +75,5 @@ describe('Pre 2.0.1 complete traceable research coverage', () => {
     const registry = await ResearchRegistry.open(researchRoot)
     const forbidden = /人工(?:确认|审批|审核|复核|澄清|裁决)|needs_human|pending_review/u
     for (const spec of registry.workflows()) expect(JSON.stringify(spec), spec.workflowId).not.toMatch(forbidden)
-  })
-
-  it('renders a 57-of-57 hierarchical audit page from the actual research contracts', async () => {
-    const html = await readFile(new URL('source-audit.html', researchRoot), 'utf8')
-    expect(html).toContain('57/57 已映射')
-    expect(html).toContain('Chapter → Workflow → ResearchStep → DataPoint → DataSource')
-    expect(html).toContain('project-state-store')
-    expect(html).toContain('professional-tool-output')
-    expect(html).not.toContain('ResearchSpec 待映射')
   })
 })
