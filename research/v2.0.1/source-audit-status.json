@@ -14,7 +14,7 @@
       "status": "local_source",
       "checkedUrl": null,
       "workingUrl": null,
-      "note": "来自当前 DSH Session 用户陈述，不属于公开网站；必须保持 user_statement。"
+      "note": "来自当前 DSH Session 已有用户陈述，不属于公开网站；仅作为 user_statement/decision 输入，不构成 automatic 模式的必经人工确认节点。"
     },
     {
       "sourceId": "cn-nbs",
@@ -35,14 +35,14 @@
       "status": "official_domain_confirmed_direct_probe_limited",
       "checkedUrl": "https://www.mohurd.gov.cn/",
       "workingUrl": "https://www.mohurd.gov.cn/",
-      "note": "mohurd.gov.cn 为住房城乡建设部官方域名，政府门户及部信息中心内容可交叉确认；本次自动直接首页探测未成功，进入运行时需再次探测具体页面。"
+      "note": "mohurd.gov.cn 为住房城乡建设部官方域名，政府门户及部信息中心内容可交叉确认；本次自动直接首页探测未成功，运行时应继续探测具体公开页面，仍不可访问则记录 source_access_restricted/blocked_external。"
     },
     {
       "sourceId": "cn-mnr",
       "status": "official_domain_confirmed_direct_probe_limited",
       "checkedUrl": "https://www.mnr.gov.cn/",
       "workingUrl": "https://www.mnr.gov.cn/",
-      "note": "mnr.gov.cn 为自然资源部官方域名，国家政务服务平台可交叉确认；本次自动直接首页探测未成功，不能据此判定来源不可用。"
+      "note": "mnr.gov.cn 为自然资源部官方域名，国家政务服务平台可交叉确认；本次自动直接首页探测未成功，运行时应继续探测具体公开页面，仍不可访问则记录 source_access_restricted/blocked_external。"
     },
     {
       "sourceId": "cn-standards",
@@ -56,14 +56,14 @@
       "status": "verified_official_resources_home_probe_limited",
       "checkedUrl": "https://data.cma.cn/",
       "workingUrl": "https://k.data.cma.cn/",
-      "note": "国家气象信息中心公开资源与知识服务页面可访问；部分数据集存在注册/登录/授权要求，禁止绕过权限。"
+      "note": "国家气象信息中心公开资源与知识服务页面可访问；部分数据集存在注册/登录/授权要求，禁止绕过权限。若当前运行环境没有已授权访问能力，则记录 source_access_restricted/blocked_external，不把用户操作设为默认工作流步骤。"
     },
     {
       "sourceId": "cn-gsxt",
       "status": "verified_official_service_via_subdomain",
       "checkedUrl": "https://www.gsxt.gov.cn/",
       "workingUrl": "https://bt.gsxt.gov.cn/",
-      "note": "国家企业信用信息公示系统公开查询入口可通过 gsxt.gov.cn 子域访问；具体查询可能触发验证码，触发后转人工，不绕过访问控制。"
+      "note": "国家企业信用信息公示系统公开查询入口可通过 gsxt.gov.cn 子域访问；具体查询可能触发验证码。禁止绕过访问控制；若自动运行无法继续，则记录 source_access_restricted/blocked_external，并继续执行不受影响的并行任务。"
     },
     {
       "sourceId": "llm-inference",
