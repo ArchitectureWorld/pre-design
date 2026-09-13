@@ -59,6 +59,21 @@ for (const name of specFiles) {
   }
 }
 
+const sourceAuditPath = 'research/v2.0.1/source-audit-status.json'
+const sourceAuditText = await read(sourceAuditPath)
+for (const phrase of ['转人工', '人工处理', '人工登录']) {
+  if (sourceAuditText.includes(phrase)) fail(`${sourceAuditPath} contains manual fallback phrase: ${phrase}`)
+}
+const sourceAudit = JSON.parse(sourceAuditText)
+for (const check of sourceAudit.checks ?? []) {
+  const note = String(check.note ?? '')
+  if (/(?:验证码|登录|授权要求)/u.test(note)
+    && check.sourceId !== 'dsh-user-statement'
+    && !note.includes('blocked_external')) {
+    fail(`${sourceAuditPath} ${check.sourceId}: restricted access must resolve to blocked_external rather than implicit human work`)
+  }
+}
+
 if (failures.length > 0) {
   console.error('PRE_V2_0_1_AUTOMATION_SEMANTICS_FAIL')
   for (const failure of failures) console.error(`- ${failure}`)
@@ -66,4 +81,4 @@ if (failures.length > 0) {
 }
 
 console.log('PRE_V2_0_1_AUTOMATION_SEMANTICS_PASS')
-console.log(JSON.stringify({ checkedResearchSpecFiles: specFiles.length }, null, 2))
+console.log(JSON.stringify({ checkedResearchSpecFiles: specFiles.length, checkedSourceAudit: true }, null, 2))
