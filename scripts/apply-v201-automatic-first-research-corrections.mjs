@@ -30,8 +30,17 @@ const replacements = new Map([
   ['采用当地/同类指标必须绑定真实来源、可比条件和不确定区间，否则进入 blocked_external/needs_human。', '采用当地/同类指标必须绑定真实来源、可比条件和不确定区间，否则进入 blocked_external/quality_unresolved/evidence_conflict。'],
 ])
 
+function automaticFirstText(value) {
+  const exact = replacements.get(value) ?? value
+  return exact
+    .replaceAll('进入人工裁决', '标记 evidence_conflict')
+    .replaceAll('必须人工澄清', '必须标记 evidence_conflict')
+    .replaceAll('提交人工确认', '自动进入下游并保留用户 override/edit 能力')
+    .replaceAll('blocked_external/needs_human', 'blocked_external/quality_unresolved/evidence_conflict')
+}
+
 function transform(value) {
-  if (typeof value === 'string') return replacements.get(value) ?? value
+  if (typeof value === 'string') return automaticFirstText(value)
   if (Array.isArray(value)) return value.map(transform)
   if (value !== null && typeof value === 'object') {
     const output = {}
@@ -40,6 +49,8 @@ function transform(value) {
   }
   return value
 }
+
+const forbidden = /(?:提交人工确认|必须人工澄清|进入人工裁决|人工(?:审批|审核|复核|澄清|裁决)|blocked_external\/needs_human)/gu
 
 for (const name of files) {
   const path = resolve(researchRoot, name)
@@ -51,8 +62,9 @@ for (const name of files) {
     }
   }
   const serialized = `${JSON.stringify(document, null, 2)}\n`
-  if (/(?:提交人工确认|必须人工澄清|人工(?:确认|审批|审核|复核|澄清|裁决)|blocked_external\/needs_human)/u.test(serialized)) {
-    throw new Error(`${name} still contains mandatory-human workflow semantics after correction`)
+  const residual = [...serialized.matchAll(forbidden)].map(match => match[0])
+  if (residual.length > 0) {
+    throw new Error(`${name} still contains mandatory-human workflow semantics: ${[...new Set(residual)].join(', ')}`)
   }
   await writeFile(path, serialized)
   console.log(`corrected ${name}`)
