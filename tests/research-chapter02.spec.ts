@@ -9,14 +9,14 @@ function sourceIds(registry: ResearchRegistry, workflowId: string): string[] {
 }
 
 describe('Pre 2.0.1 Chapter 02 traceable research coverage', () => {
-  it('maps all eight Chapter 02 workflows without generic placeholder research specs', async () => {
+  it('maps all eight Chapter 02 workflows as part of the complete 57-workflow research map', async () => {
     const registry = await ResearchRegistry.open(researchRoot)
     const chapter02 = registry.workflows().filter(row => row.workflowId.startsWith('preplan.wf.02.'))
     expect(chapter02.map(row => row.workflowId)).toEqual([
       'preplan.wf.02.01', 'preplan.wf.02.02', 'preplan.wf.02.03', 'preplan.wf.02.04',
       'preplan.wf.02.05', 'preplan.wf.02.06', 'preplan.wf.02.07', 'preplan.wf.02.08',
     ])
-    expect(registry.workflows()).toHaveLength(16)
+    expect(registry.workflows()).toHaveLength(57)
     for (const spec of chapter02) {
       expect(spec.researchSteps.length, spec.workflowId).toBeGreaterThanOrEqual(6)
       expect(spec.requiredDataPoints.length, spec.workflowId).toBeGreaterThan(0)
@@ -35,20 +35,20 @@ describe('Pre 2.0.1 Chapter 02 traceable research coverage', () => {
       'workspace-project-files', 'cn-cma', 'cn-mee', 'cn-mem',
     ]))
     expect(sourceIds(registry, 'preplan.wf.02.05')).toEqual(expect.arrayContaining([
-      'workspace-project-files', 'cn-nbs', 'cn-local-government',
+      'workspace-project-files', 'cn-nbs', 'cn-local-gov-official',
     ]))
     expect(sourceIds(registry, 'preplan.wf.02.06')).toEqual(expect.arrayContaining([
-      'workspace-project-files', 'cn-local-government', 'cn-moe', 'cn-nhc',
+      'workspace-project-files', 'cn-local-gov-official', 'cn-moe', 'cn-nhc',
     ]))
     expect(sourceIds(registry, 'preplan.wf.02.07')).toEqual(expect.arrayContaining([
-      'workspace-project-files', 'cn-nbs', 'cn-local-government', 'cn-gsxt',
+      'workspace-project-files', 'cn-nbs', 'cn-local-gov-official', 'cn-gsxt',
     ]))
     expect(sourceIds(registry, 'preplan.wf.02.08')).toEqual(expect.arrayContaining([
       'workspace-project-files', 'cn-mot', 'cn-mohurd', 'cn-mem',
     ]))
   })
 
-  it('keeps exact site facts dependent on project/local evidence and never upgrades national context into parcel/site facts', async () => {
+  it('keeps Chapter 02 baseline facts dependent on project/local evidence and never upgrades national context into site facts', async () => {
     const registry = await ResearchRegistry.open(researchRoot)
     for (const workflowId of ['preplan.wf.02.02', 'preplan.wf.02.03', 'preplan.wf.02.04', 'preplan.wf.02.08']) {
       const spec = registry.workflow(workflowId)
@@ -65,7 +65,7 @@ describe('Pre 2.0.1 Chapter 02 traceable research coverage', () => {
       checks: Array<{ sourceId: string; status: string; note: string }>
     }
     const auditById = new Map(audit.checks.map(row => [row.sourceId, row]))
-    for (const sourceId of ['cn-mee', 'cn-mem', 'cn-moe', 'cn-nhc', 'cn-mot', 'cn-local-government']) {
+    for (const sourceId of ['cn-mee', 'cn-mem', 'cn-moe', 'cn-nhc', 'cn-mot', 'cn-local-gov-official']) {
       expect(registry.source(sourceId), sourceId).toBeDefined()
       expect(auditById.get(sourceId)?.status, sourceId).toBeTruthy()
       expect(auditById.get(sourceId)?.status, sourceId).not.toBe('not_checked')
