@@ -1,0 +1,41 @@
+name: Pre V2.0.1 Offline Review Workspace
+on:
+  push:
+    branches: [feat/pre-v2.0.1]
+    paths: ['.github/workflows/pre-v201-offline-review.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    if: github.ref == 'refs/heads/feat/pre-v2.0.1'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.11.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Create credential-free reproducibility snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/pre-review/repo /tmp/pre-review/tools
+          git archive HEAD | tar -x -C /tmp/pre-review/repo
+          cp -a node_modules /tmp/pre-review/repo/
+          cp "$(command -v node)" /tmp/pre-review/tools/node
+          cp -a "$(dirname "$(dirname "$(readlink -f "$(command -v pnpm)")")")" /tmp/pre-review/tools/pnpm
+          git rev-parse HEAD > /tmp/pre-review/SOURCE_COMMIT
+          tar -czf /tmp/pre-v201-review-workspace.tgz -C /tmp/pre-review .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pre-v201-review-workspace
+          path: /tmp/pre-v201-review-workspace.tgz
+          retention-days: 2
+          if-no-files-found: error
