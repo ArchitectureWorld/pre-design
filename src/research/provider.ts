@@ -7,7 +7,7 @@ import type {
 
 export interface ResearchRequest {
   readonly mode: ResearchAccessMode
-  /** Workspace path, URL, API URL, or provider-specific locator. */
+  /** Workspace path, Project State locator, URL, API URL, or provider-specific locator. */
   readonly locator: string
   /** Required for web_search so the router can enforce the source whitelist. */
   readonly domain?: string
@@ -24,6 +24,9 @@ export interface ResearchProvider {
   search?(source: DataSourceDefinition, request: ResearchRequest, signal?: AbortSignal): Promise<ResearchProviderResult>
   fetch?(source: DataSourceDefinition, request: ResearchRequest, signal?: AbortSignal): Promise<ResearchProviderResult>
   queryApi?(source: DataSourceDefinition, request: ResearchRequest, signal?: AbortSignal): Promise<ResearchProviderResult>
+  readProjectState?(source: DataSourceDefinition, request: ResearchRequest, signal?: AbortSignal): Promise<ResearchProviderResult>
+  readSessionContext?(source: DataSourceDefinition, request: ResearchRequest, signal?: AbortSignal): Promise<ResearchProviderResult>
+  runProfessionalTool?(source: DataSourceDefinition, request: ResearchRequest, signal?: AbortSignal): Promise<ResearchProviderResult>
 }
 
 function normalizedDomain(value: string): string {
