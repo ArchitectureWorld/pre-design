@@ -16,9 +16,11 @@ on:
       - 'src/version.ts'
       - 'docs/version-matrix.json'
       - 'docs/VERSIONING.md'
+      - 'docs/superpowers/specs/2026-09-12-pre-v2.0.1-source-traceable-research-design.md'
       - 'docs/superpowers/specs/2026-09-12-pre-v2.0.1-automation-policy-overlay-design.md'
       - 'docs/superpowers/plans/2026-09-12-pre-v2.0.1-automation-policy-overlay.md'
       - 'scripts/build-research-source-audit.mjs'
+      - 'scripts/verify-v201-automation-semantics.mjs'
       - 'scripts/verify-alignment-version-consistency-v201.mjs'
       - 'scripts/verify-presentation-contract-lock.mjs'
       - '.github/workflows/pre-v2.0.1-research-foundation.yml'
@@ -64,8 +66,14 @@ jobs:
         run: |
           pnpm build:research-audit
           grep -q 'Chapter → Workflow → ResearchStep → DataPoint → DataSource' research/v2.0.1/source-audit.html
+          grep -q 'V2.0.1 Automatic-first 执行边界' research/v2.0.1/source-audit.html
+          grep -q 'risk=H' research/v2.0.1/source-audit.html
           grep -q '02-01-S03' research/v2.0.1/source-audit.html
           grep -q 'cn-mnr' research/v2.0.1/source-audit.html
+          if grep -q '触发后转人工' research/v2.0.1/source-audit.html; then
+            echo 'source audit reintroduced manual fallback semantics'
+            exit 1
+          fi
 
       - name: Upload source audit HTML
         uses: actions/upload-artifact@v4
