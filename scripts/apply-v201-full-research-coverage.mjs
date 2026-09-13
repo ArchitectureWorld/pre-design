@@ -300,7 +300,7 @@ function buildSpec(contract, stateSchema, sourceById) {
     purpose: sourcePurpose(sourceId, contract),
     required: sourceId === 'project-state-store' && Number(contract.chapter_id) >= 3
       ? true
-      : sourceId === 'workspace-project-files' && Number(contract.chapter_id) === 2 && allDataPoints.some(point => exactSiteData(fieldByDataPointId.get(point.dataPointId) ?? '', point.dataKind)),
+      : sourceId === 'workspace-project-files' && Number(contract.chapter_id) === 2,
   }))
 
   const queryTemplates = [...sourceIds]

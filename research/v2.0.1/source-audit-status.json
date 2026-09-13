@@ -1,27 +1,13 @@
 {
   "schemaVersion": "2.0.1",
-  "checkedAt": "2026-09-12T05:13:00Z",
+  "checkedAt": "2026-09-13T04:00:00Z",
   "checks": [
     {
-      "sourceId": "workspace-project-files",
-      "status": "local_source",
-      "checkedUrl": null,
-      "workingUrl": null,
-      "note": "项目 Workspace 内部资料，不属于公开网站；按文件存在性、版本、签发信息和内容哈希核验。"
-    },
-    {
-      "sourceId": "dsh-user-statement",
-      "status": "local_source",
-      "checkedUrl": null,
-      "workingUrl": null,
-      "note": "来自当前 DSH Session 已有用户陈述，不属于公开网站；仅作为 user_statement/decision 输入，不构成 automatic 模式的必经人工确认节点。"
-    },
-    {
-      "sourceId": "cn-nbs",
-      "status": "verified_public_access",
-      "checkedUrl": "https://www.stats.gov.cn/",
-      "workingUrl": "https://www.stats.gov.cn/",
-      "note": "主页可公开访问，并提供数据、公开、服务等入口。"
+      "sourceId": "cn-cma",
+      "status": "verified_official_resources_home_probe_limited",
+      "checkedUrl": "https://data.cma.cn/",
+      "workingUrl": "https://k.data.cma.cn/",
+      "note": "国家气象信息中心公开资源与知识服务页面可访问；部分数据集存在注册/登录/授权要求，禁止绕过权限。若当前运行环境没有已授权访问能力，则记录 source_access_restricted/blocked_external，不把用户操作设为默认工作流步骤。"
     },
     {
       "sourceId": "cn-gov-policy",
@@ -31,11 +17,53 @@
       "note": "官方政策内容可通过 gov.cn 检索确认；本次自动直接打开主入口返回抓取器内部错误，因此不把自动探测失败等同于网站失效。"
     },
     {
-      "sourceId": "cn-mohurd",
-      "status": "official_domain_confirmed_direct_probe_limited",
-      "checkedUrl": "https://www.mohurd.gov.cn/",
-      "workingUrl": "https://www.mohurd.gov.cn/",
-      "note": "mohurd.gov.cn 为住房城乡建设部官方域名，政府门户及部信息中心内容可交叉确认；本次自动直接首页探测未成功，运行时应继续探测具体公开页面，仍不可访问则记录 source_access_restricted/blocked_external。"
+      "sourceId": "cn-gsxt",
+      "status": "verified_official_service_via_subdomain",
+      "checkedUrl": "https://www.gsxt.gov.cn/",
+      "workingUrl": "https://bt.gsxt.gov.cn/",
+      "note": "国家企业信用信息公示系统公开查询入口可通过 gsxt.gov.cn 子域访问；具体查询可能触发验证码。禁止绕过访问控制；若自动运行无法继续，则记录 source_access_restricted/blocked_external，并继续执行不受影响的并行任务。"
+    },
+    {
+      "sourceId": "cn-local-gov-official",
+      "status": "verified_official_domain_pattern",
+      "checkedUrl": "https://www.gov.cn/",
+      "workingUrl": "https://www.gov.cn/",
+      "note": "运行时只接受 *.gov.cn 官方域名，并记录具体地方政府/主管部门发布机关；搜索结果转载页不升级为官方证据。"
+    },
+    {
+      "sourceId": "cn-mca",
+      "status": "verified_public_access",
+      "checkedUrl": "https://www.mca.gov.cn/",
+      "workingUrl": "https://www.mca.gov.cn/",
+      "note": "民政部主页已公开访问核查。"
+    },
+    {
+      "sourceId": "cn-mct",
+      "status": "verified_public_access",
+      "checkedUrl": "https://www.mct.gov.cn/",
+      "workingUrl": "https://www.mct.gov.cn/",
+      "note": "文化和旅游部主页已公开访问核查。"
+    },
+    {
+      "sourceId": "cn-mee",
+      "status": "verified_public_access",
+      "checkedUrl": "https://www.mee.gov.cn/",
+      "workingUrl": "https://www.mee.gov.cn/",
+      "note": "生态环境部主页和政策/公告内容已公开访问核查。"
+    },
+    {
+      "sourceId": "cn-mem",
+      "status": "verified_public_access",
+      "checkedUrl": "https://www.mem.gov.cn/",
+      "workingUrl": "https://www.mem.gov.cn/",
+      "note": "应急管理部主页已公开访问核查。"
+    },
+    {
+      "sourceId": "cn-miit",
+      "status": "verified_public_access",
+      "checkedUrl": "https://www.miit.gov.cn/",
+      "workingUrl": "https://www.miit.gov.cn/",
+      "note": "工业和信息化部主页已公开访问核查。"
     },
     {
       "sourceId": "cn-mnr",
@@ -45,6 +73,69 @@
       "note": "mnr.gov.cn 为自然资源部官方域名，国家政务服务平台可交叉确认；本次自动直接首页探测未成功，运行时应继续探测具体公开页面，仍不可访问则记录 source_access_restricted/blocked_external。"
     },
     {
+      "sourceId": "cn-moe",
+      "status": "verified_public_access",
+      "checkedUrl": "https://www.moe.gov.cn/",
+      "workingUrl": "https://www.moe.gov.cn/",
+      "note": "教育部政府门户和公开文件入口已核查可访问。"
+    },
+    {
+      "sourceId": "cn-mof",
+      "status": "verified_public_access",
+      "checkedUrl": "https://www.mof.gov.cn/",
+      "workingUrl": "https://www.mof.gov.cn/",
+      "note": "财政部官方主页可到达；具体政策页面运行时继续核查。"
+    },
+    {
+      "sourceId": "cn-mohurd",
+      "status": "official_domain_confirmed_direct_probe_limited",
+      "checkedUrl": "https://www.mohurd.gov.cn/",
+      "workingUrl": "https://www.mohurd.gov.cn/",
+      "note": "mohurd.gov.cn 为住房城乡建设部官方域名，政府门户及部信息中心内容可交叉确认；本次自动直接首页探测未成功，运行时应继续探测具体公开页面，仍不可访问则记录 source_access_restricted/blocked_external。"
+    },
+    {
+      "sourceId": "cn-mot",
+      "status": "verified_public_access",
+      "checkedUrl": "https://www.mot.gov.cn/",
+      "workingUrl": "https://www.mot.gov.cn/",
+      "note": "交通运输部主页已公开访问核查。"
+    },
+    {
+      "sourceId": "cn-mwr",
+      "status": "verified_official_content_direct_probe_limited",
+      "checkedUrl": "https://www.mwr.gov.cn/",
+      "workingUrl": "https://www.mwr.gov.cn/",
+      "note": "水利部官方域名和公开内容可确认；部分主页自动探测有限，运行时优先具体公开页面并记录可访问状态。"
+    },
+    {
+      "sourceId": "cn-nbs",
+      "status": "verified_public_access",
+      "checkedUrl": "https://www.stats.gov.cn/",
+      "workingUrl": "https://www.stats.gov.cn/",
+      "note": "主页可公开访问，并提供数据、公开、服务等入口。"
+    },
+    {
+      "sourceId": "cn-ndrc",
+      "status": "verified_public_access",
+      "checkedUrl": "https://www.ndrc.gov.cn/",
+      "workingUrl": "https://www.ndrc.gov.cn/",
+      "note": "国家发展改革委主页已公开访问核查。"
+    },
+    {
+      "sourceId": "cn-nea",
+      "status": "verified_public_access",
+      "checkedUrl": "https://www.nea.gov.cn/",
+      "workingUrl": "https://www.nea.gov.cn/",
+      "note": "国家能源局主页已公开访问核查。"
+    },
+    {
+      "sourceId": "cn-nhc",
+      "status": "verified_official_service_via_subdomain",
+      "checkedUrl": "https://www.nhc.gov.cn/",
+      "workingUrl": "https://zwfw.nhc.gov.cn/",
+      "note": "国家卫健委官方域名及政务服务/政策查询子域可公开访问；具体页面运行时复核。"
+    },
+    {
       "sourceId": "cn-standards",
       "status": "verified_public_access",
       "checkedUrl": "https://std.samr.gov.cn/",
@@ -52,18 +143,11 @@
       "note": "全国标准信息公共服务平台主页可公开访问。"
     },
     {
-      "sourceId": "cn-cma",
-      "status": "verified_official_resources_home_probe_limited",
-      "checkedUrl": "https://data.cma.cn/",
-      "workingUrl": "https://k.data.cma.cn/",
-      "note": "国家气象信息中心公开资源与知识服务页面可访问；部分数据集存在注册/登录/授权要求，禁止绕过权限。若当前运行环境没有已授权访问能力，则记录 source_access_restricted/blocked_external，不把用户操作设为默认工作流步骤。"
-    },
-    {
-      "sourceId": "cn-gsxt",
-      "status": "verified_official_service_via_subdomain",
-      "checkedUrl": "https://www.gsxt.gov.cn/",
-      "workingUrl": "https://bt.gsxt.gov.cn/",
-      "note": "国家企业信用信息公示系统公开查询入口可通过 gsxt.gov.cn 子域访问；具体查询可能触发验证码。禁止绕过访问控制；若自动运行无法继续，则记录 source_access_restricted/blocked_external，并继续执行不受影响的并行任务。"
+      "sourceId": "dsh-user-statement",
+      "status": "local_source",
+      "checkedUrl": null,
+      "workingUrl": null,
+      "note": "来自当前 DSH Session 已有用户陈述，不属于公开网站；仅作为 user_statement/decision 输入，不构成 automatic 模式的必经人工确认节点。"
     },
     {
       "sourceId": "llm-inference",
@@ -71,6 +155,27 @@
       "checkedUrl": null,
       "workingUrl": null,
       "note": "LLM 推断不是外部事实来源，永远不能单独支持 fact。"
+    },
+    {
+      "sourceId": "professional-tool-output",
+      "status": "local_source",
+      "checkedUrl": null,
+      "workingUrl": null,
+      "note": "项目内部专业计算源；按输入 Revision、参数、工具版本和可复算输出核验。"
+    },
+    {
+      "sourceId": "project-state-store",
+      "status": "local_source",
+      "checkedUrl": null,
+      "workingUrl": null,
+      "note": "项目内部结构化状态源；按 Project State Revision、Quality Report、EvidenceRef 与 AnalysisTrace 机械核验。"
+    },
+    {
+      "sourceId": "workspace-project-files",
+      "status": "local_source",
+      "checkedUrl": null,
+      "workingUrl": null,
+      "note": "项目 Workspace 内部资料，不属于公开网站；按文件存在性、版本、签发信息和内容哈希核验。"
     }
   ]
 }

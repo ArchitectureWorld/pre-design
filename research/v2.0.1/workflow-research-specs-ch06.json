@@ -1,0 +1,2777 @@
+{
+  "schemaVersion": "2.0.1",
+  "workflows": [
+    {
+      "workflowId": "preplan.wf.06.01",
+      "requiredDataPoints": [
+        {
+          "dataPointId": "user-groups",
+          "label": "user人群",
+          "dataKind": "population",
+          "description": "06-01 服务对象场景与时段 中“user人群”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "needs",
+          "label": "needs",
+          "dataKind": "population",
+          "description": "06-01 服务对象场景与时段 中“needs”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "journeys",
+          "label": "出行",
+          "dataKind": "population",
+          "description": "06-01 服务对象场景与时段 中“出行”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "day-types",
+          "label": "day类型",
+          "dataKind": "population",
+          "description": "06-01 服务对象场景与时段 中“day类型”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "time-slots",
+          "label": "时间slots",
+          "dataKind": "population",
+          "description": "06-01 服务对象场景与时段 中“时间slots”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "peak-demands",
+          "label": "高峰demands",
+          "dataKind": "population",
+          "description": "06-01 服务对象场景与时段 中“高峰demands”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "seasons",
+          "label": "seasons",
+          "dataKind": "population",
+          "description": "06-01 服务对象场景与时段 中“seasons”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "inclusion-needs",
+          "label": "inclusionneeds",
+          "dataKind": "population",
+          "description": "06-01 服务对象场景与时段 中“inclusionneeds”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "evidence-refs",
+          "label": "证据引用",
+          "dataKind": "population",
+          "description": "06-01 服务对象场景与时段 中“证据引用”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        }
+      ],
+      "optionalDataPoints": [],
+      "preferredSources": [
+        {
+          "sourceId": "project-state-store",
+          "purpose": "读取 06-01 服务对象场景与时段 所需的已确认上游 Project State、Revision、EvidenceRef 与 AnalysisTrace。",
+          "required": true
+        },
+        {
+          "sourceId": "workspace-project-files",
+          "purpose": "提取 06-01 服务对象场景与时段 相关任务书、图纸、测绘、台账、调查、会议纪要、正式表格和实测资料。",
+          "required": false
+        },
+        {
+          "sourceId": "cn-local-gov-official",
+          "purpose": "查询项目所在地政府和主管部门发布的与 06-01 服务对象场景与时段 直接相关的地方正式数据、规划、名录和政策。",
+          "required": false
+        },
+        {
+          "sourceId": "cn-nbs",
+          "purpose": "获取 06-01 服务对象场景与时段 所需的人口、经济、产业和统计基准。",
+          "required": false
+        }
+      ],
+      "queryTemplates": [
+        {
+          "sourceId": "cn-local-gov-official",
+          "template": "{project_location} {workflow_title} 官方 数据 规划 政策"
+        },
+        {
+          "sourceId": "cn-nbs",
+          "template": "{project_location} {workflow_title} 人口 经济 产业 统计"
+        }
+      ],
+      "extractionRules": [
+        "围绕“明确不同人群在日常、峰值和季节场景下需要怎样使用项目。”只提取与当前 Workflow 直接相关的事实、材料原结论和可复算参数。",
+        "所有 fact/source_conclusion 必须绑定 EvidenceRecord；推断、假设和用户陈述保持原 claimClass。",
+        "项目地块/建筑/资产/设施的具体事实优先项目正式资料或所在地官方数据，不用国家宏观口径代替。"
+      ],
+      "normalizationRules": [
+        "日期统一为 ISO 格式并保留统计期/基准日；单位换算保存原值、原单位和公式。",
+        "空间数据保留 CRS、几何/对象哈希与来源定位；同名对象先做身份消歧再汇总。",
+        "统计/市场/设施数据必须统一时间、空间范围、样本和指标定义后才允许比较。"
+      ],
+      "researchSteps": [
+        {
+          "stepId": "06-01-S01",
+          "order": 1,
+          "title": "读取已确认上游 Project State 与证据链",
+          "dependsOnStepIds": [],
+          "dataPointIds": [
+            "user-groups",
+            "needs",
+            "journeys",
+            "day-types",
+            "time-slots",
+            "peak-demands",
+            "seasons",
+            "inclusion-needs",
+            "evidence-refs"
+          ],
+          "sourceIds": [
+            "project-state-store"
+          ],
+          "action": "upstream_state_read",
+          "produces": "evidence",
+          "notes": "只读取明确 Revision；保留底层 EvidenceRef/AnalysisTrace，不改变原 claimClass。"
+        },
+        {
+          "stepId": "06-01-S02",
+          "order": 2,
+          "title": "查询 项目所在地政府及主管部门官网",
+          "dependsOnStepIds": [
+            "06-01-S01"
+          ],
+          "dataPointIds": [
+            "user-groups",
+            "needs",
+            "journeys",
+            "day-types",
+            "time-slots",
+            "peak-demands",
+            "seasons",
+            "inclusion-needs",
+            "evidence-refs"
+          ],
+          "sourceIds": [
+            "cn-local-gov-official"
+          ],
+          "action": "official_source_lookup",
+          "produces": "evidence",
+          "notes": "只采信 gov.cn 内的原始官方页面；搜索摘要和转载只作发现线索。"
+        },
+        {
+          "stepId": "06-01-S03",
+          "order": 3,
+          "title": "查询 国家统计局",
+          "dependsOnStepIds": [
+            "06-01-S01",
+            "06-01-S02"
+          ],
+          "dataPointIds": [
+            "user-groups",
+            "needs",
+            "journeys",
+            "day-types",
+            "time-slots",
+            "peak-demands",
+            "seasons",
+            "inclusion-needs",
+            "evidence-refs"
+          ],
+          "sourceIds": [
+            "cn-nbs"
+          ],
+          "action": "official_source_lookup",
+          "produces": "evidence",
+          "notes": "只采信 stats.gov.cn 内的原始官方页面；搜索摘要和转载只作发现线索。"
+        },
+        {
+          "stepId": "06-01-S04",
+          "order": 4,
+          "title": "统一时间、空间、单位与对象口径",
+          "dependsOnStepIds": [
+            "06-01-S01",
+            "06-01-S02",
+            "06-01-S03"
+          ],
+          "dataPointIds": [
+            "user-groups",
+            "needs",
+            "journeys",
+            "day-types",
+            "time-slots",
+            "peak-demands",
+            "seasons",
+            "inclusion-needs",
+            "evidence-refs"
+          ],
+          "sourceIds": [],
+          "action": "normalize",
+          "produces": "normalized_data",
+          "notes": "不得通过标准化改变原始事实含义；所有换算保留原值、公式和目标单位。"
+        },
+        {
+          "stepId": "06-01-S05",
+          "order": 5,
+          "title": "交叉核验证据、来源与冲突",
+          "dependsOnStepIds": [
+            "06-01-S04"
+          ],
+          "dataPointIds": [
+            "user-groups",
+            "needs",
+            "journeys",
+            "day-types",
+            "time-slots",
+            "peak-demands",
+            "seasons",
+            "inclusion-needs",
+            "evidence-refs"
+          ],
+          "sourceIds": [],
+          "action": "cross_check",
+          "produces": "cross_check_result",
+          "notes": "冲突证据保留 conflict；全国宏观资料不得覆盖项目地块/建筑/设施的地方或项目正式事实。"
+        },
+        {
+          "stepId": "06-01-S06",
+          "order": 6,
+          "title": "按权威等级与统一口径汇总",
+          "dependsOnStepIds": [
+            "06-01-S05"
+          ],
+          "dataPointIds": [
+            "user-groups",
+            "needs",
+            "journeys",
+            "day-types",
+            "time-slots",
+            "peak-demands",
+            "seasons",
+            "inclusion-needs",
+            "evidence-refs"
+          ],
+          "sourceIds": [],
+          "action": "aggregate",
+          "produces": "aggregated_data",
+          "notes": "按 P0>P1>P2>P3>P4>P5 合并；同级冲突不静默择一。"
+        },
+        {
+          "stepId": "06-01-S07",
+          "order": 7,
+          "title": "形成“服务对象场景与时段”专业分析",
+          "dependsOnStepIds": [
+            "06-01-S06"
+          ],
+          "dataPointIds": [
+            "user-groups",
+            "needs",
+            "journeys",
+            "day-types",
+            "time-slots",
+            "peak-demands",
+            "seasons",
+            "inclusion-needs",
+            "evidence-refs"
+          ],
+          "sourceIds": [],
+          "action": "professional_analysis",
+          "produces": "analysis_trace",
+          "notes": "围绕“明确不同人群在日常、峰值和季节场景下需要怎样使用项目。”解释证据、差异、限制和专业含义，不新增无来源事实。"
+        },
+        {
+          "stepId": "06-01-S08",
+          "order": 8,
+          "title": "独立核验证据覆盖、时效与可追溯性",
+          "dependsOnStepIds": [
+            "06-01-S07"
+          ],
+          "dataPointIds": [
+            "user-groups",
+            "needs",
+            "journeys",
+            "day-types",
+            "time-slots",
+            "peak-demands",
+            "seasons",
+            "inclusion-needs",
+            "evidence-refs"
+          ],
+          "sourceIds": [],
+          "action": "evidence_validate",
+          "produces": "validated_evidence",
+          "notes": "Evidence Validator 独立检查必需数据项、来源等级、时效、域名、冲突和高风险 A 级证据。"
+        },
+        {
+          "stepId": "06-01-S09",
+          "order": 9,
+          "title": "输出可追溯结论",
+          "dependsOnStepIds": [
+            "06-01-S08"
+          ],
+          "dataPointIds": [
+            "user-groups",
+            "needs",
+            "journeys",
+            "day-types",
+            "time-slots",
+            "peak-demands",
+            "seasons",
+            "inclusion-needs",
+            "evidence-refs"
+          ],
+          "sourceIds": [],
+          "action": "produce_claims",
+          "produces": "claims",
+          "notes": "每个结论必须可回溯到 ResearchStep、DataPoint、EvidenceRecord、方法版本和限制。"
+        }
+      ],
+      "aggregationMethod": {
+        "methodId": "0601-authority-trace-merge",
+        "version": "1.0.0",
+        "description": "按来源权威等级、时间有效性、对象一致性和口径一致性进行确定性去重、冲突保留与汇总。",
+        "deterministic": true
+      },
+      "analysisMethod": {
+        "methodId": "0601-professional-analysis",
+        "version": "1.0.0",
+        "description": "基于已核验证据和确定性计算，对“服务对象场景与时段”进行专业解释、比较、约束/机会识别并形成可追溯结论。",
+        "deterministic": false
+      },
+      "crossCheckRules": [
+        "全国/省级宏观信息只能提供背景、标准或基准，不得直接证明具体项目地块/建筑/设施事实。",
+        "Project State 作为来源时必须继承底层 EvidenceRef/AnalysisTrace；不得因进入下游 Workflow 自动提升可靠等级或 claimClass。",
+        "来源冲突不得静默覆盖；必须保留冲突项、来源、时间和影响范围。",
+        "可确定性计算的指标必须由专业工具或明确公式复算，不由 LLM 心算生成。"
+      ],
+      "freshnessRules": [
+        "Project State 绑定精确 Revision；上游发生语义变化后当前结果自动 stale 并重算。",
+        "政策、规划、标准、价格、设施开放状态和市场数据在项目启动、相关 Gate 前及来源更新后重新核验。"
+      ],
+      "minimumEvidence": {
+        "minHighAuthority": 0,
+        "minIndependentSources": 1,
+        "highRiskRequiresGradeA": false
+      },
+      "fallbackPolicy": "缺失数据保持 unknown/limited，不由 LLM 补写事实；继续完成不受影响的并行项，并记录 blocked_external 或 quality_unresolved。",
+      "outputClaims": [
+        "user人群",
+        "needs",
+        "出行",
+        "day类型",
+        "服务对象场景与时段综合研判与限制"
+      ]
+    },
+    {
+      "workflowId": "preplan.wf.06.02",
+      "requiredDataPoints": [
+        {
+          "dataPointId": "functions",
+          "label": "功能",
+          "dataKind": "project_analysis",
+          "description": "06-02 功能体系与层级 中“功能”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "parents",
+          "label": "parents",
+          "dataKind": "market",
+          "description": "06-02 功能体系与层级 中“parents”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "function-types",
+          "label": "功能类型",
+          "dataKind": "project_analysis",
+          "description": "06-02 功能体系与层级 中“功能类型”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "served-groups",
+          "label": "served人群",
+          "dataKind": "population",
+          "description": "06-02 功能体系与层级 中“served人群”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "problem-links",
+          "label": "problemlinks",
+          "dataKind": "project_analysis",
+          "description": "06-02 功能体系与层级 中“problemlinks”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "service-links",
+          "label": "servicelinks",
+          "dataKind": "public_service",
+          "description": "06-02 功能体系与层级 中“servicelinks”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "priorities",
+          "label": "priorities",
+          "dataKind": "project_analysis",
+          "description": "06-02 功能体系与层级 中“priorities”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "dependencies",
+          "label": "dependencies",
+          "dataKind": "project_analysis",
+          "description": "06-02 功能体系与层级 中“dependencies”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "optional-conditions",
+          "label": "optionalconditions",
+          "dataKind": "project_analysis",
+          "description": "06-02 功能体系与层级 中“optionalconditions”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        }
+      ],
+      "optionalDataPoints": [],
+      "preferredSources": [
+        {
+          "sourceId": "project-state-store",
+          "purpose": "读取 06-02 功能体系与层级 所需的已确认上游 Project State、Revision、EvidenceRef 与 AnalysisTrace。",
+          "required": true
+        },
+        {
+          "sourceId": "workspace-project-files",
+          "purpose": "提取 06-02 功能体系与层级 相关任务书、图纸、测绘、台账、调查、会议纪要、正式表格和实测资料。",
+          "required": false
+        },
+        {
+          "sourceId": "cn-local-gov-official",
+          "purpose": "查询项目所在地政府和主管部门发布的与 06-02 功能体系与层级 直接相关的地方正式数据、规划、名录和政策。",
+          "required": false
+        },
+        {
+          "sourceId": "cn-mohurd",
+          "purpose": "核验 06-02 功能体系与层级 涉及的建设管理、城市建设、工程标准和造价政策。",
+          "required": false
+        },
+        {
+          "sourceId": "cn-standards",
+          "purpose": "核验 06-02 功能体系与层级 所引用国家/行业/地方标准的编号、名称、状态和实施日期。",
+          "required": false
+        }
+      ],
+      "queryTemplates": [
+        {
+          "sourceId": "cn-local-gov-official",
+          "template": "{project_location} {workflow_title} 官方 数据 规划 政策"
+        },
+        {
+          "sourceId": "cn-mohurd",
+          "template": "{project_type} {workflow_title} 住房城乡建设 工程 标准 管理"
+        },
+        {
+          "sourceId": "cn-standards",
+          "template": "{workflow_title} 标准 规范 {standard_keyword_or_number}"
+        }
+      ],
+      "extractionRules": [
+        "围绕“明确哪些是核心功能、支撑功能、共享功能和可选功能。”只提取与当前 Workflow 直接相关的事实、材料原结论和可复算参数。",
+        "所有 fact/source_conclusion 必须绑定 EvidenceRecord；推断、假设和用户陈述保持原 claimClass。",
+        "项目地块/建筑/资产/设施的具体事实优先项目正式资料或所在地官方数据，不用国家宏观口径代替。"
+      ],
+      "normalizationRules": [
+        "日期统一为 ISO 格式并保留统计期/基准日；单位换算保存原值、原单位和公式。",
+        "空间数据保留 CRS、几何/对象哈希与来源定位；同名对象先做身份消歧再汇总。",
+        "统计/市场/设施数据必须统一时间、空间范围、样本和指标定义后才允许比较。"
+      ],
+      "researchSteps": [
+        {
+          "stepId": "06-02-S01",
+          "order": 1,
+          "title": "读取已确认上游 Project State 与证据链",
+          "dependsOnStepIds": [],
+          "dataPointIds": [
+            "functions",
+            "parents",
+            "function-types",
+            "served-groups",
+            "problem-links",
+            "service-links",
+            "priorities",
+            "dependencies",
+            "optional-conditions"
+          ],
+          "sourceIds": [
+            "project-state-store"
+          ],
+          "action": "upstream_state_read",
+          "produces": "evidence",
+          "notes": "只读取明确 Revision；保留底层 EvidenceRef/AnalysisTrace，不改变原 claimClass。"
+        },
+        {
+          "stepId": "06-02-S02",
+          "order": 2,
+          "title": "读取项目正式资料、调查与实测",
+          "dependsOnStepIds": [],
+          "dataPointIds": [
+            "optional-conditions"
+          ],
+          "sourceIds": [
+            "workspace-project-files"
+          ],
+          "action": "workspace_extract",
+          "produces": "evidence",
+          "notes": "优先项目正式资料；文件必须记录版本、页码/表格/图层/对象定位与内容哈希。"
+        },
+        {
+          "stepId": "06-02-S03",
+          "order": 3,
+          "title": "查询 项目所在地政府及主管部门官网",
+          "dependsOnStepIds": [
+            "06-02-S01",
+            "06-02-S02"
+          ],
+          "dataPointIds": [
+            "parents",
+            "served-groups",
+            "service-links"
+          ],
+          "sourceIds": [
+            "cn-local-gov-official"
+          ],
+          "action": "official_source_lookup",
+          "produces": "evidence",
+          "notes": "只采信 gov.cn 内的原始官方页面；搜索摘要和转载只作发现线索。"
+        },
+        {
+          "stepId": "06-02-S04",
+          "order": 4,
+          "title": "统一时间、空间、单位与对象口径",
+          "dependsOnStepIds": [
+            "06-02-S01",
+            "06-02-S02",
+            "06-02-S03"
+          ],
+          "dataPointIds": [
+            "functions",
+            "parents",
+            "function-types",
+            "served-groups",
+            "problem-links",
+            "service-links",
+            "priorities",
+            "dependencies",
+            "optional-conditions"
+          ],
+          "sourceIds": [],
+          "action": "normalize",
+          "produces": "normalized_data",
+          "notes": "不得通过标准化改变原始事实含义；所有换算保留原值、公式和目标单位。"
+        },
+        {
+          "stepId": "06-02-S05",
+          "order": 5,
+          "title": "交叉核验证据、来源与冲突",
+          "dependsOnStepIds": [
+            "06-02-S04"
+          ],
+          "dataPointIds": [
+            "functions",
+            "parents",
+            "function-types",
+            "served-groups",
+            "problem-links",
+            "service-links",
+            "priorities",
+            "dependencies",
+            "optional-conditions"
+          ],
+          "sourceIds": [],
+          "action": "cross_check",
+          "produces": "cross_check_result",
+          "notes": "冲突证据保留 conflict；全国宏观资料不得覆盖项目地块/建筑/设施的地方或项目正式事实。"
+        },
+        {
+          "stepId": "06-02-S06",
+          "order": 6,
+          "title": "按权威等级与统一口径汇总",
+          "dependsOnStepIds": [
+            "06-02-S05"
+          ],
+          "dataPointIds": [
+            "functions",
+            "parents",
+            "function-types",
+            "served-groups",
+            "problem-links",
+            "service-links",
+            "priorities",
+            "dependencies",
+            "optional-conditions"
+          ],
+          "sourceIds": [],
+          "action": "aggregate",
+          "produces": "aggregated_data",
+          "notes": "按 P0>P1>P2>P3>P4>P5 合并；同级冲突不静默择一。"
+        },
+        {
+          "stepId": "06-02-S07",
+          "order": 7,
+          "title": "形成“功能体系与层级”专业分析",
+          "dependsOnStepIds": [
+            "06-02-S06"
+          ],
+          "dataPointIds": [
+            "functions",
+            "parents",
+            "function-types",
+            "served-groups",
+            "problem-links",
+            "service-links",
+            "priorities",
+            "dependencies",
+            "optional-conditions"
+          ],
+          "sourceIds": [],
+          "action": "professional_analysis",
+          "produces": "analysis_trace",
+          "notes": "围绕“明确哪些是核心功能、支撑功能、共享功能和可选功能。”解释证据、差异、限制和专业含义，不新增无来源事实。"
+        },
+        {
+          "stepId": "06-02-S08",
+          "order": 8,
+          "title": "独立核验证据覆盖、时效与可追溯性",
+          "dependsOnStepIds": [
+            "06-02-S07"
+          ],
+          "dataPointIds": [
+            "functions",
+            "parents",
+            "function-types",
+            "served-groups",
+            "problem-links",
+            "service-links",
+            "priorities",
+            "dependencies",
+            "optional-conditions"
+          ],
+          "sourceIds": [],
+          "action": "evidence_validate",
+          "produces": "validated_evidence",
+          "notes": "Evidence Validator 独立检查必需数据项、来源等级、时效、域名、冲突和高风险 A 级证据。"
+        },
+        {
+          "stepId": "06-02-S09",
+          "order": 9,
+          "title": "输出可追溯结论",
+          "dependsOnStepIds": [
+            "06-02-S08"
+          ],
+          "dataPointIds": [
+            "functions",
+            "parents",
+            "function-types",
+            "served-groups",
+            "problem-links",
+            "service-links",
+            "priorities",
+            "dependencies",
+            "optional-conditions"
+          ],
+          "sourceIds": [],
+          "action": "produce_claims",
+          "produces": "claims",
+          "notes": "每个结论必须可回溯到 ResearchStep、DataPoint、EvidenceRecord、方法版本和限制。"
+        }
+      ],
+      "aggregationMethod": {
+        "methodId": "0602-authority-trace-merge",
+        "version": "1.0.0",
+        "description": "按来源权威等级、时间有效性、对象一致性和口径一致性进行确定性去重、冲突保留与汇总。",
+        "deterministic": true
+      },
+      "analysisMethod": {
+        "methodId": "0602-professional-analysis",
+        "version": "1.0.0",
+        "description": "基于已核验证据和确定性计算，对“功能体系与层级”进行专业解释、比较、约束/机会识别并形成可追溯结论。",
+        "deterministic": false
+      },
+      "crossCheckRules": [
+        "全国/省级宏观信息只能提供背景、标准或基准，不得直接证明具体项目地块/建筑/设施事实。",
+        "Project State 作为来源时必须继承底层 EvidenceRef/AnalysisTrace；不得因进入下游 Workflow 自动提升可靠等级或 claimClass。",
+        "来源冲突不得静默覆盖；必须保留冲突项、来源、时间和影响范围。",
+        "可确定性计算的指标必须由专业工具或明确公式复算，不由 LLM 心算生成。"
+      ],
+      "freshnessRules": [
+        "Project State 绑定精确 Revision；上游发生语义变化后当前结果自动 stale 并重算。",
+        "政策、规划、标准、价格、设施开放状态和市场数据在项目启动、相关 Gate 前及来源更新后重新核验。"
+      ],
+      "minimumEvidence": {
+        "minHighAuthority": 1,
+        "minIndependentSources": 2,
+        "highRiskRequiresGradeA": true
+      },
+      "fallbackPolicy": "缺少项目正式资料或项目所在地法定/实测证据时，具体地块、资产、建筑、容量、安全和空间结论保持 blocked_external/limited；不得用全国宏观资料或 LLM 推断具体项目事实。",
+      "outputClaims": [
+        "功能",
+        "parents",
+        "功能类型",
+        "served人群",
+        "功能体系与层级综合研判与限制"
+      ]
+    },
+    {
+      "workflowId": "preplan.wf.06.03",
+      "requiredDataPoints": [
+        {
+          "dataPointId": "demand",
+          "label": "demand",
+          "dataKind": "market",
+          "description": "06-03 容量面积与总规模 中“demand”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "peak",
+          "label": "高峰",
+          "dataKind": "market",
+          "description": "06-03 容量面积与总规模 中“高峰”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "throughput",
+          "label": "throughput",
+          "dataKind": "market",
+          "description": "06-03 容量面积与总规模 中“throughput”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "turnover",
+          "label": "turnover",
+          "dataKind": "market",
+          "description": "06-03 容量面积与总规模 中“turnover”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "utilization",
+          "label": "利用率",
+          "dataKind": "public_service",
+          "description": "06-03 容量面积与总规模 中“利用率”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "quantities",
+          "label": "工程量",
+          "dataKind": "market",
+          "description": "06-03 容量面积与总规模 中“工程量”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "net-areas",
+          "label": "net面积",
+          "dataKind": "market",
+          "description": "06-03 容量面积与总规模 中“net面积”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "gross-factors",
+          "label": "grossfactors",
+          "dataKind": "market",
+          "description": "06-03 容量面积与总规模 中“grossfactors”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "gross-areas",
+          "label": "gross面积",
+          "dataKind": "market",
+          "description": "06-03 容量面积与总规模 中“gross面积”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "ranges",
+          "label": "ranges",
+          "dataKind": "market",
+          "description": "06-03 容量面积与总规模 中“ranges”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "formulas",
+          "label": "formulas",
+          "dataKind": "market",
+          "description": "06-03 容量面积与总规模 中“formulas”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "parameter-sources",
+          "label": "parametersources",
+          "dataKind": "market",
+          "description": "06-03 容量面积与总规模 中“parametersources”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        }
+      ],
+      "optionalDataPoints": [],
+      "preferredSources": [
+        {
+          "sourceId": "project-state-store",
+          "purpose": "读取 06-03 容量面积与总规模 所需的已确认上游 Project State、Revision、EvidenceRef 与 AnalysisTrace。",
+          "required": true
+        },
+        {
+          "sourceId": "workspace-project-files",
+          "purpose": "提取 06-03 容量面积与总规模 相关任务书、图纸、测绘、台账、调查、会议纪要、正式表格和实测资料。",
+          "required": false
+        },
+        {
+          "sourceId": "cn-local-gov-official",
+          "purpose": "查询项目所在地政府和主管部门发布的与 06-03 容量面积与总规模 直接相关的地方正式数据、规划、名录和政策。",
+          "required": false
+        },
+        {
+          "sourceId": "cn-mnr",
+          "purpose": "核验 06-03 容量面积与总规模 涉及的自然资源、土地和国土空间规划政策/公开数据。",
+          "required": false
+        },
+        {
+          "sourceId": "cn-mohurd",
+          "purpose": "核验 06-03 容量面积与总规模 涉及的建设管理、城市建设、工程标准和造价政策。",
+          "required": false
+        },
+        {
+          "sourceId": "cn-standards",
+          "purpose": "核验 06-03 容量面积与总规模 所引用国家/行业/地方标准的编号、名称、状态和实施日期。",
+          "required": false
+        },
+        {
+          "sourceId": "cn-nbs",
+          "purpose": "获取 06-03 容量面积与总规模 所需的人口、经济、产业和统计基准。",
+          "required": false
+        },
+        {
+          "sourceId": "cn-ndrc",
+          "purpose": "核验 06-03 容量面积与总规模 涉及产业、投资、价格、市场和发展政策。",
+          "required": false
+        },
+        {
+          "sourceId": "professional-tool-output",
+          "purpose": "对 06-03 容量面积与总规模 中可确定性计算的空间、统计、规模、造价、财务或优化指标进行可复算计算。",
+          "required": false
+        }
+      ],
+      "queryTemplates": [
+        {
+          "sourceId": "cn-local-gov-official",
+          "template": "{project_location} {workflow_title} 官方 数据 规划 政策"
+        },
+        {
+          "sourceId": "cn-mnr",
+          "template": "{project_location} {workflow_title} 国土空间 土地 规划"
+        },
+        {
+          "sourceId": "cn-mohurd",
+          "template": "{project_type} {workflow_title} 住房城乡建设 工程 标准 管理"
+        },
+        {
+          "sourceId": "cn-standards",
+          "template": "{workflow_title} 标准 规范 {standard_keyword_or_number}"
+        },
+        {
+          "sourceId": "cn-nbs",
+          "template": "{project_location} {workflow_title} 人口 经济 产业 统计"
+        },
+        {
+          "sourceId": "cn-ndrc",
+          "template": "{project_location} {workflow_title} 产业 投资 市场 价格"
+        }
+      ],
+      "extractionRules": [
+        "围绕“从真实需求、周转和运营时段推导设施容量、房间、场地和建筑面积。”只提取与当前 Workflow 直接相关的事实、材料原结论和可复算参数。",
+        "所有 fact/source_conclusion 必须绑定 EvidenceRecord；推断、假设和用户陈述保持原 claimClass。",
+        "项目地块/建筑/资产/设施的具体事实优先项目正式资料或所在地官方数据，不用国家宏观口径代替。"
+      ],
+      "normalizationRules": [
+        "日期统一为 ISO 格式并保留统计期/基准日；单位换算保存原值、原单位和公式。",
+        "空间数据保留 CRS、几何/对象哈希与来源定位；同名对象先做身份消歧再汇总。",
+        "统计/市场/设施数据必须统一时间、空间范围、样本和指标定义后才允许比较。"
+      ],
+      "researchSteps": [
+        {
+          "stepId": "06-03-S01",
+          "order": 1,
+          "title": "读取已确认上游 Project State 与证据链",
+          "dependsOnStepIds": [],
+          "dataPointIds": [
+            "demand",
+            "peak",
+            "throughput",
+            "turnover",
+            "utilization",
+            "quantities",
+            "net-areas",
+            "gross-factors",
+            "gross-areas",
+            "ranges",
+            "formulas",
+            "parameter-sources"
+          ],
+          "sourceIds": [
+            "project-state-store"
+          ],
+          "action": "upstream_state_read",
+          "produces": "evidence",
+          "notes": "只读取明确 Revision；保留底层 EvidenceRef/AnalysisTrace，不改变原 claimClass。"
+        },
+        {
+          "stepId": "06-03-S02",
+          "order": 2,
+          "title": "读取项目正式资料、调查与实测",
+          "dependsOnStepIds": [],
+          "dataPointIds": [
+            "net-areas",
+            "gross-areas"
+          ],
+          "sourceIds": [
+            "workspace-project-files"
+          ],
+          "action": "workspace_extract",
+          "produces": "evidence",
+          "notes": "优先项目正式资料；文件必须记录版本、页码/表格/图层/对象定位与内容哈希。"
+        },
+        {
+          "stepId": "06-03-S03",
+          "order": 3,
+          "title": "查询 项目所在地政府及主管部门官网",
+          "dependsOnStepIds": [
+            "06-03-S01",
+            "06-03-S02"
+          ],
+          "dataPointIds": [
+            "demand",
+            "peak",
+            "throughput",
+            "turnover",
+            "utilization",
+            "quantities",
+            "net-areas",
+            "gross-factors",
+            "gross-areas",
+            "ranges",
+            "formulas",
+            "parameter-sources"
+          ],
+          "sourceIds": [
+            "cn-local-gov-official"
+          ],
+          "action": "official_source_lookup",
+          "produces": "evidence",
+          "notes": "只采信 gov.cn 内的原始官方页面；搜索摘要和转载只作发现线索。"
+        },
+        {
+          "stepId": "06-03-S04",
+          "order": 4,
+          "title": "查询 国家发展和改革委员会",
+          "dependsOnStepIds": [
+            "06-03-S01",
+            "06-03-S02",
+            "06-03-S03"
+          ],
+          "dataPointIds": [
+            "demand",
+            "peak",
+            "throughput",
+            "turnover",
+            "quantities",
+            "net-areas",
+            "gross-factors",
+            "gross-areas",
+            "ranges",
+            "formulas",
+            "parameter-sources"
+          ],
+          "sourceIds": [
+            "cn-ndrc"
+          ],
+          "action": "official_source_lookup",
+          "produces": "evidence",
+          "notes": "只采信 ndrc.gov.cn 内的原始官方页面；搜索摘要和转载只作发现线索。"
+        },
+        {
+          "stepId": "06-03-S05",
+          "order": 5,
+          "title": "统一时间、空间、单位与对象口径",
+          "dependsOnStepIds": [
+            "06-03-S01",
+            "06-03-S02",
+            "06-03-S03",
+            "06-03-S04"
+          ],
+          "dataPointIds": [
+            "demand",
+            "peak",
+            "throughput",
+            "turnover",
+            "utilization",
+            "quantities",
+            "net-areas",
+            "gross-factors",
+            "gross-areas",
+            "ranges",
+            "formulas",
+            "parameter-sources"
+          ],
+          "sourceIds": [],
+          "action": "normalize",
+          "produces": "normalized_data",
+          "notes": "不得通过标准化改变原始事实含义；所有换算保留原值、公式和目标单位。"
+        },
+        {
+          "stepId": "06-03-S06",
+          "order": 6,
+          "title": "执行确定性专业计算/复算",
+          "dependsOnStepIds": [
+            "06-03-S05"
+          ],
+          "dataPointIds": [
+            "utilization",
+            "net-areas",
+            "gross-areas"
+          ],
+          "sourceIds": [
+            "professional-tool-output"
+          ],
+          "action": "deterministic_calculation",
+          "produces": "calculation_result",
+          "notes": "GIS/BIM/统计/造价/财务等计算必须记录输入 Evidence、参数、公式/算法版本和输出。"
+        },
+        {
+          "stepId": "06-03-S07",
+          "order": 7,
+          "title": "交叉核验证据、来源与冲突",
+          "dependsOnStepIds": [
+            "06-03-S05",
+            "06-03-S06"
+          ],
+          "dataPointIds": [
+            "demand",
+            "peak",
+            "throughput",
+            "turnover",
+            "utilization",
+            "quantities",
+            "net-areas",
+            "gross-factors",
+            "gross-areas",
+            "ranges",
+            "formulas",
+            "parameter-sources"
+          ],
+          "sourceIds": [],
+          "action": "cross_check",
+          "produces": "cross_check_result",
+          "notes": "冲突证据保留 conflict；全国宏观资料不得覆盖项目地块/建筑/设施的地方或项目正式事实。"
+        },
+        {
+          "stepId": "06-03-S08",
+          "order": 8,
+          "title": "按权威等级与统一口径汇总",
+          "dependsOnStepIds": [
+            "06-03-S07"
+          ],
+          "dataPointIds": [
+            "demand",
+            "peak",
+            "throughput",
+            "turnover",
+            "utilization",
+            "quantities",
+            "net-areas",
+            "gross-factors",
+            "gross-areas",
+            "ranges",
+            "formulas",
+            "parameter-sources"
+          ],
+          "sourceIds": [],
+          "action": "aggregate",
+          "produces": "aggregated_data",
+          "notes": "按 P0>P1>P2>P3>P4>P5 合并；同级冲突不静默择一。"
+        },
+        {
+          "stepId": "06-03-S09",
+          "order": 9,
+          "title": "形成“容量面积与总规模”专业分析",
+          "dependsOnStepIds": [
+            "06-03-S08"
+          ],
+          "dataPointIds": [
+            "demand",
+            "peak",
+            "throughput",
+            "turnover",
+            "utilization",
+            "quantities",
+            "net-areas",
+            "gross-factors",
+            "gross-areas",
+            "ranges",
+            "formulas",
+            "parameter-sources"
+          ],
+          "sourceIds": [],
+          "action": "professional_analysis",
+          "produces": "analysis_trace",
+          "notes": "围绕“从真实需求、周转和运营时段推导设施容量、房间、场地和建筑面积。”解释证据、差异、限制和专业含义，不新增无来源事实。"
+        },
+        {
+          "stepId": "06-03-S10",
+          "order": 10,
+          "title": "独立核验证据覆盖、时效与可追溯性",
+          "dependsOnStepIds": [
+            "06-03-S09"
+          ],
+          "dataPointIds": [
+            "demand",
+            "peak",
+            "throughput",
+            "turnover",
+            "utilization",
+            "quantities",
+            "net-areas",
+            "gross-factors",
+            "gross-areas",
+            "ranges",
+            "formulas",
+            "parameter-sources"
+          ],
+          "sourceIds": [],
+          "action": "evidence_validate",
+          "produces": "validated_evidence",
+          "notes": "Evidence Validator 独立检查必需数据项、来源等级、时效、域名、冲突和高风险 A 级证据。"
+        },
+        {
+          "stepId": "06-03-S11",
+          "order": 11,
+          "title": "输出可追溯结论",
+          "dependsOnStepIds": [
+            "06-03-S10"
+          ],
+          "dataPointIds": [
+            "demand",
+            "peak",
+            "throughput",
+            "turnover",
+            "utilization",
+            "quantities",
+            "net-areas",
+            "gross-factors",
+            "gross-areas",
+            "ranges",
+            "formulas",
+            "parameter-sources"
+          ],
+          "sourceIds": [],
+          "action": "produce_claims",
+          "produces": "claims",
+          "notes": "每个结论必须可回溯到 ResearchStep、DataPoint、EvidenceRecord、方法版本和限制。"
+        }
+      ],
+      "aggregationMethod": {
+        "methodId": "0603-authority-trace-merge",
+        "version": "1.0.0",
+        "description": "按来源权威等级、时间有效性、对象一致性和口径一致性进行确定性去重、冲突保留与汇总。",
+        "deterministic": true
+      },
+      "analysisMethod": {
+        "methodId": "0603-professional-analysis",
+        "version": "1.0.0",
+        "description": "基于已核验证据和确定性计算，对“容量面积与总规模”进行专业解释、比较、约束/机会识别并形成可追溯结论。",
+        "deterministic": false
+      },
+      "crossCheckRules": [
+        "全国/省级宏观信息只能提供背景、标准或基准，不得直接证明具体项目地块/建筑/设施事实。",
+        "Project State 作为来源时必须继承底层 EvidenceRef/AnalysisTrace；不得因进入下游 Workflow 自动提升可靠等级或 claimClass。",
+        "来源冲突不得静默覆盖；必须保留冲突项、来源、时间和影响范围。",
+        "可确定性计算的指标必须由专业工具或明确公式复算，不由 LLM 心算生成。"
+      ],
+      "freshnessRules": [
+        "Project State 绑定精确 Revision；上游发生语义变化后当前结果自动 stale 并重算。",
+        "政策、规划、标准、价格、设施开放状态和市场数据在项目启动、相关 Gate 前及来源更新后重新核验。"
+      ],
+      "minimumEvidence": {
+        "minHighAuthority": 1,
+        "minIndependentSources": 2,
+        "highRiskRequiresGradeA": true
+      },
+      "fallbackPolicy": "缺少项目正式资料或项目所在地法定/实测证据时，具体地块、资产、建筑、容量、安全和空间结论保持 blocked_external/limited；不得用全国宏观资料或 LLM 推断具体项目事实。",
+      "outputClaims": [
+        "demand",
+        "高峰",
+        "throughput",
+        "turnover",
+        "容量面积与总规模综合研判与限制"
+      ]
+    },
+    {
+      "workflowId": "preplan.wf.06.04",
+      "requiredDataPoints": [
+        {
+          "dataPointId": "products",
+          "label": "products",
+          "dataKind": "market",
+          "description": "06-04 产品业态与活动组合 中“products”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "services",
+          "label": "services",
+          "dataKind": "public_service",
+          "description": "06-04 产品业态与活动组合 中“services”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "function-links",
+          "label": "功能links",
+          "dataKind": "market",
+          "description": "06-04 产品业态与活动组合 中“功能links”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "operator-types",
+          "label": "运营主体类型",
+          "dataKind": "market",
+          "description": "06-04 产品业态与活动组合 中“运营主体类型”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "user-groups",
+          "label": "user人群",
+          "dataKind": "population",
+          "description": "06-04 产品业态与活动组合 中“user人群”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "time-slots",
+          "label": "时间slots",
+          "dataKind": "market",
+          "description": "06-04 产品业态与活动组合 中“时间slots”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "public-or-revenue-role",
+          "label": "publicorrevenuerole",
+          "dataKind": "market",
+          "description": "06-04 产品业态与活动组合 中“publicorrevenuerole”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "brand-level",
+          "label": "brandlevel",
+          "dataKind": "market",
+          "description": "06-04 产品业态与活动组合 中“brandlevel”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "activity-calendar",
+          "label": "activitycalendar",
+          "dataKind": "market",
+          "description": "06-04 产品业态与活动组合 中“activitycalendar”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "requirements",
+          "label": "requirements",
+          "dataKind": "market",
+          "description": "06-04 产品业态与活动组合 中“requirements”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        }
+      ],
+      "optionalDataPoints": [],
+      "preferredSources": [
+        {
+          "sourceId": "project-state-store",
+          "purpose": "读取 06-04 产品业态与活动组合 所需的已确认上游 Project State、Revision、EvidenceRef 与 AnalysisTrace。",
+          "required": true
+        },
+        {
+          "sourceId": "workspace-project-files",
+          "purpose": "提取 06-04 产品业态与活动组合 相关任务书、图纸、测绘、台账、调查、会议纪要、正式表格和实测资料。",
+          "required": false
+        },
+        {
+          "sourceId": "cn-local-gov-official",
+          "purpose": "查询项目所在地政府和主管部门发布的与 06-04 产品业态与活动组合 直接相关的地方正式数据、规划、名录和政策。",
+          "required": false
+        },
+        {
+          "sourceId": "cn-mohurd",
+          "purpose": "核验 06-04 产品业态与活动组合 涉及的建设管理、城市建设、工程标准和造价政策。",
+          "required": false
+        },
+        {
+          "sourceId": "cn-standards",
+          "purpose": "核验 06-04 产品业态与活动组合 所引用国家/行业/地方标准的编号、名称、状态和实施日期。",
+          "required": false
+        },
+        {
+          "sourceId": "cn-ndrc",
+          "purpose": "核验 06-04 产品业态与活动组合 涉及产业、投资、价格、市场和发展政策。",
+          "required": false
+        }
+      ],
+      "queryTemplates": [
+        {
+          "sourceId": "cn-local-gov-official",
+          "template": "{project_location} {workflow_title} 官方 数据 规划 政策"
+        },
+        {
+          "sourceId": "cn-mohurd",
+          "template": "{project_type} {workflow_title} 住房城乡建设 工程 标准 管理"
+        },
+        {
+          "sourceId": "cn-standards",
+          "template": "{workflow_title} 标准 规范 {standard_keyword_or_number}"
+        },
+        {
+          "sourceId": "cn-ndrc",
+          "template": "{project_location} {workflow_title} 产业 投资 市场 价格"
+        }
+      ],
+      "extractionRules": [
+        "围绕“把功能转成可被使用、运营和招商的服务、产品、业态与活动。”只提取与当前 Workflow 直接相关的事实、材料原结论和可复算参数。",
+        "所有 fact/source_conclusion 必须绑定 EvidenceRecord；推断、假设和用户陈述保持原 claimClass。",
+        "项目地块/建筑/资产/设施的具体事实优先项目正式资料或所在地官方数据，不用国家宏观口径代替。"
+      ],
+      "normalizationRules": [
+        "日期统一为 ISO 格式并保留统计期/基准日；单位换算保存原值、原单位和公式。",
+        "空间数据保留 CRS、几何/对象哈希与来源定位；同名对象先做身份消歧再汇总。",
+        "统计/市场/设施数据必须统一时间、空间范围、样本和指标定义后才允许比较。"
+      ],
+      "researchSteps": [
+        {
+          "stepId": "06-04-S01",
+          "order": 1,
+          "title": "读取已确认上游 Project State 与证据链",
+          "dependsOnStepIds": [],
+          "dataPointIds": [
+            "products",
+            "services",
+            "function-links",
+            "operator-types",
+            "user-groups",
+            "time-slots",
+            "public-or-revenue-role",
+            "brand-level",
+            "activity-calendar",
+            "requirements"
+          ],
+          "sourceIds": [
+            "project-state-store"
+          ],
+          "action": "upstream_state_read",
+          "produces": "evidence",
+          "notes": "只读取明确 Revision；保留底层 EvidenceRef/AnalysisTrace，不改变原 claimClass。"
+        },
+        {
+          "stepId": "06-04-S02",
+          "order": 2,
+          "title": "查询 项目所在地政府及主管部门官网",
+          "dependsOnStepIds": [
+            "06-04-S01"
+          ],
+          "dataPointIds": [
+            "products",
+            "services",
+            "function-links",
+            "operator-types",
+            "user-groups",
+            "time-slots",
+            "public-or-revenue-role",
+            "brand-level",
+            "activity-calendar",
+            "requirements"
+          ],
+          "sourceIds": [
+            "cn-local-gov-official"
+          ],
+          "action": "official_source_lookup",
+          "produces": "evidence",
+          "notes": "只采信 gov.cn 内的原始官方页面；搜索摘要和转载只作发现线索。"
+        },
+        {
+          "stepId": "06-04-S03",
+          "order": 3,
+          "title": "查询 国家发展和改革委员会",
+          "dependsOnStepIds": [
+            "06-04-S01",
+            "06-04-S02"
+          ],
+          "dataPointIds": [
+            "products",
+            "function-links",
+            "operator-types",
+            "time-slots",
+            "public-or-revenue-role",
+            "brand-level",
+            "activity-calendar",
+            "requirements"
+          ],
+          "sourceIds": [
+            "cn-ndrc"
+          ],
+          "action": "official_source_lookup",
+          "produces": "evidence",
+          "notes": "只采信 ndrc.gov.cn 内的原始官方页面；搜索摘要和转载只作发现线索。"
+        },
+        {
+          "stepId": "06-04-S04",
+          "order": 4,
+          "title": "统一时间、空间、单位与对象口径",
+          "dependsOnStepIds": [
+            "06-04-S01",
+            "06-04-S02",
+            "06-04-S03"
+          ],
+          "dataPointIds": [
+            "products",
+            "services",
+            "function-links",
+            "operator-types",
+            "user-groups",
+            "time-slots",
+            "public-or-revenue-role",
+            "brand-level",
+            "activity-calendar",
+            "requirements"
+          ],
+          "sourceIds": [],
+          "action": "normalize",
+          "produces": "normalized_data",
+          "notes": "不得通过标准化改变原始事实含义；所有换算保留原值、公式和目标单位。"
+        },
+        {
+          "stepId": "06-04-S05",
+          "order": 5,
+          "title": "交叉核验证据、来源与冲突",
+          "dependsOnStepIds": [
+            "06-04-S04"
+          ],
+          "dataPointIds": [
+            "products",
+            "services",
+            "function-links",
+            "operator-types",
+            "user-groups",
+            "time-slots",
+            "public-or-revenue-role",
+            "brand-level",
+            "activity-calendar",
+            "requirements"
+          ],
+          "sourceIds": [],
+          "action": "cross_check",
+          "produces": "cross_check_result",
+          "notes": "冲突证据保留 conflict；全国宏观资料不得覆盖项目地块/建筑/设施的地方或项目正式事实。"
+        },
+        {
+          "stepId": "06-04-S06",
+          "order": 6,
+          "title": "按权威等级与统一口径汇总",
+          "dependsOnStepIds": [
+            "06-04-S05"
+          ],
+          "dataPointIds": [
+            "products",
+            "services",
+            "function-links",
+            "operator-types",
+            "user-groups",
+            "time-slots",
+            "public-or-revenue-role",
+            "brand-level",
+            "activity-calendar",
+            "requirements"
+          ],
+          "sourceIds": [],
+          "action": "aggregate",
+          "produces": "aggregated_data",
+          "notes": "按 P0>P1>P2>P3>P4>P5 合并；同级冲突不静默择一。"
+        },
+        {
+          "stepId": "06-04-S07",
+          "order": 7,
+          "title": "形成“产品业态与活动组合”专业分析",
+          "dependsOnStepIds": [
+            "06-04-S06"
+          ],
+          "dataPointIds": [
+            "products",
+            "services",
+            "function-links",
+            "operator-types",
+            "user-groups",
+            "time-slots",
+            "public-or-revenue-role",
+            "brand-level",
+            "activity-calendar",
+            "requirements"
+          ],
+          "sourceIds": [],
+          "action": "professional_analysis",
+          "produces": "analysis_trace",
+          "notes": "围绕“把功能转成可被使用、运营和招商的服务、产品、业态与活动。”解释证据、差异、限制和专业含义，不新增无来源事实。"
+        },
+        {
+          "stepId": "06-04-S08",
+          "order": 8,
+          "title": "独立核验证据覆盖、时效与可追溯性",
+          "dependsOnStepIds": [
+            "06-04-S07"
+          ],
+          "dataPointIds": [
+            "products",
+            "services",
+            "function-links",
+            "operator-types",
+            "user-groups",
+            "time-slots",
+            "public-or-revenue-role",
+            "brand-level",
+            "activity-calendar",
+            "requirements"
+          ],
+          "sourceIds": [],
+          "action": "evidence_validate",
+          "produces": "validated_evidence",
+          "notes": "Evidence Validator 独立检查必需数据项、来源等级、时效、域名、冲突和高风险 A 级证据。"
+        },
+        {
+          "stepId": "06-04-S09",
+          "order": 9,
+          "title": "输出可追溯结论",
+          "dependsOnStepIds": [
+            "06-04-S08"
+          ],
+          "dataPointIds": [
+            "products",
+            "services",
+            "function-links",
+            "operator-types",
+            "user-groups",
+            "time-slots",
+            "public-or-revenue-role",
+            "brand-level",
+            "activity-calendar",
+            "requirements"
+          ],
+          "sourceIds": [],
+          "action": "produce_claims",
+          "produces": "claims",
+          "notes": "每个结论必须可回溯到 ResearchStep、DataPoint、EvidenceRecord、方法版本和限制。"
+        }
+      ],
+      "aggregationMethod": {
+        "methodId": "0604-authority-trace-merge",
+        "version": "1.0.0",
+        "description": "按来源权威等级、时间有效性、对象一致性和口径一致性进行确定性去重、冲突保留与汇总。",
+        "deterministic": true
+      },
+      "analysisMethod": {
+        "methodId": "0604-professional-analysis",
+        "version": "1.0.0",
+        "description": "基于已核验证据和确定性计算，对“产品业态与活动组合”进行专业解释、比较、约束/机会识别并形成可追溯结论。",
+        "deterministic": false
+      },
+      "crossCheckRules": [
+        "全国/省级宏观信息只能提供背景、标准或基准，不得直接证明具体项目地块/建筑/设施事实。",
+        "Project State 作为来源时必须继承底层 EvidenceRef/AnalysisTrace；不得因进入下游 Workflow 自动提升可靠等级或 claimClass。",
+        "来源冲突不得静默覆盖；必须保留冲突项、来源、时间和影响范围。",
+        "可确定性计算的指标必须由专业工具或明确公式复算，不由 LLM 心算生成。"
+      ],
+      "freshnessRules": [
+        "Project State 绑定精确 Revision；上游发生语义变化后当前结果自动 stale 并重算。",
+        "政策、规划、标准、价格、设施开放状态和市场数据在项目启动、相关 Gate 前及来源更新后重新核验。"
+      ],
+      "minimumEvidence": {
+        "minHighAuthority": 0,
+        "minIndependentSources": 1,
+        "highRiskRequiresGradeA": false
+      },
+      "fallbackPolicy": "缺失数据保持 unknown/limited，不由 LLM 补写事实；继续完成不受影响的并行项，并记录 blocked_external 或 quality_unresolved。",
+      "outputClaims": [
+        "products",
+        "services",
+        "功能links",
+        "运营主体类型",
+        "产品业态与活动组合综合研判与限制"
+      ]
+    },
+    {
+      "workflowId": "preplan.wf.06.05",
+      "requiredDataPoints": [
+        {
+          "dataPointId": "functions",
+          "label": "功能",
+          "dataKind": "project_analysis",
+          "description": "06-05 功能邻接共享与弹性 中“功能”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "adjacency-scores",
+          "label": "adjacency评分",
+          "dataKind": "project_analysis",
+          "description": "06-05 功能邻接共享与弹性 中“adjacency评分”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "separation-rules",
+          "label": "separationrules",
+          "dataKind": "project_analysis",
+          "description": "06-05 功能邻接共享与弹性 中“separationrules”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "shared-resources",
+          "label": "sharedresources",
+          "dataKind": "project_analysis",
+          "description": "06-05 功能邻接共享与弹性 中“sharedresources”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "time-schedules",
+          "label": "时间schedules",
+          "dataKind": "implementation",
+          "description": "06-05 功能邻接共享与弹性 中“时间schedules”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "flows",
+          "label": "flows",
+          "dataKind": "project_analysis",
+          "description": "06-05 功能邻接共享与弹性 中“flows”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "conflicts",
+          "label": "conflicts",
+          "dataKind": "project_analysis",
+          "description": "06-05 功能邻接共享与弹性 中“conflicts”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "distribution-mode",
+          "label": "distributionmode",
+          "dataKind": "project_analysis",
+          "description": "06-05 功能邻接共享与弹性 中“distributionmode”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "flexibility-modules",
+          "label": "flexibilitymodules",
+          "dataKind": "project_analysis",
+          "description": "06-05 功能邻接共享与弹性 中“flexibilitymodules”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        }
+      ],
+      "optionalDataPoints": [],
+      "preferredSources": [
+        {
+          "sourceId": "project-state-store",
+          "purpose": "读取 06-05 功能邻接共享与弹性 所需的已确认上游 Project State、Revision、EvidenceRef 与 AnalysisTrace。",
+          "required": true
+        },
+        {
+          "sourceId": "workspace-project-files",
+          "purpose": "提取 06-05 功能邻接共享与弹性 相关任务书、图纸、测绘、台账、调查、会议纪要、正式表格和实测资料。",
+          "required": false
+        },
+        {
+          "sourceId": "cn-local-gov-official",
+          "purpose": "查询项目所在地政府和主管部门发布的与 06-05 功能邻接共享与弹性 直接相关的地方正式数据、规划、名录和政策。",
+          "required": false
+        },
+        {
+          "sourceId": "cn-mohurd",
+          "purpose": "核验 06-05 功能邻接共享与弹性 涉及的建设管理、城市建设、工程标准和造价政策。",
+          "required": false
+        },
+        {
+          "sourceId": "cn-standards",
+          "purpose": "核验 06-05 功能邻接共享与弹性 所引用国家/行业/地方标准的编号、名称、状态和实施日期。",
+          "required": false
+        },
+        {
+          "sourceId": "professional-tool-output",
+          "purpose": "对 06-05 功能邻接共享与弹性 中可确定性计算的空间、统计、规模、造价、财务或优化指标进行可复算计算。",
+          "required": false
+        }
+      ],
+      "queryTemplates": [
+        {
+          "sourceId": "cn-local-gov-official",
+          "template": "{project_location} {workflow_title} 官方 数据 规划 政策"
+        },
+        {
+          "sourceId": "cn-mohurd",
+          "template": "{project_type} {workflow_title} 住房城乡建设 工程 标准 管理"
+        },
+        {
+          "sourceId": "cn-standards",
+          "template": "{workflow_title} 标准 规范 {standard_keyword_or_number}"
+        }
+      ],
+      "extractionRules": [
+        "围绕“明确哪些功能需要相邻、分离、共享或分时使用。”只提取与当前 Workflow 直接相关的事实、材料原结论和可复算参数。",
+        "所有 fact/source_conclusion 必须绑定 EvidenceRecord；推断、假设和用户陈述保持原 claimClass。",
+        "项目地块/建筑/资产/设施的具体事实优先项目正式资料或所在地官方数据，不用国家宏观口径代替。"
+      ],
+      "normalizationRules": [
+        "日期统一为 ISO 格式并保留统计期/基准日；单位换算保存原值、原单位和公式。",
+        "空间数据保留 CRS、几何/对象哈希与来源定位；同名对象先做身份消歧再汇总。",
+        "统计/市场/设施数据必须统一时间、空间范围、样本和指标定义后才允许比较。"
+      ],
+      "researchSteps": [
+        {
+          "stepId": "06-05-S01",
+          "order": 1,
+          "title": "读取已确认上游 Project State 与证据链",
+          "dependsOnStepIds": [],
+          "dataPointIds": [
+            "functions",
+            "adjacency-scores",
+            "separation-rules",
+            "shared-resources",
+            "time-schedules",
+            "flows",
+            "conflicts",
+            "distribution-mode",
+            "flexibility-modules"
+          ],
+          "sourceIds": [
+            "project-state-store"
+          ],
+          "action": "upstream_state_read",
+          "produces": "evidence",
+          "notes": "只读取明确 Revision；保留底层 EvidenceRef/AnalysisTrace，不改变原 claimClass。"
+        },
+        {
+          "stepId": "06-05-S02",
+          "order": 2,
+          "title": "统一时间、空间、单位与对象口径",
+          "dependsOnStepIds": [
+            "06-05-S01"
+          ],
+          "dataPointIds": [
+            "functions",
+            "adjacency-scores",
+            "separation-rules",
+            "shared-resources",
+            "time-schedules",
+            "flows",
+            "conflicts",
+            "distribution-mode",
+            "flexibility-modules"
+          ],
+          "sourceIds": [],
+          "action": "normalize",
+          "produces": "normalized_data",
+          "notes": "不得通过标准化改变原始事实含义；所有换算保留原值、公式和目标单位。"
+        },
+        {
+          "stepId": "06-05-S03",
+          "order": 3,
+          "title": "执行确定性专业计算/复算",
+          "dependsOnStepIds": [
+            "06-05-S02"
+          ],
+          "dataPointIds": [
+            "adjacency-scores"
+          ],
+          "sourceIds": [
+            "professional-tool-output"
+          ],
+          "action": "deterministic_calculation",
+          "produces": "calculation_result",
+          "notes": "GIS/BIM/统计/造价/财务等计算必须记录输入 Evidence、参数、公式/算法版本和输出。"
+        },
+        {
+          "stepId": "06-05-S04",
+          "order": 4,
+          "title": "交叉核验证据、来源与冲突",
+          "dependsOnStepIds": [
+            "06-05-S02",
+            "06-05-S03"
+          ],
+          "dataPointIds": [
+            "functions",
+            "adjacency-scores",
+            "separation-rules",
+            "shared-resources",
+            "time-schedules",
+            "flows",
+            "conflicts",
+            "distribution-mode",
+            "flexibility-modules"
+          ],
+          "sourceIds": [],
+          "action": "cross_check",
+          "produces": "cross_check_result",
+          "notes": "冲突证据保留 conflict；全国宏观资料不得覆盖项目地块/建筑/设施的地方或项目正式事实。"
+        },
+        {
+          "stepId": "06-05-S05",
+          "order": 5,
+          "title": "按权威等级与统一口径汇总",
+          "dependsOnStepIds": [
+            "06-05-S04"
+          ],
+          "dataPointIds": [
+            "functions",
+            "adjacency-scores",
+            "separation-rules",
+            "shared-resources",
+            "time-schedules",
+            "flows",
+            "conflicts",
+            "distribution-mode",
+            "flexibility-modules"
+          ],
+          "sourceIds": [],
+          "action": "aggregate",
+          "produces": "aggregated_data",
+          "notes": "按 P0>P1>P2>P3>P4>P5 合并；同级冲突不静默择一。"
+        },
+        {
+          "stepId": "06-05-S06",
+          "order": 6,
+          "title": "形成“功能邻接共享与弹性”专业分析",
+          "dependsOnStepIds": [
+            "06-05-S05"
+          ],
+          "dataPointIds": [
+            "functions",
+            "adjacency-scores",
+            "separation-rules",
+            "shared-resources",
+            "time-schedules",
+            "flows",
+            "conflicts",
+            "distribution-mode",
+            "flexibility-modules"
+          ],
+          "sourceIds": [],
+          "action": "professional_analysis",
+          "produces": "analysis_trace",
+          "notes": "围绕“明确哪些功能需要相邻、分离、共享或分时使用。”解释证据、差异、限制和专业含义，不新增无来源事实。"
+        },
+        {
+          "stepId": "06-05-S07",
+          "order": 7,
+          "title": "独立核验证据覆盖、时效与可追溯性",
+          "dependsOnStepIds": [
+            "06-05-S06"
+          ],
+          "dataPointIds": [
+            "functions",
+            "adjacency-scores",
+            "separation-rules",
+            "shared-resources",
+            "time-schedules",
+            "flows",
+            "conflicts",
+            "distribution-mode",
+            "flexibility-modules"
+          ],
+          "sourceIds": [],
+          "action": "evidence_validate",
+          "produces": "validated_evidence",
+          "notes": "Evidence Validator 独立检查必需数据项、来源等级、时效、域名、冲突和高风险 A 级证据。"
+        },
+        {
+          "stepId": "06-05-S08",
+          "order": 8,
+          "title": "输出可追溯结论",
+          "dependsOnStepIds": [
+            "06-05-S07"
+          ],
+          "dataPointIds": [
+            "functions",
+            "adjacency-scores",
+            "separation-rules",
+            "shared-resources",
+            "time-schedules",
+            "flows",
+            "conflicts",
+            "distribution-mode",
+            "flexibility-modules"
+          ],
+          "sourceIds": [],
+          "action": "produce_claims",
+          "produces": "claims",
+          "notes": "每个结论必须可回溯到 ResearchStep、DataPoint、EvidenceRecord、方法版本和限制。"
+        }
+      ],
+      "aggregationMethod": {
+        "methodId": "0605-authority-trace-merge",
+        "version": "1.0.0",
+        "description": "按来源权威等级、时间有效性、对象一致性和口径一致性进行确定性去重、冲突保留与汇总。",
+        "deterministic": true
+      },
+      "analysisMethod": {
+        "methodId": "0605-professional-analysis",
+        "version": "1.0.0",
+        "description": "基于已核验证据和确定性计算，对“功能邻接共享与弹性”进行专业解释、比较、约束/机会识别并形成可追溯结论。",
+        "deterministic": false
+      },
+      "crossCheckRules": [
+        "全国/省级宏观信息只能提供背景、标准或基准，不得直接证明具体项目地块/建筑/设施事实。",
+        "Project State 作为来源时必须继承底层 EvidenceRef/AnalysisTrace；不得因进入下游 Workflow 自动提升可靠等级或 claimClass。",
+        "来源冲突不得静默覆盖；必须保留冲突项、来源、时间和影响范围。",
+        "可确定性计算的指标必须由专业工具或明确公式复算，不由 LLM 心算生成。"
+      ],
+      "freshnessRules": [
+        "Project State 绑定精确 Revision；上游发生语义变化后当前结果自动 stale 并重算。",
+        "政策、规划、标准、价格、设施开放状态和市场数据在项目启动、相关 Gate 前及来源更新后重新核验。"
+      ],
+      "minimumEvidence": {
+        "minHighAuthority": 1,
+        "minIndependentSources": 2,
+        "highRiskRequiresGradeA": true
+      },
+      "fallbackPolicy": "缺失数据保持 unknown/limited，不由 LLM 补写事实；继续完成不受影响的并行项，并记录 blocked_external 或 quality_unresolved。",
+      "outputClaims": [
+        "功能",
+        "adjacency评分",
+        "separationrules",
+        "sharedresources",
+        "功能邻接共享与弹性综合研判与限制"
+      ]
+    },
+    {
+      "workflowId": "preplan.wf.06.06",
+      "requiredDataPoints": [
+        {
+          "dataPointId": "units",
+          "label": "units",
+          "dataKind": "project_analysis",
+          "description": "06-06 公益经营边界与收费原则 中“units”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "service-class",
+          "label": "serviceclass",
+          "dataKind": "public_service",
+          "description": "06-06 公益经营边界与收费原则 中“serviceclass”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "pricing-principles",
+          "label": "价格原则",
+          "dataKind": "project_analysis",
+          "description": "06-06 公益经营边界与收费原则 中“价格原则”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "asset-class",
+          "label": "assetclass",
+          "dataKind": "project_analysis",
+          "description": "06-06 公益经营边界与收费原则 中“assetclass”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "funding-restrictions",
+          "label": "资金restrictions",
+          "dataKind": "finance",
+          "description": "06-06 公益经营边界与收费原则 中“资金restrictions”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "capacity-protection",
+          "label": "容量protection",
+          "dataKind": "public_service",
+          "description": "06-06 公益经营边界与收费原则 中“容量protection”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "subsidy-or-cross-support",
+          "label": "subsidyorcrosssupport",
+          "dataKind": "project_analysis",
+          "description": "06-06 公益经营边界与收费原则 中“subsidyorcrosssupport”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "maintenance-responsibility",
+          "label": "maintenance责任",
+          "dataKind": "project_analysis",
+          "description": "06-06 公益经营边界与收费原则 中“maintenance责任”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "approval-status",
+          "label": "approval状态",
+          "dataKind": "project_analysis",
+          "description": "06-06 公益经营边界与收费原则 中“approval状态”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        }
+      ],
+      "optionalDataPoints": [],
+      "preferredSources": [
+        {
+          "sourceId": "project-state-store",
+          "purpose": "读取 06-06 公益经营边界与收费原则 所需的已确认上游 Project State、Revision、EvidenceRef 与 AnalysisTrace。",
+          "required": true
+        },
+        {
+          "sourceId": "workspace-project-files",
+          "purpose": "提取 06-06 公益经营边界与收费原则 相关任务书、图纸、测绘、台账、调查、会议纪要、正式表格和实测资料。",
+          "required": false
+        },
+        {
+          "sourceId": "cn-local-gov-official",
+          "purpose": "查询项目所在地政府和主管部门发布的与 06-06 公益经营边界与收费原则 直接相关的地方正式数据、规划、名录和政策。",
+          "required": false
+        },
+        {
+          "sourceId": "cn-mnr",
+          "purpose": "核验 06-06 公益经营边界与收费原则 涉及的自然资源、土地和国土空间规划政策/公开数据。",
+          "required": false
+        },
+        {
+          "sourceId": "professional-tool-output",
+          "purpose": "对 06-06 公益经营边界与收费原则 中可确定性计算的空间、统计、规模、造价、财务或优化指标进行可复算计算。",
+          "required": false
+        }
+      ],
+      "queryTemplates": [
+        {
+          "sourceId": "cn-local-gov-official",
+          "template": "{project_location} {workflow_title} 官方 数据 规划 政策"
+        },
+        {
+          "sourceId": "cn-mnr",
+          "template": "{project_location} {workflow_title} 国土空间 土地 规划"
+        }
+      ],
+      "extractionRules": [
+        "围绕“明确哪些服务必须保障公益，哪些可以经营，怎样避免相互挤占。”只提取与当前 Workflow 直接相关的事实、材料原结论和可复算参数。",
+        "所有 fact/source_conclusion 必须绑定 EvidenceRecord；推断、假设和用户陈述保持原 claimClass。",
+        "项目地块/建筑/资产/设施的具体事实优先项目正式资料或所在地官方数据，不用国家宏观口径代替。"
+      ],
+      "normalizationRules": [
+        "日期统一为 ISO 格式并保留统计期/基准日；单位换算保存原值、原单位和公式。",
+        "空间数据保留 CRS、几何/对象哈希与来源定位；同名对象先做身份消歧再汇总。",
+        "统计/市场/设施数据必须统一时间、空间范围、样本和指标定义后才允许比较。"
+      ],
+      "researchSteps": [
+        {
+          "stepId": "06-06-S01",
+          "order": 1,
+          "title": "读取已确认上游 Project State 与证据链",
+          "dependsOnStepIds": [],
+          "dataPointIds": [
+            "units",
+            "service-class",
+            "pricing-principles",
+            "asset-class",
+            "funding-restrictions",
+            "capacity-protection",
+            "subsidy-or-cross-support",
+            "maintenance-responsibility",
+            "approval-status"
+          ],
+          "sourceIds": [
+            "project-state-store"
+          ],
+          "action": "upstream_state_read",
+          "produces": "evidence",
+          "notes": "只读取明确 Revision；保留底层 EvidenceRef/AnalysisTrace，不改变原 claimClass。"
+        },
+        {
+          "stepId": "06-06-S02",
+          "order": 2,
+          "title": "读取项目正式资料、调查与实测",
+          "dependsOnStepIds": [],
+          "dataPointIds": [
+            "capacity-protection"
+          ],
+          "sourceIds": [
+            "workspace-project-files"
+          ],
+          "action": "workspace_extract",
+          "produces": "evidence",
+          "notes": "优先项目正式资料；文件必须记录版本、页码/表格/图层/对象定位与内容哈希。"
+        },
+        {
+          "stepId": "06-06-S03",
+          "order": 3,
+          "title": "查询 项目所在地政府及主管部门官网",
+          "dependsOnStepIds": [
+            "06-06-S01",
+            "06-06-S02"
+          ],
+          "dataPointIds": [
+            "service-class",
+            "funding-restrictions",
+            "capacity-protection"
+          ],
+          "sourceIds": [
+            "cn-local-gov-official"
+          ],
+          "action": "official_source_lookup",
+          "produces": "evidence",
+          "notes": "只采信 gov.cn 内的原始官方页面；搜索摘要和转载只作发现线索。"
+        },
+        {
+          "stepId": "06-06-S04",
+          "order": 4,
+          "title": "统一时间、空间、单位与对象口径",
+          "dependsOnStepIds": [
+            "06-06-S01",
+            "06-06-S02",
+            "06-06-S03"
+          ],
+          "dataPointIds": [
+            "units",
+            "service-class",
+            "pricing-principles",
+            "asset-class",
+            "funding-restrictions",
+            "capacity-protection",
+            "subsidy-or-cross-support",
+            "maintenance-responsibility",
+            "approval-status"
+          ],
+          "sourceIds": [],
+          "action": "normalize",
+          "produces": "normalized_data",
+          "notes": "不得通过标准化改变原始事实含义；所有换算保留原值、公式和目标单位。"
+        },
+        {
+          "stepId": "06-06-S05",
+          "order": 5,
+          "title": "执行确定性专业计算/复算",
+          "dependsOnStepIds": [
+            "06-06-S04"
+          ],
+          "dataPointIds": [
+            "funding-restrictions",
+            "capacity-protection"
+          ],
+          "sourceIds": [
+            "professional-tool-output"
+          ],
+          "action": "deterministic_calculation",
+          "produces": "calculation_result",
+          "notes": "GIS/BIM/统计/造价/财务等计算必须记录输入 Evidence、参数、公式/算法版本和输出。"
+        },
+        {
+          "stepId": "06-06-S06",
+          "order": 6,
+          "title": "交叉核验证据、来源与冲突",
+          "dependsOnStepIds": [
+            "06-06-S04",
+            "06-06-S05"
+          ],
+          "dataPointIds": [
+            "units",
+            "service-class",
+            "pricing-principles",
+            "asset-class",
+            "funding-restrictions",
+            "capacity-protection",
+            "subsidy-or-cross-support",
+            "maintenance-responsibility",
+            "approval-status"
+          ],
+          "sourceIds": [],
+          "action": "cross_check",
+          "produces": "cross_check_result",
+          "notes": "冲突证据保留 conflict；全国宏观资料不得覆盖项目地块/建筑/设施的地方或项目正式事实。"
+        },
+        {
+          "stepId": "06-06-S07",
+          "order": 7,
+          "title": "按权威等级与统一口径汇总",
+          "dependsOnStepIds": [
+            "06-06-S06"
+          ],
+          "dataPointIds": [
+            "units",
+            "service-class",
+            "pricing-principles",
+            "asset-class",
+            "funding-restrictions",
+            "capacity-protection",
+            "subsidy-or-cross-support",
+            "maintenance-responsibility",
+            "approval-status"
+          ],
+          "sourceIds": [],
+          "action": "aggregate",
+          "produces": "aggregated_data",
+          "notes": "按 P0>P1>P2>P3>P4>P5 合并；同级冲突不静默择一。"
+        },
+        {
+          "stepId": "06-06-S08",
+          "order": 8,
+          "title": "形成“公益经营边界与收费原则”专业分析",
+          "dependsOnStepIds": [
+            "06-06-S07"
+          ],
+          "dataPointIds": [
+            "units",
+            "service-class",
+            "pricing-principles",
+            "asset-class",
+            "funding-restrictions",
+            "capacity-protection",
+            "subsidy-or-cross-support",
+            "maintenance-responsibility",
+            "approval-status"
+          ],
+          "sourceIds": [],
+          "action": "professional_analysis",
+          "produces": "analysis_trace",
+          "notes": "围绕“明确哪些服务必须保障公益，哪些可以经营，怎样避免相互挤占。”解释证据、差异、限制和专业含义，不新增无来源事实。"
+        },
+        {
+          "stepId": "06-06-S09",
+          "order": 9,
+          "title": "独立核验证据覆盖、时效与可追溯性",
+          "dependsOnStepIds": [
+            "06-06-S08"
+          ],
+          "dataPointIds": [
+            "units",
+            "service-class",
+            "pricing-principles",
+            "asset-class",
+            "funding-restrictions",
+            "capacity-protection",
+            "subsidy-or-cross-support",
+            "maintenance-responsibility",
+            "approval-status"
+          ],
+          "sourceIds": [],
+          "action": "evidence_validate",
+          "produces": "validated_evidence",
+          "notes": "Evidence Validator 独立检查必需数据项、来源等级、时效、域名、冲突和高风险 A 级证据。"
+        },
+        {
+          "stepId": "06-06-S10",
+          "order": 10,
+          "title": "输出可追溯结论",
+          "dependsOnStepIds": [
+            "06-06-S09"
+          ],
+          "dataPointIds": [
+            "units",
+            "service-class",
+            "pricing-principles",
+            "asset-class",
+            "funding-restrictions",
+            "capacity-protection",
+            "subsidy-or-cross-support",
+            "maintenance-responsibility",
+            "approval-status"
+          ],
+          "sourceIds": [],
+          "action": "produce_claims",
+          "produces": "claims",
+          "notes": "每个结论必须可回溯到 ResearchStep、DataPoint、EvidenceRecord、方法版本和限制。"
+        }
+      ],
+      "aggregationMethod": {
+        "methodId": "0606-authority-trace-merge",
+        "version": "1.0.0",
+        "description": "按来源权威等级、时间有效性、对象一致性和口径一致性进行确定性去重、冲突保留与汇总。",
+        "deterministic": true
+      },
+      "analysisMethod": {
+        "methodId": "0606-professional-analysis",
+        "version": "1.0.0",
+        "description": "基于已核验证据和确定性计算，对“公益经营边界与收费原则”进行专业解释、比较、约束/机会识别并形成可追溯结论。",
+        "deterministic": false
+      },
+      "crossCheckRules": [
+        "全国/省级宏观信息只能提供背景、标准或基准，不得直接证明具体项目地块/建筑/设施事实。",
+        "Project State 作为来源时必须继承底层 EvidenceRef/AnalysisTrace；不得因进入下游 Workflow 自动提升可靠等级或 claimClass。",
+        "来源冲突不得静默覆盖；必须保留冲突项、来源、时间和影响范围。",
+        "可确定性计算的指标必须由专业工具或明确公式复算，不由 LLM 心算生成。"
+      ],
+      "freshnessRules": [
+        "Project State 绑定精确 Revision；上游发生语义变化后当前结果自动 stale 并重算。",
+        "政策、规划、标准、价格、设施开放状态和市场数据在项目启动、相关 Gate 前及来源更新后重新核验。"
+      ],
+      "minimumEvidence": {
+        "minHighAuthority": 1,
+        "minIndependentSources": 2,
+        "highRiskRequiresGradeA": true
+      },
+      "fallbackPolicy": "缺少项目正式资料或项目所在地法定/实测证据时，具体地块、资产、建筑、容量、安全和空间结论保持 blocked_external/limited；不得用全国宏观资料或 LLM 推断具体项目事实。",
+      "outputClaims": [
+        "units",
+        "serviceclass",
+        "价格原则",
+        "assetclass",
+        "公益经营边界与收费原则综合研判与限制"
+      ]
+    },
+    {
+      "workflowId": "preplan.wf.06.07",
+      "requiredDataPoints": [
+        {
+          "dataPointId": "function-schedule",
+          "label": "功能进度",
+          "dataKind": "market",
+          "description": "06-07 运营前提与策划任务书 中“功能进度”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "capacities",
+          "label": "capacities",
+          "dataKind": "market",
+          "description": "06-07 运营前提与策划任务书 中“capacities”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "areas",
+          "label": "面积",
+          "dataKind": "market",
+          "description": "06-07 运营前提与策划任务书 中“面积”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "adjacencies",
+          "label": "adjacencies",
+          "dataKind": "market",
+          "description": "06-07 运营前提与策划任务书 中“adjacencies”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "operating-hours",
+          "label": "operating开放时间",
+          "dataKind": "market",
+          "description": "06-07 运营前提与策划任务书 中“operating开放时间”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "staffing",
+          "label": "staffing",
+          "dataKind": "market",
+          "description": "06-07 运营前提与策划任务书 中“staffing”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "equipment",
+          "label": "equipment",
+          "dataKind": "market",
+          "description": "06-07 运营前提与策划任务书 中“equipment”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "service-standards",
+          "label": "servicestandards",
+          "dataKind": "public_service",
+          "description": "06-07 运营前提与策划任务书 中“servicestandards”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "phasing",
+          "label": "phasing",
+          "dataKind": "market",
+          "description": "06-07 运营前提与策划任务书 中“phasing”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "assumptions",
+          "label": "假设",
+          "dataKind": "market",
+          "description": "06-07 运营前提与策划任务书 中“假设”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        },
+        {
+          "dataPointId": "master-data-version",
+          "label": "masterdataversion",
+          "dataKind": "market",
+          "description": "06-07 运营前提与策划任务书 中“masterdataversion”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "unit": null
+        }
+      ],
+      "optionalDataPoints": [],
+      "preferredSources": [
+        {
+          "sourceId": "project-state-store",
+          "purpose": "读取 06-07 运营前提与策划任务书 所需的已确认上游 Project State、Revision、EvidenceRef 与 AnalysisTrace。",
+          "required": true
+        },
+        {
+          "sourceId": "workspace-project-files",
+          "purpose": "提取 06-07 运营前提与策划任务书 相关任务书、图纸、测绘、台账、调查、会议纪要、正式表格和实测资料。",
+          "required": false
+        },
+        {
+          "sourceId": "cn-local-gov-official",
+          "purpose": "查询项目所在地政府和主管部门发布的与 06-07 运营前提与策划任务书 直接相关的地方正式数据、规划、名录和政策。",
+          "required": false
+        },
+        {
+          "sourceId": "cn-mohurd",
+          "purpose": "核验 06-07 运营前提与策划任务书 涉及的建设管理、城市建设、工程标准和造价政策。",
+          "required": false
+        },
+        {
+          "sourceId": "cn-standards",
+          "purpose": "核验 06-07 运营前提与策划任务书 所引用国家/行业/地方标准的编号、名称、状态和实施日期。",
+          "required": false
+        },
+        {
+          "sourceId": "cn-nbs",
+          "purpose": "获取 06-07 运营前提与策划任务书 所需的人口、经济、产业和统计基准。",
+          "required": false
+        },
+        {
+          "sourceId": "cn-ndrc",
+          "purpose": "核验 06-07 运营前提与策划任务书 涉及产业、投资、价格、市场和发展政策。",
+          "required": false
+        },
+        {
+          "sourceId": "professional-tool-output",
+          "purpose": "对 06-07 运营前提与策划任务书 中可确定性计算的空间、统计、规模、造价、财务或优化指标进行可复算计算。",
+          "required": false
+        }
+      ],
+      "queryTemplates": [
+        {
+          "sourceId": "cn-local-gov-official",
+          "template": "{project_location} {workflow_title} 官方 数据 规划 政策"
+        },
+        {
+          "sourceId": "cn-mohurd",
+          "template": "{project_type} {workflow_title} 住房城乡建设 工程 标准 管理"
+        },
+        {
+          "sourceId": "cn-standards",
+          "template": "{workflow_title} 标准 规范 {standard_keyword_or_number}"
+        },
+        {
+          "sourceId": "cn-nbs",
+          "template": "{project_location} {workflow_title} 人口 经济 产业 统计"
+        },
+        {
+          "sourceId": "cn-ndrc",
+          "template": "{project_location} {workflow_title} 产业 投资 市场 价格"
+        }
+      ],
+      "extractionRules": [
+        "围绕“把功能、规模和运营需求固化成设计可以直接使用的策划任务。”只提取与当前 Workflow 直接相关的事实、材料原结论和可复算参数。",
+        "所有 fact/source_conclusion 必须绑定 EvidenceRecord；推断、假设和用户陈述保持原 claimClass。",
+        "项目地块/建筑/资产/设施的具体事实优先项目正式资料或所在地官方数据，不用国家宏观口径代替。"
+      ],
+      "normalizationRules": [
+        "日期统一为 ISO 格式并保留统计期/基准日；单位换算保存原值、原单位和公式。",
+        "空间数据保留 CRS、几何/对象哈希与来源定位；同名对象先做身份消歧再汇总。",
+        "统计/市场/设施数据必须统一时间、空间范围、样本和指标定义后才允许比较。"
+      ],
+      "researchSteps": [
+        {
+          "stepId": "06-07-S01",
+          "order": 1,
+          "title": "读取已确认上游 Project State 与证据链",
+          "dependsOnStepIds": [],
+          "dataPointIds": [
+            "function-schedule",
+            "capacities",
+            "areas",
+            "adjacencies",
+            "operating-hours",
+            "staffing",
+            "equipment",
+            "service-standards",
+            "phasing",
+            "assumptions",
+            "master-data-version"
+          ],
+          "sourceIds": [
+            "project-state-store"
+          ],
+          "action": "upstream_state_read",
+          "produces": "evidence",
+          "notes": "只读取明确 Revision；保留底层 EvidenceRef/AnalysisTrace，不改变原 claimClass。"
+        },
+        {
+          "stepId": "06-07-S02",
+          "order": 2,
+          "title": "读取项目正式资料、调查与实测",
+          "dependsOnStepIds": [],
+          "dataPointIds": [
+            "areas"
+          ],
+          "sourceIds": [
+            "workspace-project-files"
+          ],
+          "action": "workspace_extract",
+          "produces": "evidence",
+          "notes": "优先项目正式资料；文件必须记录版本、页码/表格/图层/对象定位与内容哈希。"
+        },
+        {
+          "stepId": "06-07-S03",
+          "order": 3,
+          "title": "查询 项目所在地政府及主管部门官网",
+          "dependsOnStepIds": [
+            "06-07-S01",
+            "06-07-S02"
+          ],
+          "dataPointIds": [
+            "function-schedule",
+            "capacities",
+            "areas",
+            "adjacencies",
+            "operating-hours",
+            "staffing",
+            "equipment",
+            "service-standards",
+            "phasing",
+            "assumptions",
+            "master-data-version"
+          ],
+          "sourceIds": [
+            "cn-local-gov-official"
+          ],
+          "action": "official_source_lookup",
+          "produces": "evidence",
+          "notes": "只采信 gov.cn 内的原始官方页面；搜索摘要和转载只作发现线索。"
+        },
+        {
+          "stepId": "06-07-S04",
+          "order": 4,
+          "title": "查询 国家发展和改革委员会",
+          "dependsOnStepIds": [
+            "06-07-S01",
+            "06-07-S02",
+            "06-07-S03"
+          ],
+          "dataPointIds": [
+            "function-schedule",
+            "capacities",
+            "areas",
+            "adjacencies",
+            "operating-hours",
+            "staffing",
+            "equipment",
+            "phasing",
+            "assumptions",
+            "master-data-version"
+          ],
+          "sourceIds": [
+            "cn-ndrc"
+          ],
+          "action": "official_source_lookup",
+          "produces": "evidence",
+          "notes": "只采信 ndrc.gov.cn 内的原始官方页面；搜索摘要和转载只作发现线索。"
+        },
+        {
+          "stepId": "06-07-S05",
+          "order": 5,
+          "title": "统一时间、空间、单位与对象口径",
+          "dependsOnStepIds": [
+            "06-07-S01",
+            "06-07-S02",
+            "06-07-S03",
+            "06-07-S04"
+          ],
+          "dataPointIds": [
+            "function-schedule",
+            "capacities",
+            "areas",
+            "adjacencies",
+            "operating-hours",
+            "staffing",
+            "equipment",
+            "service-standards",
+            "phasing",
+            "assumptions",
+            "master-data-version"
+          ],
+          "sourceIds": [],
+          "action": "normalize",
+          "produces": "normalized_data",
+          "notes": "不得通过标准化改变原始事实含义；所有换算保留原值、公式和目标单位。"
+        },
+        {
+          "stepId": "06-07-S06",
+          "order": 6,
+          "title": "执行确定性专业计算/复算",
+          "dependsOnStepIds": [
+            "06-07-S05"
+          ],
+          "dataPointIds": [
+            "areas"
+          ],
+          "sourceIds": [
+            "professional-tool-output"
+          ],
+          "action": "deterministic_calculation",
+          "produces": "calculation_result",
+          "notes": "GIS/BIM/统计/造价/财务等计算必须记录输入 Evidence、参数、公式/算法版本和输出。"
+        },
+        {
+          "stepId": "06-07-S07",
+          "order": 7,
+          "title": "交叉核验证据、来源与冲突",
+          "dependsOnStepIds": [
+            "06-07-S05",
+            "06-07-S06"
+          ],
+          "dataPointIds": [
+            "function-schedule",
+            "capacities",
+            "areas",
+            "adjacencies",
+            "operating-hours",
+            "staffing",
+            "equipment",
+            "service-standards",
+            "phasing",
+            "assumptions",
+            "master-data-version"
+          ],
+          "sourceIds": [],
+          "action": "cross_check",
+          "produces": "cross_check_result",
+          "notes": "冲突证据保留 conflict；全国宏观资料不得覆盖项目地块/建筑/设施的地方或项目正式事实。"
+        },
+        {
+          "stepId": "06-07-S08",
+          "order": 8,
+          "title": "按权威等级与统一口径汇总",
+          "dependsOnStepIds": [
+            "06-07-S07"
+          ],
+          "dataPointIds": [
+            "function-schedule",
+            "capacities",
+            "areas",
+            "adjacencies",
+            "operating-hours",
+            "staffing",
+            "equipment",
+            "service-standards",
+            "phasing",
+            "assumptions",
+            "master-data-version"
+          ],
+          "sourceIds": [],
+          "action": "aggregate",
+          "produces": "aggregated_data",
+          "notes": "按 P0>P1>P2>P3>P4>P5 合并；同级冲突不静默择一。"
+        },
+        {
+          "stepId": "06-07-S09",
+          "order": 9,
+          "title": "形成“运营前提与策划任务书”专业分析",
+          "dependsOnStepIds": [
+            "06-07-S08"
+          ],
+          "dataPointIds": [
+            "function-schedule",
+            "capacities",
+            "areas",
+            "adjacencies",
+            "operating-hours",
+            "staffing",
+            "equipment",
+            "service-standards",
+            "phasing",
+            "assumptions",
+            "master-data-version"
+          ],
+          "sourceIds": [],
+          "action": "professional_analysis",
+          "produces": "analysis_trace",
+          "notes": "围绕“把功能、规模和运营需求固化成设计可以直接使用的策划任务。”解释证据、差异、限制和专业含义，不新增无来源事实。"
+        },
+        {
+          "stepId": "06-07-S10",
+          "order": 10,
+          "title": "独立核验证据覆盖、时效与可追溯性",
+          "dependsOnStepIds": [
+            "06-07-S09"
+          ],
+          "dataPointIds": [
+            "function-schedule",
+            "capacities",
+            "areas",
+            "adjacencies",
+            "operating-hours",
+            "staffing",
+            "equipment",
+            "service-standards",
+            "phasing",
+            "assumptions",
+            "master-data-version"
+          ],
+          "sourceIds": [],
+          "action": "evidence_validate",
+          "produces": "validated_evidence",
+          "notes": "Evidence Validator 独立检查必需数据项、来源等级、时效、域名、冲突和高风险 A 级证据。"
+        },
+        {
+          "stepId": "06-07-S11",
+          "order": 11,
+          "title": "输出可追溯结论",
+          "dependsOnStepIds": [
+            "06-07-S10"
+          ],
+          "dataPointIds": [
+            "function-schedule",
+            "capacities",
+            "areas",
+            "adjacencies",
+            "operating-hours",
+            "staffing",
+            "equipment",
+            "service-standards",
+            "phasing",
+            "assumptions",
+            "master-data-version"
+          ],
+          "sourceIds": [],
+          "action": "produce_claims",
+          "produces": "claims",
+          "notes": "每个结论必须可回溯到 ResearchStep、DataPoint、EvidenceRecord、方法版本和限制。"
+        }
+      ],
+      "aggregationMethod": {
+        "methodId": "0607-authority-trace-merge",
+        "version": "1.0.0",
+        "description": "按来源权威等级、时间有效性、对象一致性和口径一致性进行确定性去重、冲突保留与汇总。",
+        "deterministic": true
+      },
+      "analysisMethod": {
+        "methodId": "0607-professional-analysis",
+        "version": "1.0.0",
+        "description": "基于已核验证据和确定性计算，对“运营前提与策划任务书”进行专业解释、比较、约束/机会识别并形成可追溯结论。",
+        "deterministic": false
+      },
+      "crossCheckRules": [
+        "全国/省级宏观信息只能提供背景、标准或基准，不得直接证明具体项目地块/建筑/设施事实。",
+        "Project State 作为来源时必须继承底层 EvidenceRef/AnalysisTrace；不得因进入下游 Workflow 自动提升可靠等级或 claimClass。",
+        "来源冲突不得静默覆盖；必须保留冲突项、来源、时间和影响范围。",
+        "可确定性计算的指标必须由专业工具或明确公式复算，不由 LLM 心算生成。"
+      ],
+      "freshnessRules": [
+        "Project State 绑定精确 Revision；上游发生语义变化后当前结果自动 stale 并重算。",
+        "政策、规划、标准、价格、设施开放状态和市场数据在项目启动、相关 Gate 前及来源更新后重新核验。"
+      ],
+      "minimumEvidence": {
+        "minHighAuthority": 1,
+        "minIndependentSources": 2,
+        "highRiskRequiresGradeA": true
+      },
+      "fallbackPolicy": "缺少项目正式资料或项目所在地法定/实测证据时，具体地块、资产、建筑、容量、安全和空间结论保持 blocked_external/limited；不得用全国宏观资料或 LLM 推断具体项目事实。",
+      "outputClaims": [
+        "功能进度",
+        "capacities",
+        "面积",
+        "adjacencies",
+        "运营前提与策划任务书综合研判与限制"
+      ]
+    }
+  ]
+}
