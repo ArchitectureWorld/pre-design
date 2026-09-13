@@ -9,6 +9,8 @@ export type ResearchAuthorityLevel =
 
 export type ResearchAccessMode =
   | 'workspace_file'
+  | 'session_context'
+  | 'model_output'
   | 'web_page'
   | 'web_search'
   | 'api'
