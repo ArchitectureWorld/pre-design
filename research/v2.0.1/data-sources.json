@@ -13,7 +13,7 @@
       "supportedDataKinds": ["*", "project_document", "survey", "drawing", "cad", "bim", "gis", "spreadsheet", "cost", "schedule", "boundary", "measurement"],
       "freshnessPolicy": { "maxAgeDays": null, "refreshOnProjectStart": true, "notes": "按文件版本、签发日期和项目 Revision 复核；新版本出现时旧证据标记 stale。" },
       "reliabilityGrade": "A",
-      "notes": "项目内正式任务书、批复、总平/红线、测量成果、正式表格和专业计算输出优先于外部二手信息。星号表示正式项目资料可承载任意项目数据类型，但具体 Evidence 仍必须记录文件定位、版本和原始内容。"
+      "notes": "项目内正式任务书、批复、总平/红线、测量成果、正式表格和专业计算输出优先于外部二手信息。manual_import 仅表示用户可主动补充已有正式文件，不是 automatic 模式的必经步骤。"
     },
     {
       "sourceId": "dsh-user-statement",
@@ -23,11 +23,11 @@
       "authorityLevel": "auxiliary",
       "homepage": null,
       "allowedDomains": [],
-      "accessModes": ["manual_import"],
+      "accessModes": ["session_context"],
       "supportedDataKinds": ["project_intent", "project_identity", "stakeholder_statement", "decision_input"],
-      "freshnessPolicy": { "maxAgeDays": null, "refreshOnProjectStart": false, "notes": "保留消息时间和 Session 定位；除非用户明确确认，不升级为项目正式事实。" },
+      "freshnessPolicy": { "maxAgeDays": null, "refreshOnProjectStart": false, "notes": "自动读取当前项目 Session 中已经存在的陈述并保留消息时间和定位；除非用户明确把内容定义为决策，否则不升级为项目正式事实。" },
       "reliabilityGrade": "C",
-      "notes": "必须保持 claimClass=user_statement；可触发研究，但不能替代法定/测量/官方证据。"
+      "notes": "必须保持 claimClass=user_statement/decision；系统自动读取已有会话上下文，不形成强制提问或人工确认节点。"
     },
     {
       "sourceId": "cn-nbs",
@@ -111,7 +111,7 @@
       "supportedDataKinds": ["climate", "temperature", "precipitation", "wind", "weather_observation", "meteorological_dataset"],
       "freshnessPolicy": { "maxAgeDays": 30, "refreshOnProjectStart": true, "notes": "按数据集更新频率和统计期记录 asOf；设计气候参数仍需与适用标准口径核对。" },
       "reliabilityGrade": "A",
-      "notes": "国家气象信息中心官方数据。需要登录/授权的数据集不得通过绕过权限采集。"
+      "notes": "国家气象信息中心官方数据。需要登录/授权的数据集不得绕过权限采集；当前授权能力不足时记录 source_access_restricted/blocked_external。"
     },
     {
       "sourceId": "cn-gsxt",
@@ -123,9 +123,9 @@
       "allowedDomains": ["gsxt.gov.cn"],
       "accessModes": ["web_page", "manual_import"],
       "supportedDataKinds": ["enterprise_identity", "registration", "annual_report", "public_credit"],
-      "freshnessPolicy": { "maxAgeDays": 30, "refreshOnProjectStart": true, "notes": "企业主体信息在关键决策前复核；若出现验证码/访问限制，转 manual_import，不绕过访问控制。" },
+      "freshnessPolicy": { "maxAgeDays": 30, "refreshOnProjectStart": true, "notes": "企业主体信息在关键决策前复核；若出现验证码/访问限制，自动路径记录 source_access_restricted/blocked_external，不绕过访问控制。" },
       "reliabilityGrade": "A",
-      "notes": "项目主体/企业身份核验的官方来源；访问受限时必须保留人工导入证据。"
+      "notes": "项目主体/企业身份核验的官方来源。manual_import 仅允许用户主动补充已经取得的官方证据，不是验证码或访问受限时的自动回退，也不是工作流推进条件。"
     },
     {
       "sourceId": "llm-inference",
@@ -135,11 +135,11 @@
       "authorityLevel": "inference",
       "homepage": null,
       "allowedDomains": [],
-      "accessModes": ["manual_import"],
+      "accessModes": ["model_output"],
       "supportedDataKinds": ["agent_inference", "assumption", "hypothesis"],
-      "freshnessPolicy": { "maxAgeDays": 0, "refreshOnProjectStart": false, "notes": "仅作为推断记录，不具备事实来源时效意义。" },
+      "freshnessPolicy": { "maxAgeDays": 0, "refreshOnProjectStart": false, "notes": "由当前自动分析运行产生；不是外部事实来源，不具备独立事实时效。" },
       "reliabilityGrade": "inference",
-      "notes": "永远不能单独支持 fact；必须显式标注 inference/assumption 并等待证据验证。"
+      "notes": "永远不能单独支持 fact；必须显式标注 inference/assumption，并由后续真实证据验证或保持限制。"
     }
   ]
 }
