@@ -9,6 +9,7 @@ export type ResearchAuthorityLevel =
 
 export type ResearchAccessMode =
   | 'workspace_file'
+  | 'project_state'
   | 'session_context'
   | 'model_output'
   | 'web_page'
@@ -20,6 +21,7 @@ export type ResearchAccessMode =
 export type ResearchReliabilityGrade = 'A' | 'B' | 'C' | 'D' | 'inference'
 export type ResearchStepAction =
   | 'workspace_extract'
+  | 'upstream_state_read'
   | 'official_source_lookup'
   | 'cross_check'
   | 'normalize'
