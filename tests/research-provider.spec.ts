@@ -38,4 +38,24 @@ describe('Pre 2.0.1 research provider boundary', () => {
     expect(result.valid).toBe(false)
     expect(result.errors.join(' ')).toContain('access mode')
   })
+
+  it('reads existing DSH user statements and model inference without modeling either as manual import', async () => {
+    const registry = await ResearchRegistry.open(researchRoot)
+    const userStatement = registry.source('dsh-user-statement')
+    const inference = registry.source('llm-inference')
+
+    expect(userStatement.accessModes).toContain('session_context')
+    expect(userStatement.accessModes).not.toContain('manual_import')
+    expect(validateResearchRequest(userStatement, {
+      mode: 'session_context',
+      locator: 'session://current/messages',
+    }).valid).toBe(true)
+
+    expect(inference.accessModes).toContain('model_output')
+    expect(inference.accessModes).not.toContain('manual_import')
+    expect(validateResearchRequest(inference, {
+      mode: 'model_output',
+      locator: 'model://pre-design/current-run',
+    }).valid).toBe(true)
+  })
 })
