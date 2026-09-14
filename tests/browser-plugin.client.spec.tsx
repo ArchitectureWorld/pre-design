@@ -25,7 +25,7 @@ const fullStatus = {
 }
 
 describe('preplanning Browser plugin', () => {
-  it('按 Session Workspace 创建或恢复 Pre 项目，并启动当前 Session 任务', async () => {
+  it('按 Session Workspace 创建或恢复 Pre 项目，并以 automatic-first 启动当前项目', async () => {
     expect(BrowserPlugin.inject).toEqual([
       'conversationEvents',
       'remote',
@@ -43,7 +43,6 @@ describe('preplanning Browser plugin', () => {
       register: (definition: { kind: string }) => { eventDefinitions.push(definition); return () => undefined },
     } as never)
     const commandLines: string[] = []
-    const prompts: string[] = []
     const commandsRemote = {
       execute: async (_sessionId: string, line: string) => {
         commandLines.push(line)
@@ -64,16 +63,7 @@ describe('preplanning Browser plugin', () => {
         }),
         subscribe: () => () => undefined,
       },
-      binding: (sessionId: string) => sessionId === 'session-1' ? {
-        sessionId,
-        ctx,
-        session: {
-          prompt: async (content: Array<{ type: string; text: string }>) => {
-            prompts.push(content[0]?.text ?? '')
-            return { ok: true, value: { accepted: true } }
-          },
-        },
-      } : undefined,
+      binding: () => undefined,
     } as never)
     ctx.provide('workspaces', { openPath: vi.fn(async () => undefined) } as never)
     slots.register({
@@ -98,24 +88,24 @@ describe('preplanning Browser plugin', () => {
     const view = render(<HeaderEntry sessionId="session-1" />)
     fireEvent.click(view.getByRole('button', { name: '前期策划' }))
     expect(view.getByText('前期策划项目')).toBeTruthy()
-    expect(view.queryByText('主流程使用当前会话所选模型')).toBeNull()
     expect(view.getByText('Pre 2.0.1 · Project Format 0.1.0')).toBeTruthy()
     expect(view.getByText(/项目总文件夹：C:\\Projects\\鄂州体育中心项目/u)).toBeTruthy()
-    expect(view.queryByText(/Qwen/)).toBeNull()
+    expect(view.queryByText('确认方式')).toBeNull()
+    expect(view.queryByText('报告深度')).toBeNull()
+    expect(view.queryByLabelText('概念图预算上限')).toBeNull()
     fireEvent.change(view.getByLabelText('一句话描述项目和目标'), {
-      target: { value: '新建鄂州体育中心项目并完成 01-01 身份校准' },
+      target: { value: '新建鄂州体育中心项目并完成前期策划' },
     })
     expect((view.getByLabelText('识别的项目名称') as HTMLInputElement).value).toBe('鄂州体育中心项目')
-    fireEvent.click(view.getByRole('button', { name: '创建或继续全流程' }))
-    await view.findByText('项目与 Presentation 标准目录已创建，前期策划全流程已经启动。')
+    fireEvent.click(view.getByRole('button', { name: '创建项目' }))
+    await view.findByText('项目已创建或恢复，系统将自动推进前期策划。')
     expect(commandLines).toEqual([
       '/preplan-presentation-sync --probe',
       '/preplan-new 鄂州体育中心项目',
-      '/preplan-presentation-sync',
-      '/preplan-mode manual 8 standard',
+      '/preplan-mode automatic 20 standard',
       '/preplan-run',
     ])
-    expect(prompts).toHaveLength(0)
+    expect(commandLines).not.toContain('/preplan-presentation-sync')
     expect(view.getByRole('button', { name: '打开项目文件夹' })).toBeTruthy()
 
     const statusEntry = slots.entries('conversation.chat.node')[0]
@@ -146,7 +136,7 @@ describe('preplanning Browser plugin', () => {
   })
 
   it('快速启动失败时在面板显示错误并允许重试', async () => {
-    const start = vi.fn(async () => { throw new Error('当前会话没有可用模型') })
+    const start = vi.fn(async () => { throw new Error('项目创建失败') })
     const view = render(<PreplanningLauncher start={start} workspacePath="/workspace/project" />)
     fireEvent.click(view.getByRole('button', { name: '前期策划' }))
     fireEvent.change(view.getByLabelText('一句话描述项目和目标'), {
@@ -154,8 +144,8 @@ describe('preplanning Browser plugin', () => {
     })
     fireEvent.submit(view.getByRole('form', { name: '新建前期策划项目' }))
 
-    await waitFor(() => expect(view.getByRole('alert').textContent).toContain('当前会话没有可用模型'))
-    expect((view.getByRole('button', { name: '创建或继续全流程' }) as HTMLButtonElement).disabled).toBe(false)
+    await waitFor(() => expect(view.getByRole('alert').textContent).toContain('项目创建失败'))
+    expect((view.getByRole('button', { name: '创建项目' }) as HTMLButtonElement).disabled).toBe(false)
   })
 
   it('人工确认失败时保留待确认状态并显示命令错误', async () => {
