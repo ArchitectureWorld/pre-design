@@ -12,7 +12,7 @@ afterEach(cleanup)
 
 const SLOT = 'conversation.session.header.actions'
 const fullStatus = {
-  mode: 'manual' as const,
+  mode: 'automatic' as const,
   reportDepth: 'standard' as const,
   chapters: Array.from({ length: 8 }, (_, index) => ({
     id: String(index + 1).padStart(2, '0'), completed: 0,
@@ -106,28 +106,26 @@ describe('preplanning Browser plugin', () => {
       '/preplan-run',
     ])
     expect(commandLines).not.toContain('/preplan-presentation-sync')
+    expect(commandLines.some(line => line.startsWith('/preplan-confirm'))).toBe(false)
     expect(view.getByRole('button', { name: '打开项目文件夹' })).toBeTruthy()
 
     const statusEntry = slots.entries('conversation.chat.node')[0]
     expect(statusEntry?.options).toMatchObject({ key: 'preplanning-status' })
     expect(eventDefinitions.map(definition => definition.kind)).toContain('preplanning-status')
-    const confirm = vi.fn(async () => undefined)
     const cardProps = {
       node: { data: {
         projectId: 'project-1', projectName: '验收项目', revision: 2, stage: '01-01',
         status: 'pending_review', pendingProposalCount: 1, pendingProposalId: 'proposal-1',
         openQuestionCount: 0, time: 1, ...fullStatus,
       } },
-      confirm,
     } as unknown as ComponentProps<typeof PreplanningStatusCard>
     const card = render(<PreplanningStatusCard {...cardProps} />)
     expect(card.getByText('验收项目')).toBeTruthy()
-    expect(card.getByText(/待人工确认/)).toBeTruthy()
+    expect(card.getByText(/系统正在自动处理/)).toBeTruthy()
+    expect(card.getByText(/自动处理 1 项/)).toBeTruthy()
+    expect(card.queryByText(/待人工确认/)).toBeNull()
+    expect(card.queryByRole('button', { name: '人工确认提案' })).toBeNull()
     expect(card.container.textContent).toContain('Pre 2.0.1 · Project Format 0.1.0')
-    fireEvent.click(card.getByRole('button', { name: '人工确认提案' }))
-    await card.findByText('提案已确认，正在刷新项目状态。')
-    expect(confirm).toHaveBeenCalledOnce()
-    expect(confirm).toHaveBeenCalledWith('proposal-1')
 
     await fiber.dispose()
     expect(slots.entries(SLOT)).toHaveLength(0)
@@ -148,18 +146,19 @@ describe('preplanning Browser plugin', () => {
     expect((view.getByRole('button', { name: '创建项目' }) as HTMLButtonElement).disabled).toBe(false)
   })
 
-  it('人工确认失败时保留待确认状态并显示命令错误', async () => {
+  it('自动模式的 pending proposal 只展示系统处理状态，不暴露人工审批动作', () => {
     const view = render(<PreplanningStatusCard {...({
       node: { data: {
-        projectId: 'project-1', projectName: '验收项目', revision: 0, stage: '01-01',
-        status: 'pending_review', pendingProposalCount: 1, pendingProposalId: 'proposal-1',
+        projectId: 'project-1', projectName: '验收项目', revision: 3, stage: '02-03',
+        status: 'pending_review', pendingProposalCount: 2, pendingProposalId: 'proposal-2',
         openQuestionCount: 1, time: 1, ...fullStatus,
       } },
-      confirm: async () => { throw new Error('revision 冲突') },
     } as unknown as ComponentProps<typeof PreplanningStatusCard>)} />)
 
-    fireEvent.click(view.getByRole('button', { name: '人工确认提案' }))
-    await waitFor(() => expect(view.getByRole('alert').textContent).toContain('revision 冲突'))
-    expect(view.getByText(/待人工确认/)).toBeTruthy()
+    expect(view.getByText(/系统正在自动处理/)).toBeTruthy()
+    expect(view.getByText(/自动处理 2 项/)).toBeTruthy()
+    expect(view.getByText(/开放问题 1 项/)).toBeTruthy()
+    expect(view.queryByText(/人工确认/)).toBeNull()
+    expect(view.queryByRole('button', { name: '人工确认提案' })).toBeNull()
   })
 })
