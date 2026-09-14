@@ -89,8 +89,13 @@ export async function apply(ctx: Context): Promise<void> {
   const now = () => new Date().toISOString()
   const registry = await ContractRegistry.open(new URL('../contracts/v0.6/', import.meta.url))
   const researchRegistry = await ResearchRegistry.open(new URL('../research/v2.0.1/', import.meta.url))
-  const workflowResearch = new WorkflowResearchRuntime(researchRegistry)
   const repository = await ProjectRepository.open(ctx.storage.domain)
+  const workflowResearch = new WorkflowResearchRuntime(researchRegistry, {
+    projectContextOf: (parent) => {
+      const id = (parent as { readonly id?: unknown }).id
+      return id === undefined || id === null ? undefined : repository.readContext(String(id))
+    },
+  })
   const governance = await GovernanceRepository.open(ctx.storage.domain)
   const presentationBindings = await PresentationBindingRepository.open(ctx.storage.domain)
   const dshHome = resolve(process.env.DSH_HOME?.trim() || join(homedir(), '.dsh'))
