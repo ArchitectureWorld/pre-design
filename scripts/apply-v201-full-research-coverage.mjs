@@ -143,7 +143,7 @@ const TOKEN_LABELS = {
   score: '评分', scores: '评分', ranking: '排序', recommendation: '推荐', recommendations: '推荐', function: '功能', functions: '功能', program: '功能规模', scale: '规模', room: '空间单元', rooms: '空间单元',
   layout: '布局', circulation: '流线', technical: '技术', system: '系统', systems: '系统', quantity: '工程量', quantities: '工程量', rate: '单价', rates: '单价', cost: '成本', costs: '成本', capex: 'CAPEX', opex: 'OPEX',
   tax: '税费', contingency: '预备费', finance: '融资', funding: '资金', cashflow: '现金流', return: '回报', schedule: '进度', phase: '阶段', phases: '阶段', milestone: '里程碑', milestones: '里程碑',
-  procurement: '采购', governance: '治理', roles: '角色', responsibility: '责任', risks: '风险', assumptions: '假设', decision: '决策', decisions: '决策', indicators: '指标', metrics: '指标', metric: '指标',
+  procurement: '采购', governance: '治理', role: '角色', roles: '角色', strategic: '战略', fit: '适配度', evaluation: '评价', model: '模型', version: '版本', demands: '需求', balance: '平衡', responsibility: '责任', risks: '风险', assumptions: '假设', decision: '决策', decisions: '决策', indicators: '指标', metrics: '指标', metric: '指标',
 }
 
 const FIELD_LABEL_OVERRIDES = {
@@ -155,26 +155,30 @@ const FIELD_LABEL_OVERRIDES = {
 const labelField = field => FIELD_LABEL_OVERRIDES[field] ?? field.split('_').map(token => TOKEN_LABELS[token] ?? token).join('')
 
 function inferDataKind(field, contract) {
-  const text = `${field} ${contract.title} ${contract.purpose}`.toLowerCase()
-  if (/parcel|land|redline|boundary|right_type|lease|mortgage|产权|土地|权属|红线/u.test(text)) return /owner|right|lease|mortgage|产权|权属/u.test(text) ? 'land' : 'land'
-  if (/terrain|topograph|地形/u.test(text)) return 'natural_resource'
-  if (/hydrolog|flood|水文|洪涝|防洪|水系/u.test(text)) return 'hydrology'
-  if (/ecolog|contamin|环境|生态|污染/u.test(text)) return 'environment'
-  if (/climate|temperature|precipitation|wind|气候|温度|降水|风/u.test(text)) return 'climate'
-  if (/hazard|disaster|fire_safety|structural_safety|resilience|安全|消防|灾害|韧性/u.test(text)) return 'safety'
-  if (/population|demographic|household|group|journey|peak_period|time_pattern|人群|人口|客流|行为/u.test(text)) return 'population'
-  if (/facilit|service|capacity|utilization|shareability|education|health|elderly|社区|公共服务|教育|医疗|养老/u.test(text)) return 'public_service'
-  if (/sector|business|poi|rent|footfall|sales|competitor|market|产业|市场|商业|运营|租金|竞品/u.test(text)) return 'market'
-  if (/traffic|parking|transit|mobility|交通|停车|公交/u.test(text)) return 'transport'
-  if (/utilities|energy|power|市政|能源|电力|管线/u.test(text)) return 'utilities'
-  if (/heritage|culture|tourism|文保|文化|旅游/u.test(text)) return 'culture'
-  if (/cost|capex|opex|rate|quantity|tax|contingency|造价|投资|成本|单价|工程量/u.test(text)) return 'cost'
-  if (/finance|fund|cashflow|return|财政|融资|资金|收益/u.test(text)) return 'finance'
-  if (/standard|标准|规范/u.test(text)) return 'standard'
-  if (/policy|法规|政策/u.test(text)) return 'policy'
-  if (/planning|spatial|layout|zone|geometry|area|height|building|site|空间|规划|建筑|场地|面积|布局/u.test(text)) return 'spatial_planning'
-  if (/schedule|phase|milestone|procurement|governance|实施|进度|采购|治理/u.test(text)) return 'implementation'
-  if (/industry|产业/u.test(text)) return 'industry'
+  const fieldText = field.toLowerCase().replace(/[_-]+/gu, ' ')
+  const contextText = `${contract.title} ${contract.purpose}`.toLowerCase()
+  const fieldMatches = regex => regex.test(fieldText)
+  const contextMatches = regex => regex.test(contextText)
+
+  if (fieldMatches(/\b(?:parcel|parcels|land|redline|boundary|boundaries|right|rights|lease|leases|mortgage|mortgages|ownership)\b/u) || contextMatches(/产权|土地|权属|红线/u)) return 'land'
+  if (fieldMatches(/\b(?:terrain|topography|topographic)\b/u) || contextMatches(/地形/u)) return 'natural_resource'
+  if (fieldMatches(/\b(?:hydrology|hydrologic|flood|flooding)\b/u) || contextMatches(/水文|洪涝|防洪|水系/u)) return 'hydrology'
+  if (fieldMatches(/\b(?:ecology|ecological|contamination|contaminated|environment|environmental)\b/u) || contextMatches(/环境|生态|污染/u)) return 'environment'
+  if (fieldMatches(/\b(?:climate|temperature|precipitation|wind)\b/u) || contextMatches(/气候|温度|降水|风/u)) return 'climate'
+  if (fieldMatches(/\b(?:hazard|hazards|disaster|disasters|fire safety|structural safety|resilience)\b/u) || contextMatches(/安全|消防|灾害|韧性/u)) return 'safety'
+  if (fieldMatches(/\b(?:population|demographic|demographics|household|households|group|groups|journey|journeys)\b|\b(?:peak periods?|time patterns?)\b/u) || contextMatches(/人群|人口|客流|行为/u)) return 'population'
+  if (fieldMatches(/\b(?:facility|facilities|service|services|capacity|capacities|utilization|shareability|education|health|elderly)\b/u) || contextMatches(/社区|公共服务|教育|医疗|养老/u)) return 'public_service'
+  if (fieldMatches(/\b(?:sector|sectors|business|businesses|poi|pois|rent|rents|footfall|sales|competitor|competitors|market|operator|operators|supply)\b/u) || contextMatches(/产业|市场|商业|运营|租金|竞品/u)) return 'market'
+  if (fieldMatches(/\b(?:traffic|parking|transit|mobility)\b/u) || contextMatches(/交通|停车|公交/u)) return 'transport'
+  if (fieldMatches(/\b(?:utilities|utility|energy|power)\b/u) || contextMatches(/市政|能源|电力|管线/u)) return 'utilities'
+  if (fieldMatches(/\b(?:heritage|culture|tourism)\b/u) || contextMatches(/文保|文化|旅游/u)) return 'culture'
+  if (fieldMatches(/\b(?:cost|costs|capex|opex|rate|rates|quantity|quantities|tax|taxes|contingency|contingencies)\b/u) || contextMatches(/造价|投资|成本|单价|工程量/u)) return 'cost'
+  if (fieldMatches(/\b(?:finance|financing|fund|funding|cashflow|cashflows|return|returns|revenue|revenues|npv|irr|dscr)\b/u) || contextMatches(/财政|融资|资金|收益/u)) return 'finance'
+  if (fieldMatches(/\b(?:standard|standards)\b/u) || contextMatches(/标准|规范/u)) return 'standard'
+  if (fieldMatches(/\b(?:policy|policies|regulation|regulations)\b/u) || contextMatches(/法规|政策/u)) return 'policy'
+  if (fieldMatches(/\b(?:planning|spatial|layout|zone|zones|geometry|area|areas|height|heights|building|buildings|site)\b/u) || contextMatches(/空间|规划|建筑|场地|面积|布局/u)) return 'spatial_planning'
+  if (fieldMatches(/\b(?:schedule|schedules|phase|phases|milestone|milestones|procurement|governance|implementation)\b/u) || contextMatches(/实施|进度|采购|治理|分期|时序|启动计划/u)) return 'implementation'
+  if (fieldMatches(/\b(?:industry|industrial)\b/u) || contextMatches(/产业/u)) return 'industry'
   return 'project_analysis'
 }
 

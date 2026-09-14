@@ -34,9 +34,9 @@
         },
         {
           "dataPointId": "strategic-role",
-          "label": "strategicrole",
-          "dataKind": "cost",
-          "description": "04-01 项目使命与服务对象 中“strategicrole”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "label": "战略角色",
+          "dataKind": "project_analysis",
+          "description": "04-01 项目使命与服务对象 中“战略角色”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
         {
@@ -355,7 +355,7 @@
         {
           "dataPointId": "parents",
           "label": "parents",
-          "dataKind": "market",
+          "dataKind": "project_analysis",
           "description": "04-02 目标体系与阶段目标 中“parents”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
@@ -485,29 +485,10 @@
         {
           "stepId": "04-02-S03",
           "order": 3,
-          "title": "查询 项目所在地政府及主管部门官网",
-          "dependsOnStepIds": [
-            "04-02-S01",
-            "04-02-S02"
-          ],
-          "dataPointIds": [
-            "parents"
-          ],
-          "sourceIds": [
-            "cn-local-gov-official"
-          ],
-          "action": "official_source_lookup",
-          "produces": "evidence",
-          "notes": "只采信 gov.cn 内的原始官方页面；搜索摘要和转载只作发现线索。"
-        },
-        {
-          "stepId": "04-02-S04",
-          "order": 4,
           "title": "统一时间、空间、单位与对象口径",
           "dependsOnStepIds": [
             "04-02-S01",
-            "04-02-S02",
-            "04-02-S03"
+            "04-02-S02"
           ],
           "dataPointIds": [
             "objectives",
@@ -526,11 +507,11 @@
           "notes": "不得通过标准化改变原始事实含义；所有换算保留原值、公式和目标单位。"
         },
         {
-          "stepId": "04-02-S05",
-          "order": 5,
+          "stepId": "04-02-S04",
+          "order": 4,
           "title": "交叉核验证据、来源与冲突",
           "dependsOnStepIds": [
-            "04-02-S04"
+            "04-02-S03"
           ],
           "dataPointIds": [
             "objectives",
@@ -549,11 +530,11 @@
           "notes": "冲突证据保留 conflict；全国宏观资料不得覆盖项目地块/建筑/设施的地方或项目正式事实。"
         },
         {
-          "stepId": "04-02-S06",
-          "order": 6,
+          "stepId": "04-02-S05",
+          "order": 5,
           "title": "按权威等级与统一口径汇总",
           "dependsOnStepIds": [
-            "04-02-S05"
+            "04-02-S04"
           ],
           "dataPointIds": [
             "objectives",
@@ -572,11 +553,11 @@
           "notes": "按 P0>P1>P2>P3>P4>P5 合并；同级冲突不静默择一。"
         },
         {
-          "stepId": "04-02-S07",
-          "order": 7,
+          "stepId": "04-02-S06",
+          "order": 6,
           "title": "形成“目标体系与阶段目标”专业分析",
           "dependsOnStepIds": [
-            "04-02-S06"
+            "04-02-S05"
           ],
           "dataPointIds": [
             "objectives",
@@ -595,11 +576,11 @@
           "notes": "围绕“把使命拆成可管理的结果层级和近期、中期、远期目标。”解释证据、差异、限制和专业含义，不新增无来源事实。"
         },
         {
-          "stepId": "04-02-S08",
-          "order": 8,
+          "stepId": "04-02-S07",
+          "order": 7,
           "title": "独立核验证据覆盖、时效与可追溯性",
           "dependsOnStepIds": [
-            "04-02-S07"
+            "04-02-S06"
           ],
           "dataPointIds": [
             "objectives",
@@ -618,11 +599,11 @@
           "notes": "Evidence Validator 独立检查必需数据项、来源等级、时效、域名、冲突和高风险 A 级证据。"
         },
         {
-          "stepId": "04-02-S09",
-          "order": 9,
+          "stepId": "04-02-S08",
+          "order": 8,
           "title": "输出可追溯结论",
           "dependsOnStepIds": [
-            "04-02-S08"
+            "04-02-S07"
           ],
           "dataPointIds": [
             "objectives",
@@ -1381,9 +1362,9 @@
         },
         {
           "dataPointId": "role-boundaries",
-          "label": "roleboundaries",
-          "dataKind": "project_analysis",
-          "description": "04-05 候选发展方向与角色边界 中“roleboundaries”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "label": "角色boundaries",
+          "dataKind": "land",
+          "description": "04-05 候选发展方向与角色边界 中“角色boundaries”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
         {
@@ -1410,7 +1391,7 @@
         {
           "dataPointId": "differentiation",
           "label": "differentiation",
-          "dataKind": "market",
+          "dataKind": "project_analysis",
           "description": "04-05 候选发展方向与角色边界 中“differentiation”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
@@ -1509,6 +1490,7 @@
           "title": "读取项目正式资料、调查与实测",
           "dependsOnStepIds": [],
           "dataPointIds": [
+            "role-boundaries",
             "required-conditions"
           ],
           "sourceIds": [
@@ -1527,8 +1509,8 @@
             "04-05-S02"
           ],
           "dataPointIds": [
-            "target-groups",
-            "differentiation"
+            "role-boundaries",
+            "target-groups"
           ],
           "sourceIds": [
             "cn-local-gov-official"
@@ -1540,11 +1522,31 @@
         {
           "stepId": "04-05-S04",
           "order": 4,
-          "title": "统一时间、空间、单位与对象口径",
+          "title": "查询 自然资源部",
           "dependsOnStepIds": [
             "04-05-S01",
             "04-05-S02",
             "04-05-S03"
+          ],
+          "dataPointIds": [
+            "role-boundaries"
+          ],
+          "sourceIds": [
+            "cn-mnr"
+          ],
+          "action": "official_source_lookup",
+          "produces": "evidence",
+          "notes": "只采信 mnr.gov.cn 内的原始官方页面；搜索摘要和转载只作发现线索。"
+        },
+        {
+          "stepId": "04-05-S05",
+          "order": 5,
+          "title": "统一时间、空间、单位与对象口径",
+          "dependsOnStepIds": [
+            "04-05-S01",
+            "04-05-S02",
+            "04-05-S03",
+            "04-05-S04"
           ],
           "dataPointIds": [
             "directions",
@@ -1563,11 +1565,11 @@
           "notes": "不得通过标准化改变原始事实含义；所有换算保留原值、公式和目标单位。"
         },
         {
-          "stepId": "04-05-S05",
-          "order": 5,
+          "stepId": "04-05-S06",
+          "order": 6,
           "title": "交叉核验证据、来源与冲突",
           "dependsOnStepIds": [
-            "04-05-S04"
+            "04-05-S05"
           ],
           "dataPointIds": [
             "directions",
@@ -1586,11 +1588,11 @@
           "notes": "冲突证据保留 conflict；全国宏观资料不得覆盖项目地块/建筑/设施的地方或项目正式事实。"
         },
         {
-          "stepId": "04-05-S06",
-          "order": 6,
+          "stepId": "04-05-S07",
+          "order": 7,
           "title": "按权威等级与统一口径汇总",
           "dependsOnStepIds": [
-            "04-05-S05"
+            "04-05-S06"
           ],
           "dataPointIds": [
             "directions",
@@ -1609,11 +1611,11 @@
           "notes": "按 P0>P1>P2>P3>P4>P5 合并；同级冲突不静默择一。"
         },
         {
-          "stepId": "04-05-S07",
-          "order": 7,
+          "stepId": "04-05-S08",
+          "order": 8,
           "title": "形成“候选发展方向与角色边界”专业分析",
           "dependsOnStepIds": [
-            "04-05-S06"
+            "04-05-S07"
           ],
           "dataPointIds": [
             "directions",
@@ -1632,11 +1634,11 @@
           "notes": "围绕“形成可供下一章生成方案的若干发展方向，而不是提前锁定最终定位。”解释证据、差异、限制和专业含义，不新增无来源事实。"
         },
         {
-          "stepId": "04-05-S08",
-          "order": 8,
+          "stepId": "04-05-S09",
+          "order": 9,
           "title": "独立核验证据覆盖、时效与可追溯性",
           "dependsOnStepIds": [
-            "04-05-S07"
+            "04-05-S08"
           ],
           "dataPointIds": [
             "directions",
@@ -1655,11 +1657,11 @@
           "notes": "Evidence Validator 独立检查必需数据项、来源等级、时效、域名、冲突和高风险 A 级证据。"
         },
         {
-          "stepId": "04-05-S09",
-          "order": 9,
+          "stepId": "04-05-S10",
+          "order": 10,
           "title": "输出可追溯结论",
           "dependsOnStepIds": [
-            "04-05-S08"
+            "04-05-S09"
           ],
           "dataPointIds": [
             "directions",
@@ -1708,7 +1710,7 @@
       "fallbackPolicy": "缺少项目正式资料或项目所在地法定/实测证据时，具体地块、资产、建筑、容量、安全和空间结论保持 blocked_external/limited；不得用全国宏观资料或 LLM 推断具体项目事实。",
       "outputClaims": [
         "directions",
-        "roleboundaries",
+        "角色boundaries",
         "valuepropositions",
         "目标人群",
         "候选发展方向与角色边界综合研判与限制"
@@ -1782,9 +1784,9 @@
         },
         {
           "dataPointId": "version",
-          "label": "version",
+          "label": "版本",
           "dataKind": "standard",
-          "description": "04-06 方案评价标准 中“version”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "description": "04-06 方案评价标准 中“版本”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
         {

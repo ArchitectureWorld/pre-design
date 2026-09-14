@@ -41,9 +41,9 @@
         },
         {
           "dataPointId": "peak-demands",
-          "label": "高峰demands",
+          "label": "高峰需求",
           "dataKind": "population",
-          "description": "06-01 服务对象场景与时段 中“高峰demands”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "description": "06-01 服务对象场景与时段 中“高峰需求”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
         {
@@ -376,7 +376,7 @@
         {
           "dataPointId": "parents",
           "label": "parents",
-          "dataKind": "market",
+          "dataKind": "project_analysis",
           "description": "06-02 功能体系与层级 中“parents”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
@@ -530,7 +530,6 @@
             "06-02-S02"
           ],
           "dataPointIds": [
-            "parents",
             "served-groups",
             "service-links"
           ],
@@ -1254,9 +1253,9 @@
         },
         {
           "dataPointId": "public-or-revenue-role",
-          "label": "publicorrevenuerole",
+          "label": "publicorrevenue角色",
           "dataKind": "market",
-          "description": "06-04 产品业态与活动组合 中“publicorrevenuerole”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "description": "06-04 产品业态与活动组合 中“publicorrevenue角色”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
         {
@@ -2325,7 +2324,7 @@
         {
           "dataPointId": "capacities",
           "label": "capacities",
-          "dataKind": "market",
+          "dataKind": "public_service",
           "description": "06-07 运营前提与策划任务书 中“capacities”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
@@ -2387,9 +2386,9 @@
         },
         {
           "dataPointId": "master-data-version",
-          "label": "masterdataversion",
+          "label": "masterdata版本",
           "dataKind": "market",
-          "description": "06-07 运营前提与策划任务书 中“masterdataversion”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "description": "06-07 运营前提与策划任务书 中“masterdata版本”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         }
       ],
@@ -2548,7 +2547,6 @@
           ],
           "dataPointIds": [
             "function-schedule",
-            "capacities",
             "areas",
             "adjacencies",
             "operating-hours",

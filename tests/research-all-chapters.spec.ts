@@ -92,6 +92,11 @@ describe('Pre 2.0.1 complete traceable research coverage', () => {
     expect(dataPoint(registry, 'preplan.wf.08.01', 'quantities')).toMatchObject({ label: '工程量', dataKind: 'cost' })
   })
 
+  it('does not classify strategic fit as cost because "rate" appears inside "strategic"', async () => {
+    const registry = await ResearchRegistry.open(researchRoot)
+    expect(dataPoint(registry, 'preplan.wf.03.06', 'strategic-fit')).toMatchObject({ dataKind: 'project_analysis' })
+  })
+
   it('renders explicit reasons for each source choice and each research step in the audit HTML', async () => {
     const html = await readFile(new URL('source-audit.html', researchRoot), 'utf8')
     expect(html).toContain('为什么选择这个来源')

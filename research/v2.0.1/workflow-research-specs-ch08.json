@@ -2155,14 +2155,14 @@
         {
           "dataPointId": "packages",
           "label": "packages",
-          "dataKind": "project_analysis",
+          "dataKind": "implementation",
           "description": "08-07 分期时序依赖与启动计划 中“packages”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
         {
           "dataPointId": "prerequisites",
           "label": "prerequisites",
-          "dataKind": "spatial_planning",
+          "dataKind": "implementation",
           "description": "08-07 分期时序依赖与启动计划 中“prerequisites”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
@@ -2176,35 +2176,35 @@
         {
           "dataPointId": "critical-path",
           "label": "criticalpath",
-          "dataKind": "project_analysis",
+          "dataKind": "implementation",
           "description": "08-07 分期时序依赖与启动计划 中“criticalpath”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
         {
           "dataPointId": "annual-investment",
           "label": "annualinvestment",
-          "dataKind": "project_analysis",
+          "dataKind": "implementation",
           "description": "08-07 分期时序依赖与启动计划 中“annualinvestment”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
         {
           "dataPointId": "decision-points",
           "label": "决策点位",
-          "dataKind": "market",
+          "dataKind": "implementation",
           "description": "08-07 分期时序依赖与启动计划 中“决策点位”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
         {
           "dataPointId": "contingencies",
           "label": "contingencies",
-          "dataKind": "project_analysis",
+          "dataKind": "cost",
           "description": "08-07 分期时序依赖与启动计划 中“contingencies”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
         {
           "dataPointId": "status",
           "label": "状态",
-          "dataKind": "project_analysis",
+          "dataKind": "implementation",
           "description": "08-07 分期时序依赖与启动计划 中“状态”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         }
@@ -2290,29 +2290,10 @@
         {
           "stepId": "08-07-S03",
           "order": 3,
-          "title": "查询 项目所在地政府及主管部门官网",
-          "dependsOnStepIds": [
-            "08-07-S01",
-            "08-07-S02"
-          ],
-          "dataPointIds": [
-            "decision-points"
-          ],
-          "sourceIds": [
-            "cn-local-gov-official"
-          ],
-          "action": "official_source_lookup",
-          "produces": "evidence",
-          "notes": "只采信 gov.cn 内的原始官方页面；搜索摘要和转载只作发现线索。"
-        },
-        {
-          "stepId": "08-07-S04",
-          "order": 4,
           "title": "统一时间、空间、单位与对象口径",
           "dependsOnStepIds": [
             "08-07-S01",
-            "08-07-S02",
-            "08-07-S03"
+            "08-07-S02"
           ],
           "dataPointIds": [
             "phases",
@@ -2331,14 +2312,14 @@
           "notes": "不得通过标准化改变原始事实含义；所有换算保留原值、公式和目标单位。"
         },
         {
-          "stepId": "08-07-S05",
-          "order": 5,
+          "stepId": "08-07-S04",
+          "order": 4,
           "title": "执行确定性专业计算/复算",
           "dependsOnStepIds": [
-            "08-07-S04"
+            "08-07-S03"
           ],
           "dataPointIds": [
-            "prerequisites"
+            "contingencies"
           ],
           "sourceIds": [
             "professional-tool-output"
@@ -2348,12 +2329,12 @@
           "notes": "GIS/BIM/统计/造价/财务等计算必须记录输入 Evidence、参数、公式/算法版本和输出。"
         },
         {
-          "stepId": "08-07-S06",
-          "order": 6,
+          "stepId": "08-07-S05",
+          "order": 5,
           "title": "交叉核验证据、来源与冲突",
           "dependsOnStepIds": [
-            "08-07-S04",
-            "08-07-S05"
+            "08-07-S03",
+            "08-07-S04"
           ],
           "dataPointIds": [
             "phases",
@@ -2372,11 +2353,11 @@
           "notes": "冲突证据保留 conflict；全国宏观资料不得覆盖项目地块/建筑/设施的地方或项目正式事实。"
         },
         {
-          "stepId": "08-07-S07",
-          "order": 7,
+          "stepId": "08-07-S06",
+          "order": 6,
           "title": "按权威等级与统一口径汇总",
           "dependsOnStepIds": [
-            "08-07-S06"
+            "08-07-S05"
           ],
           "dataPointIds": [
             "phases",
@@ -2395,11 +2376,11 @@
           "notes": "按 P0>P1>P2>P3>P4>P5 合并；同级冲突不静默择一。"
         },
         {
-          "stepId": "08-07-S08",
-          "order": 8,
+          "stepId": "08-07-S07",
+          "order": 7,
           "title": "形成“分期时序依赖与启动计划”专业分析",
           "dependsOnStepIds": [
-            "08-07-S07"
+            "08-07-S06"
           ],
           "dataPointIds": [
             "phases",
@@ -2418,11 +2399,11 @@
           "notes": "围绕“确定先做什么、后做什么、每期需要什么前置和投入。”解释证据、差异、限制和专业含义，不新增无来源事实。"
         },
         {
-          "stepId": "08-07-S09",
-          "order": 9,
+          "stepId": "08-07-S08",
+          "order": 8,
           "title": "独立核验证据覆盖、时效与可追溯性",
           "dependsOnStepIds": [
-            "08-07-S08"
+            "08-07-S07"
           ],
           "dataPointIds": [
             "phases",
@@ -2441,11 +2422,11 @@
           "notes": "Evidence Validator 独立检查必需数据项、来源等级、时效、域名、冲突和高风险 A 级证据。"
         },
         {
-          "stepId": "08-07-S10",
-          "order": 10,
+          "stepId": "08-07-S09",
+          "order": 9,
           "title": "输出可追溯结论",
           "dependsOnStepIds": [
-            "08-07-S09"
+            "08-07-S08"
           ],
           "dataPointIds": [
             "phases",
@@ -2568,9 +2549,9 @@
         },
         {
           "dataPointId": "post-evaluation",
-          "label": "postevaluation",
+          "label": "post评价",
           "dataKind": "climate",
-          "description": "08-08 风险敏感性绩效与后评估 中“postevaluation”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "description": "08-08 风险敏感性绩效与后评估 中“post评价”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
         {

@@ -405,7 +405,7 @@
         {
           "dataPointId": "rights",
           "label": "权利",
-          "dataKind": "population",
+          "dataKind": "land",
           "description": "03-02 多主体诉求与矛盾冲突 中“权利”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
@@ -575,7 +575,6 @@
             "actors",
             "claims",
             "interests",
-            "rights",
             "conflict-type",
             "impact",
             "negotiability",
@@ -808,7 +807,7 @@
         {
           "dataPointId": "leverage-points",
           "label": "leverage点位",
-          "dataKind": "market",
+          "dataKind": "project_analysis",
           "description": "03-03 根因与问题链 中“leverage点位”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
@@ -887,27 +886,9 @@
         {
           "stepId": "03-03-S02",
           "order": 2,
-          "title": "查询 项目所在地政府及主管部门官网",
-          "dependsOnStepIds": [
-            "03-03-S01"
-          ],
-          "dataPointIds": [
-            "leverage-points"
-          ],
-          "sourceIds": [
-            "cn-local-gov-official"
-          ],
-          "action": "official_source_lookup",
-          "produces": "evidence",
-          "notes": "只采信 gov.cn 内的原始官方页面；搜索摘要和转载只作发现线索。"
-        },
-        {
-          "stepId": "03-03-S03",
-          "order": 3,
           "title": "统一时间、空间、单位与对象口径",
           "dependsOnStepIds": [
-            "03-03-S01",
-            "03-03-S02"
+            "03-03-S01"
           ],
           "dataPointIds": [
             "problem-nodes",
@@ -925,11 +906,11 @@
           "notes": "不得通过标准化改变原始事实含义；所有换算保留原值、公式和目标单位。"
         },
         {
-          "stepId": "03-03-S04",
-          "order": 4,
+          "stepId": "03-03-S03",
+          "order": 3,
           "title": "交叉核验证据、来源与冲突",
           "dependsOnStepIds": [
-            "03-03-S03"
+            "03-03-S02"
           ],
           "dataPointIds": [
             "problem-nodes",
@@ -947,11 +928,11 @@
           "notes": "冲突证据保留 conflict；全国宏观资料不得覆盖项目地块/建筑/设施的地方或项目正式事实。"
         },
         {
-          "stepId": "03-03-S05",
-          "order": 5,
+          "stepId": "03-03-S04",
+          "order": 4,
           "title": "按权威等级与统一口径汇总",
           "dependsOnStepIds": [
-            "03-03-S04"
+            "03-03-S03"
           ],
           "dataPointIds": [
             "problem-nodes",
@@ -969,11 +950,11 @@
           "notes": "按 P0>P1>P2>P3>P4>P5 合并；同级冲突不静默择一。"
         },
         {
-          "stepId": "03-03-S06",
-          "order": 6,
+          "stepId": "03-03-S05",
+          "order": 5,
           "title": "形成“根因与问题链”专业分析",
           "dependsOnStepIds": [
-            "03-03-S05"
+            "03-03-S04"
           ],
           "dataPointIds": [
             "problem-nodes",
@@ -991,11 +972,11 @@
           "notes": "围绕“解释问题为什么发生、彼此如何关联、继续存在会造成什么后果。”解释证据、差异、限制和专业含义，不新增无来源事实。"
         },
         {
-          "stepId": "03-03-S07",
-          "order": 7,
+          "stepId": "03-03-S06",
+          "order": 6,
           "title": "独立核验证据覆盖、时效与可追溯性",
           "dependsOnStepIds": [
-            "03-03-S06"
+            "03-03-S05"
           ],
           "dataPointIds": [
             "problem-nodes",
@@ -1013,11 +994,11 @@
           "notes": "Evidence Validator 独立检查必需数据项、来源等级、时效、域名、冲突和高风险 A 级证据。"
         },
         {
-          "stepId": "03-03-S08",
-          "order": 8,
+          "stepId": "03-03-S07",
+          "order": 7,
           "title": "输出可追溯结论",
           "dependsOnStepIds": [
-            "03-03-S07"
+            "03-03-S06"
           ],
           "dataPointIds": [
             "problem-nodes",
@@ -1105,7 +1086,7 @@
         {
           "dataPointId": "current-state",
           "label": "现状state",
-          "dataKind": "market",
+          "dataKind": "project_analysis",
           "description": "03-04 内部资源价值与激活条件 中“现状state”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
@@ -1219,29 +1200,10 @@
         {
           "stepId": "03-04-S03",
           "order": 3,
-          "title": "查询 项目所在地政府及主管部门官网",
-          "dependsOnStepIds": [
-            "03-04-S01",
-            "03-04-S02"
-          ],
-          "dataPointIds": [
-            "current-state"
-          ],
-          "sourceIds": [
-            "cn-local-gov-official"
-          ],
-          "action": "official_source_lookup",
-          "produces": "evidence",
-          "notes": "只采信 gov.cn 内的原始官方页面；搜索摘要和转载只作发现线索。"
-        },
-        {
-          "stepId": "03-04-S04",
-          "order": 4,
           "title": "统一时间、空间、单位与对象口径",
           "dependsOnStepIds": [
             "03-04-S01",
-            "03-04-S02",
-            "03-04-S03"
+            "03-04-S02"
           ],
           "dataPointIds": [
             "resources",
@@ -1260,11 +1222,11 @@
           "notes": "不得通过标准化改变原始事实含义；所有换算保留原值、公式和目标单位。"
         },
         {
-          "stepId": "03-04-S05",
-          "order": 5,
+          "stepId": "03-04-S04",
+          "order": 4,
           "title": "执行确定性专业计算/复算",
           "dependsOnStepIds": [
-            "03-04-S04"
+            "03-04-S03"
           ],
           "dataPointIds": [
             "cost-risks"
@@ -1277,12 +1239,12 @@
           "notes": "GIS/BIM/统计/造价/财务等计算必须记录输入 Evidence、参数、公式/算法版本和输出。"
         },
         {
-          "stepId": "03-04-S06",
-          "order": 6,
+          "stepId": "03-04-S05",
+          "order": 5,
           "title": "交叉核验证据、来源与冲突",
           "dependsOnStepIds": [
-            "03-04-S04",
-            "03-04-S05"
+            "03-04-S03",
+            "03-04-S04"
           ],
           "dataPointIds": [
             "resources",
@@ -1301,11 +1263,11 @@
           "notes": "冲突证据保留 conflict；全国宏观资料不得覆盖项目地块/建筑/设施的地方或项目正式事实。"
         },
         {
-          "stepId": "03-04-S07",
-          "order": 7,
+          "stepId": "03-04-S06",
+          "order": 6,
           "title": "按权威等级与统一口径汇总",
           "dependsOnStepIds": [
-            "03-04-S06"
+            "03-04-S05"
           ],
           "dataPointIds": [
             "resources",
@@ -1324,11 +1286,11 @@
           "notes": "按 P0>P1>P2>P3>P4>P5 合并；同级冲突不静默择一。"
         },
         {
-          "stepId": "03-04-S08",
-          "order": 8,
+          "stepId": "03-04-S07",
+          "order": 7,
           "title": "形成“内部资源价值与激活条件”专业分析",
           "dependsOnStepIds": [
-            "03-04-S07"
+            "03-04-S06"
           ],
           "dataPointIds": [
             "resources",
@@ -1347,11 +1309,11 @@
           "notes": "围绕“识别项目自身有哪些独特、低效或未被利用的资源。”解释证据、差异、限制和专业含义，不新增无来源事实。"
         },
         {
-          "stepId": "03-04-S09",
-          "order": 9,
+          "stepId": "03-04-S08",
+          "order": 8,
           "title": "独立核验证据覆盖、时效与可追溯性",
           "dependsOnStepIds": [
-            "03-04-S08"
+            "03-04-S07"
           ],
           "dataPointIds": [
             "resources",
@@ -1370,11 +1332,11 @@
           "notes": "Evidence Validator 独立检查必需数据项、来源等级、时效、域名、冲突和高风险 A 级证据。"
         },
         {
-          "stepId": "03-04-S10",
-          "order": 10,
+          "stepId": "03-04-S09",
+          "order": 9,
           "title": "输出可追溯结论",
           "dependsOnStepIds": [
-            "03-04-S09"
+            "03-04-S08"
           ],
           "dataPointIds": [
             "resources",
@@ -1456,7 +1418,7 @@
         {
           "dataPointId": "time-window",
           "label": "时间window",
-          "dataKind": "climate",
+          "dataKind": "market",
           "description": "03-05 外部趋势与发展机会 中“时间window”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
@@ -1626,6 +1588,7 @@
             "opportunities",
             "trend-or-policy",
             "geography",
+            "time-window",
             "project-relevance",
             "required-conditions",
             "uncertainty",
@@ -1652,6 +1615,7 @@
             "opportunities",
             "trend-or-policy",
             "geography",
+            "time-window",
             "project-relevance",
             "required-conditions",
             "uncertainty",
@@ -1904,9 +1868,9 @@
         },
         {
           "dataPointId": "strategic-fit",
-          "label": "strategicfit",
-          "dataKind": "cost",
-          "description": "03-06 优先级与关键策划议题 中“strategicfit”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "label": "战略适配度",
+          "dataKind": "project_analysis",
+          "description": "03-06 优先级与关键策划议题 中“战略适配度”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
         {

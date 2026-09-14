@@ -48,9 +48,9 @@
         },
         {
           "dataPointId": "area-balance",
-          "label": "面积balance",
+          "label": "面积平衡",
           "dataKind": "spatial_planning",
-          "description": "07-01 总体空间结构与用地布局 中“面积balance”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "description": "07-01 总体空间结构与用地布局 中“面积平衡”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
         {
@@ -473,7 +473,7 @@
         {
           "dataPointId": "capacities",
           "label": "capacities",
-          "dataKind": "spatial_planning",
+          "dataKind": "public_service",
           "description": "07-02 功能落位与容量校核 中“capacities”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
@@ -612,7 +612,6 @@
             "placements",
             "parcel-building-floor-refs",
             "areas",
-            "capacities",
             "height-load-requirements",
             "adjacencies",
             "alternative-carriers",
@@ -635,7 +634,8 @@
             "07-02-S02"
           ],
           "dataPointIds": [
-            "parcel-building-floor-refs"
+            "parcel-building-floor-refs",
+            "capacities"
           ],
           "sourceIds": [
             "cn-local-gov-official"
@@ -657,7 +657,6 @@
             "placements",
             "parcel-building-floor-refs",
             "areas",
-            "capacities",
             "height-load-requirements",
             "adjacencies",
             "alternative-carriers",
@@ -707,7 +706,6 @@
           "dataPointIds": [
             "placements",
             "areas",
-            "capacities",
             "height-load-requirements",
             "adjacencies",
             "alternative-carriers",
@@ -900,15 +898,15 @@
         },
         {
           "dataPointId": "use-fit",
-          "label": "使用fit",
+          "label": "使用适配度",
           "dataKind": "spatial_planning",
-          "description": "07-03 建筑干预与拆改留 中“使用fit”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "description": "07-03 建筑干预与拆改留 中“使用适配度”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
         {
           "dataPointId": "ownership",
           "label": "ownership",
-          "dataKind": "spatial_planning",
+          "dataKind": "land",
           "description": "07-03 建筑干预与拆改留 中“ownership”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
@@ -1061,7 +1059,8 @@
             "07-03-S02"
           ],
           "dataPointIds": [
-            "heritage-value"
+            "heritage-value",
+            "ownership"
           ],
           "sourceIds": [
             "cn-local-gov-official"
@@ -1134,7 +1133,6 @@
             "building-refs",
             "safety",
             "use-fit",
-            "ownership",
             "cost-range",
             "action",
             "conditions",
@@ -1302,7 +1300,7 @@
         "建筑引用",
         "文保value",
         "安全",
-        "使用fit",
+        "使用适配度",
         "建筑干预与拆改留综合研判与限制"
       ]
     },

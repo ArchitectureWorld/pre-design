@@ -27,9 +27,9 @@
         },
         {
           "dataPointId": "evaluation-model-version",
-          "label": "evaluationmodelversion",
+          "label": "评价模型版本",
           "dataKind": "project_analysis",
-          "description": "05-01 比选基准与共同前提 中“evaluationmodelversion”的数据/判断输入；必须保留来源、时间、口径与限制。",
+          "description": "05-01 比选基准与共同前提 中“评价模型版本”的数据/判断输入；必须保留来源、时间、口径与限制。",
           "unit": null
         },
         {
@@ -308,7 +308,7 @@
         "dataversions",
         "common假设",
         "pricebasedate",
-        "evaluationmodelversion",
+        "评价模型版本",
         "比选基准与共同前提综合研判与限制"
       ]
     },
