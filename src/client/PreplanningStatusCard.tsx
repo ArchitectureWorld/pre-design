@@ -11,11 +11,13 @@ export function PreplanningStatusCard({ node, openProjectFolder }: Props) {
   const data = node.data
   const [folderState, setFolderState] = useState<'idle' | 'running'>('idle')
   const [error, setError] = useState<string>()
-  const status = data.status === 'pending_review'
-    ? data.mode === 'automatic' ? '系统正在自动处理' : '兼容流程待处理'
-    : data.status === 'attention_required'
-      ? '需要补充信息'
-      : data.mode === 'automatic' ? '自动推进中' : '进行中'
+  const status = data.blocked > 0
+    ? data.mode === 'automatic' ? '自动推进受阻' : '兼容流程受阻'
+    : data.status === 'pending_review'
+      ? data.mode === 'automatic' ? '系统正在自动处理' : '兼容流程待处理'
+      : data.status === 'attention_required'
+        ? '需要补充信息'
+        : data.mode === 'automatic' ? '自动推进中' : '进行中'
   const proposalSummary = data.mode === 'automatic'
     ? `自动处理 ${data.pendingProposalCount} 项`
     : `待处理 ${data.pendingProposalCount} 项`
