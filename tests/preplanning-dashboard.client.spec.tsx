@@ -67,7 +67,7 @@ describe('Preplanning full-flow UI', () => {
       projectName: '滨江文化活力区',
       statement: '新建滨江文化活力区并完成全流程前期策划',
     }))
-    expect(view.getByText('项目已创建或恢复，系统将自动推进前期策划。')).toBeTruthy()
+    expect(await view.findByText('项目已创建或恢复，系统将自动推进前期策划。')).toBeTruthy()
   })
 
   it('先证明插件运行，再展示 automatic-first 状态、8 章 57 项、模型路由和三格式成果', () => {
