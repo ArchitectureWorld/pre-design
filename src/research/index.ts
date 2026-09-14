@@ -1,5 +1,7 @@
 export { ResearchRegistry } from './registry.ts'
 export { validateResearchRequest } from './provider.ts'
+export { WorkspaceResearchProvider } from './workspace-provider.ts'
+export type { WorkspaceResearchProviderOptions } from './workspace-provider.ts'
 export type {
   ResearchProvider,
   ResearchProviderResult,
