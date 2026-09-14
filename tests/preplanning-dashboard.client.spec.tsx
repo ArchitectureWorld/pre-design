@@ -45,25 +45,29 @@ describe('Preplanning full-flow UI', () => {
     expect(statement.style.color).toBe('var(--dsw-alias-label-primary, #1f2328)')
   })
 
-  it('在创建前让用户选择人工或全自动、报告深度和生图预算', async () => {
+  it('创建入口只收集项目信息，执行策略由 automatic-first 内部管理', async () => {
     const start = vi.fn(async () => undefined)
     const view = render(<PreplanningLauncher start={start} workspacePath="/workspace/project" />)
     fireEvent.click(view.getByRole('button', { name: '前期策划' }))
     fireEvent.change(view.getByLabelText('一句话描述项目和目标'), {
       target: { value: '新建滨江文化活力区并完成全流程前期策划' },
     })
-    fireEvent.click(view.getByLabelText('全自动完成'))
-    fireEvent.click(view.getByLabelText('扩展汇报'))
-    fireEvent.change(view.getByLabelText('概念图预算上限'), { target: { value: '12' } })
-    fireEvent.click(view.getByRole('button', { name: '创建或继续全流程' }))
+
+    expect(view.queryByText('确认方式')).toBeNull()
+    expect(view.queryByText('报告深度')).toBeNull()
+    expect(view.queryByLabelText('概念图预算上限')).toBeNull()
+    expect(view.queryByLabelText('人工确认')).toBeNull()
+    expect(view.queryByLabelText('全自动完成')).toBeNull()
+    expect(view.queryByLabelText('标准汇报')).toBeNull()
+    expect(view.queryByLabelText('扩展汇报')).toBeNull()
+
+    fireEvent.click(view.getByRole('button', { name: '创建项目' }))
 
     await vi.waitFor(() => expect(start).toHaveBeenCalledWith({
       projectName: '滨江文化活力区',
       statement: '新建滨江文化活力区并完成全流程前期策划',
-      mode: 'automatic',
-      reportDepth: 'extended',
-      visualBudget: 12,
     }))
+    expect(view.getByText('项目已创建或恢复，系统将自动推进前期策划。')).toBeTruthy()
   })
 
   it('先证明插件运行，再展示 8 章 57 项、模型路由和三格式成果', () => {
