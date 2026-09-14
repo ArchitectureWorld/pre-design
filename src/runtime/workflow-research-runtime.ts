@@ -1,11 +1,13 @@
 import { readFile, readdir, realpath, stat } from 'node:fs/promises'
 import { basename, extname, isAbsolute, relative, resolve } from 'node:path'
-import { ResearchExecutionService, type ResearchExecutionResult } from '../research/execution-service.ts'
+import { ResearchExecutionService, type ResearchAcquisition, type ResearchExecutionResult } from '../research/execution-service.ts'
+import { ProjectStateResearchProvider } from '../research/project-state-provider.ts'
+import type { ResearchProvider } from '../research/provider.ts'
 import type { ResearchRegistry } from '../research/registry.ts'
 import { ResearchProviderRouter } from '../research/router.ts'
-import { WorkspaceResearchProvider } from '../research/workspace-provider.ts'
-import type { ResearchAcquisition } from '../research/execution-service.ts'
 import type { ResearchDataPoint } from '../research/types.ts'
+import { WorkspaceResearchProvider } from '../research/workspace-provider.ts'
+import type { ProjectContext, StateObjectRecord } from '../state/types.ts'
 
 const DEFAULT_MAX_FILES = 64
 const DEFAULT_MAX_DEPTH = 4
@@ -20,6 +22,7 @@ const PREFERRED_FILE_NAMES = new Map([
 
 export interface WorkflowResearchRuntimeOptions {
   readonly workspaceRootOf?: (parent: unknown) => string | undefined
+  readonly projectContextOf?: (parent: unknown) => Pick<ProjectContext, 'project' | 'stateObjects'> | undefined
   readonly clock?: () => Date
   readonly maxFiles?: number
   readonly maxDepth?: number
@@ -71,7 +74,6 @@ function inside(root: string, target: string): boolean {
 }
 
 interface DiscoveredJsonFile {
-  readonly absolutePath: string
   readonly relativePath: string
   readonly depth: number
   readonly value: unknown
@@ -109,7 +111,6 @@ async function discoverJsonFiles(
         continue
       }
       found.push({
-        absolutePath: target,
         relativePath: relative(canonicalRoot, target).split('\\').join('/'),
         depth,
         value,
@@ -125,6 +126,15 @@ async function discoverJsonFiles(
   }))
 }
 
+function pointsForSource(registry: ResearchRegistry, workflowId: string, sourceId: string): readonly ResearchDataPoint[] {
+  const spec = registry.workflow(workflowId)
+  const allowedPointIds = new Set(spec.researchSteps
+    .filter(step => step.sourceIds.includes(sourceId))
+    .flatMap(step => step.dataPointIds))
+  return Object.freeze([...spec.requiredDataPoints, ...spec.optionalDataPoints]
+    .filter(point => allowedPointIds.has(point.dataPointId)))
+}
+
 export async function planWorkspaceResearchAcquisitions(
   registry: ResearchRegistry,
   workflowId: string,
@@ -132,12 +142,7 @@ export async function planWorkspaceResearchAcquisitions(
   options: { readonly maxFiles?: number; readonly maxDepth?: number; readonly maxFileBytes?: number } = {},
   signal?: AbortSignal,
 ): Promise<readonly ResearchAcquisition[]> {
-  const spec = registry.workflow(workflowId)
-  const allowedPointIds = new Set(spec.researchSteps
-    .filter(step => step.sourceIds.includes('workspace-project-files'))
-    .flatMap(step => step.dataPointIds))
-  const points = [...spec.requiredDataPoints, ...spec.optionalDataPoints]
-    .filter(point => allowedPointIds.has(point.dataPointId))
+  const points = pointsForSource(registry, workflowId, 'workspace-project-files')
   if (points.length === 0) return Object.freeze([])
 
   const files = await discoverJsonFiles(rootDir, {
@@ -168,8 +173,39 @@ export async function planWorkspaceResearchAcquisitions(
   return Object.freeze(acquisitions)
 }
 
+export function planProjectStateResearchAcquisitions(
+  registry: ResearchRegistry,
+  workflowId: string,
+  stateObjects: readonly StateObjectRecord[],
+): readonly ResearchAcquisition[] {
+  const points = pointsForSource(registry, workflowId, 'project-state-store')
+  if (points.length === 0 || stateObjects.length === 0) return Object.freeze([])
+  const ordered = [...stateObjects].sort((left, right) => right.revision - left.revision || left.objectId.localeCompare(right.objectId))
+  const acquisitions: ResearchAcquisition[] = []
+  for (const point of points) {
+    const aliases = pointAliases(point)
+    for (const state of ordered) {
+      const pointer = findPointer(state.value, aliases)
+      if (pointer === undefined) continue
+      acquisitions.push({
+        sourceId: 'project-state-store',
+        request: {
+          mode: 'project_state',
+          workflowId,
+          dataPointId: point.dataPointId,
+          locator: state.objectId,
+          selector: { type: 'json_pointer', pointer },
+        },
+      })
+      break
+    }
+  }
+  return Object.freeze(acquisitions)
+}
+
 export class WorkflowResearchRuntime {
   private readonly workspaceRootOf: (parent: unknown) => string | undefined
+  private readonly projectContextOf?: (parent: unknown) => Pick<ProjectContext, 'project' | 'stateObjects'> | undefined
   private readonly clock: () => Date
 
   constructor(
@@ -177,22 +213,40 @@ export class WorkflowResearchRuntime {
     private readonly options: WorkflowResearchRuntimeOptions = {},
   ) {
     this.workspaceRootOf = options.workspaceRootOf ?? defaultWorkspaceRootOf
+    this.projectContextOf = options.projectContextOf
     this.clock = options.clock ?? (() => new Date())
   }
 
   async collect(parent: unknown, workflowId: string, signal?: AbortSignal): Promise<ResearchExecutionResult> {
     const root = this.workspaceRootOf(parent)
-    if (root === undefined) {
-      return new ResearchExecutionService(this.registry, new ResearchProviderRouter([]))
-        .execute(workflowId, [], this.clock().toISOString(), signal)
+    const context = this.projectContextOf?.(parent)
+    const acquisitions: ResearchAcquisition[] = []
+    const providers: ResearchProvider[] = []
+
+    if (root !== undefined) {
+      const workspaceOptions = {
+        ...(this.options.maxFiles === undefined ? {} : { maxFiles: this.options.maxFiles }),
+        ...(this.options.maxDepth === undefined ? {} : { maxDepth: this.options.maxDepth }),
+        ...(this.options.maxFileBytes === undefined ? {} : { maxFileBytes: this.options.maxFileBytes }),
+      }
+      acquisitions.push(...await planWorkspaceResearchAcquisitions(this.registry, workflowId, root, workspaceOptions, signal))
+      providers.push(new WorkspaceResearchProvider({
+        rootDir: root,
+        ...(this.options.maxFileBytes === undefined ? {} : { maxBytes: this.options.maxFileBytes }),
+        clock: this.clock,
+      }))
     }
-    const acquisitions = await planWorkspaceResearchAcquisitions(this.registry, workflowId, root, {
-      maxFiles: this.options.maxFiles,
-      maxDepth: this.options.maxDepth,
-      maxFileBytes: this.options.maxFileBytes,
-    }, signal)
-    const workspace = new WorkspaceResearchProvider({ rootDir: root, maxBytes: this.options.maxFileBytes, clock: this.clock })
-    const service = new ResearchExecutionService(this.registry, new ResearchProviderRouter([workspace]))
+
+    if (context !== undefined) {
+      acquisitions.push(...planProjectStateResearchAcquisitions(this.registry, workflowId, context.stateObjects))
+      providers.push(new ProjectStateResearchProvider({
+        projectId: context.project.projectId,
+        stateObjects: context.stateObjects,
+        clock: this.clock,
+      }))
+    }
+
+    const service = new ResearchExecutionService(this.registry, new ResearchProviderRouter(providers))
     return service.execute(workflowId, acquisitions, this.clock().toISOString(), signal)
   }
 }
