@@ -37,13 +37,14 @@ function presentationLabel(status: PreplanningPresentationStatus): string {
 export function PreplanningDashboard({ status }: PreplanningDashboardProps) {
   const total = status.chapters.reduce((sum, chapter) => sum + chapter.total, 0)
   const completed = status.chapters.reduce((sum, chapter) => sum + chapter.completed, 0)
+  const modeLabel = status.mode === 'automatic' ? '自动推进' : '兼容手动模式'
   return (
     <section aria-label="前期策划项目总览" style={{ display: 'grid', gap: 12 }}>
       <header style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 10 }}>
         <div>
           <small style={{ color: '#24844b', fontWeight: 700 }}>● 插件正常运行</small>
           <h3 style={{ fontSize: 18, margin: '4px 0' }}>{status.projectName}</h3>
-          <span>{status.mode === 'automatic' ? '全自动完成' : '人工确认'} · Revision {status.revision}</span>
+          <span>{modeLabel} · Revision {status.revision}</span>
         </div>
         <strong style={{ alignSelf: 'center', fontSize: 17 }}>8 章 · {total} 项</strong>
       </header>
