@@ -58,6 +58,34 @@ describe('Pre 2.0.1 workspace research provider', () => {
     expect(registry.validateEvidenceRecord(record)).toEqual({ valid: true, errors: [] })
   })
 
+  it('binds a DataPoint to an exact JSON Pointer fragment while retaining the source snapshot hash', async () => {
+    const root = await workspace()
+    await mkdir(join(root, 'inputs'))
+    await writeFile(join(root, 'inputs', 'project.json'), JSON.stringify({ project: { name: '武汉站改造', location: '武汉市' } }), 'utf8')
+
+    const registry = await ResearchRegistry.open(researchRoot)
+    const provider = new WorkspaceResearchProvider({ rootDir: root })
+    const result = await provider.fetch(registry.source('workspace-project-files'), {
+      mode: 'workspace_file',
+      locator: 'inputs/project.json',
+      workflowId: 'preplan.wf.01.01',
+      dataPointId: 'canonical-name',
+      selector: { type: 'json_pointer', pointer: '/project/name' },
+    })
+
+    const record = result.records[0]
+    expect(record.rawValue).toBe('武汉站改造')
+    expect(record.normalizedValue).toBe('武汉站改造')
+    expect(record.contentHash).toMatch(/^[a-f0-9]{64}$/u)
+    expect(record.locator).toMatchObject({
+      relativePath: 'inputs/project.json',
+      selectorType: 'json_pointer',
+      jsonPointer: '/project/name',
+    })
+    expect(record.locator.fragmentHash).toMatch(/^[a-f0-9]{64}$/u)
+    expect(registry.validateEvidenceRecord(record)).toEqual({ valid: true, errors: [] })
+  })
+
   it('fails closed when a locator escapes the configured workspace root', async () => {
     const parent = await workspace()
     const root = join(parent, 'workspace')
