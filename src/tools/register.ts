@@ -44,7 +44,7 @@ const PROPOSAL_ENVELOPE_PARAMETER = {
   type: 'object',
   additionalProperties: false,
   required: true,
-  description: '符合 v0.6 合同的 ProposalEnvelope JSON 对象；字段值必须来自 preplanning_get_context，不得传 JSON 字符串。',
+  description: '符合 v0.6 合同的 ProposalEnvelope JSON 对象；字段值必须来自 preplanning_get_context。manual 模式使用 human_review/pending_review，automatic 模式使用 provisional_commit/confirmed；最终路由仍由中央 Gateway 校验。',
   properties: {
     proposal_id: { type: 'string', required: true },
     project_id: { type: 'string', required: true },
@@ -112,8 +112,8 @@ const PROPOSAL_ENVELOPE_PARAMETER = {
         },
       },
     },
-    validation_intent: { type: 'string', enum: ['human_review'], required: true },
-    requested_state: { type: 'string', enum: ['pending_review'], required: true },
+    validation_intent: { type: 'string', enum: ['human_review', 'provisional_commit'], required: true },
+    requested_state: { type: 'string', enum: ['pending_review', 'confirmed'], required: true },
     idempotency_key: { type: 'string', required: true },
   },
 } as const
@@ -165,7 +165,7 @@ export function registerPreplanningTools(ctx: Context, dependencies: ToolDepende
   }))
   ctx.tools.register(defineTool({
     name: 'preplanning_apply_commands',
-    description: '提交 ProposalEnvelope 供合同、权限和人工复核网关验证；不直接写入 Project State。',
+    description: '提交 ProposalEnvelope 供合同、权限、模式路由和中央质量网关验证；不绕过 Gateway 直接写入 Project State。',
     parameters: {
       envelope: PROPOSAL_ENVELOPE_PARAMETER,
     },
@@ -187,9 +187,13 @@ export function registerPreplanningTools(ctx: Context, dependencies: ToolDepende
             if (policy.automationAuthorizationId === undefined) {
               throw new Error(`project '${proposal.projectId}' automatic mode has no authorization`)
             }
+            if (run.quality?.disposition !== 'auto_pass') {
+              throw new Error(`workflow '${workflowId}' automatic tool commit requires trusted auto_pass quality`)
+            }
             const committed = await dependencies.gateway.commitProposal(proposal.proposalId, {
               source: 'automation_authorization',
               authorizationId: policy.automationAuthorizationId,
+              quality: run.quality,
               actor: {
                 actorId: 'preplanning-automation',
                 name: '前期策划自动化服务',
