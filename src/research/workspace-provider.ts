@@ -3,6 +3,7 @@ import { readFile, realpath, stat } from 'node:fs/promises'
 import { basename, extname, isAbsolute, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { validateResearchRequest, type ResearchProvider, type ResearchProviderResult, type ResearchRequest } from './provider.ts'
+import { applyResearchSelector } from './selector.ts'
 import type { DataSourceDefinition, EvidenceRecord } from './types.ts'
 
 const DEFAULT_MAX_BYTES = 16 * 1024 * 1024
@@ -18,6 +19,12 @@ export interface WorkspaceResearchProviderOptions {
 
 function sha256(value: string | Uint8Array): string {
   return createHash('sha256').update(value).digest('hex')
+}
+
+function stableValueText(value: unknown): string {
+  if (typeof value === 'string') return value
+  const json = JSON.stringify(value)
+  return json === undefined ? String(value) : json
 }
 
 function normalizedRelativePath(root: string, target: string): string {
@@ -101,11 +108,14 @@ export class WorkspaceResearchProvider implements ResearchProvider {
     } catch {
       throw new Error(`workspace file is not valid UTF-8 text: ${request.locator}`)
     }
-    const normalizedValue = normalizedFileValue(extension, text)
+    const parsedValue = normalizedFileValue(extension, text)
+    const selection = applyResearchSelector(text, parsedValue, request.selector)
     const contentHash = sha256(bytes)
+    const fragmentHash = sha256(stableValueText(selection.rawValue))
     const relativePath = normalizedRelativePath(root, target)
     const capturedAt = this.clock().toISOString()
-    const evidenceId = `ev-${sha256(`${request.workflowId}\n${request.dataPointId}\n${source.sourceId}\n${relativePath}\n${contentHash}`).slice(0, 32)}`
+    const selectorIdentity = JSON.stringify(selection.locator)
+    const evidenceId = `ev-${sha256(`${request.workflowId}\n${request.dataPointId}\n${source.sourceId}\n${relativePath}\n${selectorIdentity}\n${contentHash}`).slice(0, 32)}`
 
     const record: EvidenceRecord = {
       evidenceId,
@@ -124,14 +134,18 @@ export class WorkspaceResearchProvider implements ResearchProvider {
         byteLength: bytes.byteLength,
         modifiedAt: fileStat.mtime.toISOString(),
         extension,
+        ...selection.locator,
+        fragmentHash,
       },
-      rawValue: text,
-      normalizedValue,
+      rawValue: selection.rawValue,
+      normalizedValue: selection.normalizedValue,
       unit: null,
       contentHash,
       reliability: source.reliabilityGrade,
       claimClass: 'fact',
-      notes: 'Workspace source snapshot. Binary PDF/Office/CAD extraction is intentionally delegated to DSH material/attachment extractors instead of being guessed here.',
+      notes: request.selector === undefined
+        ? 'Workspace source snapshot. No field selector was supplied, so the full supported text/JSON file is the evidence value.'
+        : 'Workspace field-level evidence snapshot. The full file hash and exact selector/fragment hash are preserved for reproduction. Binary PDF/Office/CAD extraction remains delegated to DSH material/attachment extractors.',
     }
 
     return { records: Object.freeze([Object.freeze(record)]) }
