@@ -3,13 +3,15 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ContractRegistry } from '../contracts/registry.ts'
 import type { WorkflowDescriptor } from '../contracts/types.ts'
 import type { GovernanceRepository } from '../governance/repository.ts'
+import type { EvidenceRecord } from '../research/types.ts'
 import type { ProposalGateway } from '../proposals/gateway.ts'
 import type { ProjectRepository } from '../state/repository.ts'
+import type { JSONType } from 'zod'
 import type { WorkflowAnalysisCandidate } from './subagent-workflow-analyzer.ts'
 import type { WorkflowQualityReport } from './workflow-quality.ts'
 
 interface AutomationWorkflowCommitterDependencies {
-  readonly repository: Pick<ProjectRepository, 'readContext'>
+  readonly repository: Pick<ProjectRepository, 'readContext' | 'putAuditEvent'>
   readonly governance: Pick<GovernanceRepository, 'readProject'>
   readonly registry: Pick<ContractRegistry, 'validateStateObject' | 'stateExample'>
   readonly gateway: Pick<ProposalGateway, 'submitProposal' | 'commitProposal'>
@@ -36,6 +38,31 @@ function stringArray(value: unknown, fallback: readonly string[] = []): string[]
   return Array.isArray(value) && value.every(item => typeof item === 'string')
     ? [...value]
     : [...fallback]
+}
+
+function jsonValue(value: unknown): JSONType {
+  return JSON.parse(JSON.stringify(value)) as JSONType
+}
+
+function evidenceRef(record: EvidenceRecord): Readonly<Record<string, unknown>> {
+  return Object.freeze({
+    evidence_id: record.evidenceId,
+    asset_id: `research:${record.sourceId}`,
+    version_id: record.contentHash,
+    claim_class: record.claimClass,
+    locator: {
+      ...jsonValue(record.locator) as Record<string, JSONType>,
+      source_id: record.sourceId,
+      source_type: record.sourceType,
+      source_uri: record.sourceUri,
+      source_title: record.sourceTitle,
+      publisher: record.publisher,
+      captured_at: record.capturedAt,
+      as_of: record.asOf,
+      normalized_value: jsonValue(record.normalizedValue),
+      unit: record.unit,
+    },
+  })
 }
 
 function requireTrustedQuality(
@@ -77,6 +104,17 @@ export class AutomationWorkflowCommitter {
     if (context.project.projectId !== projectId) {
       throw new Error(`parent Session is bound to '${context.project.projectId}', not '${projectId}'`)
     }
+    if (candidate.researchValidation !== undefined && !candidate.researchValidation.valid) {
+      throw new Error(`workflow '${descriptor.workflowId}' cannot commit unvalidated Research evidence`)
+    }
+    const researchEvidence = candidate.researchEvidence ?? []
+    if (candidate.researchValidation !== undefined) {
+      const accepted = new Set(candidate.researchValidation.acceptedEvidenceIds)
+      if (researchEvidence.some(record => !accepted.has(record.evidenceId))) {
+        throw new Error(`workflow '${descriptor.workflowId}' Research evidence set contains records not accepted by the independent validator`)
+      }
+    }
+
     const currentRevision = context.project.currentRevision
     const timestamp = this.now()
     const sourceSnapshot = Object.fromEntries(descriptor.requiredUpstream
@@ -159,8 +197,13 @@ export class AutomationWorkflowCommitter {
         semantic_paths: [`/${descriptor.targetObjectId}`],
         editorial_only: false,
       },
-      evidence_refs: [],
-      assumptions: [],
+      evidence_refs: researchEvidence.map(evidenceRef),
+      assumptions: trustedQuality.assumptions.map((assumption, index) => ({
+        id: `quality-assumption-${index + 1}`,
+        name: `自动分析假设 ${index + 1}`,
+        description: assumption,
+        status: 'active',
+      })),
       validation_intent: 'provisional_commit',
       requested_state: 'confirmed',
       dependency_versions: sourceSnapshot,
@@ -177,6 +220,28 @@ export class AutomationWorkflowCommitter {
         role: 'system_service',
       },
     }, sessionId)
+
+    if (candidate.analysisTrace !== undefined) {
+      await this.dependencies.repository.putAuditEvent({
+        eventId: `${committed.proposalId}:research-trace`,
+        projectId,
+        eventType: 'research.trace',
+        revision: committed.revision,
+        actor: {
+          actorId: 'preplanning-research-runtime',
+          name: '前期策划 Research Runtime',
+          role: 'system_service',
+        },
+        occurredAt: timestamp,
+        payload: jsonValue({
+          workflowId: descriptor.workflowId,
+          targetObjectId: descriptor.targetObjectId,
+          evidenceIds: researchEvidence.map(record => record.evidenceId),
+          analysisTrace: candidate.analysisTrace,
+        }),
+      })
+    }
+
     return Object.freeze({
       proposalId: committed.proposalId,
       revision: committed.revision,
