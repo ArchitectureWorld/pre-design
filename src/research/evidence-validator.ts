@@ -111,6 +111,11 @@ export function validateWorkflowEvidence(
   if (missingDataPointIds.length > 0) {
     errors.push(`missing required data points: ${missingDataPointIds.join(', ')}`)
   }
+  for (const preference of spec.preferredSources.filter(row => row.required)) {
+    if (!independentSources.has(preference.sourceId)) {
+      errors.push(`required source '${preference.sourceId}' has no accepted evidence for '${workflowId}'`)
+    }
+  }
   if (highAuthoritySources.size < minimum.minHighAuthority) {
     errors.push(`high-authority source count ${highAuthoritySources.size} is below required ${minimum.minHighAuthority}`)
   }
