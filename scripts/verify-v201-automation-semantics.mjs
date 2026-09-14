@@ -25,6 +25,20 @@ if (/requested_state:\s*['"]pending_review['"]/u.test(committer)) {
   fail('automatic workflow committer must not emit pending_review requested state')
 }
 
+const toolRegister = await read('src/tools/register.ts')
+if (!toolRegister.includes("enum: ['human_review', 'provisional_commit']")) {
+  fail('Proposal tool schema must expose controlled manual and automatic validation_intent routes')
+}
+if (!toolRegister.includes("enum: ['pending_review', 'confirmed']")) {
+  fail('Proposal tool schema must expose controlled manual and automatic requested_state routes')
+}
+if (!toolRegister.includes("run.quality?.disposition !== 'auto_pass'")) {
+  fail('automatic Proposal tool path must fail closed without trusted central auto_pass quality')
+}
+if (!toolRegister.includes('quality: run.quality')) {
+  fail('automatic Proposal tool path must pass trusted central quality to ProposalGateway')
+}
+
 const researchDir = resolve(root, 'research/v2.0.1')
 const specFiles = (await readdir(researchDir))
   .filter(name => /^workflow-research-specs.*\.json$/u.test(name))
@@ -96,4 +110,4 @@ if (failures.length > 0) {
 }
 
 console.log('PRE_V2_0_1_AUTOMATION_SEMANTICS_PASS')
-console.log(JSON.stringify({ checkedResearchSpecFiles: specFiles.length, checkedSourceCatalog: true, checkedSourceAudit: true }, null, 2))
+console.log(JSON.stringify({ checkedResearchSpecFiles: specFiles.length, checkedSourceCatalog: true, checkedSourceAudit: true, checkedProposalToolRouting: true }, null, 2))
