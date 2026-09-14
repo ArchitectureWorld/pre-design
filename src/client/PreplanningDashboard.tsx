@@ -38,6 +38,7 @@ export function PreplanningDashboard({ status }: PreplanningDashboardProps) {
   const total = status.chapters.reduce((sum, chapter) => sum + chapter.total, 0)
   const completed = status.chapters.reduce((sum, chapter) => sum + chapter.completed, 0)
   const modeLabel = status.mode === 'automatic' ? '自动推进' : '兼容手动模式'
+  const blockers = status.blockers ?? []
   return (
     <section aria-label="前期策划项目总览" style={{ display: 'grid', gap: 12 }}>
       <header style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 10 }}>
@@ -75,6 +76,34 @@ export function PreplanningDashboard({ status }: PreplanningDashboardProps) {
         <span>已采用 {status.visual.adopted}</span>
         <span>视觉阻断 {status.visual.blocked}</span>
       </div>
+      {blockers.length === 0 ? null : (
+        <section
+          aria-label="自动流程阻断详情"
+          style={{
+            ...panel,
+            display: 'grid',
+            gap: 8,
+            borderColor: 'color-mix(in srgb, #c56b1a 45%, transparent)',
+          }}
+        >
+          <strong>自动流程阻断详情</strong>
+          <small>相关工作项已停止自动推进；系统不会猜测缺失资料或静默覆盖冲突。</small>
+          {blockers.map(blocker => (
+            <div
+              key={blocker.workflowId}
+              style={{
+                display: 'grid',
+                gap: 3,
+                paddingTop: 6,
+                borderTop: '1px solid color-mix(in srgb, currentColor 10%, transparent)',
+              }}
+            >
+              <strong>{blocker.workItemId}</strong>
+              <span>{blocker.reason}</span>
+            </div>
+          ))}
+        </section>
+      )}
       {status.presentation === undefined ? null : (
         <div
           aria-label="Presentation 同步状态"
