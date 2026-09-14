@@ -5,11 +5,13 @@ on:
     branches:
       - feat/pre-v2.0.1
     paths:
+      - 'src/index.ts'
       - 'src/research/**'
       - 'src/contracts/**'
       - 'src/runtime/**'
       - 'src/proposals/**'
       - 'src/governance/**'
+      - 'src/state/**'
       - 'src/tools/**'
       - 'research/v2.0.1/**'
       - 'tests/**'
@@ -73,6 +75,8 @@ jobs:
           grep -q 'V2.0.1 Automatic-first 执行边界' research/v2.0.1/source-audit.html
           grep -q 'V2.0.1 部署测试能力' research/v2.0.1/source-audit.html
           grep -q '字段级 Evidence locator' research/v2.0.1/source-audit.html
+          grep -q 'DSH Workflow 主链已接通' research/v2.0.1/source-audit.html
+          grep -q 'AnalysisTrace' research/v2.0.1/source-audit.html
           grep -q '为什么选择这个来源' research/v2.0.1/source-audit.html
           grep -q '为什么做这一步' research/v2.0.1/source-audit.html
           grep -q '为什么这样汇总与分析' research/v2.0.1/source-audit.html
@@ -137,4 +141,4 @@ jobs:
             exit 1
           fi
 
-# validation-marker: full-research-coverage-20260914-final-deployment-head
+# validation-marker: full-research-coverage-20260914-dsh-runtime-integration
