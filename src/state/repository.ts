@@ -1,4 +1,5 @@
 import type { Domain, DomainFacility } from '@deepseek-ai/dsh-storage-domain'
+import { isDeepStrictEqual } from 'node:util'
 import { z, type JSONType } from 'zod'
 import { preplanningDomainSpec } from './domain.ts'
 import type {
@@ -135,6 +136,31 @@ export class ProjectRepository {
       }
       await this.domain.table('questions').put(question.questionId, stored)
       return question
+    })
+  }
+
+  putAuditEvent(event: AuditEventRecord): Promise<AuditEventRecord> {
+    return this.serialize(async () => {
+      const project = this.requireProject(event.projectId)
+      if (!Number.isInteger(event.revision) || event.revision < 0 || event.revision > project.currentRevision) {
+        throw new RepositoryError(
+          'audit-event-revision-invalid',
+          `audit event revision ${event.revision} is outside project '${event.projectId}' current revision ${project.currentRevision}`,
+        )
+      }
+      const stored: AuditEventRecord = {
+        ...event,
+        actor: { ...event.actor },
+        payload: z.json().parse(event.payload),
+      }
+      const events = this.domain.table('events')
+      const existing = events.get(stored.eventId)
+      if (existing !== undefined) {
+        if (isDeepStrictEqual(existing, stored)) return existing
+        throw new RepositoryError('audit-event-exists', `audit event '${stored.eventId}' already exists with different content`)
+      }
+      await events.put(stored.eventId, stored)
+      return stored
     })
   }
 
