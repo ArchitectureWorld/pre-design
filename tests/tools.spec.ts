@@ -22,6 +22,30 @@ function validToolEnvelope(workflowId = 'preplan.wf.01.01') {
   }
 }
 
+function automaticToolEnvelope(workflowId = 'preplan.wf.01.01') {
+  return {
+    ...validToolEnvelope(workflowId),
+    validation_intent: 'provisional_commit',
+    requested_state: 'confirmed',
+    idempotency_key: 'idempotency-tool-auto-1',
+  }
+}
+
+const autoPassQuality = {
+  workflowId: 'preplan.wf.01.01',
+  targetObjectId: 'PS01',
+  disposition: 'auto_pass' as const,
+  score: 0.96,
+  completionCoverage: 1,
+  evidenceCoverage: 1,
+  confidence: 0.96,
+  attempt: 1,
+  maxAttempts: 3,
+  reasons: [],
+  blockers: [],
+  assumptions: [],
+}
+
 describe('preplanning model tools', () => {
   it('精确注册两个模型工具，不暴露 T01—T47', () => {
     const definitions: ToolDefinition[] = []
@@ -40,7 +64,7 @@ describe('preplanning model tools', () => {
     expect(definitions.some(definition => /^T\d{2}$/u.test(definition.name))).toBe(false)
   })
 
-  it('向真实模型暴露 ProposalEnvelope 的必填结构与受控枚举', () => {
+  it('向真实模型同时暴露受控 manual 与 automatic Proposal 路由枚举', () => {
     const definitions: ToolDefinition[] = []
     const ctx = {
       tools: { register: (definition: ToolDefinition) => { definitions.push(definition); return () => undefined } },
@@ -65,8 +89,8 @@ describe('preplanning model tools', () => {
             'change_set', 'evidence_refs', 'assumptions', 'validation_intent',
           ]),
           properties: {
-            validation_intent: { type: 'string', enum: ['human_review'] },
-            requested_state: { type: 'string', enum: ['pending_review'] },
+            validation_intent: { type: 'string', enum: ['human_review', 'provisional_commit'] },
+            requested_state: { type: 'string', enum: ['pending_review', 'confirmed'] },
             change_set: {
               type: 'object',
               additionalProperties: false,
@@ -168,7 +192,7 @@ describe('preplanning model tools', () => {
     })
   })
 
-  it('全自动模式用有效授权确认提案并推进 workflow', async () => {
+  it('全自动模式只用中央 auto_pass Quality + 有效授权确认提案并推进 workflow', async () => {
     const definitions: ToolDefinition[] = []
     const transition = vi.fn(async () => undefined)
     const commitProposal = vi.fn(async () => ({
@@ -201,7 +225,7 @@ describe('preplanning model tools', () => {
       runtime: {
         snapshot: vi.fn(() => ({
           chapters: [], blocked: [],
-          runs: [{ workflowId: 'preplan.wf.01.01', status: 'running' }],
+          runs: [{ workflowId: 'preplan.wf.01.01', status: 'running', quality: autoPassQuality }],
         })),
         transition,
       } as never,
@@ -209,18 +233,51 @@ describe('preplanning model tools', () => {
     })
 
     const applyCommands = definitions.find(definition => definition.name === 'preplanning_apply_commands')
-    const applied = await applyCommands?.execute({ envelope: validToolEnvelope() }, {
+    const envelope = automaticToolEnvelope()
+    const applied = await applyCommands?.execute({ envelope }, {
       agent: { id: 'session-1' },
     } as never)
 
     expect(commitProposal).toHaveBeenCalledWith('proposal-1', {
       source: 'automation_authorization',
       authorizationId: 'authorization-1',
+      quality: autoPassQuality,
       actor: { actorId: 'preplanning-automation', name: '前期策划自动化服务', role: 'system_service' },
     }, 'session-1')
     expect(transition).toHaveBeenCalledWith('project-1', 'preplan.wf.01.01', {
       to: 'confirmed', proposalId: 'proposal-1', revision: 1,
     })
     expect(applied).toMatchObject({ status: 'confirmed', revision: 1 })
+  })
+
+  it('全自动工具路径缺少中央 auto_pass Quality 时 fail closed，不直接确认', async () => {
+    const definitions: ToolDefinition[] = []
+    const commitProposal = vi.fn()
+    const ctx = {
+      tools: { register: (definition: ToolDefinition) => { definitions.push(definition); return () => undefined } },
+    } as unknown as Context
+    registerPreplanningTools(ctx, {
+      repository: { readContext: vi.fn(() => ({
+        project: { projectId: 'project-1', name: '自动项目', currentRevision: 0, currentStage: '01-01' },
+        binding: { sessionId: 'session-1', projectId: 'project-1' },
+        stateObjects: [], revisions: [], events: [], questions: [], proposals: [],
+      })) } as never,
+      gateway: {
+        submitProposal: vi.fn(async () => ({ proposalId: 'proposal-1', projectId: 'project-1', expectedRevision: 0, status: 'pending_review' })),
+        commitProposal,
+      } as never,
+      governance: { readProject: vi.fn(() => ({
+        policy: { mode: 'automatic', automationAuthorizationId: 'authorization-1' }, authorizations: [],
+      })) } as never,
+      runtime: { snapshot: vi.fn(() => ({
+        chapters: [], blocked: [], runs: [{ workflowId: 'preplan.wf.01.01', status: 'running' }],
+      })) } as never,
+      registry: {} as never,
+    })
+
+    const applyCommands = definitions.find(definition => definition.name === 'preplanning_apply_commands')
+    await expect(applyCommands?.execute({ envelope: automaticToolEnvelope() }, { agent: { id: 'session-1' } } as never))
+      .rejects.toThrow(/trusted auto_pass quality/u)
+    expect(commitProposal).not.toHaveBeenCalled()
   })
 })
