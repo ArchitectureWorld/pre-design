@@ -14,6 +14,15 @@ const descriptors = [
   },
 ] as const
 
+interface TransitionCommand {
+  readonly to: string
+  readonly reason?: string
+  readonly quality?: {
+    readonly disposition?: string
+    readonly evidenceCoverage?: number
+  }
+}
+
 function invalidResearch(workflowId: string) {
   return {
     records: [],
@@ -30,7 +39,7 @@ function invalidResearch(workflowId: string) {
 
 describe('parallel workflow independent research gate', () => {
   it('blocks before LLM analysis when independent Research validation fails', async () => {
-    const transition = vi.fn(async () => undefined)
+    const transition = vi.fn(async (_projectId: string, _workflowId: string, _command: TransitionCommand) => undefined)
     const analyze = vi.fn(async () => { throw new Error('analyzer must not run without trusted research') })
     const collect = vi.fn(async (_parent: unknown, workflowId: string) => invalidResearch(workflowId))
     const commit = vi.fn()
@@ -57,9 +66,10 @@ describe('parallel workflow independent research gate', () => {
     expect(collect).toHaveBeenCalledTimes(2)
     expect(analyze).not.toHaveBeenCalled()
     expect(commit).not.toHaveBeenCalled()
-    const blockedTransitions = transition.mock.calls.filter(([, , command]) => command.to === 'blocked')
+    const blockedTransitions = transition.mock.calls.filter(call => call[2].to === 'blocked')
     expect(blockedTransitions).toHaveLength(2)
-    for (const [, , command] of blockedTransitions) {
+    for (const call of blockedTransitions) {
+      const command = call[2]
       expect(command.quality).toMatchObject({ disposition: 'blocked_external', evidenceCoverage: 0 })
       expect(command.reason).toContain('Research evidence validation failed')
     }
