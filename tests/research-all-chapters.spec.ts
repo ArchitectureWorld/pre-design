@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 import { ResearchRegistry } from '../src/research/registry.ts'
 
@@ -17,6 +18,11 @@ const handAuthoredIds = new Set([
   'preplan.wf.01.05', 'preplan.wf.01.06', 'preplan.wf.01.07', 'preplan.wf.02.01',
   'preplan.wf.08.02',
 ])
+
+function dataPoint(registry: ResearchRegistry, workflowId: string, dataPointId: string) {
+  const spec = registry.workflow(workflowId)
+  return [...spec.requiredDataPoints, ...spec.optionalDataPoints].find(row => row.dataPointId === dataPointId)
+}
 
 describe('Pre 2.0.1 complete traceable research coverage', () => {
   it('maps all 57 canonical workflows with the exact chapter distribution', async () => {
@@ -75,5 +81,23 @@ describe('Pre 2.0.1 complete traceable research coverage', () => {
     const registry = await ResearchRegistry.open(researchRoot)
     const forbidden = /人工(?:确认|审批|审核|复核|澄清|裁决)|needs_human|pending_review/u
     for (const spec of registry.workflows()) expect(JSON.stringify(spec), spec.workflowId).not.toMatch(forbidden)
+  })
+
+  it('uses field semantics instead of accidental substring matches when assigning data kinds', async () => {
+    const registry = await ResearchRegistry.open(researchRoot)
+    expect(dataPoint(registry, 'preplan.wf.04.01', 'strategic-role')).toMatchObject({ label: '战略角色', dataKind: 'project_analysis' })
+    expect(dataPoint(registry, 'preplan.wf.05.01', 'evaluation-model-version')).toMatchObject({ label: '评价模型版本', dataKind: 'project_analysis' })
+    expect(dataPoint(registry, 'preplan.wf.06.01', 'peak-demands')).toMatchObject({ label: '高峰需求', dataKind: 'population' })
+    expect(dataPoint(registry, 'preplan.wf.07.01', 'area-balance')).toMatchObject({ label: '面积平衡', dataKind: 'spatial_planning' })
+    expect(dataPoint(registry, 'preplan.wf.08.01', 'quantities')).toMatchObject({ label: '工程量', dataKind: 'cost' })
+  })
+
+  it('renders explicit reasons for each source choice and each research step in the audit HTML', async () => {
+    const html = await readFile(new URL('source-audit.html', researchRoot), 'utf8')
+    expect(html).toContain('为什么选择这个来源')
+    expect(html).toContain('为什么做这一步')
+    expect(html).toContain('为什么这样汇总与分析')
+    expect(html).toContain('来源权威性')
+    expect(html).toContain('该来源在本 Workflow 中的用途')
   })
 })
