@@ -1,0 +1,48 @@
+name: Sync V2.0.1 Research Audit
+
+on:
+  push:
+    branches:
+      - feat/pre-v2.0.1
+    paths:
+      - '.github/workflows/pre-v201-sync-audit.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.11.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Generate and verify audit HTML
+        run: |
+          pnpm build:research-audit
+          grep -q '57/57 已映射' research/v2.0.1/source-audit.html
+          grep -q 'V2.0.1 部署测试能力' research/v2.0.1/source-audit.html
+          grep -q '字段级 Evidence locator' research/v2.0.1/source-audit.html
+          grep -q '为什么选择这个来源' research/v2.0.1/source-audit.html
+          grep -q '为什么做这一步' research/v2.0.1/source-audit.html
+          grep -q '为什么这样汇总与分析' research/v2.0.1/source-audit.html
+      - name: Commit synchronized audit and remove one-shot workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/pre-v201-sync-audit.yml
+          git add research/v2.0.1/source-audit.html
+          if git diff --cached --quiet; then
+            echo 'nothing to synchronize'
+            exit 1
+          fi
+          git commit -m 'docs: synchronize V2.0.1 deployment audit'
+          git push origin HEAD:feat/pre-v2.0.1
