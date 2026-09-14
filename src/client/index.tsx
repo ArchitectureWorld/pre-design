@@ -88,14 +88,6 @@ export function apply(ctx: ClientContext): void {
         openProjectFolder={() => openWorkspaceFolder(String(sessionId))}
         start={input => startDirectPreplanning({
           executeCommand: line => executeCommand(ctx, String(sessionId), line),
-          prompt: async text => {
-            const binding = sessions.binding(sessionId)
-            if (binding === undefined) return { ok: false, message: '当前 DSH Session 不可用。' }
-            const result = await binding.session.prompt([{ type: 'text', text }], 'queue')
-            return result.ok
-              ? { ok: true }
-              : { ok: false, message: `${result.error.code}: ${result.error.message}` }
-          },
         }, input)}
         workspacePath={workspacePath}
       />
@@ -105,7 +97,6 @@ export function apply(ctx: ClientContext): void {
     name: 'conversation.chat.node',
     key: 'preplanning-status',
   }, (props: PropsRuntime<'conversation.chat.node', 'preplanning-status'>) => {
-    const workspacePath = useWorkspacePath(sessions, String(props.sessionId))
     return (
       <PreplanningStatusCard
         {...props}
