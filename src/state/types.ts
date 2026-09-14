@@ -126,6 +126,8 @@ export interface CreateProjectInput {
   readonly sessionId: string
   readonly createdAt: string
   readonly actor: ActorRef
+  /** Original creation-form statement. Stored as user_statement provenance, never promoted to an official project fact. */
+  readonly statement?: string
 }
 
 export interface SaveProposalInput {
