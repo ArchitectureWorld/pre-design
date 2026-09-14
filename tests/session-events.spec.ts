@@ -42,6 +42,36 @@ describe('preplanning status snapshot', () => {
     })
   })
 
+  it('automatic 状态事件使用自动处理语义，同时仍可完整回放', () => {
+    const context = {
+      project: { projectId: 'project-auto', name: '自动项目', currentRevision: 8, currentStage: '02-01' },
+      proposals: [{
+        proposalId: 'proposal-auto', projectId: 'project-auto', expectedRevision: 8,
+        idempotencyKey: 'idempotency-auto', envelope: {}, status: 'pending_review', createdAt: '2026-09-14T10:00:00.000Z',
+      }],
+      questions: [],
+    } as never
+    const status = buildPreplanningStatus(context, {
+      governance: { readProject: () => ({
+        policy: { mode: 'automatic', reportDepth: 'standard' },
+        gateDecisions: [], visualAssets: [], visualTasks: [], siteBoundaries: [], reportPackages: [],
+      }) } as never,
+      runtime: { snapshot: () => ({
+        blocked: [],
+        chapters: Array.from({ length: 8 }, (_, index) => ({
+          chapterId: String(index + 1).padStart(2, '0'), completed: 0,
+          total: [7, 8, 6, 6, 7, 7, 8, 8][index]!,
+        })),
+      }) } as never,
+    })
+
+    const formatted = formatPreplanningStatus(status)
+    expect(formatted).toContain('自动处理 1 项')
+    expect(formatted).toContain('自动处理提案 "proposal-auto"')
+    expect(formatted).not.toContain('待确认')
+    expect(parsePreplanningStatus(formatted)).toEqual(status)
+  })
+
   it('投影模式、57 项章节、视觉与最新三格式报告并保持文本可回放', () => {
     const context = {
       project: { projectId: 'project-1', name: '全流程项目', currentRevision: 57, currentStage: '08-08' },
