@@ -7,6 +7,10 @@ import type {
 
 export interface ResearchRequest {
   readonly mode: ResearchAccessMode
+  /** Workflow that will own every EvidenceRecord produced by this request. */
+  readonly workflowId: string
+  /** Workflow data point that this request is intended to satisfy. */
+  readonly dataPointId: string
   /** Workspace path, Project State locator, URL, API URL, or provider-specific locator. */
   readonly locator: string
   /** Required for web_search so the router can enforce the source whitelist. */
@@ -55,7 +59,11 @@ export function validateResearchRequest(
 ): ResearchValidationResult {
   const errors: string[] = []
   const locator = request.locator.normalize('NFC').trim()
+  const workflowId = request.workflowId.normalize('NFC').trim()
+  const dataPointId = request.dataPointId.normalize('NFC').trim()
   if (locator === '') errors.push('research request locator must be non-empty')
+  if (!/^preplan\.wf\.\d{2}\.\d{2}$/u.test(workflowId)) errors.push('research request workflowId must be a canonical preplan workflow id')
+  if (dataPointId === '') errors.push('research request dataPointId must be non-empty')
   if (!source.accessModes.includes(request.mode)) {
     errors.push(`source '${source.sourceId}' does not declare access mode '${request.mode}'`)
   }
