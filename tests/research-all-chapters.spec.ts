@@ -83,6 +83,7 @@ describe('Pre 2.0.1 complete traceable research coverage', () => {
     for (const spec of registry.workflows()) expect(JSON.stringify(spec), spec.workflowId).not.toMatch(forbidden)
   })
 
+  // Lock field-token semantics so substrings such as "rate" inside "strategic" cannot alter dataKind.
   it('uses field semantics instead of accidental substring matches when assigning data kinds', async () => {
     const registry = await ResearchRegistry.open(researchRoot)
     expect(dataPoint(registry, 'preplan.wf.04.01', 'strategic-role')).toMatchObject({ label: '战略角色', dataKind: 'project_analysis' })
