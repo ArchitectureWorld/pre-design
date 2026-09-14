@@ -10,6 +10,7 @@ on:
       - 'src/runtime/**'
       - 'src/proposals/**'
       - 'src/governance/**'
+      - 'src/tools/**'
       - 'research/v2.0.1/**'
       - 'tests/**'
       - 'package.json'
@@ -19,7 +20,9 @@ on:
       - 'docs/superpowers/specs/2026-09-12-pre-v2.0.1-source-traceable-research-design.md'
       - 'docs/superpowers/specs/2026-09-12-pre-v2.0.1-automation-policy-overlay-design.md'
       - 'docs/superpowers/plans/2026-09-12-pre-v2.0.1-automation-policy-overlay.md'
+      - 'docs/superpowers/plans/2026-09-14-pre-v2.0.1-deployment-readiness.md'
       - 'scripts/build-research-source-audit.mjs'
+      - 'scripts/inject-research-deployment-readiness.mjs'
       - 'scripts/verify-v201-automation-semantics.mjs'
       - 'scripts/verify-alignment-version-consistency-v201.mjs'
       - 'scripts/verify-presentation-contract-lock.mjs'
@@ -68,6 +71,11 @@ jobs:
           grep -q 'Chapter → Workflow → ResearchStep → DataPoint → DataSource' research/v2.0.1/source-audit.html
           grep -q '57/57 已映射' research/v2.0.1/source-audit.html
           grep -q 'V2.0.1 Automatic-first 执行边界' research/v2.0.1/source-audit.html
+          grep -q 'V2.0.1 部署测试能力' research/v2.0.1/source-audit.html
+          grep -q '字段级 Evidence locator' research/v2.0.1/source-audit.html
+          grep -q '为什么选择这个来源' research/v2.0.1/source-audit.html
+          grep -q '为什么做这一步' research/v2.0.1/source-audit.html
+          grep -q '为什么这样汇总与分析' research/v2.0.1/source-audit.html
           grep -q 'risk=H' research/v2.0.1/source-audit.html
           grep -q 'project-state-store' research/v2.0.1/source-audit.html
           grep -q 'professional-tool-output' research/v2.0.1/source-audit.html
@@ -129,4 +137,4 @@ jobs:
             exit 1
           fi
 
-# validation-marker: full-research-coverage-20260913
+# validation-marker: full-research-coverage-20260914-deployment-readiness
