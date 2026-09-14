@@ -13,6 +13,12 @@ export interface PreplanningChapterStatus {
   readonly gateStatus: string
 }
 
+export interface PreplanningBlockerStatus {
+  readonly workflowId: string
+  readonly workItemId: string
+  readonly reason: string
+}
+
 export interface PreplanningBoundaryStatus {
   readonly kind: SiteBoundaryStateSummary['kind']
   readonly label: string
@@ -40,6 +46,7 @@ export interface PreplanningStatusEventData {
   readonly reportDepth: 'standard' | 'extended'
   readonly chapters: readonly PreplanningChapterStatus[]
   readonly blocked: number
+  readonly blockers?: readonly PreplanningBlockerStatus[]
   readonly visual: { readonly candidates: number; readonly adopted: number; readonly blocked: number }
   readonly boundary: PreplanningBoundaryStatus
   readonly modelRoute: { readonly primary: string; readonly visual: string }
@@ -120,7 +127,7 @@ export function buildPreplanningStatus(
   const base = baseStatus(context)
   if (dependencies === undefined) return {
     ...base,
-    mode: 'manual', reportDepth: 'standard', chapters: defaultChapters(), blocked: 0,
+    mode: 'manual', reportDepth: 'standard', chapters: defaultChapters(), blocked: 0, blockers: [],
     visual: { candidates: 0, adopted: 0, blocked: 0 },
     boundary: defaultBoundary(context.project.currentRevision),
     modelRoute: { primary: PRIMARY_MODEL_ROUTE, visual: VISUAL_MODEL_ROUTE },
@@ -150,6 +157,11 @@ export function buildPreplanningStatus(
       gateStatus: gateByChapter.get(chapter.chapterId)?.decision ?? 'pending',
     })),
     blocked: workflow.blocked.length,
+    blockers: workflow.blocked.map(run => ({
+      workflowId: run.workflowId,
+      workItemId: run.workItemId,
+      reason: run.blockedReason ?? '工作项受阻，原因未记录。',
+    })),
     visual: {
       candidates: governed.visualAssets.filter(row => row.status === 'candidate').length,
       adopted: governed.visualAssets.filter(row => row.status === 'adopted').length,
@@ -172,14 +184,18 @@ export function formatPreplanningStatus(status: PreplanningStatusEventData): str
   const report = status.reportPackage?.id ?? 'none'
   const source = status.boundary.source === undefined ? '' : `（来源 ${JSON.stringify(status.boundary.source)}）`
   const detail = `前期策划全流程：模式 ${status.mode}；报告 ${status.reportDepth}；阻断 ${status.blocked}；视觉 ${status.visual.candidates}/${status.visual.adopted}/${status.visual.blocked}；章节 ${chapters}；成果 ${report}；主模型 ${JSON.stringify(status.modelRoute.primary)}；视觉模型 ${JSON.stringify(status.modelRoute.visual)}；场地边界 ${JSON.stringify(status.boundary.label)}${source}；下一步 ${JSON.stringify(status.boundary.nextAction)}。`
+  const blockers = (status.blockers?.length ?? 0) === 0
+    ? ''
+    : `\n前期策划阻断详情：${JSON.stringify(status.blockers)}。`
   const presentation = status.presentation === undefined
     ? ''
     : `\n前期策划 Presentation：${JSON.stringify(status.presentation)}。`
-  return `${base}\n${detail}${presentation}`
+  return `${base}\n${detail}${blockers}${presentation}`
 }
 
 const STATUS_PATTERN = /(?:^|\n)前期策划状态：项目 ("(?:\\.|[^"\\])*")（([^）\r\n]+)），revision (\d+)，阶段 ([^，\r\n]+)，(?:待确认|自动处理) (\d+) 项，开放问题 (\d+) 项(?:，(?:待确认|自动处理)提案 ("(?:\\.|[^"\\])*"))?。(?:$|\n)/u
 const DETAIL_PATTERN = /(?:^|\n)前期策划全流程：模式 (manual|automatic)；报告 (standard|extended)；阻断 (\d+)；视觉 (\d+)\/(\d+)\/(\d+)；章节 ([^；\r\n]+)；成果 ([A-Za-z0-9._-]+|none)；主模型 ("(?:\\.|[^"\\])*")；视觉模型 ("(?:\\.|[^"\\])*")(?:；场地边界 ("(?:\\.|[^"\\])*")(?:（来源 ("(?:\\.|[^"\\])*")）)?；下一步 ("(?:\\.|[^"\\])*"))?。(?:$|\n)/u
+const BLOCKERS_PATTERN = /(?:^|\n)前期策划阻断详情：(\[[^\r\n]*\])。(?:$|\n)/u
 const PRESENTATION_PATTERN = /(?:^|\n)前期策划 Presentation：(\{[^\r\n]*\})。(?:$|\n)/u
 
 function parseChapters(text: string): PreplanningChapterStatus[] | undefined {
@@ -206,6 +222,35 @@ function parseBoundary(
   if (label === '场地边界已正式确认') return { kind: 'confirmed_formal_boundary', label, source, nextAction }
   if (label === '模拟研究范围（不可正式确认）') return { kind: 'synthetic_research', label, source, nextAction }
   return undefined
+}
+
+function normalizedBlockers(value: unknown): PreplanningBlockerStatus[] | undefined {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) return undefined
+  const blockers: PreplanningBlockerStatus[] = []
+  for (const candidate of value) {
+    if (candidate === null || typeof candidate !== 'object' || Array.isArray(candidate)) return undefined
+    const record = candidate as Record<string, unknown>
+    if (typeof record.workflowId !== 'string' || record.workflowId.trim() === ''
+      || typeof record.workItemId !== 'string' || record.workItemId.trim() === ''
+      || typeof record.reason !== 'string' || record.reason.trim() === '') return undefined
+    blockers.push({
+      workflowId: record.workflowId,
+      workItemId: record.workItemId,
+      reason: record.reason,
+    })
+  }
+  return blockers
+}
+
+function blockersFromText(text: string): PreplanningBlockerStatus[] | undefined {
+  const match = BLOCKERS_PATTERN.exec(text)
+  if (match === null) return []
+  try {
+    return normalizedBlockers(JSON.parse(match[1]!))
+  } catch {
+    return undefined
+  }
 }
 
 function normalizedBoundary(value: unknown, revision: number): PreplanningBoundaryStatus {
@@ -272,6 +317,8 @@ export function parsePreplanningStatus(text: string): PreplanningStatusEventData
   const pendingProposalCount = Number(pendingText)
   const openQuestionCount = Number(openText)
   if (![revision, pendingProposalCount, openQuestionCount].every(Number.isSafeInteger)) return undefined
+  const blockers = blockersFromText(text)
+  if (blockers === undefined) return undefined
   const presentation = presentationFromText(text)
   const base = {
     projectId,
@@ -284,12 +331,13 @@ export function parsePreplanningStatus(text: string): PreplanningStatusEventData
     pendingProposalCount,
     ...(encodedProposalId === undefined ? {} : { pendingProposalId: JSON.parse(encodedProposalId) as string }),
     openQuestionCount,
+    blockers,
     ...(presentation === undefined ? {} : { presentation }),
   }
   const detail = DETAIL_PATTERN.exec(text)
   if (detail === null) return {
     ...base,
-    mode: 'manual', reportDepth: 'standard', chapters: defaultChapters(), blocked: 0,
+    mode: 'manual', reportDepth: 'standard', chapters: defaultChapters(), blocked: blockers.length,
     visual: { candidates: 0, adopted: 0, blocked: 0 },
     boundary: defaultBoundary(revision),
     modelRoute: { primary: PRIMARY_MODEL_ROUTE, visual: VISUAL_MODEL_ROUTE },
@@ -321,19 +369,22 @@ export function normalizePreplanningStatus(value: unknown): PreplanningStatusEve
     || (record.status !== 'active' && record.status !== 'attention_required' && record.status !== 'pending_review')
     || typeof record.pendingProposalCount !== 'number' || !Number.isSafeInteger(record.pendingProposalCount)
     || typeof record.openQuestionCount !== 'number' || !Number.isSafeInteger(record.openQuestionCount)) return undefined
+  const blockers = normalizedBlockers(record.blockers)
+  if (blockers === undefined) return undefined
   const presentation = normalizedPresentation(record.presentation)
   if (record.presentation !== undefined && presentation === undefined) return undefined
-  const base = record as unknown as Omit<PreplanningStatusEventData, 'mode' | 'reportDepth' | 'chapters' | 'blocked' | 'visual' | 'modelRoute' | 'boundary' | 'presentation'>
+  const base = record as unknown as Omit<PreplanningStatusEventData, 'mode' | 'reportDepth' | 'chapters' | 'blocked' | 'blockers' | 'visual' | 'modelRoute' | 'boundary' | 'presentation'>
   const rich = record.mode === 'manual' || record.mode === 'automatic'
   if (!rich) return {
-    ...base, mode: 'manual', reportDepth: 'standard', chapters: defaultChapters(), blocked: 0,
+    ...base, mode: 'manual', reportDepth: 'standard', chapters: defaultChapters(), blocked: blockers.length, blockers,
     visual: { candidates: 0, adopted: 0, blocked: 0 },
     boundary: defaultBoundary(record.revision),
     modelRoute: { primary: PRIMARY_MODEL_ROUTE, visual: VISUAL_MODEL_ROUTE },
     ...(presentation === undefined ? {} : { presentation }),
   }
   return {
-    ...(value as Omit<PreplanningStatusEventData, 'boundary' | 'presentation'>),
+    ...(value as Omit<PreplanningStatusEventData, 'blockers' | 'boundary' | 'presentation'>),
+    blockers,
     boundary: normalizedBoundary(record.boundary, record.revision),
     ...(presentation === undefined ? {} : { presentation }),
   }
