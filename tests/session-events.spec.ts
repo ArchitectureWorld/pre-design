@@ -72,6 +72,43 @@ describe('preplanning status snapshot', () => {
     expect(parsePreplanningStatus(formatted)).toEqual(status)
   })
 
+  it('将 automatic 阻断原因投影为可回放的状态详情', () => {
+    const context = {
+      project: { projectId: 'project-blocked', name: '受阻项目', currentRevision: 6, currentStage: '02-01' },
+      proposals: [], questions: [],
+    } as never
+    const status = buildPreplanningStatus(context, {
+      governance: { readProject: () => ({
+        policy: { mode: 'automatic', reportDepth: 'standard' },
+        gateDecisions: [], visualAssets: [], visualTasks: [], siteBoundaries: [], reportPackages: [],
+      }) } as never,
+      runtime: { snapshot: () => ({
+        blocked: [{
+          workflowId: 'preplan.wf.02.01',
+          workItemId: '02-01',
+          blockedReason: '缺少正式总平图，无法核验规划控制条件',
+        }],
+        chapters: Array.from({ length: 8 }, (_, index) => ({
+          chapterId: String(index + 1).padStart(2, '0'), completed: 0,
+          total: [7, 8, 6, 6, 7, 7, 8, 8][index]!,
+        })),
+      }) } as never,
+    })
+
+    expect(status).toMatchObject({
+      blocked: 1,
+      blockers: [{
+        workflowId: 'preplan.wf.02.01',
+        workItemId: '02-01',
+        reason: '缺少正式总平图，无法核验规划控制条件',
+      }],
+    })
+    const formatted = formatPreplanningStatus(status)
+    expect(formatted).toContain('前期策划阻断详情：')
+    expect(formatted).toContain('缺少正式总平图')
+    expect(parsePreplanningStatus(formatted)).toEqual(status)
+  })
+
   it('投影模式、57 项章节、视觉与最新三格式报告并保持文本可回放', () => {
     const context = {
       project: { projectId: 'project-1', name: '全流程项目', currentRevision: 57, currentStage: '08-08' },
