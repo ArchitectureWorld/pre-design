@@ -1,3 +1,4 @@
+import type { ResearchSelector } from './selector.ts'
 import type {
   DataSourceDefinition,
   EvidenceRecord,
@@ -13,6 +14,8 @@ export interface ResearchRequest {
   readonly dataPointId: string
   /** Workspace path, Project State locator, URL, API URL, or provider-specific locator. */
   readonly locator: string
+  /** Optional exact fragment selector. Providers must record it in EvidenceRecord.locator. */
+  readonly selector?: ResearchSelector
   /** Required for web_search so the router can enforce the source whitelist. */
   readonly domain?: string
   readonly query?: string
@@ -30,6 +33,7 @@ export interface ResearchProvider {
   queryApi?(source: DataSourceDefinition, request: ResearchRequest, signal?: AbortSignal): Promise<ResearchProviderResult>
   readProjectState?(source: DataSourceDefinition, request: ResearchRequest, signal?: AbortSignal): Promise<ResearchProviderResult>
   readSessionContext?(source: DataSourceDefinition, request: ResearchRequest, signal?: AbortSignal): Promise<ResearchProviderResult>
+  readModelOutput?(source: DataSourceDefinition, request: ResearchRequest, signal?: AbortSignal): Promise<ResearchProviderResult>
   runProfessionalTool?(source: DataSourceDefinition, request: ResearchRequest, signal?: AbortSignal): Promise<ResearchProviderResult>
 }
 
@@ -37,7 +41,7 @@ function normalizedDomain(value: string): string {
   return value.normalize('NFC').trim().toLowerCase().replace(/^\.+|\.+$/gu, '')
 }
 
-function domainAllowed(host: string, allowedDomains: readonly string[]): boolean {
+export function researchDomainAllowed(host: string, allowedDomains: readonly string[]): boolean {
   const normalizedHost = normalizedDomain(host)
   return allowedDomains.some((domain) => {
     const normalized = normalizedDomain(domain)
@@ -72,7 +76,7 @@ export function validateResearchRequest(
     const host = urlHost(locator)
     if (host === undefined) {
       errors.push(`${request.mode} locator must be an absolute URL`)
-    } else if (source.allowedDomains.length === 0 || !domainAllowed(host, source.allowedDomains)) {
+    } else if (source.allowedDomains.length === 0 || !researchDomainAllowed(host, source.allowedDomains)) {
       errors.push(`locator host '${host}' is outside the allowed domain list for source '${source.sourceId}'`)
     }
   }
@@ -81,7 +85,7 @@ export function validateResearchRequest(
     const domain = request.domain === undefined ? '' : normalizedDomain(request.domain)
     if (domain === '') {
       errors.push(`web_search for source '${source.sourceId}' requires an explicit allowed domain`)
-    } else if (!domainAllowed(domain, source.allowedDomains)) {
+    } else if (!researchDomainAllowed(domain, source.allowedDomains)) {
       errors.push(`search domain '${domain}' is outside the allowed domain list for source '${source.sourceId}'`)
     }
   }
