@@ -110,4 +110,37 @@ describe('Preplanning full-flow UI', () => {
     expect(view.getByRole('link', { name: '下载 PDF' })).toBeTruthy()
     expect(view.getByRole('link', { name: '浏览 HTML' })).toBeTruthy()
   })
+
+  it('automatic 流程受阻时直接列出工作项与原因，不退回人工审批', () => {
+    const view = render(<PreplanningDashboard status={{
+      projectId: 'project-blocked', projectName: '受阻项目', revision: 6, stage: '02-01',
+      status: 'active', pendingProposalCount: 0, openQuestionCount: 0,
+      mode: 'automatic', reportDepth: 'standard', blocked: 2,
+      blockers: [
+        { workflowId: 'preplan.wf.02.01', workItemId: '02-01', reason: '缺少正式总平图，无法核验规划控制条件' },
+        { workflowId: 'preplan.wf.02.03', workItemId: '02-03', reason: '两个A级来源的容积率控制值存在冲突' },
+      ],
+      chapters: Array.from({ length: 8 }, (_, index) => ({
+        id: String(index + 1).padStart(2, '0'), completed: 0,
+        total: [7, 8, 6, 6, 7, 7, 8, 8][index]!, gateStatus: 'pending',
+      })),
+      visual: { candidates: 0, adopted: 0, blocked: 0 },
+      boundary: {
+        kind: 'not_provided',
+        label: '尚未提供场地边界',
+        nextAction: '请提供总平图、红线图或闭合红线坐标。',
+      },
+      modelRoute: {
+        primary: '当前 DSH Session 所选模型',
+        visual: 'antigravity / gemini-3.1-flash-image',
+      },
+    }} />)
+
+    expect(view.getByRole('region', { name: '自动流程阻断详情' })).toBeTruthy()
+    expect(view.getByText(/02-01/)).toBeTruthy()
+    expect(view.getByText(/缺少正式总平图/)).toBeTruthy()
+    expect(view.getByText(/02-03/)).toBeTruthy()
+    expect(view.getByText(/容积率控制值存在冲突/)).toBeTruthy()
+    expect(view.queryByText(/人工审批|人工确认/u)).toBeNull()
+  })
 })
