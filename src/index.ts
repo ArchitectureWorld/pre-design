@@ -18,6 +18,7 @@ import { adoptedPresentationAssets, registerPresentationRuntime } from './presen
 import { PresentationStandardProjectService } from './presentation/standard-project-service.ts'
 import { PREPLANNING_SYSTEM_PROMPT } from './prompts/preplanning-system.ts'
 import { ProposalGateway } from './proposals/gateway.ts'
+import { ResearchRegistry } from './research/registry.ts'
 import { resolveBrowserExecutable } from './report/browser-executable.ts'
 import { registerReportDownloadRoute, type ReportDownloadRegistrar } from './report/download-route.ts'
 import { ReportPackageService } from './report/package-service.ts'
@@ -31,6 +32,7 @@ import { ParallelWorkflowExecutor } from './runtime/parallel-workflow-executor.t
 import { QuestionService } from './runtime/question-service.ts'
 import { RevisionService } from './runtime/revision-service.ts'
 import { DshSubagentWorkflowAnalyzer } from './runtime/subagent-workflow-analyzer.ts'
+import { WorkflowResearchRuntime } from './runtime/workflow-research-runtime.ts'
 import { WorkflowRuntime } from './runtime/workflow-runtime.ts'
 import { ProjectRepository } from './state/repository.ts'
 import { registerPreplanningTools } from './tools/register.ts'
@@ -54,6 +56,8 @@ interface PreplanningHost {
   readonly presentationProjectRoot: string
   readonly gateway: ProposalGateway
   readonly registry: ContractRegistry
+  readonly researchRegistry: ResearchRegistry
+  readonly workflowResearch: WorkflowResearchRuntime
   readonly runtime: WorkflowRuntime
   readonly automation: AutomationService
   readonly gates: GateService
@@ -84,6 +88,8 @@ export const Config: z<ConfigShape> = z.object({})
 export async function apply(ctx: Context): Promise<void> {
   const now = () => new Date().toISOString()
   const registry = await ContractRegistry.open(new URL('../contracts/v0.6/', import.meta.url))
+  const researchRegistry = await ResearchRegistry.open(new URL('../research/v2.0.1/', import.meta.url))
+  const workflowResearch = new WorkflowResearchRuntime(researchRegistry)
   const repository = await ProjectRepository.open(ctx.storage.domain)
   const governance = await GovernanceRepository.open(ctx.storage.domain)
   const presentationBindings = await PresentationBindingRepository.open(ctx.storage.domain)
@@ -159,6 +165,7 @@ export async function apply(ctx: Context): Promise<void> {
     subagents: ctx.subagents,
     repository,
     registry,
+    researchRegistry,
   })
   const workflowCommitter = new AutomationWorkflowCommitter({
     repository,
@@ -180,6 +187,7 @@ export async function apply(ctx: Context): Promise<void> {
           record.authorizationId === authorizationId && record.status === 'active')
     },
     analyzer: workflowAnalyzer,
+    research: workflowResearch,
     committer: workflowCommitter,
     gateApprover,
     presentationSync,
@@ -265,6 +273,8 @@ export async function apply(ctx: Context): Promise<void> {
     presentationProjectRoot,
     gateway,
     registry,
+    researchRegistry,
+    workflowResearch,
     runtime,
     automation,
     gates,
