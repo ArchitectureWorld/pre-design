@@ -35,6 +35,11 @@ function defaultWorkspaceRootOf(parent: unknown): string | undefined {
   return typeof cwd === 'string' && cwd.trim() !== '' ? cwd.trim() : undefined
 }
 
+function assertNotAborted(signal?: AbortSignal): void {
+  if (!signal?.aborted) return
+  throw signal.reason ?? new DOMException('The operation was aborted', 'AbortError')
+}
+
 function normalizedKey(value: string): string {
   return value.normalize('NFKC').trim().toLowerCase().replace(/[\s_-]+/gu, '')
 }
@@ -84,16 +89,18 @@ async function discoverJsonFiles(
   options: { readonly maxFiles: number; readonly maxDepth: number; readonly maxFileBytes: number },
   signal?: AbortSignal,
 ): Promise<readonly DiscoveredJsonFile[]> {
+  assertNotAborted(signal)
   const canonicalRoot = await realpath(root)
   const found: DiscoveredJsonFile[] = []
 
   async function walk(directory: string, depth: number): Promise<void> {
-    if (signal?.aborted === true || found.length >= options.maxFiles || depth > options.maxDepth) return
+    assertNotAborted(signal)
+    if (found.length >= options.maxFiles || depth > options.maxDepth) return
     const rows = await readdir(directory, { withFileTypes: true })
     rows.sort((left, right) => left.name.localeCompare(right.name))
     for (const row of rows) {
       if (found.length >= options.maxFiles) break
-      if (signal?.aborted === true) throw signal.reason ?? new DOMException('The operation was aborted', 'AbortError')
+      assertNotAborted(signal)
       const requested = resolve(directory, row.name)
       if (row.isDirectory()) {
         if (!SKIP_DIRECTORIES.has(row.name) && depth < options.maxDepth) await walk(requested, depth + 1)
@@ -218,6 +225,7 @@ export class WorkflowResearchRuntime {
   }
 
   async collect(parent: unknown, workflowId: string, signal?: AbortSignal): Promise<ResearchExecutionResult> {
+    assertNotAborted(signal)
     const root = this.workspaceRootOf(parent)
     const context = this.projectContextOf?.(parent)
     const acquisitions: ResearchAcquisition[] = []
