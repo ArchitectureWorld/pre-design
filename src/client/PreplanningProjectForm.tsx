@@ -18,7 +18,7 @@ type SubmitState = 'idle' | 'running' | 'success'
 type OpenState = 'idle' | 'running' | 'success'
 
 function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : '前期策划启动失败，请重试。'
+  return error instanceof Error ? error.message : '前期策划项目创建失败，请重试。'
 }
 
 export function PreplanningProjectForm({
@@ -31,9 +31,6 @@ export function PreplanningProjectForm({
   const [statement, setStatement] = useState(initialDraft.statement)
   const [projectName, setProjectName] = useState(initialDraft.projectName)
   const [nameEdited, setNameEdited] = useState(initialDraft.nameEdited)
-  const [mode, setMode] = useState<NonNullable<DirectStartInput['mode']>>(initialDraft.mode)
-  const [reportDepth, setReportDepth] = useState<NonNullable<DirectStartInput['reportDepth']>>(initialDraft.reportDepth)
-  const [visualBudget, setVisualBudget] = useState(initialDraft.visualBudget)
   const [submitState, setSubmitState] = useState<SubmitState>('idle')
   const [openState, setOpenState] = useState<OpenState>('idle')
   const [error, setError] = useState<string>()
@@ -41,15 +38,8 @@ export function PreplanningProjectForm({
 
   useEffect(() => {
     if (submitState === 'success') return
-    saveWorkspaceDraft(workspacePath, {
-      statement,
-      projectName,
-      nameEdited,
-      mode,
-      reportDepth,
-      visualBudget,
-    })
-  }, [workspacePath, statement, projectName, nameEdited, mode, reportDepth, visualBudget, submitState])
+    saveWorkspaceDraft(workspacePath, { statement, projectName, nameEdited })
+  }, [workspacePath, statement, projectName, nameEdited, submitState])
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -61,14 +51,10 @@ export function PreplanningProjectForm({
     const normalizedStatement = statement.trim()
     if (normalizedStatement.length === 0) { setError('请输入一句话项目描述。'); return }
     if (normalizedName.length === 0) { setError('未能识别项目名称，请补充项目名称。'); return }
-    if (!Number.isInteger(visualBudget) || visualBudget < 0 || visualBudget > 20) {
-      setError('概念图预算上限必须是 0 至 20 的整数。')
-      return
-    }
     setError(undefined)
     setSubmitState('running')
     try {
-      await start({ projectName: normalizedName, statement: normalizedStatement, mode, reportDepth, visualBudget })
+      await start({ projectName: normalizedName, statement: normalizedStatement })
       clearWorkspaceDraft(workspacePath)
       setSubmitState('success')
     } catch (cause) {
@@ -163,7 +149,7 @@ export function PreplanningProjectForm({
             setStatement(next)
             if (!nameEdited) setProjectName(deriveProjectName(next))
           }}
-          placeholder="例如：新建滨江文化活力区并完成全流程前期策划"
+          placeholder="例如：对沙潭河这个项目进行一个前期策划"
           rows={3}
           style={{ ...controlStyle, resize: 'vertical' }}
           value={statement}
@@ -179,32 +165,10 @@ export function PreplanningProjectForm({
           value={projectName}
         />
       </label>
-      <fieldset disabled={disabled} style={{ border: 0, display: 'grid', gap: 6, margin: 0, padding: 0 }}>
-        <legend style={{ fontSize: 12, fontWeight: 600 }}>确认方式</legend>
-        <label><input checked={mode === 'manual'} name="mode" onChange={() => setMode('manual')} type="radio" /> 人工确认</label>
-        <label><input checked={mode === 'automatic'} name="mode" onChange={() => setMode('automatic')} type="radio" /> 全自动完成</label>
-      </fieldset>
-      <fieldset disabled={disabled} style={{ border: 0, display: 'flex', gap: 18, margin: 0, padding: 0 }}>
-        <legend style={{ fontSize: 12, fontWeight: 600 }}>报告深度</legend>
-        <label><input checked={reportDepth === 'standard'} name="depth" onChange={() => setReportDepth('standard')} type="radio" /> 标准汇报</label>
-        <label><input checked={reportDepth === 'extended'} name="depth" onChange={() => setReportDepth('extended')} type="radio" /> 扩展汇报</label>
-      </fieldset>
-      <label style={fieldStyle}>
-        概念图预算上限（0–20）
-        <input
-          aria-label="概念图预算上限"
-          disabled={disabled}
-          max={20} min={0} onChange={event => setVisualBudget(event.target.valueAsNumber)}
-          style={controlStyle} type="number" value={visualBudget}
-        />
-      </label>
-      <small style={{ opacity: 0.68 }}>
-        概念图固定由项目级视觉子 Agent 调用 antigravity / gemini-3.1-flash-image；失败不会替换模型。
-      </small>
       {error !== undefined && !workspaceMissing && <div role="alert" style={{ color: '#c33', fontSize: 12 }}>{error}</div>}
       {submitState === 'success' && (
         <div role="status" style={{ color: '#24844b', fontSize: 12 }}>
-          项目与 Presentation 标准目录已创建，前期策划全流程已经启动。
+          项目已创建或恢复，系统将自动推进前期策划。
         </div>
       )}
       <button
@@ -216,7 +180,7 @@ export function PreplanningProjectForm({
         }}
         type="submit"
       >
-        {submitState === 'running' ? '正在启动…' : '创建或继续全流程'}
+        {submitState === 'running' ? '正在创建…' : '创建项目'}
       </button>
       {!workspaceMissing && openProjectFolder !== undefined && (
         <button
