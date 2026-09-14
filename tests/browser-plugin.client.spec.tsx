@@ -161,4 +161,20 @@ describe('preplanning Browser plugin', () => {
     expect(view.queryByText(/人工确认/)).toBeNull()
     expect(view.queryByRole('button', { name: '人工确认提案' })).toBeNull()
   })
+
+  it('自动模式出现 workflow block 时明确展示受阻，而不是仍显示自动推进中', () => {
+    const view = render(<PreplanningStatusCard {...({
+      node: { data: {
+        projectId: 'project-1', projectName: '受阻项目', revision: 4, stage: '03-02',
+        status: 'active', pendingProposalCount: 0, openQuestionCount: 0, time: 1,
+        ...fullStatus,
+        blocked: 2,
+      } },
+    } as unknown as ComponentProps<typeof PreplanningStatusCard>)} />)
+
+    expect(view.getByText(/自动推进受阻/)).toBeTruthy()
+    expect(view.queryByText(/自动推进中/)).toBeNull()
+    expect(view.getByText(/阻断 2/)).toBeTruthy()
+    expect(view.queryByText(/人工确认/)).toBeNull()
+  })
 })
