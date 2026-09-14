@@ -2,9 +2,6 @@ export interface PreplanningWorkspaceDraft {
   readonly statement: string
   readonly projectName: string
   readonly nameEdited: boolean
-  readonly mode: 'manual' | 'automatic'
-  readonly reportDepth: 'standard' | 'extended'
-  readonly visualBudget: number
 }
 
 const STORAGE_PREFIX = 'pre-design:v2:workspace-draft:'
@@ -12,9 +9,6 @@ const DEFAULT_DRAFT: PreplanningWorkspaceDraft = Object.freeze({
   statement: '',
   projectName: '',
   nameEdited: false,
-  mode: 'manual',
-  reportDepth: 'standard',
-  visualBudget: 8,
 })
 
 function storage(): Storage | undefined {
@@ -40,12 +34,14 @@ function validDraft(value: unknown): value is PreplanningWorkspaceDraft {
   return typeof row.statement === 'string'
     && typeof row.projectName === 'string'
     && typeof row.nameEdited === 'boolean'
-    && (row.mode === 'manual' || row.mode === 'automatic')
-    && (row.reportDepth === 'standard' || row.reportDepth === 'extended')
-    && typeof row.visualBudget === 'number'
-    && Number.isInteger(row.visualBudget)
-    && row.visualBudget >= 0
-    && row.visualBudget <= 20
+}
+
+function currentDraft(value: PreplanningWorkspaceDraft): PreplanningWorkspaceDraft {
+  return {
+    statement: value.statement,
+    projectName: value.projectName,
+    nameEdited: value.nameEdited,
+  }
 }
 
 export function emptyWorkspaceDraft(): PreplanningWorkspaceDraft {
@@ -67,7 +63,9 @@ export function loadWorkspaceDraft(
       target.removeItem(workspaceKey(workspacePath))
       return emptyWorkspaceDraft()
     }
-    return { ...parsed }
+    // Older V2 drafts may still contain mode/report/visual fields. They are intentionally
+    // ignored so project creation remains independent from execution-policy settings.
+    return currentDraft(parsed)
   } catch {
     return emptyWorkspaceDraft()
   }
@@ -81,7 +79,7 @@ export function saveWorkspaceDraft(
   if (target === undefined || workspacePath === undefined || workspacePath.trim() === '') return
   if (!validDraft(draft)) return
   try {
-    target.setItem(workspaceKey(workspacePath), JSON.stringify(draft))
+    target.setItem(workspaceKey(workspacePath), JSON.stringify(currentDraft(draft)))
   } catch {
     // Browser storage can be disabled or full; the form remains usable in memory.
   }
