@@ -70,11 +70,11 @@ describe('Preplanning full-flow UI', () => {
     expect(view.getByText('项目已创建或恢复，系统将自动推进前期策划。')).toBeTruthy()
   })
 
-  it('先证明插件运行，再展示 8 章 57 项、模型路由和三格式成果', () => {
+  it('先证明插件运行，再展示 automatic-first 状态、8 章 57 项、模型路由和三格式成果', () => {
     const view = render(<PreplanningDashboard status={{
       projectId: 'project-1', projectName: '滨江文化活力区', revision: 57, stage: '08-08',
       status: 'active', pendingProposalCount: 0, openQuestionCount: 0,
-      mode: 'manual', reportDepth: 'extended', blocked: 0,
+      mode: 'automatic', reportDepth: 'extended', blocked: 0,
       chapters: Array.from({ length: 8 }, (_, index) => ({
         id: String(index + 1).padStart(2, '0'), completed: index === 7 ? 8 : 7,
         total: index === 7 ? 8 : 7, gateStatus: 'approved',
@@ -100,7 +100,8 @@ describe('Preplanning full-flow UI', () => {
 
     expect(view.getByText(/插件正常运行/u)).toBeTruthy()
     expect(view.getByText('8 章 · 57 项')).toBeTruthy()
-    expect(view.getByText(/人工确认/u)).toBeTruthy()
+    expect(view.getByText(/自动推进/u)).toBeTruthy()
+    expect(view.queryByText(/人工确认/u)).toBeNull()
     expect(view.getByText(/antigravity \/ gemini-3\.1-flash-image/u)).toBeTruthy()
     expect(view.getByText('模拟研究范围（不可正式确认）')).toBeTruthy()
     expect(view.getByText('请提供真实总平图、红线图或带 CRS 的闭合几何')).toBeTruthy()
