@@ -163,8 +163,9 @@ export function buildPreplanningStatus(
 }
 
 export function formatPreplanningStatus(status: PreplanningStatusEventData): string {
-  const proposal = status.pendingProposalId === undefined ? '' : `，待确认提案 ${JSON.stringify(status.pendingProposalId)}`
-  const base = `前期策划状态：项目 ${JSON.stringify(status.projectName)}（${status.projectId}），revision ${status.revision}，阶段 ${status.stage}，待确认 ${status.pendingProposalCount} 项，开放问题 ${status.openQuestionCount} 项${proposal}。`
+  const pendingLabel = status.mode === 'automatic' ? '自动处理' : '待确认'
+  const proposal = status.pendingProposalId === undefined ? '' : `，${pendingLabel}提案 ${JSON.stringify(status.pendingProposalId)}`
+  const base = `前期策划状态：项目 ${JSON.stringify(status.projectName)}（${status.projectId}），revision ${status.revision}，阶段 ${status.stage}，${pendingLabel} ${status.pendingProposalCount} 项，开放问题 ${status.openQuestionCount} 项${proposal}。`
   const chapters = status.chapters
     .map(chapter => `${chapter.id}=${chapter.completed}/${chapter.total}/${chapter.gateStatus}`)
     .join(',')
@@ -177,7 +178,7 @@ export function formatPreplanningStatus(status: PreplanningStatusEventData): str
   return `${base}\n${detail}${presentation}`
 }
 
-const STATUS_PATTERN = /(?:^|\n)前期策划状态：项目 ("(?:\\.|[^"\\])*")（([^）\r\n]+)），revision (\d+)，阶段 ([^，\r\n]+)，待确认 (\d+) 项，开放问题 (\d+) 项(?:，待确认提案 ("(?:\\.|[^"\\])*"))?。(?:$|\n)/u
+const STATUS_PATTERN = /(?:^|\n)前期策划状态：项目 ("(?:\\.|[^"\\])*")（([^）\r\n]+)），revision (\d+)，阶段 ([^，\r\n]+)，(?:待确认|自动处理) (\d+) 项，开放问题 (\d+) 项(?:，(?:待确认|自动处理)提案 ("(?:\\.|[^"\\])*"))?。(?:$|\n)/u
 const DETAIL_PATTERN = /(?:^|\n)前期策划全流程：模式 (manual|automatic)；报告 (standard|extended)；阻断 (\d+)；视觉 (\d+)\/(\d+)\/(\d+)；章节 ([^；\r\n]+)；成果 ([A-Za-z0-9._-]+|none)；主模型 ("(?:\\.|[^"\\])*")；视觉模型 ("(?:\\.|[^"\\])*")(?:；场地边界 ("(?:\\.|[^"\\])*")(?:（来源 ("(?:\\.|[^"\\])*")）)?；下一步 ("(?:\\.|[^"\\])*"))?。(?:$|\n)/u
 const PRESENTATION_PATTERN = /(?:^|\n)前期策划 Presentation：(\{[^\r\n]*\})。(?:$|\n)/u
 
