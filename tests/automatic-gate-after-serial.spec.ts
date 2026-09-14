@@ -3,6 +3,21 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { describe, expect, it, vi } from 'vitest'
 import { registerPreplanningTools } from '../src/tools/register.ts'
 
+const autoPassQuality = {
+  workflowId: 'preplan.wf.08.08',
+  targetObjectId: 'IM08',
+  disposition: 'auto_pass' as const,
+  score: 0.98,
+  completionCoverage: 1,
+  evidenceCoverage: 1,
+  confidence: 0.98,
+  attempt: 1,
+  maxAttempts: 3,
+  reasons: [],
+  blockers: [],
+  assumptions: [],
+}
+
 function envelope() {
   return {
     proposal_id: 'proposal-serial-gate',
@@ -16,8 +31,8 @@ function envelope() {
     change_set: { operation: 'create', payload: {}, semantic_paths: ['/data'] },
     evidence_refs: [],
     assumptions: [],
-    validation_intent: 'human_review',
-    requested_state: 'pending_review',
+    validation_intent: 'provisional_commit',
+    requested_state: 'confirmed',
     idempotency_key: 'serial-final-workflow-gate',
   }
 }
@@ -28,6 +43,10 @@ describe('serial automatic workflow completion', () => {
     const approveReady = vi.fn(async () => 1)
     const request = vi.fn()
     const transition = vi.fn(async () => undefined)
+    const commitProposal = vi.fn(async () => ({
+      projectId: 'project-1', proposalId: 'proposal-serial-gate', revision: 57,
+      replayed: false, status: 'confirmed',
+    }))
     const ctx = {
       tools: { register: (definition: ToolDefinition) => { definitions.push(definition); return () => undefined } },
     } as unknown as Context
@@ -44,10 +63,7 @@ describe('serial automatic workflow completion', () => {
         submitProposal: vi.fn(async () => ({
           proposalId: 'proposal-serial-gate', projectId: 'project-1', expectedRevision: 56, status: 'pending_review',
         })),
-        commitProposal: vi.fn(async () => ({
-          projectId: 'project-1', proposalId: 'proposal-serial-gate', revision: 57,
-          replayed: false, status: 'confirmed',
-        })),
+        commitProposal,
       },
       governance: {
         readProject: vi.fn(() => ({
@@ -60,7 +76,7 @@ describe('serial automatic workflow completion', () => {
         snapshot: vi.fn(() => ({
           chapters: [{ chapterId: '08', total: 8, completed: 8, ready: 0, running: 0, blocked: 0, pendingReview: 0 }],
           blocked: [],
-          runs: [{ workflowId: 'preplan.wf.08.08', status: 'running' }],
+          runs: [{ workflowId: 'preplan.wf.08.08', status: 'running', quality: autoPassQuality }],
         })),
         transition,
       },
@@ -77,6 +93,12 @@ describe('serial automatic workflow completion', () => {
       agent: { id: 'session-1', session: { header: { cwd: 'D:\\沙潭河' } } },
     } as never)
 
+    expect(commitProposal).toHaveBeenCalledWith('proposal-serial-gate', {
+      source: 'automation_authorization',
+      authorizationId: 'authorization-1',
+      quality: autoPassQuality,
+      actor: { actorId: 'preplanning-automation', name: '前期策划自动化服务', role: 'system_service' },
+    }, 'session-1')
     expect(transition).toHaveBeenCalledWith('project-1', 'preplan.wf.08.08', {
       to: 'confirmed', proposalId: 'proposal-serial-gate', revision: 57,
     })
