@@ -1,21 +1,31 @@
+import { createHash } from 'node:crypto'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { SubagentRuntime } from '@deepseek-ai/dsh-subagent'
 import type { ObjectJsonSchema } from '@deepseek-ai/dsh-tools'
 import type { ContractRegistry } from '../contracts/registry.ts'
 import type { WorkflowDescriptor } from '../contracts/types.ts'
+import type { ResearchExecutionResult } from '../research/execution-service.ts'
+import type { ResearchRegistry } from '../research/registry.ts'
+import type { AnalysisTrace, EvidenceRecord } from '../research/types.ts'
 import type { ProjectRepository } from '../state/repository.ts'
 import type { WorkflowQualityEvidence, WorkflowQualityReport } from './workflow-quality.ts'
 
 export interface WorkflowAnalysisCandidate {
   readonly payload: Readonly<Record<string, unknown>>
-  /** Analyzer-produced evidence is required by the automatic executor; optional keeps legacy/manual callers source-compatible. */
+  /** Analyzer-produced quality evidence is centrally evaluated and cannot approve itself. */
   readonly qualityEvidence?: WorkflowQualityEvidence
+  /** Independently acquired and validated Research evidence used for this candidate. */
+  readonly researchEvidence?: readonly EvidenceRecord[]
+  readonly researchValidation?: ResearchExecutionResult['validation']
+  /** Persisted after successful automatic commit as a project audit event. */
+  readonly analysisTrace?: AnalysisTrace
 }
 
 interface DshSubagentWorkflowAnalyzerDependencies {
   readonly subagents: Pick<SubagentRuntime, 'getProvider' | 'start'>
   readonly repository: Pick<ProjectRepository, 'readContext'>
   readonly registry: Pick<ContractRegistry, 'stateSchema' | 'stateExample'>
+  readonly researchRegistry?: Pick<ResearchRegistry, 'workflow' | 'validateAnalysisTrace'>
   readonly timeoutMs?: number
 }
 
@@ -64,6 +74,7 @@ const ANALYST_PERSONA = [
   '你是前期策划专业工作项分析子 Agent。',
   '你只分析一个已经满足上游依赖的工作项，并返回符合目标 Schema 的候选 State Object。',
   '你必须逐条核对 Contract 的完成条件与证据规则，并返回结构化 qualityEvidence；不能只做 Schema 填充。',
+  'Research 证据由中央 Runtime 独立采集和校验；你只能使用实际提供给你的 Research Evidence，不得声称未提供的数据已经查到。',
   '禁止调用工具，禁止写入 Project State，禁止确认 Gate，禁止修改 Presentation 文件。',
   'Contract 中列出的原子工具是专业方法依赖提示；当前没有工具权限时，不得伪装已经执行，缺少必要工具结果必须显式记录 blocker 或 gap。',
   '资料不足时必须使用目标 Schema 允许的 unknown、空数组、低置信度和明确限制，不得捏造事实、评分、比例、排名、趋势或金额。',
@@ -91,6 +102,87 @@ function qualityEvidenceOf(value: unknown, workflowId: string): WorkflowQualityE
   return structuredClone(record) as unknown as WorkflowQualityEvidence
 }
 
+function promptValue(value: unknown): unknown {
+  if (typeof value === 'string') return value.length <= 4_000 ? value : `${value.slice(0, 4_000)}…[truncated]`
+  try {
+    const encoded = JSON.stringify(value)
+    if (encoded.length <= 8_000) return value
+    return `${encoded.slice(0, 8_000)}…[truncated]`
+  } catch {
+    return '[unserializable evidence value]'
+  }
+}
+
+function researchPromptSnapshot(research?: ResearchExecutionResult): unknown {
+  if (research === undefined) return { status: 'not_attached' }
+  return {
+    validation: research.validation,
+    records: research.records.map(record => ({
+      evidenceId: record.evidenceId,
+      dataPointId: record.dataPointId,
+      sourceId: record.sourceId,
+      sourceType: record.sourceType,
+      sourceUri: record.sourceUri,
+      sourceTitle: record.sourceTitle,
+      publisher: record.publisher,
+      capturedAt: record.capturedAt,
+      asOf: record.asOf,
+      locator: record.locator,
+      normalizedValue: promptValue(record.normalizedValue),
+      unit: record.unit,
+      reliability: record.reliability,
+      claimClass: record.claimClass,
+    })),
+  }
+}
+
+function traceHash(value: unknown): string {
+  return createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0, 24)
+}
+
+function analysisTraceFor(
+  descriptor: WorkflowDescriptor,
+  payload: Readonly<Record<string, unknown>>,
+  quality: WorkflowQualityEvidence,
+  upstream: readonly { readonly objectId: string }[],
+  research: ResearchExecutionResult,
+  researchRegistry: Pick<ResearchRegistry, 'workflow' | 'validateAnalysisTrace'>,
+): AnalysisTrace {
+  const spec = researchRegistry.workflow(descriptor.workflowId)
+  const evidenceIds = research.records.map(record => record.evidenceId)
+  const trace: AnalysisTrace = {
+    traceId: `trace-${traceHash({ workflowId: descriptor.workflowId, evidenceIds, payload })}`,
+    workflowId: descriptor.workflowId,
+    claimId: descriptor.targetObjectId,
+    inputEvidenceIds: Object.freeze([...evidenceIds]),
+    inputObjectIds: Object.freeze(upstream.map(row => row.objectId)),
+    methodId: spec.analysisMethod.methodId,
+    methodVersion: spec.analysisMethod.version,
+    parameters: Object.freeze({
+      aggregationMethodId: spec.aggregationMethod.methodId,
+      aggregationMethodVersion: spec.aggregationMethod.version,
+      deterministicAggregation: spec.aggregationMethod.deterministic,
+    }),
+    calculationSteps: Object.freeze([{
+      step: 1,
+      description: '基于中央 Runtime 已验证 Research Evidence 与已确认上游对象形成专业综合候选；未提供的确定性工具结果不得由本步骤替代。',
+      inputEvidenceIds: Object.freeze([...evidenceIds]),
+      output: structuredClone(payload),
+    }]),
+    outputValue: structuredClone(payload),
+    confidence: quality.confidence,
+    limitations: Object.freeze([
+      ...quality.assumptions,
+      ...quality.blockers.map(blocker => blocker.message),
+    ]),
+  }
+  const validation = researchRegistry.validateAnalysisTrace(trace)
+  if (!validation.valid) {
+    throw new Error(`workflow '${descriptor.workflowId}' produced invalid AnalysisTrace: ${validation.errors.join('; ')}`)
+  }
+  return Object.freeze(trace)
+}
+
 function analysisPrompt(
   project: { readonly projectId: string; readonly name: string; readonly currentRevision: number },
   descriptor: WorkflowDescriptor,
@@ -98,6 +190,7 @@ function analysisPrompt(
   example: Readonly<Record<string, unknown>>,
   upstream: readonly { readonly objectId: string; readonly revision: number; readonly value: unknown }[],
   revisionFeedback?: WorkflowQualityReport,
+  research?: ResearchExecutionResult,
 ): string {
   return [
     `项目：${project.name}（${project.projectId}）`,
@@ -111,6 +204,9 @@ function analysisPrompt(
     '完成条件（必须逐条检查）：', JSON.stringify(descriptor.completionCriteria ?? [], null, 2),
     '',
     '证据规则（必须逐条检查）：', JSON.stringify(descriptor.evidencePolicy ?? [], null, 2),
+    '',
+    '中央 Runtime 已独立采集并校验的 Research Evidence（只能使用这里实际出现的事实）：',
+    JSON.stringify(researchPromptSnapshot(research), null, 2),
     '',
     '禁止动作：', JSON.stringify(descriptor.forbiddenActions ?? [], null, 2),
     '',
@@ -161,8 +257,12 @@ export class DshSubagentWorkflowAnalyzer {
     descriptor: WorkflowDescriptor,
     signal: AbortSignal = AbortSignal.timeout(this.timeoutMs),
     revisionFeedback?: WorkflowQualityReport,
+    research?: ResearchExecutionResult,
   ): Promise<WorkflowAnalysisCandidate> {
     if (!this.available()) throw new Error("subagent provider 'spawn' is unavailable")
+    if (research !== undefined && !research.validation.valid) {
+      throw new Error(`workflow '${descriptor.workflowId}' cannot analyze unvalidated Research evidence`)
+    }
     const context = this.dependencies.repository.readContext(String(parent.id))
     if (context.project.projectId !== projectId) throw new Error(`parent Session is bound to '${context.project.projectId}', not '${projectId}'`)
     const stateByObject = new Map(context.stateObjects.map(record => [record.objectId, record]))
@@ -178,6 +278,7 @@ export class DshSubagentWorkflowAnalyzer {
       this.dependencies.registry.stateExample(descriptor.targetObjectId),
       upstream,
       revisionFeedback,
+      research,
     )
     const run = await this.dependencies.subagents.start('spawn', {
       parent,
@@ -195,9 +296,18 @@ export class DshSubagentWorkflowAnalyzer {
       const structured = recordOf(result.structured)
       const payload = recordOf(structured?.payload)
       if (payload === undefined) throw new Error(`workflow '${descriptor.workflowId}' returned no structured payload`)
+      const qualityEvidence = qualityEvidenceOf(structured?.qualityEvidence, descriptor.workflowId)
+      const analysisTrace = research !== undefined && this.dependencies.researchRegistry !== undefined
+        ? analysisTraceFor(descriptor, payload, qualityEvidence, upstream, research, this.dependencies.researchRegistry)
+        : undefined
       return Object.freeze({
         payload: structuredClone(payload),
-        qualityEvidence: qualityEvidenceOf(structured?.qualityEvidence, descriptor.workflowId),
+        qualityEvidence,
+        ...(research === undefined ? {} : {
+          researchEvidence: Object.freeze(research.records.map(record => Object.freeze(structuredClone(record)))),
+          researchValidation: research.validation,
+        }),
+        ...(analysisTrace === undefined ? {} : { analysisTrace }),
       })
     } finally {
       await run.dispose()
