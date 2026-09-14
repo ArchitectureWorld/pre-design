@@ -47,18 +47,6 @@ async function executeCommand(
       }
 }
 
-async function requireSuccessfulCommand(
-  ctx: ClientContext,
-  sessionId: string,
-  line: string,
-): Promise<void> {
-  const result = await executeCommand(ctx, sessionId, line)
-  if (result.kind === 'unmatched') {
-    throw new Error(`DSH 未找到 ${line.split(' ', 1)[0]}，请确认前期策划插件已加载。`)
-  }
-  if (result.kind === 'error') throw new Error(result.text)
-}
-
 async function openWorkspaceFolder(
   sessionId: string,
 ): Promise<void> {
@@ -100,9 +88,6 @@ export function apply(ctx: ClientContext): void {
     return (
       <PreplanningStatusCard
         {...props}
-        confirm={async proposalId => {
-          await requireSuccessfulCommand(ctx, String(props.sessionId), `/preplan-confirm ${proposalId}`)
-        }}
         openProjectFolder={() => openWorkspaceFolder(String(props.sessionId))}
       />
     )
