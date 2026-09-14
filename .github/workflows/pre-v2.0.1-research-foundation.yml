@@ -6,6 +6,7 @@ on:
       - feat/pre-v2.0.1
     paths:
       - 'src/index.ts'
+      - 'src/client/**'
       - 'src/research/**'
       - 'src/contracts/**'
       - 'src/runtime/**'
