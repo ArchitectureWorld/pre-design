@@ -137,4 +137,4 @@ jobs:
             exit 1
           fi
 
-# validation-marker: full-research-coverage-20260914-deployment-readiness
+# validation-marker: full-research-coverage-20260914-final-deployment-head
