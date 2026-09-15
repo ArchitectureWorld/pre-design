@@ -8,6 +8,7 @@ on:
       - 'src/index.ts'
       - 'src/client/**'
       - 'src/session/**'
+      - 'src/presentation/**'
       - 'src/research/**'
       - 'src/contracts/**'
       - 'src/runtime/**'
