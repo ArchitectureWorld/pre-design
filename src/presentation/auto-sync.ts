@@ -1,7 +1,7 @@
 import type { FrozenProjectInput } from '../report/types.ts'
 import type { ProjectRepository } from '../state/repository.ts'
 import type { PresentationStandardProjectService } from './standard-project-service.ts'
-import { preparePresentationMaterials } from './material-registry.ts'
+import { prepareWorkspacePresentationMaterials } from './workspace-materials.ts'
 import type {
   ExportPresentationStandardProjectInput,
   PresentationAdoptedAssetInput,
@@ -277,7 +277,7 @@ export class PresentationAutoSyncService {
       }
       try {
         const frozenProject = await this.dependencies.source(projectId, revision)
-        const materials = await preparePresentationMaterials({
+        const materials = await prepareWorkspacePresentationMaterials({
           frozenProject,
           workspaceRoot: workspaceRoot ?? binding?.directoryRoot,
           assets: this.dependencies.adoptedAssets(frozenProject),
