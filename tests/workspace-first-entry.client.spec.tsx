@@ -22,16 +22,18 @@ describe('Workspace-first Pre entry', () => {
       execute: async (sessionId: string, line: string) => {
         expect(sessionId).toBe('blank-session-1')
         commandLines.push(line)
+        let text = '命令执行成功。'
+        if (line === '/preplan-presentation-sync --probe') {
+          text = 'PRE_DESIGN_WORKSPACE_EMPTY'
+        } else if (line === '/preplan-presentation-sync') {
+          text = [
+            'PRE_DESIGN_SOURCE_MATERIAL_COUNT:2',
+            'PRE_DESIGN_SOURCE_INBOX_COUNT:2',
+          ].join('\n')
+        }
         return {
           ok: true,
-          value: {
-            result: {
-              kind: 'success',
-              text: line === '/preplan-presentation-sync --probe'
-                ? 'PRE_DESIGN_WORKSPACE_EMPTY'
-                : '命令执行成功。',
-            },
-          },
+          value: { result: { kind: 'success', text } },
         }
       },
     }
@@ -94,6 +96,7 @@ describe('Workspace-first Pre entry', () => {
     expect(commandLines).toEqual([
       '/preplan-presentation-sync --probe',
       '/preplan-new 武汉站改造项目',
+      '/preplan-presentation-sync',
       '/preplan-mode automatic 20 standard',
       '/preplan-run',
     ])
