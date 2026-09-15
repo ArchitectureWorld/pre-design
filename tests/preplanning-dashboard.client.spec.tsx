@@ -3,55 +3,51 @@ import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PreplanningDashboard } from '../src/client/PreplanningDashboard.tsx'
 import { PreplanningLauncher } from '../src/client/PreplanningLauncher.tsx'
+import { PreplanningProjectForm } from '../src/client/PreplanningProjectForm.tsx'
 
 afterEach(cleanup)
 
 describe('Preplanning full-flow UI', () => {
-  it('将创建面板挂到视口层并约束在可滚动的可视区域内', () => {
-    const view = render(<PreplanningLauncher start={async () => undefined} workspacePath="/workspace/project" />)
-    const trigger = view.getByRole('button', { name: '前期策划' })
-    const launcher = trigger.parentElement
-
-    fireEvent.click(trigger)
-
-    const form = view.getByRole('form', { name: '新建前期策划项目' })
-    expect(launcher?.contains(form)).toBe(false)
-    expect(form.parentElement).toBe(document.body)
-    expect(form.style.position).toBe('fixed')
-    expect(form.style.boxSizing).toBe('border-box')
-    expect(form.style.right).toBe('16px')
-    expect(form.style.top).toBe('16px')
-    expect(form.style.width).toContain('420px')
-    expect(form.style.width).toContain('100vw - 32px')
-    expect(form.style.maxHeight).toBe('calc(100dvh - 32px)')
-    expect(form.style.overflowY).toBe('auto')
-    expect(view.getByText('Pre 2.0.1 · Project Format 0.1.0')).toBeTruthy()
-    expect(view.getByText(/项目总文件夹：\/workspace\/project/u)).toBeTruthy()
-
-    fireEvent.click(view.getByRole('button', { name: '关闭前期策划面板' }))
-    expect(view.queryByRole('form', { name: '新建前期策划项目' })).toBeNull()
+  it('Session 顶部入口只负责打开 Workspace 级前期策划面板', () => {
+    const openPanel = vi.fn()
+    const view = render(<PreplanningLauncher openPanel={openPanel} />)
+    fireEvent.click(view.getByRole('button', { name: '前期策划' }))
+    expect(openPanel).toHaveBeenCalledTimes(1)
+    expect(view.queryByRole('form')).toBeNull()
   })
 
-  it('沿用 DSH 主题色保证表单背景、文字和输入控件可读', () => {
-    const view = render(<PreplanningLauncher start={async () => undefined} workspacePath="/workspace/project" />)
-    fireEvent.click(view.getByRole('button', { name: '前期策划' }))
+  it('Workspace 面板零输入显示项目根目录，不再出现项目描述或项目名输入框', () => {
+    const view = render(
+      <PreplanningProjectForm
+        embedded
+        start={async () => undefined}
+        workspacePath="/workspace/project"
+        workspaceTitle="project"
+      />,
+    )
 
-    const form = view.getByRole('form', { name: '新建前期策划项目' })
-    const statement = view.getByLabelText('一句话描述项目和目标')
-
+    const form = view.getByRole('form', { name: '前期策划项目' })
     expect(form.style.background).toBe('var(--dsw-alias-bg-layer-1, #fff)')
     expect(form.style.color).toBe('var(--dsw-alias-label-primary, #1f2328)')
-    expect(statement.style.background).toBe('var(--dsw-specific-input-major, #fff)')
-    expect(statement.style.color).toBe('var(--dsw-alias-label-primary, #1f2328)')
+    expect(view.getByText('project')).toBeTruthy()
+    expect(view.getByText(/项目总文件夹：\/workspace\/project/u)).toBeTruthy()
+    expect(view.getByText(/零输入启动/u)).toBeTruthy()
+    expect(view.queryByRole('textbox')).toBeNull()
+    expect(view.queryByLabelText('一句话描述项目和目标')).toBeNull()
+    expect(view.queryByLabelText('识别的项目名称')).toBeNull()
+    expect(view.getByText('Pre 2.0.1 · Project Format 0.1.0')).toBeTruthy()
   })
 
-  it('创建入口只收集项目信息，执行策略由 automatic-first 内部管理', async () => {
+  it('开始前期策划不再收集任何执行策略或项目信息', async () => {
     const start = vi.fn(async () => undefined)
-    const view = render(<PreplanningLauncher start={start} workspacePath="/workspace/project" />)
-    fireEvent.click(view.getByRole('button', { name: '前期策划' }))
-    fireEvent.change(view.getByLabelText('一句话描述项目和目标'), {
-      target: { value: '新建滨江文化活力区并完成全流程前期策划' },
-    })
+    const view = render(
+      <PreplanningProjectForm
+        embedded
+        start={start}
+        workspacePath="/workspace/滨江文化活力区"
+        workspaceTitle="滨江文化活力区"
+      />,
+    )
 
     expect(view.queryByText('确认方式')).toBeNull()
     expect(view.queryByText('报告深度')).toBeNull()
@@ -60,13 +56,11 @@ describe('Preplanning full-flow UI', () => {
     expect(view.queryByLabelText('全自动完成')).toBeNull()
     expect(view.queryByLabelText('标准汇报')).toBeNull()
     expect(view.queryByLabelText('扩展汇报')).toBeNull()
+    expect(view.queryByRole('textbox')).toBeNull()
 
-    fireEvent.click(view.getByRole('button', { name: '创建项目' }))
+    fireEvent.click(view.getByRole('button', { name: '开始前期策划' }))
 
-    await vi.waitFor(() => expect(start).toHaveBeenCalledWith({
-      projectName: '滨江文化活力区',
-      statement: '新建滨江文化活力区并完成全流程前期策划',
-    }))
+    await vi.waitFor(() => expect(start).toHaveBeenCalledWith())
     expect(await view.findByText('项目已创建或恢复，系统将自动推进前期策划。')).toBeTruthy()
   })
 
