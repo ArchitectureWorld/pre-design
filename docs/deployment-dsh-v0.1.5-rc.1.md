@@ -10,7 +10,7 @@
 - pnpm: `10.15.1`
 - Presentation Standard Project Directory: `0.1.0`
 
-DSH 官方 `0.1.5-rc.1` CLI 将 `dsh plugin --profile <name> <pnpm args>` 定义为 profile 插件管理入口。Pre 的 package manifest 已声明 `dsh.bundle.patch`，因此安装 tarball 后由 DSH profile 组合加载。
+DSH 官方 `0.1.5-rc.1` CLI 将 `dsh plugin --profile <name> <pnpm args>` 定义为 profile 插件管理入口，并在目标 profile 目录中把后续参数转发给 pnpm。Pre 的 package manifest 已声明 `dsh.bundle.patch`，因此安装 tarball 后由 DSH profile 组合加载。
 
 ## 从当前仓库构建
 
@@ -30,16 +30,24 @@ pnpm pack --pack-destination dist
 
 ## 安装到 DSH Web profile
 
+**必须传 tgz 的绝对路径。** `dsh plugin` 会在 profile 目录里执行 pnpm，因此仓库相对路径 `./dist/...` 会被错误地相对 `$DSH_HOME/profiles/web` 解析。
+
+在仓库根目录先取得绝对路径：
+
+```bash
+TGZ="$(pwd)/dist/<生成的-tgz>"
+```
+
 若 `dsh` 已在 PATH：
 
 ```bash
-dsh plugin --profile web add ./dist/<生成的-tgz>
+dsh plugin --profile web add "$TGZ"
 ```
 
 若不依赖全局 DSH，可固定 rc.1：
 
 ```bash
-npx -y @deepseek-ai/dsh@0.1.5-rc.1 plugin --profile web add ./dist/<生成的-tgz>
+npx -y @deepseek-ai/dsh@0.1.5-rc.1 plugin --profile web add "$TGZ"
 ```
 
 安装后检查组合配置：
