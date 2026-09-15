@@ -7,6 +7,12 @@ import { PreplanningProjectForm } from '../src/client/PreplanningProjectForm.tsx
 
 afterEach(cleanup)
 
+const runningStart = async () => ({
+  state: 'running' as const,
+  sourceMaterialCount: 1,
+  sourceInboxFileCount: 1,
+})
+
 describe('Preplanning full-flow UI', () => {
   it('Session 顶部入口只负责打开 Workspace 级前期策划面板', () => {
     const openPanel = vi.fn()
@@ -20,7 +26,7 @@ describe('Preplanning full-flow UI', () => {
     const view = render(
       <PreplanningProjectForm
         embedded
-        start={async () => undefined}
+        start={runningStart}
         workspacePath="/workspace/project"
         workspaceTitle="project"
       />,
@@ -39,7 +45,7 @@ describe('Preplanning full-flow UI', () => {
   })
 
   it('开始前期策划不再收集任何执行策略或项目信息', async () => {
-    const start = vi.fn(async () => undefined)
+    const start = vi.fn(runningStart)
     const view = render(
       <PreplanningProjectForm
         embedded
