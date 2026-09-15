@@ -18,7 +18,7 @@ import type { PresentationAutoSyncService } from './auto-sync.ts'
 import { openDirectoryInFileManager } from './open-directory.ts'
 import type { PresentationStandardProjectService } from './standard-project-service.ts'
 import type { PresentationAdoptedAssetInput } from './standard-project-types.ts'
-import { preparePresentationMaterials } from './material-registry.ts'
+import { prepareWorkspacePresentationMaterials } from './workspace-materials.ts'
 import {
   resolveInvocationWorkspaceRoot,
   type WorkspaceInvocationLike,
@@ -26,6 +26,8 @@ import {
 
 export const PRE_DESIGN_WORKSPACE_EMPTY_MARKER = 'PRE_DESIGN_WORKSPACE_EMPTY'
 export const PRE_DESIGN_WORKSPACE_ATTACHED_MARKER = 'PRE_DESIGN_WORKSPACE_PROJECT_ATTACHED'
+export const PRE_DESIGN_SOURCE_MATERIAL_COUNT_MARKER = 'PRE_DESIGN_SOURCE_MATERIAL_COUNT'
+export const PRE_DESIGN_SOURCE_INBOX_COUNT_MARKER = 'PRE_DESIGN_SOURCE_INBOX_COUNT'
 
 export interface PresentationRuntimeDependencies {
   readonly repository: Pick<ProjectRepository, 'readContext' | 'bindSession'>
@@ -54,6 +56,9 @@ export interface PresentationRuntimeSyncResult {
   readonly standardVersion: typeof PRESENTATION_PROJECT_FORMAT_VERSION
   readonly validationMarker: typeof PRESENTATION_PROJECT_SUCCESS_MARKER
   readonly replacedExisting: boolean
+  readonly sourceMaterialCount: number
+  readonly sourceInboxFileCount: number
+  readonly sourceInboxRoot?: string
   readonly materialWarnings?: readonly string[]
 }
 
@@ -192,7 +197,7 @@ export async function syncPresentationProject(
     context.project.currentRevision,
   )
   const binding = dependencies.standardProjects.findByPreDesignProjectId?.(frozenProject.projectId)
-  const materials = await preparePresentationMaterials({
+  const materials = await prepareWorkspacePresentationMaterials({
     frozenProject,
     workspaceRoot: workspaceRoot ?? binding?.workspaceRoot ?? binding?.directoryRoot,
     assets: adoptedPresentationAssets(frozenProject),
@@ -217,6 +222,9 @@ export async function syncPresentationProject(
     standardVersion: PRESENTATION_PROJECT_FORMAT_VERSION,
     validationMarker: PRESENTATION_PROJECT_SUCCESS_MARKER,
     replacedExisting: published.replacedExisting,
+    sourceMaterialCount: materials.sourceMaterials.length,
+    sourceInboxFileCount: materials.sourceInboxFileCount,
+    ...(materials.sourceInboxRoot === undefined ? {} : { sourceInboxRoot: materials.sourceInboxRoot }),
     materialWarnings: materials.materialWarnings,
   })
   dependencies.autoSync?.noteExplicitSuccess(result.preDesignProjectId, {
@@ -230,7 +238,12 @@ export async function syncPresentationProject(
 
 function commandResultText(result: PresentationRuntimeSyncResult): string {
   return [
+    `${PRE_DESIGN_SOURCE_MATERIAL_COUNT_MARKER}:${result.sourceMaterialCount}`,
+    `${PRE_DESIGN_SOURCE_INBOX_COUNT_MARKER}:${result.sourceInboxFileCount}`,
     '已生成可由 Presentation 直接读取的标准项目。',
+    ...(result.sourceMaterialCount === 0
+      ? ['资料状态：等待原始资料。请将项目资料放入 Workspace 的“原始资料”文件夹。']
+      : [`资料状态：已登记 ${result.sourceMaterialCount} 个标准原件，其中当前“原始资料”检测到 ${result.sourceInboxFileCount} 个文件。`]),
     ...(result.materialWarnings ?? []).map(warning => `资料提示：${warning}`),
     `目录：${result.directoryRoot}`,
     `Presentation Project ID：${result.presentationProjectId}`,
@@ -311,7 +324,7 @@ export function registerPresentationRuntime(
 ): void {
   ctx.commands.register({
     name: 'preplan-presentation-sync',
-    description: '探测、创建或更新当前 DSH 工作区中的 Presentation 标准项目',
+    description: '探测、创建或更新当前 DSH 工作区中的 Presentation 标准项目，并读取“原始资料”',
     input: { hint: '[--probe|--force]' },
     handler: guarded(async invocation => {
       const raw = invocation.rawInput.trim()
@@ -359,7 +372,7 @@ export function registerPresentationRuntime(
 
   ctx.tools.register(defineTool({
     name: 'preplanning_sync_presentation_project',
-    description: '将当前前期策划项目写入当前 DSH 工作区根目录；默认拒绝覆盖外部修改。',
+    description: '将当前前期策划项目写入当前 DSH 工作区根目录并读取“原始资料”；默认拒绝覆盖外部修改。',
     parameters: {
       confirmExternalChanges: {
         type: 'boolean',
