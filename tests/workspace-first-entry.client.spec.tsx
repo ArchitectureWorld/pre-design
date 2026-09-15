@@ -17,7 +17,7 @@ describe('Workspace-first Pre entry', () => {
     const connectWorkspace = vi.fn(async () => 'blank-session-1')
     const commandLines: string[] = []
 
-    ctx.provide('conversationEvents', { register: () => () => undefined } as never)
+    ctx.provide('uiConversation', { events: { register: () => () => undefined } } as never)
     const commandsRemote = {
       execute: async (sessionId: string, line: string) => {
         expect(sessionId).toBe('blank-session-1')
