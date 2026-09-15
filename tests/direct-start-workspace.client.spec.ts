@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { startDirectPreplanning, type DirectStartPort } from '../src/client/direct-start.ts'
 
 describe('workspace-aware direct start', () => {
-  it('probes the Workspace before creating a new automatic-first Pre project', async () => {
+  it('probes the Workspace before creating a same-name automatic-first Pre project', async () => {
     const lines: string[] = []
     const port: DirectStartPort = {
       executeCommand: async line => {
@@ -15,8 +15,7 @@ describe('workspace-aware direct start', () => {
     }
 
     await startDirectPreplanning(port, {
-      projectName: '武汉站综合枢纽',
-      statement: '完成前期策划',
+      workspacePath: 'C:\\Projects\\武汉站综合枢纽',
     })
 
     expect(lines).toEqual([
@@ -27,7 +26,7 @@ describe('workspace-aware direct start', () => {
     ])
   })
 
-  it('continues the existing Workspace project without duplicate creation or Presentation initialization', async () => {
+  it('continues the existing Workspace project without duplicate creation', async () => {
     const lines: string[] = []
     const port: DirectStartPort = {
       executeCommand: async line => {
@@ -40,8 +39,7 @@ describe('workspace-aware direct start', () => {
     }
 
     await startDirectPreplanning(port, {
-      projectName: '不会用于创建新项目',
-      statement: '继续当前工作区项目',
+      workspacePath: '/projects/已有工作区项目',
     })
 
     expect(lines).toEqual([
