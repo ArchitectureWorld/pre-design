@@ -1,0 +1,81 @@
+name: Fix DSH 0.1.5-rc.1 Test Fixtures
+
+on:
+  push:
+    branches:
+      - feat/pre-v2.0.1
+    paths:
+      - '.github/workflows/fix-dsh-v015rc1-test-fixtures.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  migrate-test-fixtures:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/pre-v2.0.1
+
+      - name: Migrate stale rc.1 test fixtures
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new, count=1):
+              p = Path(path)
+              text = p.read_text()
+              actual = text.count(old)
+              if actual != count:
+                  raise SystemExit(f'{path}: expected {count} occurrences, found {actual}: {old!r}')
+              p.write_text(text.replace(old, new))
+
+          replace(
+              'tests/design-visual-bridge.spec.ts',
+              "sessions: { get: id => sessions.get(id) as never },",
+              "sessions: { get: id => {\n      const session = sessions.get(id)\n      return session === undefined ? undefined : {\n        get seq() { return session.seq },\n        snapshotEvents: () => session.events,\n      } as never\n    } },",
+          )
+
+          replace(
+              'tests/browser-plugin.client.spec.tsx',
+              """    expect(BrowserPlugin.inject).toEqual([\n      'conversationEvents',\n      'layout',\n      'remote',\n      'remote.commands',\n      'sessions',\n      'slots',\n      'uiWorkspace',\n      'workspaces',\n    ])""",
+              """    expect(BrowserPlugin.inject).toEqual([\n      'layout',\n      'remote',\n      'remote.commands',\n      'sessions',\n      'slots',\n      'uiConversation',\n      'uiWorkspace',\n      'workspaces',\n    ])""",
+          )
+          replace(
+              'tests/browser-plugin.client.spec.tsx',
+              """    ctx.provide('conversationEvents', {\n      register: (definition: { kind: string }) => { eventDefinitions.push(definition); return () => undefined },\n    } as never)""",
+              """    ctx.provide('uiConversation', {\n      events: { register: (definition: { kind: string }) => { eventDefinitions.push(definition); return () => undefined } },\n    } as never)""",
+          )
+
+          replace(
+              'tests/site-boundary-command-flow.spec.ts',
+              "{ hint: '<approved_site_plan|approved_redline> [assetId]', images: true }",
+              "{ hint: '<approved_site_plan|approved_redline> [assetId]', attachments: true }",
+          )
+          PY
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.11.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify migrated fixtures
+        run: pnpm vitest run tests/design-visual-bridge.spec.ts tests/browser-plugin.client.spec.tsx tests/site-boundary-command-flow.spec.ts --maxWorkers=1
+
+      - name: Commit fixture migration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tests/design-visual-bridge.spec.ts tests/browser-plugin.client.spec.tsx tests/site-boundary-command-flow.spec.ts
+          git commit -m 'test: align fixtures with DSH 0.1.5-rc.1'
+          git push origin HEAD:feat/pre-v2.0.1
