@@ -1,6 +1,5 @@
 export interface DirectStartInput {
-  readonly projectName: string
-  readonly statement: string
+  readonly workspacePath: string
 }
 
 export interface DirectStartPort {
@@ -23,20 +22,22 @@ function oneLine(value: string): string {
   return value.replace(/\s+/gu, ' ').trim()
 }
 
-export function deriveProjectName(statement: string): string {
-  const normalized = oneLine(statement)
+/**
+ * Derive the default Pre display/project name from the DSH Workspace directory.
+ * Workspace identity itself remains the canonical path/project.json binding.
+ */
+export function deriveWorkspaceProjectName(workspacePath: string): string {
+  const normalized = workspacePath.trim().replace(/[\\/]+$/u, '')
   if (normalized.length === 0) return ''
-  const withoutPrefix = normalized.replace(/^(?:(?:请|麻烦)(?:帮我)?|帮我)?(?:新建|创建|启动|对)\s*(?:一个)?\s*/u, '')
-  const candidate = withoutPrefix
-    .split(/(?:并(?:完成|开始|进行)?|然后|进行(?:一个)?前期策划|做(?:一个)?前期策划|[，,。；;])/u, 1)[0]?.trim() ?? ''
-  return Array.from(candidate).slice(0, MAX_PROJECT_NAME_LENGTH).join('')
+  const candidate = normalized.split(/[\\/]/u).filter(Boolean).at(-1) ?? ''
+  return Array.from(oneLine(candidate)).slice(0, MAX_PROJECT_NAME_LENGTH).join('')
 }
 
 export async function startDirectPreplanning(port: DirectStartPort, input: DirectStartInput): Promise<void> {
-  const projectName = oneLine(input.projectName)
-  const statement = oneLine(input.statement)
-  if (projectName.length === 0) throw new Error('请输入项目名称。')
-  if (statement.length === 0) throw new Error('请输入项目描述。')
+  const workspacePath = input.workspacePath.trim()
+  if (workspacePath.length === 0) throw new Error('未检测到当前 DSH 工作区。')
+  const projectName = deriveWorkspaceProjectName(workspacePath)
+  if (projectName.length === 0) throw new Error('无法从当前 DSH 工作区识别项目名称。')
 
   const execute = async (line: string) => {
     const command = await port.executeCommand(line)
@@ -45,8 +46,8 @@ export async function startDirectPreplanning(port: DirectStartPort, input: Direc
     return command
   }
 
-  // The probe only decides whether this Workspace already owns a Pre project.
-  // Presentation materialization is intentionally NOT a project-creation prerequisite.
+  // Probe only decides whether this Workspace already owns a Pre project.
+  // Presentation materialization is intentionally not a project-creation prerequisite.
   const probe = await execute('/preplan-presentation-sync --probe')
   const existingWorkspaceProject = probe.text?.includes(WORKSPACE_ATTACHED) === true
   const emptyWorkspace = probe.text?.includes(WORKSPACE_EMPTY) === true
@@ -57,8 +58,7 @@ export async function startDirectPreplanning(port: DirectStartPort, input: Direc
     await execute(`/preplan-new ${projectName}`)
   }
 
-  // V2.0.1 is automatic-first. These are internal defaults, not creation-form choices.
-  // Advanced/manual commands remain available as an explicit later override.
+  // V2.0.1 is automatic-first. These remain internal defaults, not UI choices.
   await execute(`/preplan-mode automatic ${DEFAULT_AUTOMATIC_VISUAL_BUDGET} ${DEFAULT_AUTOMATIC_REPORT_DEPTH}`)
   await execute('/preplan-run')
 }
