@@ -1,12 +1,25 @@
 import { describe, expect, it, vi } from 'vitest'
 import { SessionImageCollector } from '../src/visual/session-image-collector.ts'
 
+interface TestEvent {
+  readonly seq: number
+  readonly type: string
+  readonly data: unknown
+}
+
+function testSession(events: TestEvent[], seq = events.length) {
+  return {
+    seq,
+    snapshotEvents: () => events,
+  }
+}
+
 describe('SessionImageCollector', () => {
   it('waits for the child initialization turn to end before accepting a visual followup', async () => {
-    const childSession = { seq: 1, events: [] as Array<{ seq: number; type: string; data: unknown }> }
+    const events: TestEvent[] = []
+    const childSession = testSession(events, 1)
     const waitForEvent = vi.fn(async () => {
-      childSession.seq = 2
-      childSession.events.push({ seq: 2, type: 'turn/end', data: {} })
+      events.push({ seq: 2, type: 'turn/end', data: {} })
     })
     const collector = new SessionImageCollector({
       sessions: { get: vi.fn(() => childSession) } as never,
@@ -24,19 +37,16 @@ describe('SessionImageCollector', () => {
       ref: { mediaType: 'image/png', width: 1600, height: 900, bytes: 3 },
       data: new Uint8Array([1, 2, 3]),
     }))
-    const childSession = {
-      seq: 4,
-      events: [{
-        seq: 3,
-        type: 'assistant/message',
-        data: {
-          message: {
-            role: 'assistant',
-            content: [{ type: 'image', attachment: { attachmentId: 'attachment-1', mediaType: 'image/png' } }],
-          },
+    const childSession = testSession([{
+      seq: 3,
+      type: 'assistant/message',
+      data: {
+        message: {
+          role: 'assistant',
+          content: [{ type: 'image', attachment: { attachmentId: 'attachment-1', mediaType: 'image/png' } }],
         },
-      }],
-    }
+      },
+    }], 4)
     const collector = new SessionImageCollector({
       sessions: { get: vi.fn((id: string) => id === 'child-1' ? childSession : undefined) } as never,
       attachments: { readImage } as never,
@@ -60,19 +70,16 @@ describe('SessionImageCollector', () => {
       0xff, 0xd9,
     ])
     const dataUri = `data:image/jpeg;base64,${Buffer.from(jpeg).toString('base64')}`
-    const childSession = {
-      seq: 5,
-      events: [{
-        seq: 3,
-        type: 'assistant/message',
-        data: {
-          message: {
-            role: 'assistant',
-            content: [{ type: 'text', text: `![image](${dataUri})\n![image](${dataUri})` }],
-          },
+    const childSession = testSession([{
+      seq: 3,
+      type: 'assistant/message',
+      data: {
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: `![image](${dataUri})\n![image](${dataUri})` }],
         },
-      }, { seq: 4, type: 'turn/end', data: {} }],
-    }
+      },
+    }, { seq: 4, type: 'turn/end', data: {} }], 5)
     const collector = new SessionImageCollector({
       sessions: { get: vi.fn(() => childSession) } as never,
       attachments: { readImage: vi.fn() } as never,
@@ -91,22 +98,19 @@ describe('SessionImageCollector', () => {
       0x03, 0x01, 0x11, 0x00, 0x02, 0x11, 0x00, 0x03, 0x11, 0x00,
       0xff, 0xd9,
     ])
-    const childSession = {
-      seq: 39,
-      events: [{
-        seq: 37,
-        type: 'assistant/message',
-        data: {
-          message: {
-            role: 'assistant',
-            content: [{
-              type: 'text',
-              text: `![generated](data:image/jpeg;base64,${Buffer.from(jpeg).toString('base64')})`,
-            }],
-          },
+    const childSession = testSession([{
+      seq: 37,
+      type: 'assistant/message',
+      data: {
+        message: {
+          role: 'assistant',
+          content: [{
+            type: 'text',
+            text: `![generated](data:image/jpeg;base64,${Buffer.from(jpeg).toString('base64')})`,
+          }],
         },
-      }, { seq: 39, type: 'turn/end', data: {} }],
-    }
+      },
+    }, { seq: 39, type: 'turn/end', data: {} }], 39)
     const waitForEvent = vi.fn(async () => {
       throw new Error('late image recovery must not wait for a new event')
     })
