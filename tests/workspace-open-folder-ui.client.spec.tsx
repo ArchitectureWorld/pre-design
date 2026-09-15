@@ -12,7 +12,11 @@ describe('Workspace project folder UI action', () => {
       <PreplanningProjectForm
         onClose={() => undefined}
         openProjectFolder={openProjectFolder}
-        start={async () => undefined}
+        start={async () => ({
+          state: 'running' as const,
+          sourceMaterialCount: 1,
+          sourceInboxFileCount: 1,
+        })}
         workspacePath="C:\\Projects\\武汉站"
       />,
     )
