@@ -6,6 +6,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
@@ -29,6 +30,20 @@ export const inject = [
   'uiWorkspace',
   'workspaces',
 ]
+
+interface BrowserControllerPorts {
+  readonly sessions: ISessions
+  readonly workspaces: IWorkspaces
+}
+
+function browserControllers(ctx: ClientContext): BrowserControllerPorts {
+  // Host and browser packages intentionally use the same Cordis service keys.
+  // This bundle runs only in the web client, so bind the rc.1 controller faces
+  // explicitly instead of letting Host SessionStore augmentations leak into the
+  // browser compilation surface.
+  const ports = ctx as unknown as BrowserControllerPorts
+  return { sessions: ports.sessions, workspaces: ports.workspaces }
+}
 
 export function currentWorkspaceOf(
   workspaces: IWorkspaces,
@@ -123,8 +138,7 @@ function PreplanningSidebarIcon({ size, active }: PropsRuntime<'sidebar.panellis
 }
 
 export function apply(ctx: ClientContext): void {
-  const sessions = ctx.get('sessions') as ISessions
-  const workspaces = ctx.get('workspaces') as IWorkspaces
+  const { sessions, workspaces } = browserControllers(ctx)
   ctx.uiConversation.events.register(preplanningStatusDefinition)
 
   ctx.slots.inject('main', () => ctx.slots.register({
