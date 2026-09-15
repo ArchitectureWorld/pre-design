@@ -1,5 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis'
-import { defineTool, type JsonValue } from '@deepseek-ai/dsh-tools'
+import { defineTool } from '@deepseek-ai/dsh-tools'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { ContractRegistry } from '../contracts/registry.ts'
 import { buildControlledContext } from '../context/build-context.ts'
 import type { GovernanceRepository } from '../governance/repository.ts'

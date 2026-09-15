@@ -5,7 +5,8 @@ import type {
   CommandInvocation,
   CommandResult,
 } from '@deepseek-ai/dsh-commands'
-import { defineTool, type JsonValue } from '@deepseek-ai/dsh-tools'
+import { defineTool } from '@deepseek-ai/dsh-tools'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { ProjectRepository } from '../state/repository.ts'
 import type { FrozenProjectInput, ReportAsset } from '../report/types.ts'
 import {

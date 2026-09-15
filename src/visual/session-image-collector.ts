@@ -49,7 +49,7 @@ interface SessionEventLike {
 
 interface SessionLike {
   readonly seq: number
-  readonly events: readonly SessionEventLike[]
+  snapshotEvents(): readonly SessionEventLike[]
 }
 
 export interface SessionImageCollectorDependencies {
@@ -72,7 +72,7 @@ export class SessionImageCollector {
 
   /** Only a terminal event for the latest child turn settles an unknown paid attempt. */
   hasCompleted(childId: string): boolean {
-    const events = this.dependencies.sessions.get(childId)?.events ?? []
+    const events = this.dependencies.sessions.get(childId)?.snapshotEvents() ?? []
     const start = events.filter(event => event.type === 'turn/start').at(-1)?.seq ?? -1
     const end = events.filter(event => event.type === 'turn/end').at(-1)?.seq ?? -1
     return end >= 0 && end >= start
@@ -81,7 +81,7 @@ export class SessionImageCollector {
   async waitUntilIdle(childId: string, signal: AbortSignal): Promise<void> {
     while (true) {
       if (signal.aborted) throw signal.reason
-      const events = this.dependencies.sessions.get(childId)?.events ?? []
+      const events = this.dependencies.sessions.get(childId)?.snapshotEvents() ?? []
       const lastTurnStart = events.filter(event => event.type === 'turn/start').at(-1)?.seq ?? -1
       const lastTurnEnd = events.filter(event => event.type === 'turn/end').at(-1)?.seq ?? -1
       if (lastTurnEnd >= lastTurnStart && lastTurnEnd >= 0) return
@@ -95,7 +95,7 @@ export class SessionImageCollector {
     signal: AbortSignal = new AbortController().signal,
   ): Promise<VisualImageData | undefined> {
     const session = this.dependencies.sessions.get(childId)
-    const events = session?.events.filter(event => event.seq >= afterSeq) ?? []
+    const events = session?.snapshotEvents().filter(event => event.seq >= afterSeq) ?? []
     for (const event of events) {
       if (event.type !== 'assistant/message') continue
       const message = (event.data as { readonly message?: { readonly content?: readonly unknown[] } }).message
@@ -127,7 +127,7 @@ export class SessionImageCollector {
     while (true) {
       if (signal.aborted) throw signal.reason
       const session = this.dependencies.sessions.get(childId)
-      const events = session?.events.filter(event => event.seq >= afterSeq) ?? []
+      const events = session?.snapshotEvents().filter(event => event.seq >= afterSeq) ?? []
       const image = await this.findExistingImage(childId, afterSeq, signal)
       if (image !== undefined) return image
       if (events.some(event => event.type === 'turn/end')) {

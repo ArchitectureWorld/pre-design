@@ -506,7 +506,7 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
     {
       name: 'preplan-boundary-asset',
       description: '登记一张总平图或红线图，等待项目负责人独立确认',
-      input: { hint: '<approved_site_plan|approved_redline> [assetId]', images: true },
+      input: { hint: '<approved_site_plan|approved_redline> [assetId]', attachments: true },
       recordInput: false,
       handler: guarded(async (invocation) => {
         const [source, assetId, ...extra] = invocation.rawInput.trim().split(/\s+/u)
