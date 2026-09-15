@@ -6,34 +6,58 @@
 
 | 对象 | 当前值 | 含义 |
 |---|---:|---|
-| Pre 产品版本 | `2.0.1` | Source-Traceable Research 独立开发线 |
-| Pre DSH 插件版本 | `2.0.1` | 当前 2.0.1 分支插件版本 |
+| Pre 产品版本 | `2.0.1` | 当前开发/部署候选 |
+| Pre DSH 插件版本 | `2.0.1` | Workspace-first / zero-input 版本 |
 | Pre npm 包版本 | `@architectureworld/dsh-preplanning-agent@2.0.1` | 当前构建包版本 |
+| DSH 兼容基线 | `0.1.5-rc.1` | 当前 Host 与 Browser API 唯一支持基线 |
 | Presentation 标准版本 | `0.1.0` | 外部、解耦的数据格式 Contract |
-| DSH 兼容基线 | `0.1.1-rc.2` | 当前 Host 与 Browser API 基线 |
-| V2.0.0 正式基线 | `main@49140423e14f3d3abcf3815c9bdf68e8e5e26730` | V2.0.0 已进入 main，2.0.1 从该坐标继续演进 |
+| Node.js 基线 | `>=24.11.0` | 构建与部署运行时要求 |
+| V2.0.0 正式基线 | `main@49140423e14f3d3abcf3815c9bdf68e8e5e26730` | 2.0.1 从该坐标继续演进 |
 | 上一正式发布 | `v0.7.0` | 历史发布，不代表当前开发候选 |
 
 固定原则：
 
 - `2.0.1` 只属于 Pre 产品、插件和包；
+- `0.1.5-rc.1` 只属于当前 DSH 兼容基线；
 - `0.1.0` 只属于 `Presentation Standard Project Directory`；
-- V2.0.0 已合并进 `main`，正式基线固定为 `main@49140423e14f3d3abcf3815c9bdf68e8e5e26730`；
-- `feat/pre-v2.0.1` 专门承载可查数据源、Evidence、AnalysisTrace、ResearchStep 与 Research Provider；
-- 不再把 `feat/pre-v2.0.0` 作为 2.0.1 的活动基线；
-- Presentation-tools 的产品版本独立演进，不自动推动 Pre 升版；
-- 当前 2.0.1 支线未合并、未打 `v2.0.1` Tag、未创建正式 Release。
+- Pre 是 DSH Skill / Workspace 插件，实际执行仍由 DSH Agent 完成；
+- Presentation-tools 保持工具属性，排版能力仍归 Pre/DSH Skill 层；
+- 当前 2.0.1 支线未合并、未打 `v2.0.1` Tag、未创建正式 Release，也未声明 npm 正式发布。
 
 ## 2. 当前有效支线
 
 ```text
 main                    # Pre V2.0.0 正式基线
-feat/pre-v2.0.1         # Source-Traceable Research 独立开发线
+feat/pre-v2.0.1         # Pre 2.0.1 开发与部署候选
 ```
 
 历史 `architecture/pre-v2.0.0` 和 `feat/pre-v2.0.0` 可保留用于追溯，但不再作为 2.0.1 的当前基线坐标。
 
-## 3. 外部 Contract 固定坐标
+## 3. DSH 0.1.5-rc.1 兼容权威
+
+```text
+DSH version: 0.1.5-rc.1
+Official tag: dsh-v0.1.5-rc.1
+Official commit: 183f08e9c6dde7e36cd2318eaee70b0da08fb35e
+Node.js: >=24.11.0
+pnpm: 10.15.1
+```
+
+2.0.1 Browser 侧使用 rc.1 的正式 owner packages，不再依赖旧 `@deepseek-ai/dsh-client-runtime` facade。核心集成为：
+
+```text
+Workspace Controller
+    ↓
+root sidebar.panellist + main
+    ↓
+uiWorkspace.connectWorkspace(workspaceId)
+    ↓
+空白 Session 可直接启动 Pre
+```
+
+状态节点通过 `uiConversation.events` 注册；Session 日志读取使用 `snapshotEvents()`；命令附件使用 `input.attachments`；JSON 安全值使用 `@deepseek-ai/dsh-util-values`。
+
+## 4. 外部 Presentation Contract 固定坐标
 
 ```text
 Standard: Presentation Standard Project Directory
@@ -46,9 +70,50 @@ Schema Set SHA-256: 5bd329fcc8503ff7a48b3430e41b38dd264ae486cee7372a39cbbcccc2de
 
 它是 Pre 当前消费的外部格式依赖，不是 Pre 的产品版本，也不参与 Pre 的分支命名。
 
-## 4. 2.0.1 新增权威
+## 5. Workspace-first / zero-input 项目权威
 
-Source-Traceable Research 设计：
+2.0.1 的项目模型固定为：
+
+```text
+一个 DSH Workspace
+= 一个项目总文件夹
+= 一个 Pre 项目
+= 一套 Presentation Standard Project Directory 0.1.0
+```
+
+root/blank-session UI 的项目根路径权威来自 **DSH Workspace Controller 的 `WorkspaceView.path`**。`SessionHeader.cwd` 仅保留为已经存在 Session 时的 Host/命令侧兼容与恢复路径，不再作为第一条消息之前 root UI 选择 Workspace 的唯一权威。
+
+项目显示名来自 Workspace 文件夹名；项目身份仍由 `project.json.projectId` 决定。Pre 不保存项目名/项目描述草稿，不使用 `localStorage-per-workspace` 创建项目身份，也不发送占位 `hello` 或任何合成用户消息。
+
+当前目录职责：
+
+```text
+DSH Workspace/
+├─ 原始资料/          # 用户拥有；Pre 只读扫描
+├─ project.json       # Pre 管理
+├─ rules.json         # Pre 管理
+├─ outline.json       # Pre 管理
+├─ pages/             # Pre 管理
+├─ source-materials/  # Pre 管理的标准化副本
+├─ assets/            # Pre 管理
+└─ layouts/           # Pre 不接管
+```
+
+固定规则：
+
+- `原始资料/` 与 `source-materials/` 永不合并、重命名或互换职责；
+- `原始资料/` 缺失时允许创建目录，但其中原文件不得移动、重命名、覆盖或删除；
+- `原始资料/` 为空时进入 `等待原始资料`，不启动分析；
+- Pre 只写自己明确拥有的 Canonical 文件；`layouts/**` 与未知/无关用户文件必须原样保留；
+- 项目初始化为 zero-input，不再要求项目名或“一句话描述项目和目标”。
+
+## 6. Automatic-first 权威
+
+默认运行方式是 Automatic-first：DSH Agent 根据资料、规则、批注与工作流自动推进。Proposal/Gate 历史能力可作为底层兼容与审计机制继续存在，但默认 UI 不暴露人工 Proposal 审批流程，也不要求用户逐步 Gate 确认。
+
+## 7. Source-Traceable Research 权威
+
+设计：
 
 ```text
 docs/superpowers/specs/2026-09-12-pre-v2.0.1-source-traceable-research-design.md
@@ -66,30 +131,9 @@ Research Runtime 资源统一位于：
 research/v2.0.1/
 ```
 
-## 5. Workspace 与 Presentation 基线
+数据可信原则：项目正式资料、政府/法定机构、官方标准和权威专业数据优先；LLM inference / assumption 不能作为独立事实依据；关键结论必须可通过 Evidence 与 AnalysisTrace 回溯数据源、方法与输入。
 
-2.0.1 继承 `main` 中 V2.0.0 已验证的 Workspace 模型：
-
-```text
-一个 DSH Workspace
-= 一个项目总文件夹
-= 一个 Pre 项目
-= 一套 Presentation Standard Project Directory 0.1.0
-```
-
-当前 Session 的 `SessionHeader.cwd` 仍是项目总文件夹权威路径。Pre 继续只管理 `project.json / rules.json / outline.json / pages / source-materials / assets`，并保留 `layouts/` 与全部无关用户文件。
-
-## 6. 2.0.1 数据可信原则
-
-- 项目正式资料、政府/法定机构、官方标准和权威专业数据优先；
-- LLM inference / assumption 不能作为独立事实依据；
-- 关键事实必须保留真实 Source URI、时间、定位、原始值、标准化值和 Evidence ID；
-- 可确定性计算必须交由确定性函数或专业工具完成；
-- 结论必须通过 AnalysisTrace 反查输入证据和方法；
-- Workflow Research 必须显式保存 `Workflow → ResearchStep → DataPoint → DataSource → Evidence → AnalysisTrace → OutputClaim`；
-- 无完整追溯链的关键结论不能获得完全可信的自动通过状态。
-
-## 7. UI 版本标识
+## 8. UI 版本标识
 
 2.0.1 分支显示：
 
@@ -97,17 +141,26 @@ research/v2.0.1/
 Pre 2.0.1 · Project Format 0.1.0
 ```
 
-`main` 的 V2.0.0 基线保持 `Pre 2.0.0 · Project Format 0.1.0`。
+## 9. 部署权威
 
-## 8. 版本禁止事项
+部署说明：
+
+```text
+docs/deployment-dsh-v0.1.5-rc.1.md
+```
+
+部署应固定到通过完整 CI 的精确 commit SHA，而不是长期跟随移动的 `feat/pre-v2.0.1` 分支头。
+
+## 10. 版本禁止事项
 
 不得：
 
+- 将 DSH `0.1.1-rc.2` 或旧 `dsh-client-runtime` 写成当前兼容基线；
 - 将 `feat/pre-v2.0.0` 继续写成 2.0.1 活动基线；
-- 在 V2.0.1 Runtime/UI/打包元数据中残留 V2.0.0 身份；
 - 将 Presentation `0.1.0` 写成 Pre 产品版本；
 - 将 Pre `2.0.1` 写成 Presentation 标准版本；
 - 把历史 `v0.7.0` 当成当前插件版本；
 - 把 `contracts/v0.6`、`contracts/v0.7` 改名为 `v2.0.1`；
-- 把 Workspace 路径、Session 状态、Gate、Revision 或恢复记录写进 Presentation Canonical 文件；
-- 在未完成测试、真实部署验收和合并审批前创建正式 `v2.0.1` Release。
+- 把 `原始资料/` 当成 Pre 可改写的 Canonical 存储；
+- 在 root/blank-session UI 中重新要求虚构 prompt 才能实例化 Pre；
+- 在未完成完整测试、真实部署验收和合并审批前创建正式 `v2.0.1` Release。
