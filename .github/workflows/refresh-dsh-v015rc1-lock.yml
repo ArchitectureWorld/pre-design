@@ -1,0 +1,47 @@
+name: Refresh DSH 0.1.5-rc.1 Lockfile
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/pre-v2.0.1
+    paths:
+      - 'package.json'
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: feat/pre-v2.0.1
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.11.0
+          cache: pnpm
+
+      - name: Refresh lockfile from package manifest
+        run: pnpm install --lockfile-only --no-frozen-lockfile
+
+      - name: Commit refreshed lockfile
+        run: |
+          if git diff --quiet -- pnpm-lock.yaml; then
+            echo 'Lockfile already current.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add pnpm-lock.yaml
+          git commit -m 'chore: refresh lockfile for DSH 0.1.5-rc.1'
+          git push origin HEAD:feat/pre-v2.0.1
