@@ -1,0 +1,77 @@
+name: Apply DSH 0.1.5-rc.1 Contract Fixes
+
+on:
+  push:
+    branches:
+      - feat/pre-v2.0.1
+    paths:
+      - '.github/workflows/apply-dsh-v015rc1-contract-fixes.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/pre-v2.0.1
+      - name: Apply exact rc.1 contract migrations
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new, count=1):
+              p = Path(path)
+              text = p.read_text()
+              actual = text.count(old)
+              if actual != count:
+                  raise SystemExit(f'{path}: expected {count} occurrences, found {actual}: {old!r}')
+              p.write_text(text.replace(old, new))
+
+          replace(
+              'src/presentation/runtime-integration.ts',
+              "import { defineTool, type JsonValue } from '@deepseek-ai/dsh-tools'",
+              "import { defineTool } from '@deepseek-ai/dsh-tools'\nimport type { JsonValue } from '@deepseek-ai/dsh-util-values'",
+          )
+          replace(
+              'src/tools/register.ts',
+              "import { defineTool, type JsonValue } from '@deepseek-ai/dsh-tools'",
+              "import { defineTool } from '@deepseek-ai/dsh-tools'\nimport type { JsonValue } from '@deepseek-ai/dsh-util-values'",
+          )
+          replace(
+              'tests/design-visual-bridge.spec.ts',
+              "import type { ToolDefinition, JsonValue } from '@deepseek-ai/dsh-tools'",
+              "import type { ToolDefinition } from '@deepseek-ai/dsh-tools'\nimport type { JsonValue } from '@deepseek-ai/dsh-util-values'",
+          )
+          replace(
+              'src/commands/register.ts',
+              "input: { hint: '<approved_site_plan|approved_redline> [assetId]', images: true }",
+              "input: { hint: '<approved_site_plan|approved_redline> [assetId]', attachments: true }",
+          )
+          replace(
+              'src/visual/session-image-collector.ts',
+              "interface SessionLike {\n  readonly seq: number\n  readonly events: readonly SessionEventLike[]\n}",
+              "interface SessionLike {\n  readonly seq: number\n  snapshotEvents(): readonly SessionEventLike[]\n}",
+          )
+          replace(
+              'src/visual/session-image-collector.ts',
+              "const events = this.dependencies.sessions.get(childId)?.events ?? []",
+              "const events = this.dependencies.sessions.get(childId)?.snapshotEvents() ?? []",
+              count=2,
+          )
+          replace(
+              'src/visual/session-image-collector.ts',
+              "const events = session?.events.filter(event => event.seq >= afterSeq) ?? []",
+              "const events = session?.snapshotEvents().filter(event => event.seq >= afterSeq) ?? []",
+              count=2,
+          )
+          PY
+      - name: Commit migration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/presentation/runtime-integration.ts src/tools/register.ts src/commands/register.ts src/visual/session-image-collector.ts tests/design-visual-bridge.spec.ts
+          git commit -m 'fix: align Host contracts with DSH 0.1.5-rc.1'
+          git push origin HEAD:feat/pre-v2.0.1
