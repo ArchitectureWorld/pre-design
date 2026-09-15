@@ -114,6 +114,7 @@
       "guide": "docs/deployment-dsh-v0.1.5-rc.1.md",
       "installMode": "dsh-profile-plugin",
       "recommendedProfile": "web",
+      "tarballPathRequirement": "absolute-path-because-dsh-plugin-runs-pnpm-in-profile-directory",
       "pinExactCommit": true,
       "formalReleasePublished": false
     },
