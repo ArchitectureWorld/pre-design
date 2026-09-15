@@ -1,9 +1,24 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { CommandDefinition } from '@deepseek-ai/dsh-commands'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { registerPresentationRuntime } from '../src/presentation/runtime-integration.ts'
 import type { FrozenProjectInput } from '../src/report/types.ts'
+
+const workspaceRoots: string[] = []
+
+afterEach(() => {
+  for (const root of workspaceRoots.splice(0)) rmSync(root, { recursive: true, force: true })
+})
+
+function workspaceRoot(): string {
+  const root = mkdtempSync(join(tmpdir(), 'pre-runtime-workspace-'))
+  workspaceRoots.push(root)
+  return root
+}
 
 const frozenProject: FrozenProjectInput = {
   projectId: 'preplan-workspace-project',
@@ -48,11 +63,12 @@ function projectContext() {
 
 describe('Workspace-aware Presentation runtime', () => {
   it('probes the Workspace, binds another Session to the existing Pre project, and exports into the Workspace root', async () => {
+    const root = workspaceRoot()
     const commands: CommandDefinition[] = []
     const tools: ToolDefinition[] = []
     const bindSession = vi.fn(async () => undefined)
     const exportProject = vi.fn(async () => ({
-      directoryRoot: 'C:\\Projects\\武汉站',
+      directoryRoot: root,
       projectId: 'project_01992a80-0000-7000-8000-000000000001',
       projectSlug: 'wuhan-station',
       standardVersion: '0.1.0' as const,
@@ -63,8 +79,8 @@ describe('Workspace-aware Presentation runtime', () => {
     }))
     const findByWorkspaceRoot = vi.fn(() => ({
       preDesignProjectId: frozenProject.projectId,
-      workspaceRoot: 'C:\\Projects\\武汉站',
-      directoryRoot: 'C:\\Projects\\武汉站',
+      workspaceRoot: root,
+      directoryRoot: root,
       state: 'ready',
     }))
 
@@ -75,7 +91,7 @@ describe('Workspace-aware Presentation runtime', () => {
       } as never,
       standardProjects: { exportProject, findByWorkspaceRoot } as never,
       source: vi.fn(async () => frozenProject),
-      resolveWorkspaceRoot: vi.fn(async () => 'C:\\Projects\\武汉站'),
+      resolveWorkspaceRoot: vi.fn(async () => root),
       openDirectory: vi.fn(async () => undefined),
     })
 
@@ -84,7 +100,7 @@ describe('Workspace-aware Presentation runtime', () => {
       'preplan-open-project-folder',
     ])
 
-    const probe = await commands[0]?.handler(invocation('--probe'))
+    const probe = await commands[0]?.handler(invocation('--probe', root))
     expect(probe).toMatchObject({
       kind: 'success',
       text: expect.stringContaining('PRE_DESIGN_WORKSPACE_PROJECT_ATTACHED'),
@@ -92,13 +108,13 @@ describe('Workspace-aware Presentation runtime', () => {
     expect(bindSession).toHaveBeenCalledWith('session-2', frozenProject.projectId, expect.any(String))
     expect(exportProject).not.toHaveBeenCalled()
 
-    const sync = await commands[0]?.handler(invocation(''))
+    const sync = await commands[0]?.handler(invocation('', root))
     expect(sync).toMatchObject({
       kind: 'success',
       text: expect.stringContaining('PRESENTATION_STANDARD_PROJECT_V0_1_0_PASS'),
     })
     expect(exportProject).toHaveBeenCalledWith(expect.objectContaining({
-      workspaceRoot: 'C:\\Projects\\武汉站',
+      workspaceRoot: root,
       frozenProject,
     }))
   })
