@@ -1,12 +1,12 @@
-import type { ConversationNodeDefinition } from '@deepseek-ai/dsh-client-runtime/client'
-import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { ConversationNodeDefinition } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 import { normalizePreplanningStatus, parsePreplanningStatus, type PreplanningStatusEventData } from '../session/events.ts'
 
 export interface PreplanningStatusNodeData extends PreplanningStatusEventData {
   readonly time: number
 }
 
-declare module '@deepseek-ai/dsh-client-ui-conversation/client' {
+declare module '@deepseek-ai/dsh-client-ui-chat/client' {
   interface ChatNodeDataMap {
     'preplanning-status': PreplanningStatusNodeData
   }
