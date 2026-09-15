@@ -168,7 +168,7 @@ export function apply(ctx: ClientContext): void {
     const start = async () => {
       if (workspace === undefined) throw new Error('请先选择或创建 DSH 工作区。')
       const sessionId = await uiWorkspace.connectWorkspace(workspace.workspaceId)
-      await startDirectPreplanning({
+      return startDirectPreplanning({
         executeCommand: line => executeCommand(ctx, String(sessionId), line),
       }, { workspacePath: workspace.path })
     }
