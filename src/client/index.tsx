@@ -1,7 +1,15 @@
-import type { ClientContext, ISessions } from '@deepseek-ai/dsh-client-runtime/client'
-import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { IWorkspaces, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client'
+import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { useEffect, useReducer } from 'react'
 import { startDirectPreplanning, type DirectStartPort } from './direct-start.ts'
 import { PreplanningLauncher } from './PreplanningLauncher.tsx'
@@ -9,69 +17,31 @@ import { PreplanningProjectForm } from './PreplanningProjectForm.tsx'
 import { PreplanningStatusCard } from './PreplanningStatusCard.tsx'
 import { preplanningStatusDefinition } from './status-definition.ts'
 
+const PREPLANNING_PANEL_ID = 'preplanning' as MainPanelId
+
 export const inject = [
-  'conversationEvents',
   'layout',
   'remote',
   'remote.commands',
   'sessions',
   'slots',
+  'uiConversation',
   'uiWorkspace',
   'workspaces',
 ]
 
-interface WorkspaceView {
-  readonly workspaceId: string
-  readonly path: string
-  readonly title: string
-  readonly sessionIds: readonly string[]
-  readonly updatedAt?: string
-}
-
-interface WorkspaceControllerPort {
-  readonly list: {
-    getSnapshot(): { readonly items: readonly WorkspaceView[] }
-    subscribe(listener: () => void): () => void
-  }
-}
-
-interface UiWorkspacePort {
-  connectWorkspace(workspaceId: string): Promise<string>
-}
-
-interface LayoutPort {
-  selectPanel(panelId: string | null): void
-}
-
-interface UntypedSlots {
-  inject(name: string, callback: () => (() => void)): () => void
-  register(options: Record<string, unknown> & { name: string }, component: unknown): () => void
-}
-
-function servicePorts(ctx: ClientContext): {
-  readonly layout: LayoutPort
-  readonly uiWorkspace: UiWorkspacePort
-  readonly workspaces: WorkspaceControllerPort
-} {
-  return ctx as unknown as {
-    readonly layout: LayoutPort
-    readonly uiWorkspace: UiWorkspacePort
-    readonly workspaces: WorkspaceControllerPort
-  }
-}
-
 export function currentWorkspaceOf(
-  workspaces: WorkspaceControllerPort,
+  workspaces: IWorkspaces,
   sessions: ISessions,
 ): WorkspaceView | undefined {
   const workspaceRows = workspaces.list.getSnapshot().items
   if (workspaceRows.length === 0) return undefined
 
   const sessionSnapshot = sessions.list.getSnapshot()
-  const currentId = sessionSnapshot.current === undefined ? undefined : String(sessionSnapshot.current)
+  const currentId = sessionSnapshot.current
   if (currentId !== undefined) {
-    const current = sessionSnapshot.byId[currentId as keyof typeof sessionSnapshot.byId]
-    const byMembership = workspaceRows.find(row => row.sessionIds.some(id => String(id) === currentId))
+    const current = sessionSnapshot.byId[currentId]
+    const byMembership = workspaceRows.find(row => row.sessionIds.includes(currentId))
     if (byMembership !== undefined) return byMembership
     if (current?.cwd !== undefined) {
       const byPath = workspaceRows.find(row => row.path === current.cwd)
@@ -79,15 +49,13 @@ export function currentWorkspaceOf(
     }
   }
 
-  // A root/global panel can exist before a formal Conversation is mounted.
-  // In that blank state use the most recently updated Workspace as DSH itself does
-  // for New Session fallback. A later Session selection immediately takes priority.
-  return [...workspaceRows].sort((left, right) =>
-    (right.updatedAt ?? '').localeCompare(left.updatedAt ?? ''))[0]
+  // Root panels exist before a Conversation has a first message. Follow DSH's
+  // Workspace-first fallback and surface the most recently mutated Workspace.
+  return [...workspaceRows].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0]
 }
 
 function useCurrentWorkspace(
-  workspaces: WorkspaceControllerPort,
+  workspaces: IWorkspaces,
   sessions: ISessions,
 ): WorkspaceView | undefined {
   const [, refresh] = useReducer((value: number) => value + 1, 0)
@@ -104,10 +72,10 @@ function useCurrentWorkspace(
 
 async function executeCommand(
   ctx: ClientContext,
-  sessionId: string,
+  sessionId: SessionId,
   line: string,
 ): Promise<Awaited<ReturnType<DirectStartPort['executeCommand']>>> {
-  const result = await ctx.remote.commands.execute(sessionId as SessionId, line, [])
+  const result = await ctx.remote.commands.execute(sessionId, line, [])
   if (!result.ok) return { kind: 'error', text: `${result.error.code}: ${result.error.message}` }
   if (result.value === undefined) return { kind: 'unmatched' }
   const value = result.value.result
@@ -119,7 +87,7 @@ async function executeCommand(
       }
 }
 
-async function openWorkspaceFolder(sessionId: string): Promise<void> {
+async function openWorkspaceFolder(sessionId: SessionId): Promise<void> {
   const response = await fetch('/preplan-open-workspace', {
     body: JSON.stringify({ sessionId }),
     headers: { 'content-type': 'application/json' },
@@ -131,7 +99,7 @@ async function openWorkspaceFolder(sessionId: string): Promise<void> {
   }
 }
 
-function PreplanningSidebarIcon({ size, active }: { readonly size: number; readonly active: boolean }) {
+function PreplanningSidebarIcon({ size, active }: PropsRuntime<'sidebar.panellist'>) {
   return (
     <span
       aria-hidden="true"
@@ -155,28 +123,27 @@ function PreplanningSidebarIcon({ size, active }: { readonly size: number; reado
 }
 
 export function apply(ctx: ClientContext): void {
-  const sessions = ctx.get('sessions') as unknown as ISessions
-  const { layout, uiWorkspace, workspaces } = servicePorts(ctx)
-  const slots = ctx.slots as unknown as UntypedSlots
-  ctx.conversationEvents.register(preplanningStatusDefinition)
+  const sessions = ctx.get('sessions') as ISessions
+  const workspaces = ctx.get('workspaces') as IWorkspaces
+  ctx.uiConversation.events.register(preplanningStatusDefinition)
 
-  slots.inject('main', () => slots.register({
+  ctx.slots.inject('main', () => ctx.slots.register({
     name: 'main',
-    key: 'preplanning',
+    key: PREPLANNING_PANEL_ID,
   }, function PreplanningWorkspacePanel() {
     const workspace = useCurrentWorkspace(workspaces, sessions)
     const start = async () => {
       if (workspace === undefined) throw new Error('请先选择或创建 DSH 工作区。')
-      const sessionId = await uiWorkspace.connectWorkspace(workspace.workspaceId)
+      const sessionId = await ctx.uiWorkspace.connectWorkspace(workspace.workspaceId)
       return startDirectPreplanning({
-        executeCommand: line => executeCommand(ctx, String(sessionId), line),
+        executeCommand: line => executeCommand(ctx, sessionId, line),
       }, { workspacePath: workspace.path })
     }
     const openProjectFolder = workspace === undefined
       ? undefined
       : async () => {
-          const sessionId = await uiWorkspace.connectWorkspace(workspace.workspaceId)
-          await openWorkspaceFolder(String(sessionId))
+          const sessionId = await ctx.uiWorkspace.connectWorkspace(workspace.workspaceId)
+          await openWorkspaceFolder(sessionId)
         }
 
     return (
@@ -191,29 +158,29 @@ export function apply(ctx: ClientContext): void {
     )
   }))
 
-  slots.inject('sidebar.panellist', () => slots.register({
+  ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
     name: 'sidebar.panellist',
-    id: 'preplanning',
+    id: PREPLANNING_PANEL_ID,
     order: 60,
     label: '前期策划',
   }, PreplanningSidebarIcon))
 
-  slots.inject('conversation.session.header.actions', () => slots.register({
+  ctx.slots.inject('conversation.session.header.actions', () => ctx.slots.register({
     name: 'conversation.session.header.actions',
     id: 'preplanning-agent',
     order: 60,
     label: '前期策划',
   }, () => (
-    <PreplanningLauncher openPanel={() => layout.selectPanel('preplanning')} />
+    <PreplanningLauncher openPanel={() => ctx.layout.selectPanel(PREPLANNING_PANEL_ID)} />
   )))
 
-  slots.inject('conversation.chat.node', () => slots.register({
+  ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({
     name: 'conversation.chat.node',
     key: 'preplanning-status',
   }, (props: PropsRuntime<'conversation.chat.node', 'preplanning-status'>) => (
     <PreplanningStatusCard
       {...props}
-      openProjectFolder={() => openWorkspaceFolder(String(props.sessionId))}
+      openProjectFolder={() => openWorkspaceFolder(props.sessionId)}
     />
   )))
 }
