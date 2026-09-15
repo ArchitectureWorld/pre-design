@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  deriveProjectName,
+  deriveWorkspaceProjectName,
   startDirectPreplanning,
   type DirectStartPort,
 } from '../src/client/direct-start.ts'
@@ -9,12 +9,11 @@ const workspaceEmpty = 'PRE_DESIGN_WORKSPACE_EMPTY'
 const workspaceAttached = 'PRE_DESIGN_WORKSPACE_PROJECT_ATTACHED'
 
 describe('direct preplanning start', () => {
-  it('从常见中文启动句中推导可编辑项目名', () => {
-    expect(deriveProjectName('新建鄂州体育中心项目并完成 01-01 身份校准')).toBe('鄂州体育中心项目')
-    expect(deriveProjectName('请创建 武汉站综合枢纽，然后进行项目身份校准')).toBe('武汉站综合枢纽')
-    expect(deriveProjectName('对沙潭河这个项目进行一个前期策划')).toBe('沙潭河这个项目')
-    expect(deriveProjectName('   ')).toBe('')
-    expect(deriveProjectName('新建' + '鄂'.repeat(60) + '，完成身份校准')).toBe('鄂'.repeat(48))
+  it('只从 DSH Workspace 文件夹名推导项目名', () => {
+    expect(deriveWorkspaceProjectName('C:\\Projects\\鄂州体育中心项目')).toBe('鄂州体育中心项目')
+    expect(deriveWorkspaceProjectName('/Users/me/projects/武汉站综合枢纽/')).toBe('武汉站综合枢纽')
+    expect(deriveWorkspaceProjectName('   ')).toBe('')
+    expect(deriveWorkspaceProjectName('/tmp/' + '鄂'.repeat(60))).toBe('鄂'.repeat(48))
   })
 
   it('命令业务失败时立即停止', async () => {
@@ -23,12 +22,11 @@ describe('direct preplanning start', () => {
     }
 
     await expect(startDirectPreplanning(port, {
-      projectName: '鄂州体育中心项目',
-      statement: '新建鄂州体育中心项目并完成 01-01 身份校准',
+      workspacePath: 'C:\\Projects\\鄂州体育中心项目',
     })).rejects.toThrow('项目创建失败')
   })
 
-  it('新 Workspace 只创建 Pre 项目并应用内部 automatic-first 默认策略，不同步 Presentation', async () => {
+  it('新 Workspace 自动创建同名 Pre 项目并按 automatic-first 启动', async () => {
     const lines: string[] = []
     const port: DirectStartPort = {
       executeCommand: async line => {
@@ -40,8 +38,7 @@ describe('direct preplanning start', () => {
     }
 
     await startDirectPreplanning(port, {
-      projectName: '鄂州体育中心项目',
-      statement: '新建鄂州体育中心项目并完成前期策划',
+      workspacePath: 'C:\\Projects\\鄂州体育中心项目',
     })
 
     expect(lines).toEqual([
@@ -53,7 +50,7 @@ describe('direct preplanning start', () => {
     expect(lines).not.toContain('/preplan-presentation-sync')
   })
 
-  it('已有 Workspace 项目直接恢复 automatic-first 运行，不重复创建或强制 Presentation 初始化', async () => {
+  it('已有 Workspace 项目直接恢复 automatic-first 运行，不重复创建', async () => {
     const lines: string[] = []
     const port: DirectStartPort = {
       executeCommand: async line => {
@@ -65,8 +62,7 @@ describe('direct preplanning start', () => {
     }
 
     await startDirectPreplanning(port, {
-      projectName: '已有项目',
-      statement: '继续项目',
+      workspacePath: '/projects/已有项目',
     })
 
     expect(lines).toEqual([
@@ -76,14 +72,12 @@ describe('direct preplanning start', () => {
     ])
   })
 
-  it('拒绝空项目名称或空描述', async () => {
+  it('拒绝缺失 Workspace，而不是要求用户补项目描述', async () => {
     const port: DirectStartPort = {
       executeCommand: vi.fn(async () => ({ kind: 'success' as const, text: workspaceEmpty })),
     }
-    await expect(startDirectPreplanning(port, { projectName: '', statement: '启动项目' }))
-      .rejects.toThrow('请输入项目名称')
-    await expect(startDirectPreplanning(port, { projectName: '项目', statement: '  ' }))
-      .rejects.toThrow('请输入项目描述')
+    await expect(startDirectPreplanning(port, { workspacePath: '  ' }))
+      .rejects.toThrow('未检测到当前 DSH 工作区')
     expect(port.executeCommand).not.toHaveBeenCalled()
   })
 })
