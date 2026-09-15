@@ -26,12 +26,12 @@ const fullStatus = {
 describe('preplanning Browser plugin', () => {
   it('注册 Workspace root 主入口，同时保留 Session 快捷入口和状态卡', async () => {
     expect(BrowserPlugin.inject).toEqual([
-      'conversationEvents',
       'layout',
       'remote',
       'remote.commands',
       'sessions',
       'slots',
+      'uiConversation',
       'uiWorkspace',
       'workspaces',
     ])
@@ -41,8 +41,8 @@ describe('preplanning Browser plugin', () => {
     const slots = ctx.get('slots') as unknown as SlotRegistry
     const eventDefinitions: Array<{ kind: string }> = []
     const selectPanel = vi.fn()
-    ctx.provide('conversationEvents', {
-      register: (definition: { kind: string }) => { eventDefinitions.push(definition); return () => undefined },
+    ctx.provide('uiConversation', {
+      events: { register: (definition: { kind: string }) => { eventDefinitions.push(definition); return () => undefined } },
     } as never)
     const commandsRemote = {
       execute: async () => ({ ok: true, value: { result: { kind: 'success', text: 'PRE_DESIGN_WORKSPACE_PROJECT_ATTACHED' } } }),

@@ -69,7 +69,13 @@ async function fixture() {
       if (publishImages) publishImage(spec.childId)
       return { childId: spec.childId, messageId: 'image-message' }
     }, interrupt: () => {} } as never,
-    collector: new SessionImageCollector({ sessions: { get: id => sessions.get(id) as never }, attachments: { readImage: async () => { throw new Error('unexpected attachment') } }, waitForEvent: async (_id, signal) => new Promise<void>((_resolve, reject) => {
+    collector: new SessionImageCollector({ sessions: { get: id => {
+      const session = sessions.get(id)
+      return session === undefined ? undefined : {
+        get seq() { return session.seq },
+        snapshotEvents: () => session.events,
+      } as never
+    } }, attachments: { readImage: async () => { throw new Error('unexpected attachment') } }, waitForEvent: async (_id, signal) => new Promise<void>((_resolve, reject) => {
       if (signal.aborted) reject(signal.reason)
       else signal.addEventListener('abort', () => reject(signal.reason), { once: true })
     }) }),

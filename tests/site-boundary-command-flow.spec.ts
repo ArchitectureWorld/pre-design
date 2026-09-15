@@ -43,7 +43,7 @@ describe('场地边界命令分流', () => {
     const coordinateCommand = definitions.find(row => row.name === 'preplan-boundary-coordinates')
     const invocation = { agent: topLevelAgent() }
 
-    expect(assetCommand?.input).toEqual({ hint: '<approved_site_plan|approved_redline> [assetId]', images: true })
+    expect(assetCommand?.input).toEqual({ hint: '<approved_site_plan|approved_redline> [assetId]', attachments: true })
     expect(assetCommand?.recordInput).toBe(false)
     expect(coordinateCommand?.recordInput).toBe(false)
     await expect(assetCommand?.handler({ ...invocation, rawInput: 'approved_redline', attachments: [imageBlock] } as never)).resolves.toMatchObject({ kind: 'success', text: expect.stringContaining('待确认') })
