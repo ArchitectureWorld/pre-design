@@ -1,4 +1,5 @@
 import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { useState } from 'react'
 import { PreplanningDashboard } from './PreplanningDashboard.tsx'
