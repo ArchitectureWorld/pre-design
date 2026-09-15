@@ -12,7 +12,6 @@ import { promisify } from 'node:util'
 import vm from 'node:vm'
 import { describe, expect, it } from 'vitest'
 import * as react from 'react'
-import * as reactDom from 'react-dom'
 import * as jsxRuntime from 'react/jsx-runtime'
 
 interface ClientRow {
@@ -100,7 +99,6 @@ describe('built npm package', () => {
       requestedExternals.add(specifier)
       if (specifier === 'react') return react
       if (specifier === 'react/jsx-runtime') return jsxRuntime
-      if (specifier === 'react-dom') return reactDom
       throw new Error(`unexpected client external: ${specifier}`)
     })
     expect(browser.inject).toEqual([
@@ -114,7 +112,7 @@ describe('built npm package', () => {
       'workspaces',
     ])
     expect(typeof browser.apply).toBe('function')
-    expect([...requestedExternals].sort()).toEqual(['react', 'react-dom', 'react/jsx-runtime'].sort())
+    expect([...requestedExternals].sort()).toEqual(['react', 'react/jsx-runtime'].sort())
     expect(Buffer.byteLength(source, 'utf8')).toBeLessThan(100_000)
   })
 
