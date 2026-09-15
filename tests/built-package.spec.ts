@@ -102,12 +102,12 @@ describe('built npm package', () => {
       throw new Error(`unexpected client external: ${specifier}`)
     })
     expect(browser.inject).toEqual([
-      'conversationEvents',
       'layout',
       'remote',
       'remote.commands',
       'sessions',
       'slots',
+      'uiConversation',
       'uiWorkspace',
       'workspaces',
     ])
