@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from 'react'
-import { deriveWorkspaceProjectName } from './direct-start.ts'
+import { deriveWorkspaceProjectName, type DirectStartResult } from './direct-start.ts'
 import { VersionFooter } from './VersionFooter.tsx'
 
 export interface PreplanningProjectFormProps {
-  readonly start: () => Promise<void>
+  readonly start: () => Promise<DirectStartResult>
   readonly onClose?: () => void
   readonly workspacePath?: string
   readonly workspaceTitle?: string
@@ -11,7 +11,7 @@ export interface PreplanningProjectFormProps {
   readonly embedded?: boolean
 }
 
-type SubmitState = 'idle' | 'running' | 'success'
+type SubmitState = 'idle' | 'running' | 'success' | 'waiting_for_source'
 type OpenState = 'idle' | 'running' | 'success'
 
 function messageOf(error: unknown): string {
@@ -27,6 +27,7 @@ export function PreplanningProjectForm({
   embedded = false,
 }: PreplanningProjectFormProps) {
   const [submitState, setSubmitState] = useState<SubmitState>('idle')
+  const [startResult, setStartResult] = useState<DirectStartResult>()
   const [openState, setOpenState] = useState<OpenState>('idle')
   const [error, setError] = useState<string>()
   const workspaceMissing = workspacePath === undefined || workspacePath.trim() === ''
@@ -42,8 +43,9 @@ export function PreplanningProjectForm({
     setError(undefined)
     setSubmitState('running')
     try {
-      await start()
-      setSubmitState('success')
+      const result = await start()
+      setStartResult(result)
+      setSubmitState(result.state === 'running' ? 'success' : 'waiting_for_source')
     } catch (cause) {
       setError(messageOf(cause))
       setSubmitState('idle')
@@ -148,14 +150,34 @@ export function PreplanningProjectForm({
       {error !== undefined && !workspaceMissing && (
         <div role="alert" style={{ color: '#c33', fontSize: 12 }}>{error}</div>
       )}
-      {submitState === 'success' && (
-        <div role="status" style={{ color: '#24844b', fontSize: 12 }}>
-          项目已创建或恢复，系统将自动推进前期策划。
+      {submitState === 'success' && startResult?.state === 'running' && (
+        <div role="status" style={{ color: '#24844b', display: 'grid', fontSize: 12, gap: 4 }}>
+          <strong>项目已创建或恢复，系统将自动推进前期策划。</strong>
+          <span>
+            已登记 {startResult.sourceMaterialCount} 个标准原件；当前“原始资料”检测到 {startResult.sourceInboxFileCount} 个文件。
+          </span>
+        </div>
+      )}
+      {submitState === 'waiting_for_source' && startResult?.state === 'waiting_for_source' && (
+        <div
+          role="status"
+          style={{
+            background: 'color-mix(in srgb, #b7791f 8%, transparent)',
+            borderRadius: 10,
+            display: 'grid',
+            fontSize: 12,
+            gap: 5,
+            padding: '12px 14px',
+          }}
+        >
+          <strong>等待原始资料</strong>
+          <span>当前项目尚未检测到可分析资料。请将项目资料放入“原始资料”文件夹。</span>
+          <span style={{ opacity: 0.72 }}>标准项目目录已经初始化；检测到资料后才会启动自动前期策划。</span>
         </div>
       )}
 
       <button
-        disabled={submitState !== 'idle' || workspaceMissing}
+        disabled={submitState === 'running' || submitState === 'success' || workspaceMissing}
         style={{
           background: 'var(--dsh-color-accent, #3568d4)', border: 0, borderRadius: 9,
           color: '#fff', cursor: submitState === 'running' ? 'wait' : 'pointer',
@@ -163,7 +185,11 @@ export function PreplanningProjectForm({
         }}
         type="submit"
       >
-        {submitState === 'running' ? '正在启动…' : '开始前期策划'}
+        {submitState === 'running'
+          ? '正在启动…'
+          : submitState === 'waiting_for_source'
+            ? '重新检测原始资料'
+            : '开始前期策划'}
       </button>
 
       {!workspaceMissing && openProjectFolder !== undefined && (
