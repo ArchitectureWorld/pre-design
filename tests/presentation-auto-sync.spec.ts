@@ -1,13 +1,24 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PresentationAutoSyncService } from '../src/presentation/auto-sync.ts'
 import { PresentationStandardProjectError } from '../src/presentation/standard-project-error.ts'
 
 const services: PresentationAutoSyncService[] = []
+const workspaceRoots: string[] = []
 
 afterEach(async () => {
   vi.useRealTimers()
   await Promise.all(services.splice(0).map(service => service.close()))
+  for (const root of workspaceRoots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
+
+function workspaceRoot(): string {
+  const root = mkdtempSync(join(tmpdir(), 'pre-auto-sync-'))
+  workspaceRoots.push(root)
+  return root
+}
 
 function frozen(projectId: string, revision: number) {
   return {
@@ -25,13 +36,13 @@ function frozen(projectId: string, revision: number) {
   }
 }
 
-function binding(overrides: Record<string, unknown> = {}) {
+function binding(root: string, overrides: Record<string, unknown> = {}) {
   return {
     preDesignProjectId: 'preplan-1',
     presentationProjectId: 'project_01992a80-0000-7000-8000-000000000101',
     projectSlug: 'shatanhe',
-    workspaceRoot: 'D:\\沙潭河',
-    directoryRoot: 'D:\\沙潭河',
+    workspaceRoot: root,
+    directoryRoot: root,
     standardVersion: '0.1.0',
     state: 'ready',
     stableIds: {},
@@ -47,9 +58,10 @@ function binding(overrides: Record<string, unknown> = {}) {
 describe('PresentationAutoSyncService', () => {
   it('coalesces repeated requests and exports only the latest Pre revision', async () => {
     vi.useFakeTimers()
+    const root = workspaceRoot()
     let revision = 1
     const exports: number[] = []
-    const currentBinding = binding()
+    const currentBinding = binding(root)
     const service = new PresentationAutoSyncService({
       repository: {
         listProjects: () => [{ projectId: 'preplan-1', currentRevision: revision }],
@@ -60,7 +72,7 @@ describe('PresentationAutoSyncService', () => {
           exports.push(input.frozenProject.revision)
           currentBinding.lastExportedPreDesignRevision = input.frozenProject.revision
           return {
-            directoryRoot: input.workspaceRoot ?? 'D:\\沙潭河',
+            directoryRoot: input.workspaceRoot ?? root,
             projectId: currentBinding.presentationProjectId,
             projectSlug: 'shatanhe',
             standardVersion: '0.1.0',
@@ -77,9 +89,9 @@ describe('PresentationAutoSyncService', () => {
     } as never)
     services.push(service)
 
-    service.request('preplan-1', { workspaceRoot: 'D:\\沙潭河', reason: 'revision-1' })
+    service.request('preplan-1', { workspaceRoot: root, reason: 'revision-1' })
     revision = 2
-    service.request('preplan-1', { workspaceRoot: 'D:\\沙潭河', reason: 'revision-2' })
+    service.request('preplan-1', { workspaceRoot: root, reason: 'revision-2' })
 
     expect(service.status('preplan-1', 2)).toMatchObject({ state: 'pending', currentRevision: 2 })
     await vi.advanceTimersByTimeAsync(500)
@@ -92,11 +104,12 @@ describe('PresentationAutoSyncService', () => {
   })
 
   it('catches up when a newer Revision arrives while an export is in flight', async () => {
+    const root = workspaceRoot()
     let revision = 1
     let releaseFirst!: () => void
     const first = new Promise<void>(resolve => { releaseFirst = resolve })
     const exports: number[] = []
-    const currentBinding = binding()
+    const currentBinding = binding(root)
     const service = new PresentationAutoSyncService({
       repository: { listProjects: () => [{ projectId: 'preplan-1', currentRevision: revision }] },
       standardProjects: {
@@ -106,7 +119,7 @@ describe('PresentationAutoSyncService', () => {
           if (exports.length === 1) await first
           currentBinding.lastExportedPreDesignRevision = input.frozenProject.revision
           return {
-            directoryRoot: 'D:\\沙潭河', projectId: currentBinding.presentationProjectId,
+            directoryRoot: root, projectId: currentBinding.presentationProjectId,
             projectSlug: 'shatanhe', standardVersion: '0.1.0', replacedExisting: true,
             fileHashes: {}, validation: { valid: true, errors: [] }, stableIds: {},
           }
@@ -118,10 +131,10 @@ describe('PresentationAutoSyncService', () => {
     } as never)
     services.push(service)
 
-    const flushing = service.flush('preplan-1', { workspaceRoot: 'D:\\沙潭河', reason: 'batch' })
+    const flushing = service.flush('preplan-1', { workspaceRoot: root, reason: 'batch' })
     await vi.waitFor(() => expect(exports).toEqual([1]))
     revision = 2
-    service.request('preplan-1', { workspaceRoot: 'D:\\沙潭河', reason: 'new-revision' })
+    service.request('preplan-1', { workspaceRoot: root, reason: 'new-revision' })
     releaseFirst()
     await flushing
     await service.whenIdle('preplan-1')
@@ -131,19 +144,20 @@ describe('PresentationAutoSyncService', () => {
   })
 
   it('classifies legacy directory migration without forcing or rolling back Pre state', async () => {
+    const root = workspaceRoot()
     const service = new PresentationAutoSyncService({
       repository: { listProjects: () => [{ projectId: 'preplan-1', currentRevision: 11 }] },
       standardProjects: {
-        findByPreDesignProjectId: () => binding({
+        findByPreDesignProjectId: () => binding(root, {
           workspaceRoot: undefined,
-          directoryRoot: 'C:\\Users\\2899\\.dsh\\presentation-projects\\project-old',
+          directoryRoot: join(root, 'legacy-standard-project'),
           lastExportedPreDesignRevision: 0,
         }),
         exportProject: async () => {
           throw new PresentationStandardProjectError(
             'PRE_DESIGN_WORKSPACE_MIGRATION_CONFIRMATION_REQUIRED',
             'preflight',
-            "existing standard project is 'C:\\Users\\2899\\.dsh\\presentation-projects\\project-old'",
+            'existing standard project requires Workspace migration',
           )
         },
       },
@@ -154,7 +168,7 @@ describe('PresentationAutoSyncService', () => {
     services.push(service)
 
     const result = await service.flush('preplan-1', {
-      workspaceRoot: 'D:\\沙潭河', reason: 'manual-confirm',
+      workspaceRoot: root, reason: 'manual-confirm',
     })
 
     expect(result).toMatchObject({ state: 'migration_required', currentRevision: 11, syncedRevision: 0 })
@@ -162,11 +176,12 @@ describe('PresentationAutoSyncService', () => {
   })
 
   it('reports external managed-file changes and never requests a force overwrite', async () => {
+    const root = workspaceRoot()
     let confirmExternalChanges: boolean | undefined
     const service = new PresentationAutoSyncService({
       repository: { listProjects: () => [{ projectId: 'preplan-1', currentRevision: 4 }] },
       standardProjects: {
-        findByPreDesignProjectId: () => binding({ lastExportedPreDesignRevision: 3 }),
+        findByPreDesignProjectId: () => binding(root, { lastExportedPreDesignRevision: 3 }),
         exportProject: async (input: any) => {
           confirmExternalChanges = input.confirmExternalChanges
           throw new PresentationStandardProjectError(
@@ -181,7 +196,7 @@ describe('PresentationAutoSyncService', () => {
     } as never)
     services.push(service)
 
-    const result = await service.flush('preplan-1', { workspaceRoot: 'D:\\沙潭河', reason: 'revision' })
+    const result = await service.flush('preplan-1', { workspaceRoot: root, reason: 'revision' })
 
     expect(confirmExternalChanges).toBe(false)
     expect(result).toMatchObject({ state: 'external_changes', currentRevision: 4, syncedRevision: 3 })
