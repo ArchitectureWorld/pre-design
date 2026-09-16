@@ -20,6 +20,7 @@ import {
 
 const TRANSIENT_RENAME_ERROR_CODES = new Set(['EACCES', 'EBUSY', 'EPERM'])
 const RENAME_RETRY_DELAYS_MS = Object.freeze([25, 50, 100, 200, 400] as const)
+const SAFE_DELETE_BULK_CONFIRM_REQUIRED = 'SAFE_DELETE_BULK_CONFIRM_REQUIRED'
 
 export type WorkspaceWriteActionKind = 'create' | 'replace' | 'delete'
 
@@ -85,6 +86,34 @@ async function renameWithTransientRetry(oldPath: string, newPath: string): Promi
       }
       await delay(retryDelay)
     }
+  }
+}
+
+function requiresSafeDeleteBulkConfirmation(error: unknown): boolean {
+  return (error instanceof Error ? error.message : String(error))
+    .includes(SAFE_DELETE_BULK_CONFIRM_REQUIRED)
+}
+
+/**
+ * Release an exact Pre-owned transaction scratch path without weakening host deletion guards.
+ * If the host refuses a large recursive delete, preserve the scratch bytes under a unique
+ * retained sibling and free the canonical transaction path so later writes can continue.
+ */
+async function retireTransactionDirectory(path: string): Promise<void> {
+  try {
+    await rm(path, { recursive: true, force: true })
+    return
+  } catch (error) {
+    if (!requiresSafeDeleteBulkConfirmation(error)) throw error
+  }
+
+  if (!await exists(path)) return
+  const retainedPath = `${path}.safe-delete-retained-${process.pid}-${randomUUID()}`
+  try {
+    await renameWithTransientRetry(path, retainedPath)
+  } catch (error) {
+    if (!await exists(path)) return
+    throw error
   }
 }
 
@@ -291,7 +320,7 @@ export async function recoverPresentationWorkspaceTransaction(
     )
   }
   if (journal?.phase === 'validated') {
-    await rm(transactionRoot, { recursive: true, force: true })
+    await retireTransactionDirectory(transactionRoot)
     return Object.freeze({ status: 'recovered', operationId: journal.operationId })
   }
   if (owner !== undefined && processIsAlive(owner.pid)) {
@@ -315,7 +344,7 @@ export async function recoverPresentationWorkspaceTransaction(
 
   try {
     if (journal !== undefined) await rollbackJournal(recoveryDirectory, journal)
-    await rm(recoveryDirectory, { recursive: true, force: true })
+    await retireTransactionDirectory(recoveryDirectory)
     return Object.freeze({
       status: 'recovered',
       ...(journal?.operationId === undefined ? {} : { operationId: journal.operationId }),
@@ -446,7 +475,7 @@ export class PresentationWorkspaceWriteTransaction {
     try {
       await this.updateJournal({ phase: 'rolling_back', currentAction: null })
       await rollbackJournal(this.root, this.journal)
-      await rm(this.root, { recursive: true, force: true })
+      await retireTransactionDirectory(this.root)
     } catch (error) {
       throw new PresentationStandardProjectError(
         'WORKSPACE_RECOVERY_FAILED',
@@ -459,14 +488,14 @@ export class PresentationWorkspaceWriteTransaction {
 
   async complete(): Promise<void> {
     try {
-      await rm(this.root, { recursive: true, force: true })
+      await retireTransactionDirectory(this.root)
     } catch {
       // A validated journal is safe to clean during the next startup or write attempt.
     }
   }
 
   async abort(): Promise<void> {
-    await rm(this.root, { recursive: true, force: true })
+    await retireTransactionDirectory(this.root)
   }
 
   private async updateJournal(
