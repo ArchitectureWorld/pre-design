@@ -3,7 +3,7 @@ import type { SubagentRuntime } from '@deepseek-ai/dsh-subagent'
 import type Tools from '@deepseek-ai/dsh-tools'
 import type { AgentClassService, ExecutionSession } from './service.ts'
 import { nextAgentClassAttempt } from './service.ts'
-import { preplanningCancellationReason } from '../runtime/preplanning-execution-guard.ts'
+import { preplanningCancellationReason, preplanningExecutionStop } from '../runtime/preplanning-execution-guard.ts'
 import { preplanningChildToolFilter } from './child-tool-boundary.ts'
 
 interface Dependencies {
@@ -17,6 +17,13 @@ function object(value: unknown): Record<string, unknown> {
 }
 function texts(content: unknown): string {
   return Array.isArray(content) ? content.filter(block => object(block).type === 'text').map(block => String(object(block).text ?? '')).join('\n').slice(0, 20000) : ''
+}
+/** A proved terminal tool failure; callers may keep a source gap without retrying the paid query. */
+export class WebRetrievalExhaustedError extends Error {
+  override readonly name = 'WebRetrievalExhaustedError'
+  constructor(readonly executionId: string, readonly childId: string, readonly reason: string) {
+    super(`WEB_RETRIEVAL_EXHAUSTED: ${reason}`)
+  }
 }
 export class WebQueryAgent {
   constructor(private readonly dependencies: Dependencies) {}
@@ -41,7 +48,15 @@ export class WebQueryAgent {
       await this.dependencies.classes.attach(execution.id, String(run.id))
       const result = await run.result
       const events = this.dependencies.sessions.get(String(run.id))?.snapshotEvents() ?? []
-      if (result.stopReason !== 'completed') throw new Error(`WEB_QUERY_FAILED: 网络查询子会话未正常完成（${result.stopReason}）。${preplanningCancellationReason(events) ?? result.diagnostic?.slice(0, 4096) ?? ''}`)
+      if (result.stopReason !== 'completed') {
+        const reason = preplanningCancellationReason(events)
+        if (!signal.aborted && result.stopReason === 'aborted' && reason
+          && /^PREPLANNING_REPEATED_TOOL_FAILURE: 工具 web_(?:fetch|search) 连续 3 次返回相同错误/u.test(reason)
+          && preplanningExecutionStop(events, false) === reason) {
+          throw new WebRetrievalExhaustedError(execution.id, String(run.id), reason)
+        }
+        throw new Error(`WEB_QUERY_FAILED: 网络查询子会话未正常完成（${result.stopReason}）。${reason ?? result.diagnostic?.slice(0, 4096) ?? ''}`)
+      }
       const calls = new Map(events.filter(event => event.type === 'tool/call').map(event => {
         const data = object(event.data)
         return [data.callId, data.name]

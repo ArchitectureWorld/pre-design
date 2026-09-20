@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { z } from 'zod'
 import type { AgentClassService } from '../agent-classes/service.ts'
-import type { WebQueryAgent } from '../agent-classes/web-query.ts'
+import { WebRetrievalExhaustedError, type WebQueryAgent } from '../agent-classes/web-query.ts'
 import type { VisualAgentService } from '../visual/agent.ts'
 import type { ImageInspectionAgent } from '../visual/image-inspection.ts'
 import type { SceneSpecificationAgent } from '../visual/scene-spec-agent.ts'
@@ -115,10 +115,18 @@ export function createNativeReportImagePipeline(deps: { classes: AgentClassServi
           await writeFile(path, JSON.stringify({ status: 'completed', executionId: result.executionId, candidates: suggestions, publications: publicationResults,
             omittedEvidence, rejectedCandidates }, null, 2))
         } catch (error) {
-          const message = error instanceof Error ? error.message : 'failed'
-          const notStarted = /^(?:PREPLANNING_MODEL_(?:TURN_LIMIT|BUDGET_INVALID)|MODEL_UNAVAILABLE):/u.test(message)
-          await writeFile(path, JSON.stringify({ status: notStarted ? 'not-started' : 'failed-or-unknown', briefHash: key, message }, null, 2))
-          throw error
+          if (!signal.aborted && error instanceof WebRetrievalExhaustedError) {
+            // The native failed execution remains failed and counted. Only its
+            // empty acquisition outcome is reusable; no successful research is implied.
+            suggestions = []
+            await writeFile(path, JSON.stringify({ status: 'completed', briefHash: key, candidates: [],
+              executionId: error.executionId, childId: error.childId, retrievalFailure: error.reason }, null, 2))
+          } else {
+            const message = error instanceof Error ? error.message : 'failed'
+            const notStarted = /^(?:PREPLANNING_MODEL_(?:TURN_LIMIT|BUDGET_INVALID)|MODEL_UNAVAILABLE):/u.test(message)
+            await writeFile(path, JSON.stringify({ status: notStarted ? 'not-started' : 'failed-or-unknown', briefHash: key, message }, null, 2))
+            throw error
+          }
         }
       }
       signal.throwIfAborted()

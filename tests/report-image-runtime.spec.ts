@@ -9,7 +9,7 @@ import { acquireWebImage } from '../src/visual/web-image-source.ts'
 import { imageBriefHash } from '../src/visual/image-policy.ts'
 import type { FrozenProjectInput } from '../src/report/types.ts'
 import type { PresentationAdoptedAssetInput } from '../src/presentation/standard-project-types.ts'
-import type { WebQueryAgent } from '../src/agent-classes/web-query.ts'
+import { WebRetrievalExhaustedError, type WebQueryAgent } from '../src/agent-classes/web-query.ts'
 import type { VisualAgentService } from '../src/visual/agent.ts'
 
 // Network boundaries are local fixtures; the cache reader, downloader, parser,
@@ -145,6 +145,33 @@ it.each(['WEB_QUERY_FAILED: 子会话失败 MODEL_UNAVAILABLE: 上游不可用',
     await expect(runtime.search!(demand, {} as never, new AbortController().signal, input, root)).rejects.toThrow(message)
     const path = join(root, '.pre-design', 'image-searches', `${imageBriefHash(demand.brief)}.json`)
     expect(JSON.parse(await readFile(path, 'utf8')).status).toBe('failed-or-unknown')
+    await expect(runtime.search!(demand, {} as never, new AbortController().signal, input, root)).rejects.toThrow('WEB_IMAGE_SEARCH_REQUIRES_ATTENTION')
+    expect(query).toHaveBeenCalledTimes(1)
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+it('keeps a proved terminal web-tool failure as a source gap and never repeats its model task', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'native-image-exhausted-search-'))
+  const failure = new WebRetrievalExhaustedError('failed-web-run', 'failed-web-child', 'PREPLANNING_REPEATED_TOOL_FAILURE: 工具 web_fetch 连续 3 次返回相同错误')
+  const query = vi.fn<WebQueryAgent['query']>(async () => { throw failure })
+  try {
+    const runtime = callbacks(query)
+    await expect(runtime.search!(demand, {} as never, new AbortController().signal, input, root)).resolves.toEqual([])
+    const saved = JSON.parse(await readFile(join(root, '.pre-design', 'image-searches', `${imageBriefHash(demand.brief)}.json`), 'utf8'))
+    expect(saved).toMatchObject({ status: 'completed', candidates: [], executionId: 'failed-web-run', childId: 'failed-web-child', retrievalFailure: failure.reason })
+    await expect(runtime.search!(demand, {} as never, new AbortController().signal, input, root)).resolves.toEqual([])
+    expect(query).toHaveBeenCalledTimes(1)
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+it.each(['unverified error', 'parent cancellation'])('keeps %s closed instead of accepting an exhausted search', async variation => {
+  const root = await mkdtemp(join(tmpdir(), 'native-image-uncertain-search-')), controller = new AbortController()
+  const proved = new WebRetrievalExhaustedError('failed-run', 'failed-child', 'PREPLANNING_REPEATED_TOOL_FAILURE: 工具 web_fetch 连续 3 次返回相同错误')
+  const failure = variation === 'unverified error' ? new Error(proved.message) : proved
+  const query = vi.fn<WebQueryAgent['query']>(async () => { if (variation === 'parent cancellation') controller.abort(); throw failure })
+  try {
+    const runtime = callbacks(query)
+    await expect(runtime.search!(demand, {} as never, controller.signal, input, root)).rejects.toBe(failure)
+    const saved = JSON.parse(await readFile(join(root, '.pre-design', 'image-searches', `${imageBriefHash(demand.brief)}.json`), 'utf8'))
+    expect(saved.status).toBe('failed-or-unknown')
     await expect(runtime.search!(demand, {} as never, new AbortController().signal, input, root)).rejects.toThrow('WEB_IMAGE_SEARCH_REQUIRES_ATTENTION')
     expect(query).toHaveBeenCalledTimes(1)
   } finally { await rm(root, { recursive: true, force: true }) }
