@@ -58,11 +58,13 @@ describe('scene specification source context', () => {
 describe('abstract scene demand detection', () => {
   it.each([phaseSubject, fundingSubject, '以收入构成表和计算关系说明茶叶销售、茶事体验及配套服务的经营方式',
     '场所与管理条件', '首期游程衔接', '运营职责与管理制度', '项目收益指标和投资测算', '公共服务',
-    '第一阶段实施计划', '建设时序安排'])('detects an unobservable demand: %s', subject => {
+    '第一阶段实施计划', '建设时序安排', '基本公共服务、配套服务与零售经营的价格和费用关系',
+    '服务价格安排与费用承担', '公共服务收费边界', '经营收益分配', '成本与收支核算', '产品定价规则'])('detects an unobservable demand: %s', subject => {
     expect(needsSceneSpecification(brief(subject))).toBe(true)
   })
   it.each(['白茶梯田中的轻量步道、观景停留点与品茶廊亭', '茶园漫行', '家庭林下休息',
-    '新建垃圾分类收集设施与污水处理设施', '旧厂房内的无障碍参观步道和安全护栏', '游客在入口服务台办理预约登记'])('keeps concrete scene requirements: %s', subject => {
+    '新建垃圾分类收集设施与污水处理设施', '旧厂房内的无障碍参观步道和安全护栏', '游客在入口服务台办理预约登记',
+    '入口收费岗亭与候车区', '产品价格牌与展示货架', '收费岗亭与入口之间的空间关系'])('keeps concrete scene requirements: %s', subject => {
     expect(needsSceneSpecification(brief(subject))).toBe(false)
   })
   it('detects abstract node activities even when its subject is physical', () => {
@@ -106,6 +108,13 @@ describe('abstract scene demand detection', () => {
 })
 
 describe('grounded observable scene resolution', () => {
+  it('resolves pricing intent to an evidenced service scene and rejects financial relations as depicted subjects', () => {
+    const subject = '公共服务价格安排与费用承担', input = page(subject), context = sceneSpecContext(input, 'delivery:main')
+    expect(needsSceneSpecification(brief(subject), context)).toBe(true)
+    expect(resolveSceneSpecification(proposal(), brief(subject), context).subjects).toEqual(proposal().subjects.map(item => item.text))
+    expect(() => resolveSceneSpecification({ ...proposal(), subjects: [citation(subject, 'visual.subject')] }, brief(subject), context))
+      .toThrow('SCENE_SPEC_UNOBSERVABLE: subjects[0].text')
+  })
   it.each([
     { label: '茶园步行', subject: '茶园', activity: '步行' },
     { label: '厂房参观', subject: '厂房', activity: '参观' },
