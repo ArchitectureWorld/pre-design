@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto'
+import { isConditionalReport } from './conditional-report.ts'
 import { readFile, stat } from 'node:fs/promises'
 import { basename } from 'node:path'
 import PptxGenJS from 'pptxgenjs'
+import { addRegularSlide } from './regular/render-pptx.ts'
 import { assertClientReportPolicy } from './client-policy.ts'
 import { wrapClientText } from './client-typography.ts'
 import type {
@@ -17,6 +19,8 @@ import type {
 import { assertClientPagePlan } from './page-plan.ts'
 import { addEditableSitePlan } from './render-site-plan.ts'
 import { REPORT_THEME } from './theme.ts'
+import { planningProductRows } from './render-planning-page.ts'
+import { planningPageGeometry, planningProseHeight, planningTableGeometry, PLANNING_BODY_LINE_POINTS, PLANNING_PARAGRAPH_GAP_POINTS, PLANNING_CONTENT_BOTTOM, PLANNING_TABLE_GAP } from './planning-page-layout.ts'
 import type { RenderedArtifact, ReportDocument, ReportNode, ReportSection } from './types.ts'
 
 export { wrapClientText } from './client-typography.ts'
@@ -260,6 +264,7 @@ function clientProduct(
 }
 
 function blockText(block?: ClientContentBlock): string {
+  if (block?.type === 'planning-page') return [block.page.claim, ...block.page.body].join('\n\n')
   if (block === undefined) return ''
   if (block.type === 'narrative') return block.statement
   if (block.type === 'metric') return `${block.label}\n${block.value} ${block.unit}`
@@ -363,6 +368,7 @@ function addClientImage(
   box: Readonly<{ x: number; y: number; w: number; h: number }>,
   options: Readonly<{
     captionBox?: Readonly<{ x: number; y: number; w: number; h: number }>
+    captionText?: string
     captionColor?: string
     showCaption?: boolean
   }> = {},
@@ -378,10 +384,11 @@ function addClientImage(
     w: box.w,
     h: 0.28,
   }
-  slide.addText(asset.caption, {
+  slide.addText(options.captionText ?? asset.caption, {
     ...captionBox,
     fontFace: report.theme.tokens.fonts.body, fontSize: 10,
     color: options.captionColor ?? report.theme.tokens.colors.muted, margin: 0, fit: 'shrink',
+    ...(options.captionText === undefined ? {} : { lang: 'zh-CN', lineSpacing: 12, paraSpaceAfter: 0, valign: 'top' as const }),
   })
   return true
 }
@@ -984,10 +991,11 @@ function addEditorialContent(
   const copy = distinctCopy !== ''
     ? distinctCopy
     : !imageAdded && chapterClaim !== page.headline ? chapterClaim : ''
+  const conditional = isConditionalReport(report)
   if (copy !== '') slide.addText(copy, {
-    x: SAFE_X, y: 2.35, w: imageAdded ? 5.9 : CONTENT_WIDTH, h: imageAdded ? 1.55 : 1.65,
+    x: SAFE_X, y: 2.35, w: imageAdded ? 5.9 : CONTENT_WIDTH, h: conditional ? 4.2 : imageAdded ? 1.55 : 1.65,
     fontFace: imageAdded ? report.theme.tokens.fonts.body : report.theme.tokens.fonts.display,
-    fontSize: imageAdded ? 18 : 28, bold: !imageAdded,
+    fontSize: conditional ? 16 : imageAdded ? 18 : 28, bold: !conditional && !imageAdded,
     color: imageAdded ? report.theme.tokens.colors.ink : report.theme.tokens.colors.primary,
     margin: 0, valign: 'top', fit: 'shrink',
   })
@@ -1253,6 +1261,44 @@ const PPTX_LAYOUTS: Readonly<Record<ClientPageKind, ClientSlideRenderer>> = {
   appendix: addAppendixSlide,
 }
 
+function renderPlanningSlide(slide: PptxGenJS.Slide, report: ClientReport, page: ClientPage, block: Extract<ClientContentBlock, { type: 'planning-page' }>): void {
+  const draft = page.planningContent ?? block.page, colors = report.theme.tokens.colors
+  const layout = planningPageGeometry(draft)
+  slide.background = { color: colors.background }
+  addClientEyebrow(slide, report, block.chapterTitle)
+  slide.addText(layout.title, { x: SAFE_X, y: 0.92, w: CONTENT_WIDTH, h: layout.titleHeight, fontSize: 27, bold: true,
+    fontFace: report.theme.tokens.fonts.display, lang: 'zh-CN', color: colors.ink, margin: 0, lineSpacing: 32.4, paraSpaceAfter: 0, valign: 'top' })
+  slide.addText(layout.claim, { x: SAFE_X, y: layout.claimY, w: CONTENT_WIDTH, h: layout.claimHeight, fontSize: 19, bold: true,
+    fontFace: report.theme.tokens.fonts.body, lang: 'zh-CN', color: colors.primary, margin: 0, lineSpacing: 23.04, paraSpaceAfter: 0, valign: 'top' })
+  const hasImage = page.assetIds.length > 0
+  const hasDiagram = hasImage && draft.visual.diagram !== undefined
+  const copyWidth = hasImage ? hasDiagram ? 3.55 : 6.0 : CONTENT_WIDTH
+  const rows = planningProductRows(draft)
+  const prose = [...draft.body, ...rows.map(([label, value]) => `${label}｜${value}`)].join('\n')
+  const table = draft.table ? planningTableGeometry(draft.table) : undefined
+  const copyHeight = Math.max(0, layout.capacity - (table ? table.height + PLANNING_TABLE_GAP : 0))
+  if (prose) slide.addText(prose, { x: SAFE_X, y: layout.contentTop, w: copyWidth, h: copyHeight,
+    fontFace: report.theme.tokens.fonts.body, lang: 'zh-CN', fontSize: 15, color: colors.ink, margin: 0,
+    lineSpacing: PLANNING_BODY_LINE_POINTS, paraSpaceAfter: PLANNING_PARAGRAPH_GAP_POINTS, valign: 'top' })
+  if (hasImage && copyHeight > 0.8) {
+    const x = hasDiagram ? 4.7 : 7.2, width = hasDiagram ? 7.75 : 5.25
+    const asset = report.assets.find(candidate => candidate.assetId === page.assetIds[0])!
+    const captionText = wrapClientText(asset.caption, Math.floor(width * 72 / 10) - 2, Number.MAX_SAFE_INTEGER, 'PLANNING_IMAGE_CAPTION')
+    const captionHeight = Math.max(0.28, (captionText.split('\n').length * 12 + 3) / 72)
+    const imageHeight = copyHeight - captionHeight - 0.08
+    if (imageHeight <= 0) throw new Error('PLANNING_IMAGE_CAPTION_TOO_TALL: 图注未给图片留下空间。')
+    addClientImage(slide, report, page.assetIds[0], { x, y: layout.contentTop, w: width, h: imageHeight }, {
+      captionText, captionBox: { x, y: layout.contentTop + imageHeight + 0.08, w: width, h: captionHeight },
+    })
+  }
+  if (draft.table) slide.addTable([draft.table.columns, ...draft.table.rows].map((row, index) => row.map(text => ({ text, options: index === 0 ? { bold: true, fill: { color: colors.primary }, color: colors.surface } : {} }))), {
+    x: SAFE_X, y: hasImage ? PLANNING_CONTENT_BOTTOM - table!.height : layout.contentTop + (prose ? planningProseHeight(prose, 53) : 0) + PLANNING_TABLE_GAP,
+    w: CONTENT_WIDTH, h: table!.height, fontFace: report.theme.tokens.fonts.body, lang: 'zh-CN', fontSize: 13,
+    color: colors.ink, border: { type: 'solid', pt: 0.5, color: 'CDD7D0' }, fill: { color: colors.surface },
+    margin: 0.06, rowH: table!.rowHeights, autoPage: false,
+  })
+}
+
 function clientPageHasDarkBackground(page: ClientPage): boolean {
   if (page.kind === 'cover' || page.kind === 'chapter-divider' || page.kind === 'decision') return true
   if (page.kind === 'opening-claim') return page.layoutVariant === 'full-bleed'
@@ -1279,11 +1325,14 @@ async function renderClientPptx(
 
   context.plan.pages.forEach((page, index) => {
     const slide = pptx.addSlide()
-    PPTX_LAYOUTS[page.kind](slide, context.report, page)
-    if (page.kind !== 'visual-evidence' || page.layoutVariant !== 'full-bleed') {
+    const block = clientBlock(context.report, page)
+    if (page.regularLayout) addRegularSlide(pptx, slide, context.report, page.regularLayout, index, context.plan.pages.length)
+    else if (block?.type === 'planning-page') renderPlanningSlide(slide, context.report, page, block)
+    else PPTX_LAYOUTS[page.kind](slide, context.report, page)
+    if (!page.regularLayout && (page.kind !== 'visual-evidence' || page.layoutVariant !== 'full-bleed')) {
       addClientFooter(slide, context.report, index + 1, clientPageHasDarkBackground(page))
     }
-    slide.addNotes(clientNotes(context, page))
+    slide.addNotes(clientNotes(context, page) + (block?.type === 'planning-page' ? `\n${block.page.notes.join('\n')}\n来源：${block.page.sourceRefs.join('、')}` : ''))
   })
 
   await pptx.writeFile({ fileName: outputPath })

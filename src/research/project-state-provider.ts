@@ -3,6 +3,7 @@ import { validateResearchRequest, type ResearchProvider, type ResearchProviderRe
 import { applyResearchSelector } from './selector.ts'
 import type { DataSourceDefinition, EvidenceRecord } from './types.ts'
 import type { StateObjectRecord } from '../state/types.ts'
+import { projectStateClaimClass } from './project-state-provenance.ts'
 
 export interface ProjectStateResearchProviderOptions {
   readonly projectId: string
@@ -54,10 +55,14 @@ export class ProjectStateResearchProvider implements ResearchProvider {
     const state = this.stateById.get(objectId)
     if (state === undefined) throw new Error(`Project State object '${objectId}' is unavailable for project '${this.projectId}'`)
     const serialized = stableJson(state.value)
-    const selection = applyResearchSelector(serialized, state.value, request.selector)
+    const selection = applyResearchSelector(serialized, state.value, request.selector ?? { type: 'json_pointer', pointer: '' })
     const contentHash = sha256(serialized)
     const fragmentHash = sha256(stableJson(selection.rawValue))
     const selectorIdentity = JSON.stringify(selection.locator)
+    const claimClass = projectStateClaimClass(state.value, request.selector?.type === 'json_pointer' ? request.selector.pointer : '')
+    // An explicitly unavailable datum is a coverage gap, not a forged or malformed
+    // record. Returning no evidence lets the existing conditional policy retain it.
+    if (claimClass === 'missing') return { records: Object.freeze([]) }
     const evidenceId = `ev-${sha256(`${request.workflowId}\n${request.dataPointId}\n${source.sourceId}\n${objectId}\n${state.revision}\n${selectorIdentity}\n${contentHash}`).slice(0, 32)}`
 
     const record: EvidenceRecord = {
@@ -83,9 +88,9 @@ export class ProjectStateResearchProvider implements ResearchProvider {
       normalizedValue: selection.normalizedValue,
       unit: null,
       contentHash,
-      reliability: source.reliabilityGrade,
-      claimClass: 'source_conclusion',
-      notes: 'Confirmed upstream Project State field. It remains a source conclusion; downstream Runtime must not upgrade upstream inference to a new external fact.',
+      reliability: claimClass === 'source_conclusion' ? source.reliabilityGrade : 'inference',
+      claimClass,
+      notes: 'Upstream Project State field. Explicit inference/assumption/missing classes are inherited from its selected scope and ancestors. A resolved pointer does not establish semantic support or external factual accuracy.',
     }
     return { records: Object.freeze([Object.freeze(record)]) }
   }

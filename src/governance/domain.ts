@@ -1,6 +1,6 @@
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
 import { z } from 'zod'
-import type { SiteBoundaryRecord } from './types.ts'
+import type { SiteBoundaryRecord, ReportPackageRecord } from './types.ts'
 
 const actorSchema = z.object({
   actorId: z.string().min(1),
@@ -40,6 +40,7 @@ const authorizationSchema = z.object({
     workflowIds: z.array(z.string()),
     gateIds: z.array(z.string()),
     maxVisualGenerations: z.number().int().nonnegative(),
+    visualBudgetMode: z.enum(['bounded', 'on_demand']).optional(),
     maxModelTurns: z.number().int().positive(),
     stopOnBlocking: z.boolean(),
   }).strict(),
@@ -54,7 +55,7 @@ const authorizationSchema = z.object({
 const workflowQualitySchema = z.object({
   workflowId: z.string().min(1),
   targetObjectId: z.string().min(1),
-  disposition: z.enum(['auto_pass', 'auto_revise', 'needs_human', 'blocked_external']),
+  disposition: z.enum(['auto_pass', 'auto_revise', 'needs_human', 'blocked_external', 'quality_unresolved', 'evidence_conflict']),
   score: z.number().min(0).max(1),
   completionCoverage: z.number().min(0).max(1),
   evidenceCoverage: z.number().min(0).max(1),
@@ -66,8 +67,26 @@ const workflowQualitySchema = z.object({
     code: z.string().min(1),
     kind: z.enum(['external', 'quality', 'conflict']),
     message: z.string().min(1),
+    scope: z.enum(['current_workflow', 'later_implementation']).optional(),
+    criterion: z.string().optional(),
+    evidenceIds: z.array(z.string()).optional(),
+    dataPointIds: z.array(z.string()).optional(),
   }).strict()),
   assumptions: z.array(z.string().min(1)),
+}).strict()
+
+const workflowRevisionFeedbackSchema = z.object({
+  requestId: z.string().min(1),
+  rootObjectIds: z.array(z.string().min(1)).min(1),
+  reason: z.string().min(1),
+  actor: actorSchema,
+  createdAt: z.string().min(1),
+}).strict()
+
+const workflowRevisionSchema = workflowRevisionFeedbackSchema.extend({
+  projectId: z.string().min(1),
+  affectedObjectIds: z.array(z.string().min(1)),
+  status: z.enum(['pending', 'applied']),
 }).strict()
 
 const workflowRunSchema = z.object({
@@ -83,6 +102,7 @@ const workflowRunSchema = z.object({
   confirmedRevision: z.number().int().nonnegative().optional(),
   blockedReason: z.string().min(1).optional(),
   quality: workflowQualitySchema.optional(),
+  revisionRequest: workflowRevisionFeedbackSchema.optional(),
   updatedAt: z.string().min(1),
 }).strict().superRefine((record, context) => {
   if (record.quality !== undefined
@@ -123,6 +143,8 @@ const visualPolicySchema = z.object({
 }).strict()
 
 const visualTaskSchema = z.object({
+  modelRoute: z.object({ provider: z.string().min(1), model: z.string().min(1) }).strict().optional(),
+  executionId: z.string().min(1).optional(),
   taskId: z.string().min(1),
   projectId: z.string().min(1),
   chapterId: z.string().min(1),
@@ -285,18 +307,26 @@ const reportPackageSchema = z.object({
   packageId: z.string().min(1),
   projectId: z.string().min(1),
   sourceRevision: z.number().int().nonnegative(),
-  status: z.enum(['staging', 'published', 'failed']),
+  status: z.enum(['staging', 'published', 'generated_conditional', 'failed']),
   sectionIds: z.array(z.string().min(1)).min(1),
   adoptedAssetIds: z.array(z.string().min(1)),
   warnings: z.array(z.string().min(1)),
   artifactManifestId: z.string().min(1).optional(),
   createdAt: z.string().min(1),
   publishedAt: z.string().min(1).optional(),
+  generatedAt: z.string().min(1).optional(),
 }).strict().superRefine((record, context) => {
   if (record.status === 'published' && (record.artifactManifestId === undefined || record.publishedAt === undefined)) {
     context.addIssue({ code: 'custom', message: 'published report requires artifact manifest and publishedAt' })
   }
+  if (record.status === 'generated_conditional' && (record.artifactManifestId === undefined || record.generatedAt === undefined || record.publishedAt !== undefined)) {
+    context.addIssue({ code: 'custom', message: 'conditional report requires artifact manifest and generatedAt, without formal publishedAt' })
+  }
 })
+
+export function validateReportPackageRecord(record: ReportPackageRecord): ReportPackageRecord {
+  return reportPackageSchema.parse(record)
+}
 
 export const preplanningGovernanceDomainSpec = defineDomain({
   name: 'preplanning_governance',
@@ -305,6 +335,7 @@ export const preplanningGovernanceDomainSpec = defineDomain({
     project_policies: domainTable<string, z.infer<typeof projectPolicySchema>>(projectPolicySchema),
     authorizations: domainTable<string, z.infer<typeof authorizationSchema>>(authorizationSchema),
     workflow_runs: domainTable<string, z.infer<typeof workflowRunSchema>>(workflowRunSchema),
+    workflow_revisions: domainTable<string, z.infer<typeof workflowRevisionSchema>>(workflowRevisionSchema),
     gate_decisions: domainTable<string, z.infer<typeof gateDecisionSchema>>(gateDecisionSchema),
     visual_policies: domainTable<string, z.infer<typeof visualPolicySchema>>(visualPolicySchema),
     visual_tasks: domainTable<string, z.infer<typeof visualTaskSchema>>(visualTaskSchema),

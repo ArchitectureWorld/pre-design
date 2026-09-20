@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { AutomationWorkflowCommitter } from '../src/runtime/automation-workflow-committer.ts'
+import { ContractRegistry } from '../src/contracts/registry.ts'
 
 const descriptor = {
   workflowId: 'preplan.wf.01.01', chapterId: '01', workItemId: '01-01',
@@ -32,10 +33,18 @@ const analysisTrace = {
 }
 
 describe('automatic workflow research provenance persistence', () => {
-  it('writes Research EvidenceRefs into ProposalEnvelope and persists AnalysisTrace as audit event', async () => {
-    const submitProposal = vi.fn(async (envelope: any) => ({
-      proposalId: envelope.proposal_id, projectId: 'project-1', expectedRevision: 0, status: 'pending_review',
-    }))
+  it.each([
+    { ...evidence, locator: { ...evidence.locator, jsonPointer: '/canonical_name' }, section: 'file:///workspace/project.json | JSON Pointer /canonical_name' },
+    { ...evidence, sourceUri: 'https://example.org/official.txt', locator: { selectorType: 'text_lines', startLine: 3, endLine: 5 }, section: 'https://example.org/official.txt | lines 3-5' },
+    { ...evidence, sourceType: 'project_state', sourceUri: 'project-state://project-1/PS01/2', locator: { objectId: 'PS01', revision: 2, jsonPointer: '/data/canonical_name' }, section: 'project-state://project-1/PS01/2 | JSON Pointer /data/canonical_name' },
+  ])('writes contract-valid Research references and lossless audit provenance for $sourceUri', async ({ section, ...record }) => {
+    const contracts = await ContractRegistry.open(new URL('../contracts/v0.6/', import.meta.url))
+    const submitProposal = vi.fn(async (envelope: any) => {
+      const validation = contracts.validateProposalEnvelope(envelope)
+      expect(validation.errors).toEqual([])
+      expect(validation.valid).toBe(true)
+      return { proposalId: envelope.proposal_id, projectId: 'project-1', expectedRevision: 0, status: 'pending_review' }
+    })
     const commitProposal = vi.fn(async (proposalId: string) => ({
       projectId: 'project-1', proposalId, revision: 1, replayed: false, status: 'confirmed',
     }))
@@ -61,7 +70,7 @@ describe('automatic workflow research provenance persistence', () => {
     await committer.commit({ id: 'session-1' } as never, 'project-1', descriptor, {
       payload: { data: { canonical_name: '武汉站改造' } },
       qualityEvidence: { completionChecks: [], evidenceChecks: [], assumptions: [], blockers: [], confidence: 0.95 },
-      researchEvidence: [evidence],
+      researchEvidence: [record],
       analysisTrace,
     } as never, quality)
 
@@ -72,15 +81,13 @@ describe('automatic workflow research provenance persistence', () => {
       asset_id: 'research:workspace-project-files',
       version_id: 'b'.repeat(64),
       claim_class: 'fact',
-      locator: {
-        source_id: 'workspace-project-files', source_uri: 'file:///workspace/project.json',
-        relativePath: 'project.json', selectorType: 'json_pointer', selector: '/canonical_name',
-        normalized_value: '武汉站改造',
-      },
+      locator: { section },
+      captured_at: evidence.capturedAt,
+      reliability: 'A',
     })
     expect(putAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
       eventType: 'research.trace', projectId: 'project-1', revision: 1,
-      payload: expect.objectContaining({ workflowId: 'preplan.wf.01.01', analysisTrace }),
+      payload: expect.objectContaining({ workflowId: 'preplan.wf.01.01', evidenceRecords: [record], analysisTrace }),
     }))
   })
 })

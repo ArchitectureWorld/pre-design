@@ -239,14 +239,15 @@ describe('content-led report pages and spoken narration', () => {
       const visible = draft.contentBlocks.flatMap(block => block.type === 'text' ? block.content.split('\n\n')
         : block.type === 'list' ? block.items.map(item => item.content) : [])
       expect(visible.filter(value => canonical(value) === canonical((key as { content: string }).content)), draft.pageId).toHaveLength(1)
-      expect(draft.contentBlocks.some(block => block.type === 'table')).toBe(true)
+      expect(draft.contentBlocks.some(block => block.type === 'table')).toBe(false)
+      expect(draft.scriptBlocks[0]!.content).toContain('资料依据（演讲备注，不上版）')
       expect(draft.scriptBlocks[0]!.content.length).toBeGreaterThan(0)
     }
     const detailId = build.stableIds['page:finding:pre-design:detail:mandate:argument:PS02:decision_question:decision_question-0']
     const detail = drafts.find(draft => draft.pageId === detailId)!
     expect(detail.contentBlocks.find(block => block.type === 'text' && block.role === 'key_message')).toMatchObject({ content: `${main}。` })
     expect(detail.contentBlocks.flatMap(block => block.type === 'list' ? block.items.map(item => item.content) : [])).toContain(different)
-    const evidence = JSON.stringify(detail.contentBlocks.filter(block => block.type === 'table'))
+    const evidence = detail.scriptBlocks.map(block => block.content).join('\n')
     expect(evidence).toContain(main)
     expect(evidence).toContain(different)
     expect(detail.scriptBlocks[0]!.content).toContain(main)

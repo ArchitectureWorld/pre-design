@@ -10,11 +10,13 @@
     "packageId": { "type": "string", "minLength": 1 },
     "projectId": { "type": "string", "minLength": 1 },
     "sourceRevision": { "type": "integer", "minimum": 0 },
+    "deliveryMode": { "enum": ["formal", "conditional"] },
+    "publishable": { "type": "boolean" },
     "recommendationId": { "type": "string", "minLength": 1 },
     "adoptedAssetIds": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
     "artifacts": {
       "type": "array",
-      "minItems": 3,
+      "minItems": 1,
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -28,5 +30,10 @@
       }
     },
     "createdAt": { "type": "string", "format": "date-time" }
-  }
+  },
+  "allOf": [{
+    "if": { "required": ["deliveryMode"], "properties": { "deliveryMode": { "const": "conditional" } } },
+    "then": { "required": ["publishable"], "properties": { "publishable": { "const": false } } },
+    "else": { "properties": { "artifacts": { "minItems": 3 } } }
+  }]
 }

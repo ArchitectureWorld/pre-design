@@ -6,7 +6,7 @@ import type { ProfessionalFinding } from '../src/presentation/projector/types.ts
 import { createStandardFrozenProject } from './presentation-standard-fixture.ts'
 
 const planner = vi.hoisted(() => ({ compile: vi.fn() }))
-vi.mock('../src/presentation/projector/report-outline.ts', () => ({ compileReportOutline: planner.compile }))
+vi.mock('../src/presentation/projector/client-outline.ts', async importOriginal => ({ ...await importOriginal<object>(), compileClientReportOutline: planner.compile }))
 
 type PlannedFinding = ProfessionalFinding & { sectionKey: string; sectionTitle: string; sectionOrder: number }
 

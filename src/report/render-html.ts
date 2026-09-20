@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto'
+import { renderRegularHtml } from './regular/render-html.ts'
 import { copyFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
 import { assertClientReportPolicy } from './client-policy.ts'
 import { clientTextChunks } from './client-typography.ts'
+import { isConditionalReport } from './conditional-report.ts'
 import type {
   ClientContentBlock,
   ClientPage,
@@ -15,6 +17,7 @@ import { assertClientPagePlan } from './page-plan.ts'
 import { renderAnalyticalHtml, renderDecisionConvergenceHtml, renderSitePlanHtml } from './render-analytical-html.ts'
 import { renderChartSvg } from './render-chart.ts'
 import { CLIENT_REPORT_CSS } from './theme.ts'
+import { renderPlanningPage, PLANNING_PAGE_CSS } from './render-planning-page.ts'
 import type { RenderedArtifact, ReportDocument, ReportNode } from './types.ts'
 
 function escapeHtml(value: string): string {
@@ -317,6 +320,7 @@ async function renderClientHtml(
 ): Promise<RenderedArtifact> {
   assertClientReportPolicy(context.report)
   assertClientPagePlan(context.plan, context.report)
+  if (context.plan.canvas) return renderRegularHtml(context, outputRoot)
   const htmlRoot = join(outputRoot, 'html')
   const imageRoot = join(htmlRoot, 'assets', 'images')
   await mkdir(imageRoot, { recursive: true })
@@ -326,9 +330,12 @@ async function renderClientHtml(
     product: '产品体系', spatial: '空间场景', operation: '运营机制', implementation: '实施路径', decision: '决策结论',
   })
   const navigation = context.report.chapters.map((chapter, index) =>
-    `<a href="#${encodeURIComponent(chapter.id + '-divider')}">${String(index + 1).padStart(2, '0')} ${escapeHtml(navigationLabels[chapter.role])}</a>`).join('')
+    `<a href="#${encodeURIComponent(chapter.id + '-divider')}">${String(index + 1).padStart(2, '0')} ${escapeHtml(isConditionalReport(context.report) ? chapter.headline : navigationLabels[chapter.role])}</a>`).join('')
   const pages = context.plan.pages.map((page, index) => {
-    const content = PAGE_RENDERERS[page.kind](context.report, page, imageNames)
+    const block = findBlock(context.report, page)
+    const content = block?.type === 'planning-page'
+      ? renderPlanningPage(block.page, block.chapterTitle, renderPageAssets(context.report, page, imageNames))
+      : PAGE_RENDERERS[page.kind](context.report, page, imageNames)
     const visualRole = page.visualRole === undefined ? '' : ` data-visual-role="${page.visualRole}"`
     const backdrop = renderPageBackdrop(context.report, page.backdropAssetId, imageNames)
     const hasBackdrop = page.backdropAssetId === undefined && page.kind !== 'cover' ? '' : ' has-backdrop'
@@ -340,7 +347,7 @@ async function renderClientHtml(
   const boundaryMeta = context.identity.siteBoundaryIntegrityDigest === undefined ? '' : `<meta name="preplan-site-boundary-digest" content="${escapeHtml(context.identity.siteBoundaryIntegrityDigest)}">`
   const html = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="preplan-project-id" content="${escapeHtml(context.identity.projectId)}"><meta name="preplan-source-revision" content="${context.identity.sourceRevision}"><meta name="preplan-recommendation-id" content="${escapeHtml(context.identity.recommendationId)}"><meta name="preplan-adopted-assets" content="${escapeHtml(adoptedAssets)}">${boundaryMeta}<title>${escapeHtml(context.report.identity.reportTitle)}</title><style>${clientThemeCss(context.report)}${CLIENT_REPORT_CSS}</style></head><body><a class="skip-link" href="#report-main">跳至成果正文</a><nav class="report-nav" aria-label="成果章节导航">${navigation}</nav><main id="report-main">${pages}</main><footer class="footer">本成果中的概念示意用于表达空间意向，不替代事实资料与法定依据。</footer><script>document.querySelectorAll('.report-nav a').forEach(link=>link.addEventListener('click',()=>history.replaceState(null,'',link.getAttribute('href'))));</script></body></html>`
   const path = join(htmlRoot, 'index.html')
-  await writeFile(path, html, 'utf8')
+  await writeFile(path, html.replace('</style>', `${PLANNING_PAGE_CSS}</style>`), 'utf8')
   return {
     format: 'html',
     fileName: 'html/index.html',

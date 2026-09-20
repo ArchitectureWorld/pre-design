@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path'
 import { writeCanonicalJsonAtomically } from './filesystem.ts'
 import { readFile, mkdir } from 'node:fs/promises'
 import { sha256CanonicalJson } from './canonical-json.ts'
+import type { ReportSceneIdentity } from '../report/manuscript/visual-scenes.ts'
 
 export const PAGE_VISUAL_STATE_PATH = '.pre-design/page-visual-fill.json'
 export interface StudioPageVisualTarget {
@@ -29,6 +30,7 @@ export interface StudioPageVisualLinkReceipt {
 export interface PageVisualRequest {
   readonly taskId: string
   readonly findingId?: string
+  readonly scene?: ReportSceneIdentity
   readonly target?: StudioPageVisualTarget
   readonly requestId?: string
   /** Stable DSH report run identity for Studio-targeted requests. Optional only for legacy unlinked state. */
@@ -106,6 +108,14 @@ export async function readPageVisualState(root: string, projectId: string): Prom
         throw new Error('PAGE_VISUAL_STATE_INVALID: 未完成挂接的请求不能携带回执')
       }
       ids.add(item.taskId)
+      if (item.scene && (item.target !== undefined || item.scene.kind !== 'report_scene' || item.scene.projectId !== projectId
+        || !validText(item.scene.sceneKey) || item.findingId !== `report-scene:${item.scene.sceneKey}`
+        || !Number.isSafeInteger(item.scene.sourceRevision) || item.scene.sourceRevision < 0
+        || !/^[a-f0-9]{64}$/u.test(item.scene.sourceFingerprint) || !/^[a-f0-9]{64}$/u.test(item.scene.contentHash)
+        || item.taskId !== `page-fill-${item.briefHash}`
+        || item.briefHash !== sha256CanonicalJson({ scene: item.scene, prompt: item.prompt, style: item.style }))) {
+        throw new Error('PAGE_VISUAL_STATE_INVALID: 场景请求身份与来源版本不匹配')
+      }
       if (item.target && (item.taskId !== `page-fill-${item.briefHash}`
         || item.briefHash !== sha256CanonicalJson({ target: item.target, requestId: item.requestId, prompt: item.prompt, style: item.style }))) {
         throw new Error('PAGE_VISUAL_STATE_INVALID: Studio 请求身份与目标内容不匹配')

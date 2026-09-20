@@ -11,10 +11,13 @@ import { VisualAgentError, type VisualAgentService, type VisualDispatchGuard } f
 import { sha256CanonicalJson } from './canonical-json.ts'
 import { sha256File } from './filesystem.ts'
 import { preparePresentationMaterials, type PreparePresentationMaterialsInput } from './material-registry.ts'
+import { prepareWorkspacePresentationMaterials } from './workspace-materials.ts'
 import { buildPresentationStandardProject } from './standard-project-adapter.ts'
 import type { PresentationAdoptedAssetInput } from './standard-project-types.ts'
-import { compileReportOutline } from './projector/report-outline.ts'
+import { compileClientReportOutline as compileReportOutline } from './projector/client-outline.ts'
 import { readPageVisualState, savePageVisualRequest, withPageVisualLock, type PageVisualRequest, type StudioPageVisualTarget, type StudioPageVisualLinkReceipt } from './page-visual-state.ts'
+import { sceneIdentity, sceneRequirements, type ReportSceneRequirement } from '../report/manuscript/visual-scenes.ts'
+import { prepareReportSceneVisuals } from './report-scene-visuals.ts'
 
 export const DEFAULT_PAGE_VISUAL_STYLE = '统一使用克制的低饱和自然材料、专业建筑可视化与清晰空间层次；无文字、标尺、水印或伪造数据。'
 const IMAGE_MIME = /^image\/(?:avif|bmp|gif|jpeg|png|svg\+xml|webp|x-icon|vnd\.microsoft\.icon)$/iu
@@ -28,6 +31,7 @@ interface GenerateInput extends PageVisualInput {
   readonly prompt: string
   readonly style?: string
   readonly signal?: AbortSignal
+  readonly beforeStart?: VisualDispatchGuard
 }
 export interface PageVisualPlanEntry {
   readonly findingId: string
@@ -48,8 +52,17 @@ export interface PageVisualFillResult {
   readonly status: 'candidate' | 'adopted'
   readonly reused: boolean
 }
+export interface SceneVisualInput extends PageVisualInput {
+  readonly sceneKey: string
+  /** Observe an existing task only, including one already marked failed. Never dispatch a new attempt. */
+  readonly recoveryOnly?: boolean
+  readonly style?: string
+  readonly signal?: AbortSignal
+  readonly beforeStart?: VisualDispatchGuard
+  readonly assertCurrent?: () => void
+}
 interface Dependencies {
-  readonly visual: Pick<VisualAgentService, 'generate' | 'adopt'>
+  readonly visual: Pick<VisualAgentService, 'generate' | 'adopt'> & Partial<Pick<VisualAgentService, 'reject'>>
   readonly governance: Pick<GovernanceRepository, 'readProject'>
   readonly resolveAsset: (fileName: string) => string
   readonly adoptedAssets?: (project: FrozenProjectInput) => readonly PresentationAdoptedAssetInput[]
@@ -147,7 +160,7 @@ export class PageVisualFillService {
 
   /** Builds in memory only: no requests, candidates, files or model calls. */
   async plan(input: PageVisualInput): Promise<{ readonly pages: readonly PageVisualPlanEntry[]; readonly warnings: readonly string[] }> {
-    const materials = await preparePresentationMaterials({ ...input, assets: this.dependencies.adoptedAssets?.(input.frozenProject) ?? [] })
+    const materials = await prepareWorkspacePresentationMaterials({ ...input, diagrams: false, assets: this.dependencies.adoptedAssets?.(input.frozenProject) ?? [] })
     const build = await buildPresentationStandardProject({ frozenProject: input.frozenProject, ...materials, stableIds: input.previous?.stableIds })
     const findings = compileReportOutline(input.frozenProject)
     const state = await readPageVisualState(input.workspaceRoot, input.frozenProject.projectId)
@@ -214,13 +227,75 @@ export class PageVisualFillService {
     return { ...await this.generateTarget(parent, input, page, brief), findingId: page.findingId }
   }
 
-  private async generateTarget(parent: Agent, input: PageVisualInput & { signal?: AbortSignal; beforeStart?: VisualDispatchGuard },
+  async planScenes(input: PageVisualInput) {
+    const materials = await preparePresentationMaterials({ ...input, assets: this.dependencies.adoptedAssets?.(input.frozenProject) ?? [] })
+    const plan = await prepareReportSceneVisuals({ ...input, assets: materials.assets })
+    const live = this.dependencies.governance.readProject(input.frozenProject.projectId)
+    for (const assetId of new Set(plan.coverage.map(item => item.assetId))) {
+      const asset = live.visualAssets.find(asset => asset.assetId === assetId)
+      if (!asset || asset.status !== 'adopted' || !await this.usableAsset(input.frozenProject.projectId, asset.taskId, assetId)) {
+        throw new Error('REPORT_SCENE_ADOPTION_UNVERIFIED: 场景复用图片缺少当前治理质量验收')
+      }
+    }
+    return { ...plan, warnings: [...materials.materialWarnings, ...plan.warnings] }
+  }
+
+  private scene(input: SceneVisualInput): ReportSceneRequirement {
+    const scene = sceneRequirements(input.frozenProject).find(scene => scene.sceneKey === input.sceneKey)
+    if (!scene) throw new Error(`REPORT_SCENE_NOT_FOUND: ${input.sceneKey}`)
+    return scene
+  }
+
+  private sceneBrief(input: SceneVisualInput, scene: ReportSceneRequirement): PageVisualRequest {
+    const style = required(input.style ?? DEFAULT_PAGE_VISUAL_STYLE, 'style'), identity = sceneIdentity(scene)
+    const briefHash = sha256CanonicalJson({ scene: identity, prompt: scene.prompt, style })
+    return { taskId: `page-fill-${briefHash}`, findingId: scene.findingId, scene: identity, briefHash,
+      prompt: scene.prompt, style, status: 'generating' }
+  }
+
+  async generateScene(parent: Agent, input: SceneVisualInput): Promise<PageVisualFillResult> {
+    input.signal?.throwIfAborted(); input.assertCurrent?.()
+    const scene = this.scene(input), plan = await this.planScenes(input)
+    input.signal?.throwIfAborted(); input.assertCurrent?.()
+    const coverage = plan.coverage.find(item => item.sceneKey === scene.sceneKey)
+    if (coverage) {
+      const existing = this.dependencies.governance.readProject(input.frozenProject.projectId).visualAssets.find(asset => asset.assetId === coverage.assetId)
+      if (!existing || existing.status !== 'adopted' || !await this.usableAsset(input.frozenProject.projectId, existing.taskId, existing.assetId)) {
+        throw new Error('REPORT_SCENE_ADOPTION_UNVERIFIED: 场景复用图片缺少当前治理质量验收')
+      }
+      input.signal?.throwIfAborted(); input.assertCurrent?.()
+      return { taskId: existing.taskId, findingId: scene.findingId, assetId: existing.assetId, status: 'adopted', reused: true }
+    }
+    const brief = this.sceneBrief(input, scene)
+    return { ...await this.generateTarget(parent, input, { title: scene.title, keyMessage: scene.title,
+      covered: false, chapterId: scene.chapterId, workItemId: scene.workItemId }, brief), findingId: scene.findingId }
+  }
+
+  async adoptScene(input: SceneVisualInput & { readonly assetId: string }): Promise<PageVisualFillResult> {
+    input.signal?.throwIfAborted(); input.assertCurrent?.()
+    const scene = this.scene(input), brief = this.sceneBrief(input, scene)
+    return withPageVisualLock(input.workspaceRoot, async () => {
+      input.signal?.throwIfAborted(); input.assertCurrent?.()
+      const projectId = input.frozenProject.projectId
+      const request = (await readPageVisualState(input.workspaceRoot, projectId)).requests.find(item => item.scene?.sceneKey === scene.sceneKey
+        && item.assetId === input.assetId && item.briefHash === brief.briefHash)
+      if (!request) throw new Error('REPORT_SCENE_CANDIDATE_MISMATCH: 场景候选图与当前来源版本不匹配')
+      const asset = await this.usableAsset(projectId, request.taskId, input.assetId)
+      if (!asset) throw new Error('PAGE_VISUAL_CANDIDATE_INVALID: 场景候选图不可采用')
+      input.signal?.throwIfAborted(); input.assertCurrent?.()
+      const adopted = asset.status === 'adopted' ? asset : await this.dependencies.visual.adopt(projectId, asset.assetId, input.frozenProject.revision)
+      await savePageVisualRequest(input.workspaceRoot, projectId, { ...request, status: 'adopted' })
+      return { taskId: request.taskId, findingId: scene.findingId, assetId: adopted.assetId, status: 'adopted', reused: asset.status === 'adopted' }
+    })
+  }
+
+  private async generateTarget(parent: Agent, input: PageVisualInput & { signal?: AbortSignal; beforeStart?: VisualDispatchGuard; recoveryOnly?: boolean; assertCurrent?: () => void },
     page: Pick<PageVisualPlanEntry, 'title' | 'keyMessage' | 'covered' | 'chapterId' | 'workItemId'>, brief: PageVisualRequest): Promise<GeneratedAssetResult> {
     const key = `${resolve(input.workspaceRoot)}\0${brief.taskId}`
     const running = this.inFlight.get(key)
     if (running) return running
     const job = withPageVisualLock(input.workspaceRoot, async () => {
-      input.signal?.throwIfAborted()
+      input.signal?.throwIfAborted(); input.assertCurrent?.()
       const projectId = input.frozenProject.projectId
       const previous = (await readPageVisualState(input.workspaceRoot, projectId)).requests.find(item => item.taskId === brief.taskId)
       if (brief.target) {
@@ -228,11 +303,17 @@ export class PageVisualFillService {
         if (request && (request.briefHash !== brief.briefHash || (request.runId !== undefined && request.runId !== brief.runId))) throw new Error('DESIGN_VISUAL_REQUEST_CONFLICT: requestId 已用于不同内容或运行任务')
       }
       const existing = await this.usableAsset(projectId, brief.taskId, previous?.assetId)
-      const recoveryOnly = !!previous && (previous.status === 'recovery_required' || (!!brief.target && previous.status === 'generating')) && !existing
+      const recoverableTask = this.dependencies.governance.readProject(projectId).visualTasks?.some(task => task.taskId === brief.taskId && task.childId && task.attempts > 0)
+      if (input.recoveryOnly && !existing && !recoverableTask) {
+        throw new Error('PAGE_VISUAL_RECOVERY_REQUIRED: 未找到可核验的原补图任务，未派发新任务')
+      }
+      const recoveryOnly = input.recoveryOnly === true || (!!previous && (previous.status === 'recovery_required'
+        || (previous.status === 'generating' && (!!brief.target || !!brief.scene || recoverableTask))) && !existing)
       if (previous && previous.status !== 'failed' && ((!existing && !recoveryOnly) || (['adopted', 'adopted_unlinked', 'linked'].includes(previous.status) && existing?.status !== 'adopted'))) {
         throw new Error('PAGE_VISUAL_RECOVERY_REQUIRED: 已有补图请求暂无法从治理状态恢复，未再次生成；请重新加载治理状态并核查原请求')
       }
       if (existing) {
+        input.signal?.throwIfAborted(); input.assertCurrent?.()
         const status = existing.status as 'candidate' | 'adopted'
         const requestStatus = brief.target && status === 'adopted' ? (previous?.status === 'linked' ? 'linked' : 'adopted_unlinked') : status
         await savePageVisualRequest(input.workspaceRoot, projectId, { ...brief, assetId: existing.assetId, status: requestStatus, ...(requestStatus === 'linked' ? { linkReceipt: previous?.linkReceipt } : {}) })
@@ -240,13 +321,14 @@ export class PageVisualFillService {
       }
       if (page.covered) throw new Error('PAGE_VISUAL_ALREADY_COVERED: 当前页已有可用图片，不自动替换')
       if (!page.chapterId || !page.workItemId) throw new Error('PAGE_VISUAL_SOURCE_REQUIRED: 页面缺少真实工作项归属')
+      input.signal?.throwIfAborted(); input.assertCurrent?.()
       await savePageVisualRequest(input.workspaceRoot, projectId, recoveryOnly ? { ...brief, status: 'recovery_required' } : brief)
       try {
         const asset = await this.dependencies.visual.generate(parent, { taskId: brief.taskId, projectId, chapterId: page.chapterId,
           workItemId: page.workItemId, kind: 'concept', required: false,
           prompt: `页面：${page.title}\n核心判断：${page.keyMessage}\n${brief.prompt}`, projectStyle: brief.style }, input.signal,
         { preserveUncertain: true, recoveryOnly, beforeStart: input.beforeStart })
-        input.signal?.throwIfAborted()
+        input.signal?.throwIfAborted(); input.assertCurrent?.()
         if (asset.taskId !== brief.taskId || asset.projectId !== projectId || !['candidate', 'adopted'].includes(asset.status) || asset.quality?.accepted !== true) {
           throw new Error('PAGE_VISUAL_INVALID_RESULT: 未获得通过质量检查的候选图')
         }
@@ -362,9 +444,21 @@ export class PageVisualFillService {
     })
   }
 
-  async adopt(input: PageVisualInput & { readonly findingId: string; readonly assetId: string }): Promise<PageVisualFillResult> {
+  async reject(input: PageVisualInput & { readonly assetId: string; readonly reason: string }): Promise<void> {
+    await withPageVisualLock(input.workspaceRoot, async () => {
+      const projectId = input.frozenProject.projectId
+      const request = (await readPageVisualState(input.workspaceRoot, projectId)).requests.find(r => r.assetId === input.assetId && !r.target)
+      if (!request || !this.dependencies.visual.reject) throw new Error('PAGE_VISUAL_REJECT_UNAVAILABLE')
+      await this.dependencies.visual.reject(projectId, input.assetId, input.reason)
+      await savePageVisualRequest(input.workspaceRoot, projectId, { ...request, status: 'failed', message: input.reason })
+    })
+  }
+
+  async adopt(input: PageVisualInput & { readonly findingId: string; readonly assetId: string; readonly signal?: AbortSignal; readonly assertCurrent?: () => void }): Promise<PageVisualFillResult> {
     const page = await this.page(input)
     return withPageVisualLock(input.workspaceRoot, async () => {
+      input.signal?.throwIfAborted()
+      input.assertCurrent?.()
       const projectId = input.frozenProject.projectId
       const request = (await readPageVisualState(input.workspaceRoot, projectId)).requests.find(item => item.assetId === input.assetId && item.findingId === input.findingId)
       if (!request) throw new Error('PAGE_VISUAL_CANDIDATE_MISMATCH: 候选图不属于此页面')
@@ -374,6 +468,8 @@ export class PageVisualFillService {
       const asset = await this.usableAsset(projectId, request.taskId, input.assetId)
       if (!asset) throw new Error('PAGE_VISUAL_CANDIDATE_INVALID: 候选图不可采用')
       if (page.covered && asset.status !== 'adopted') throw new Error('PAGE_VISUAL_ALREADY_COVERED: 当前页已有可用图片，不自动替换')
+      input.signal?.throwIfAborted()
+      input.assertCurrent?.()
       const adopted = asset.status === 'adopted' ? asset : await this.dependencies.visual.adopt(projectId, asset.assetId, input.frozenProject.revision)
       await savePageVisualRequest(input.workspaceRoot, projectId, { ...request, status: 'adopted' })
       return { taskId: request.taskId, findingId: input.findingId, assetId: adopted.assetId, status: 'adopted', reused: asset.status === 'adopted' }

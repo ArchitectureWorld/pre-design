@@ -24,6 +24,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function statusFromEvent(event: { readonly type: string; readonly data: unknown }): PreplanningStatusEventData | undefined {
   if (!isRecord(event.data)) return undefined
+  if (event.type === 'preplanning/status') return normalizePreplanningStatus(event.data)
   if (event.type === 'command/done') {
     return event.data.kind === 'success' && typeof event.data.text === 'string'
       ? parsePreplanningStatus(event.data.text)

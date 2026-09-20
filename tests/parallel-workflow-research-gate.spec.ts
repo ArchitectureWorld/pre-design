@@ -38,6 +38,53 @@ function invalidResearch(workflowId: string) {
 }
 
 describe('parallel workflow independent research gate', () => {
+  it('automatically corrects an ungrounded missing-owner blocker before committing conditional research', async () => {
+    const descriptor = descriptors[1]
+    const research = { ...invalidResearch(descriptor.workflowId),
+      validation: { ...invalidResearch(descriptor.workflowId).validation, integrityValid: true },
+      continuation: { mode: 'conditional', workflowId: descriptor.workflowId, policy: 'v2.0.1-research-fallback',
+        missingDataPointIds: ['required-input'], limitations: ['主体未知，仅界定问题'] } }
+    const analyze = vi.fn(async () => ({ payload: {}, qualityEvidence: {
+      completionChecks: [{ criterion: '问题完整', status: 'pass', rationale: '问题已界定' }],
+      evidenceChecks: [{ policy: 'P0 项目证据', status: 'pass', rationale: '缺口保留' }], assumptions: ['主体未知'], confidence: 0.95,
+      blockers: analyze.mock.calls.length === 1 ? [{ code: 'missing-owner', kind: 'external', message: '缺少决策主体' }] : [],
+    } }))
+    const commit = vi.fn(async () => ({ proposalId: 'proposal', revision: 2 }))
+    const executor = new ParallelWorkflowExecutor({
+      runtime: { ready: () => [descriptor], running: () => [], transition: vi.fn() }, enabled: () => true,
+      analyzer: { available: () => true, analyze }, research: { collect: async () => research }, committer: { commit },
+      gateApprover: { approveReady: async () => 0 }, presentationSync: { request: vi.fn(), flush: async () => undefined },
+    } as never)
+    expect(await executor.runReadyBatch({ id: 'parent' }, 'project')).toMatchObject({ completed: 1, blocked: 0, revised: 1 })
+    expect(analyze).toHaveBeenCalledTimes(2)
+    expect(commit).toHaveBeenCalledOnce()
+  })
+
+  it('routes conditional research through analysis, central quality and automatic commit', async () => {
+    const descriptor = descriptors[1]
+    const research = { ...invalidResearch(descriptor.workflowId),
+      validation: { ...invalidResearch(descriptor.workflowId).validation, integrityValid: true },
+      continuation: { mode: 'conditional', workflowId: descriptor.workflowId, policy: 'v2.0.1-research-fallback',
+        missingDataPointIds: ['required-input'], limitations: ['数据缺失，仅形成附条件策划结论'] },
+    }
+    const analyze = vi.fn(async () => ({ payload: {}, qualityEvidence: {
+      completionChecks: [{ criterion: '问题完整', status: 'pass', rationale: '已限定问题' }],
+      evidenceChecks: [{ policy: 'P0 项目证据', status: 'pass', rationale: '未知项保留' }],
+      assumptions: research.continuation.limitations, blockers: [], confidence: 0.95,
+    } }))
+    const commit = vi.fn(async () => ({ proposalId: 'proposal', revision: 1 }))
+    const transition = vi.fn()
+    const executor = new ParallelWorkflowExecutor({
+      runtime: { ready: () => [descriptor], running: () => [], transition }, enabled: () => true,
+      analyzer: { available: () => true, analyze }, research: { collect: async () => research }, committer: { commit },
+      gateApprover: { approveReady: async () => 0 }, presentationSync: { request: vi.fn(), flush: async () => undefined },
+    } as never)
+    expect(await executor.runReadyBatch({ id: 'parent' }, 'project')).toMatchObject({ completed: 1, blocked: 0, needsHuman: 0 })
+    expect(analyze).toHaveBeenCalledWith({ id: 'parent' }, 'project', descriptor, undefined, undefined, research)
+    expect(commit).toHaveBeenCalledOnce()
+    expect(transition).toHaveBeenCalledWith('project', descriptor.workflowId, expect.objectContaining({ to: 'confirmed' }))
+  })
+
   it('blocks before LLM analysis when independent Research validation fails', async () => {
     const transition = vi.fn(async (_projectId: string, _workflowId: string, _command: TransitionCommand) => undefined)
     const analyze = vi.fn(async () => { throw new Error('analyzer must not run without trusted research') })

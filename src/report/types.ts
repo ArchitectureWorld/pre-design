@@ -126,6 +126,8 @@ export type FrozenSiteBoundary =
   }
 
 export interface FrozenProjectInput {
+  readonly caseStudies?: import('./case-studies/types.ts').ReportCaseStudies
+  readonly manuscript?: import('./manuscript/types.ts').PlanningManuscript
   readonly projectId: string
   readonly projectName: string
   readonly revision: number

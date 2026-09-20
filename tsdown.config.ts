@@ -2,6 +2,7 @@ import { defineConfig } from 'tsdown'
 
 const PACKAGE_NAME = '@architectureworld/dsh-preplanning-agent'
 const hostExternal = /^@deepseek-ai\/(cordis|schemastery)(\/|$)/
+const serverExternal = (specifier: string) => hostExternal.test(specifier) || specifier.startsWith('pdfjs-dist/') || specifier === 'sharp'
 const clientExternals = new Set([
   'react',
   'react-dom',
@@ -22,8 +23,8 @@ export default defineConfig([
     clean: true,
     dts: false,
     deps: {
-      neverBundle: specifier => hostExternal.test(specifier),
-      alwaysBundle: specifier => !hostExternal.test(specifier),
+      neverBundle: serverExternal,
+      alwaysBundle: specifier => !serverExternal(specifier),
     },
   },
   {

@@ -52,8 +52,7 @@ import type {
   PresentationStandardProjectBuild,
   PresentationStandardProjectBuildInput,
 } from './standard-project-types.ts'
-import { compileReportOutline } from './projector/report-outline.ts'
-import { DEFAULT_PRESENTATION_TOPICS } from './projector/topics.ts'
+import { compileClientReportOutline as compileReportOutline, clientReportTopics } from './projector/client-outline.ts'
 import type { ProfessionalFinding, SupportingBlock } from './projector/types.ts'
 
 const RULES_KEY = 'document:rules'
@@ -65,14 +64,17 @@ const DEFAULT_RULES: PresentationRulesInput = Object.freeze({
   audiences: Object.freeze(['项目决策团队']),
   purposes: Object.freeze(['前期策划成果交付']),
   language: 'zh-CN',
-  writingRules: Object.freeze(['结论优先', '每页只表达一个核心结论']),
+  writingRules: Object.freeze(['结论优先', '每页只表达一个核心结论',
+    '正文面向外部汇报：使用项目结论、产品场景与实施要点，不展示流程记录、字段路径、内部状态枚举或完整论证表',
+    '每页以一句主张及最多三个简洁要点表达；演讲稿仅存入 scriptBlocks，完整依据保留在备注与附录']),
   terminology: Object.freeze({}),
   truthConstraints: Object.freeze(['事实、判断、假设、建议和决策必须明确区分']),
   visualIntent: Object.freeze([
     '优先使用可追溯的项目证据与正式采用素材，排版只能使用当前草案页面素材库已关联的素材',
     '相关场景图和大图优先；仅按明确的页面关联使用背景图，不将同一图像铺到无关页面',
     '地图、专业图纸、数据图表与带文字图件完整显示，保留图例和标注，不以裁切背景损失信息',
-    '尽量减少纯文字页面；没有真实素材时明确资料缺口，不虚构图片、视频或数据',
+    '大部分正文页必须关联实际可读取图像；产品、体验和未来空间意向使用标注为 AI 概念示意的生成图，事实地图与数据图使用原件或可追溯图解',
+    '视觉要求必须转化为页面任务并执行生成、校验、采用和挂接；文字配图说明、候选状态和素材清单不代表页面配图完成',
   ]),
   prohibitedContent: Object.freeze(['不得虚构缺失事实或证据']),
 })
@@ -720,7 +722,7 @@ export async function buildPresentationStandardProject(
   const pageRecords: PageRecord[] = []
   const drafts: Record<string, DraftPageDocument> = {}
 
-  for (const topic of DEFAULT_PRESENTATION_TOPICS) {
+  for (const topic of clientReportTopics(frozenProject)) {
     const topicFindings = findings.filter(finding => finding.topicKey === topic.key)
     if (topicFindings.length === 0) continue
     const topicObjectIds = topicFindings.flatMap(finding => finding.objectIds)

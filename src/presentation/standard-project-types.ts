@@ -57,6 +57,10 @@ export interface PresentationAssetOriginInput {
 }
 
 export interface PresentationAdoptedAssetInput {
+  readonly imagePreparation?: { readonly version: 'report-raster-v1'; readonly sourcePath: string; readonly sourceSha256: string }
+  readonly physicalPlacement?: { readonly pageId: string; readonly mediaIndex: number }
+  readonly imageIdentity?: import('../visual/image-policy.ts').OriginalImageIdentity
+  readonly imageQuality?: import('../visual/image-policy.ts').ImageQualityMetadata
   readonly sourceKey: string
   readonly sourcePath: string
   readonly displayName: string
@@ -80,6 +84,7 @@ export interface PresentationAdoptedAssetInput {
   readonly pageBindingOnly?: boolean
   readonly pageBindings?: readonly {
     readonly findingId: string
+    readonly nodeIds?: readonly string[]
     readonly role?: 'primary' | 'supporting' | 'background' | 'reference'
   }[]
 }

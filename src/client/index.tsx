@@ -11,12 +11,15 @@ import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import { useEffect, useReducer } from 'react'
+import { useCallback, useEffect, useReducer, useState } from 'react'
+import type { AgentClassView } from '../agent-classes/types.ts'
 import { startDirectPreplanning, type DirectStartPort } from './direct-start.ts'
 import { PreplanningLauncher } from './PreplanningLauncher.tsx'
 import { PreplanningProjectForm } from './PreplanningProjectForm.tsx'
 import { PreplanningStatusCard } from './PreplanningStatusCard.tsx'
 import { preplanningStatusDefinition } from './status-definition.ts'
+import { AgentClassPanel } from './AgentClassPanel.tsx'
+import { installSubagentSummarySync } from './subagent-summary-sync.ts'
 
 const PREPLANNING_PANEL_ID = 'preplanning' as MainPanelId
 
@@ -139,6 +142,7 @@ function PreplanningSidebarIcon({ size, active }: PropsRuntime<'sidebar.panellis
 
 export function apply(ctx: ClientContext): void {
   const { sessions, workspaces } = browserControllers(ctx)
+  ctx.effect(() => installSubagentSummarySync(sessions), 'preplanning.subagent-summary-sync')
   ctx.uiConversation.events.register(preplanningStatusDefinition)
 
   ctx.slots.inject('main', () => ctx.slots.register({
@@ -146,6 +150,14 @@ export function apply(ctx: ClientContext): void {
     key: PREPLANNING_PANEL_ID,
   }, function PreplanningWorkspacePanel() {
     const workspace = useCurrentWorkspace(workspaces, sessions)
+    const sessionSnapshot = sessions.list.getSnapshot()
+    const currentId = sessionSnapshot.current
+    const configSessionId = currentId && workspace && (workspace.sessionIds.includes(currentId) || sessionSnapshot.byId[currentId]?.cwd === workspace.path) ? String(currentId) : undefined
+    const [projectView, setProjectView] = useState<{ sessionId?: string; view: AgentClassView }>()
+    const acceptProjectView = useCallback((view: AgentClassView) => {
+      setProjectView({ sessionId: configSessionId, view })
+    }, [configSessionId])
+    const currentProjectView = configSessionId && projectView?.sessionId === configSessionId ? projectView.view : undefined
     const start = async () => {
       if (workspace === undefined) throw new Error('请先选择或创建 DSH 工作区。')
       const sessionId = await ctx.uiWorkspace.connectWorkspace(workspace.workspaceId)
@@ -161,14 +173,20 @@ export function apply(ctx: ClientContext): void {
         }
 
     return (
+      <div style={{ overflowY: 'auto', height: '100%' }}>
       <PreplanningProjectForm
-        key={workspace?.workspaceId ?? 'workspace-unavailable'}
+        key={`${workspace?.workspaceId ?? 'workspace-unavailable'}:${configSessionId ?? 'no-session'}`}
         embedded
+        checkingProject={configSessionId !== undefined && currentProjectView === undefined}
+        existingProjectId={currentProjectView?.projectId}
+        projectRunning={currentProjectView?.executions.some(run => run.activity === 'running')}
         openProjectFolder={openProjectFolder}
         start={start}
         workspacePath={workspace?.path}
         workspaceTitle={workspace?.title}
       />
+      <AgentClassPanel sessionId={configSessionId} onView={acceptProjectView} />
+      </div>
     )
   }))
 

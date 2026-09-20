@@ -27,7 +27,7 @@ afterEach(async () => {
 })
 
 describe('Host apply composition', () => {
-  it('提供二十命令、四工具，并通过真实 Host 发布可供 Presentation 使用的标准项目', async () => {
+  it('提供二十命令、五工具，并通过真实 Host 发布可供 Presentation 使用的标准项目', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-preplanning-host-'))
     roots.push(root)
     const presentationRoot = join(root, 'presentation-projects')
@@ -45,10 +45,14 @@ describe('Host apply composition', () => {
       register: (definition: CommandDefinition) => { commands.push(definition); return () => undefined },
     } as never)
     ctx.provide('tools', {
+      guard: () => () => undefined,
       register: (definition: ToolDefinition) => { tools.push(definition); return () => undefined },
     } as never)
     ctx.provide('attachments', { readImage: vi.fn() } as never)
-    ctx.provide('llm', { listModels: vi.fn(async () => []) } as never)
+    ctx.provide('llm', {
+      listProviders: () => [{ id: 'test', name: 'Test' }],
+      listModels: vi.fn(async () => [{ provider: 'test', id: 'model', name: 'Model' }]),
+    } as never)
     ctx.provide('sessions', { get: vi.fn() } as never)
     ctx.provide('subagents', {
       listChildren: vi.fn(async () => []),
@@ -74,20 +78,22 @@ describe('Host apply composition', () => {
     expect(reportOptions.boundaryIntegrity).toBeInstanceOf(SiteBoundaryService)
     expect(routes).toEqual([
       expect.objectContaining({ kind: 'prefix', path: '/preplan-export' }),
+      expect.objectContaining({ kind: 'exact', path: '/preplan-agent-classes' }),
       expect.objectContaining({ kind: 'exact', path: '/preplan-open-workspace' }),
     ])
 
     expect(commands.map(definition => definition.name)).toEqual([
       'preplan-new', 'preplan-open', 'preplan-list', 'preplan-status', 'preplan-confirm',
       'preplan-mode', 'preplan-run', 'preplan-pause', 'preplan-gate', 'preplan-revise',
-      'preplan-visual-fill',
+      'preplan-visual-fill', 'preplan-visual-budget', 'preplan-visual-reject',
       'preplan-visual', 'preplan-visual-adopt', 'preplan-visual-replace',
       'preplan-boundary-asset', 'preplan-boundary-coordinates', 'preplan-boundary-confirm',
-      'preplan-export', 'preplan-presentation-sync', 'preplan-open-project-folder',
+      'preplan-manuscript', 'preplan-export', 'preplan-presentation-sync', 'preplan-open-project-folder',
     ])
     expect(tools.map(definition => definition.name)).toEqual([
+      'preplanning_web_query',
       'preplanning_generate_page_visual',
-      'preplanning_get_context', 'preplanning_apply_commands',
+      'preplanning_get_context', 'preplanning_read_material', 'preplanning_apply_commands',
       'preplanning_sync_presentation_project',
     ])
     expect(promptSections).toHaveLength(1)
@@ -150,5 +156,19 @@ describe('Host apply composition', () => {
       { agent: { id: 'session-1' } } as never,
     )
     expect(result).toMatchObject({ status: 'pending_review', expectedRevision: 0 })
+
+    // The real host must connect persisted governance limits to class dispatch;
+    // testing the class service alone would miss an omitted production callback.
+    const host = ctx.get('preplanning')!
+    await host.automation.authorize(actualProjectId, {
+      baseRevision: 0, workflowIds: ['preplan.wf.01.01'], gateIds: [], maxImages: 0,
+      maxModelTurns: 1, stopOnBlocking: true, reportDepth: 'standard',
+    }, { actorId: 'test-owner', name: 'Test owner', role: 'decision_owner' })
+    const route = { provider: 'test', model: 'model' }
+    await host.agentClasses.save(0, { image: route, web: route, text: route })
+    const parent = { id: 'session-1', options: route } as never
+    await host.agentClasses.begin(actualProjectId, 'text', 'first model turn', parent)
+    await expect(host.agentClasses.begin(actualProjectId, 'web', 'over budget', parent))
+      .rejects.toThrow('PREPLANNING_MODEL_TURN_LIMIT')
   })
 })

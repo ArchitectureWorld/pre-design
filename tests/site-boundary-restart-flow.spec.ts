@@ -50,7 +50,7 @@ async function boot(storageRoot: string, fixtureRoot: string, host: SyntheticHos
   ctx.provide('commands', {
     register: (definition: CommandDefinition) => { commands.push(definition); return () => undefined },
   } as never)
-  ctx.provide('tools', { register: (_definition: ToolDefinition) => () => undefined } as never)
+  ctx.provide('tools', { guard: () => () => undefined, register: (_definition: ToolDefinition) => () => undefined } as never)
   ctx.provide('attachments', {
     readImage: async (ref: ImageAttachmentRef) => {
       if (String(ref.attachmentId) !== String(imageBlock.attachment.attachmentId)) throw new Error('unexpected attachment')

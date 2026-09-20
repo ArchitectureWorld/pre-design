@@ -1,3 +1,5 @@
+import { isConditionalReport } from './conditional-report.ts'
+import { MATERIAL_EXPLANATION } from './manuscript/client-copy.ts'
 import type {
   ClientContentBlock,
   ClientPolicyViolation,
@@ -83,6 +85,7 @@ function validateAssets(report: ClientReport, violations: ClientPolicyViolation[
 
 function blockEvidenceIds(block: ClientContentBlock): readonly string[] {
   if (block.type === 'decision') return block.rationaleEvidenceIds
+  if (block.type === 'planning-page') return block.page.sourceRefs
   if (block.type === 'product' || block.type === 'scene') return []
   return block.evidenceIds
 }
@@ -95,6 +98,14 @@ function blockAssetIds(block: ClientContentBlock): readonly string[] {
   return []
 }
 
+function usedBlockAssetIds(report: ClientReport, chapterId: string, block: ClientContentBlock): readonly string[] {
+  // Regular planning pages render their chapter's bound materials. Count those
+  // exact assets for reference and professional-contract checks as well.
+  return block.type === 'planning-page'
+    ? report.assets.filter(asset => asset.chapterId === chapterId).map(asset => asset.assetId)
+    : blockAssetIds(block)
+}
+
 function blockProductIds(block: ClientContentBlock): readonly string[] {
   if (block.type === 'product') return [block.productId]
   if (block.type === 'scene') return block.productIds
@@ -105,7 +116,7 @@ function validateVisualContract(report: ClientReport, violations: ClientPolicyVi
   if (report.visualContractVersion !== 'architectural-v1') return
   const usedAssetIds = new Set([
     ...report.assets.filter(asset => asset.role === 'hero').map(asset => asset.assetId),
-    ...report.chapters.flatMap(chapter => chapter.blocks.flatMap(block => blockAssetIds(block))),
+    ...report.chapters.flatMap(chapter => chapter.blocks.flatMap(block => usedBlockAssetIds(report, chapter.id, block))),
   ])
   const usedAssets = report.assets.filter(asset => usedAssetIds.has(asset.assetId))
   const evidenceIds = new Set(report.evidence.map(evidence => evidence.evidenceId))
@@ -128,7 +139,7 @@ function validateVisualContract(report: ClientReport, violations: ClientPolicyVi
     push(violations, 'PROFESSIONAL_ASSET_SHA_DUPLICATE', 'assets', 'professional visual content SHA-256 values must be unique')
   }
   report.chapters.forEach((chapter, chapterIndex) => chapter.blocks.forEach((block, blockIndex) => {
-    const professional = blockAssetIds(block).filter(assetId => {
+    const professional = usedBlockAssetIds(report, chapter.id, block).filter(assetId => {
       const asset = report.assets.find(candidate => candidate.assetId === assetId)
       return asset?.analysisKind !== undefined || asset?.role === 'chart'
     })
@@ -279,6 +290,11 @@ function validateReferences(report: ClientReport, violations: ClientPolicyViolat
   report.chapters.forEach((chapter, chapterIndex) => {
     chapter.blocks.forEach((block, blockIndex) => {
       const base = 'chapters[' + chapterIndex + '].blocks[' + blockIndex + ']'
+      if (block.type === 'planning-page') {
+        const bound = usedBlockAssetIds(report, chapter.id, block)
+        if (block.page.sourceRefs.length === 0) push(violations, 'EVIDENCE_SOURCE_MISSING', base + '.page.sourceRefs', 'authored page requires source evidence')
+        if (block.page.visual.kind !== 'none' && bound.length === 0) push(violations, 'ASSET_BINDING_MISSING', base + '.page.visual', 'authored visual page requires bound materials')
+      }
       for (const evidenceId of blockEvidenceIds(block)) {
         if (!evidenceIds.has(evidenceId)) {
           push(violations, 'REFERENCE_NOT_FOUND', base, 'missing evidence ' + evidenceId)
@@ -299,8 +315,9 @@ function validateHeadlineRatio(report: ClientReport, violations: ClientPolicyVio
     push(violations, 'CLAIM_TITLE_RATIO_LOW', 'chapters', 'client report requires chapters')
     return
   }
-  const conclusionHeadlines = report.chapters.filter(chapter =>
-    chapter.headline.trim().length >= 12 && !WEAK_HEADLINES.has(chapter.headline.trim())).length
+  const conclusionHeadlines = report.chapters.filter(chapter => chapter.blocks.length > 0 && chapter.blocks.every(block => block.type === 'planning-page')
+    ? chapter.headline.trim().length > 0 && !WEAK_HEADLINES.has(chapter.headline.trim()) && chapter.claim.trim().length >= 12
+    : chapter.headline.trim().length >= 12 && !WEAK_HEADLINES.has(chapter.headline.trim())).length
   if (conclusionHeadlines / report.chapters.length < 0.8) {
     push(violations, 'CLAIM_TITLE_RATIO_LOW', 'chapters', 'at least 80% of chapter headlines must state a conclusion')
   }
@@ -308,10 +325,35 @@ function validateHeadlineRatio(report: ClientReport, violations: ClientPolicyVio
 
 export function validateClientReportPolicy(report: ClientReport): ClientPolicyViolation[] {
   const violations: ClientPolicyViolation[] = []
-  walkStrings(report, (path, value) => {
+  const authored = report.chapters.some(chapter => chapter.blocks.some(block => block.type === 'planning-page'))
+  if (authored && report.chapters.some(chapter => chapter.blocks.length !== 1 || chapter.blocks[0]?.type !== 'planning-page')) {
+    push(violations, 'AUTHORED_REPORT_PLANNING_PAGE_REQUIRED', 'chapters', 'authored reports require one planning page per chapter')
+  }
+  // Notes, source statements, locators, hashes, and provenance remain available
+  // in the separate evidence record. Only projected page copy is visible here.
+  const visible = authored ? {
+    identity: report.identity, proposition: report.proposition,
+    chapters: report.chapters.map(chapter => ({ headline: chapter.headline, claim: chapter.claim,
+      blocks: chapter.blocks.map(block => block.type !== 'planning-page' ? block : ({
+        chapterTitle: block.chapterTitle, page: {
+          title: block.page.title, claim: block.page.claim, body: block.page.body, product: block.page.product, table: block.page.table,
+          visual: { caption: block.page.visual.caption, diagram: block.page.visual.diagram && {
+            nodes: block.page.visual.diagram.nodes.map(node => ({ label: node.label })),
+            edges: block.page.visual.diagram.edges.map(edge => ({ label: edge.label })),
+          } },
+        },
+      })),
+    })),
+    products: report.products.map(({ productId: _productId, evidenceIds: _evidenceIds, ...copy }) => copy),
+    assets: report.assets.map(asset => ({ caption: asset.caption })),
+  } : report
+  walkStrings(visible, (path, value) => {
     const match = value.match(CLIENT_FORBIDDEN)
     if (match !== null) {
       push(violations, 'CLIENT_FORBIDDEN_TERM', path, 'client-visible text contains ' + match[0])
+    }
+    if (authored && MATERIAL_EXPLANATION.test(value)) {
+      push(violations, 'CLIENT_MATERIAL_EXPLANATION', path, 'material explanation belongs in the source record')
     }
   })
   validateEvidence(report, violations)
@@ -323,6 +365,9 @@ export function validateClientReportPolicy(report: ClientReport): ClientPolicyVi
 }
 
 export function assertClientReportPolicy(report: ClientReport): void {
+  // Only an immutable report created by the conditional projection uses its
+  // separate content contract. Serialized or user-marked reports stay formal.
+  if (isConditionalReport(report)) return
   const violations = validateClientReportPolicy(report)
   if (violations.length > 0) {
     throw new Error(violations.map(row =>

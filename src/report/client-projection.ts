@@ -1,4 +1,9 @@
 import { isDeepStrictEqual } from 'node:util'
+import { createHash } from 'node:crypto'
+import { caseStudyPhotos, validateCaseStudies } from './case-studies/index.ts'
+import { createConditionalReportBundle, type ConditionalReportMaterial } from './conditional-report.ts'
+import { clientCopyText } from './manuscript/client-copy.ts'
+import { manuscriptSourceFingerprint } from './manuscript/source.ts'
 import { createClientTheme } from './theme.ts'
 import type {
   ClientAssetBinding,
@@ -7,6 +12,7 @@ import type {
   ClientResearchPreviewBundle,
   ClientReportBundle,
   ClientVisualAsset,
+  ClientReport,
 } from './client-types.ts'
 import type { FrozenProjectInput, ReportAsset } from './types.ts'
 
@@ -185,11 +191,118 @@ function clientChapters(profile: ClientProjectProfile): ClientChapter[] {
 export function createClientReportBundle(
   input: FrozenProjectInput,
   profile: ClientProjectProfile,
+  materials?: readonly ConditionalReportMaterial[],
 ): ClientReportBundle {
-  const data = createClientReportBundleFromProfile(input, injectGovernedSiteBoundaryBinding(input, profile))
+  if (input.manuscript !== undefined && input.siteBoundary?.status !== 'confirmed') throw new Error('SITE_BOUNDARY_CONFIRMATION_REQUIRED')
+  const governedProfile = injectGovernedSiteBoundaryBinding(input, profile)
+  const legacy = createClientReportBundleFromProfile(input, governedProfile)
+  const data = input.manuscript === undefined ? legacy : authoredFormalReport(input, governedProfile, legacy, materials)
   const bundle = deepFreeze({ kind: 'formal', publishable: true, ...data }) as ClientReportBundle
   formalBundles.add(bundle)
   return bundle
+}
+
+/** Authored copy is shared with the preview; formal boundary and visual contracts are retained. */
+function authoredFormalReport(
+  input: FrozenProjectInput,
+  profile: ClientProjectProfile,
+  legacy: ClientReportBundleData,
+  materials: readonly ConditionalReportMaterial[] | undefined,
+): ClientReportBundleData {
+  if (input.siteBoundary?.status !== 'confirmed') throw new Error('SITE_BOUNDARY_CONFIRMATION_REQUIRED')
+  const manuscript = input.manuscript!
+  if (manuscript.projectId !== input.projectId || manuscript.sourceRevision !== input.revision
+    || manuscript.sourceFingerprint !== manuscriptSourceFingerprint(input)) throw new Error('MANUSCRIPT_SOURCE_STALE')
+  if (input.caseStudies === undefined) throw new Error('CASE_STUDIES_REQUIRED: authored formal reports require 3–5 verified cases')
+  validateCaseStudies(input.caseStudies, input)
+  if (materials === undefined) throw new Error('AUTHORED_REPORT_MATERIALS_REQUIRED')
+  if (materials.some(material => !/^[a-f0-9]{64}$/iu.test(material.sha256) || !material.sourcePath.trim()
+    || !Number.isFinite(material.widthPx) || (material.widthPx ?? 0) <= 0
+    || !Number.isFinite(material.heightPx) || (material.heightPx ?? 0) <= 0)) throw new Error('AUTHORED_REPORT_MATERIAL_INVALID')
+  for (const entry of caseStudyPhotos(input.caseStudies)) {
+    const photo = materials.find(material => material.sourceKey === entry.sourceKey || material.aliases?.includes(entry.sourceKey))
+    if (!entry.image.sourcePath || !photo || photo.sha256 !== entry.image.sha256
+      || photo.widthPx !== entry.image.width || photo.heightPx !== entry.image.height
+      || photo.semanticRole !== 'source_evidence') throw new Error(`CASE_STUDY_PHOTO_REQUIRED: ${entry.caseId}/${entry.imageId}`)
+  }
+  const authored = createConditionalReportBundle(input, materials).report
+  for (const chapter of authored.chapters) {
+    for (const block of chapter.blocks) {
+      if (block.type !== 'planning-page') throw new Error('AUTHORED_REPORT_PLANNING_PAGE_REQUIRED')
+      const images = authored.assets.filter(asset => asset.chapterId === chapter.id)
+      if (block.page.visual.kind !== 'none' && images.length === 0) throw new Error(`AUTHORED_REPORT_VISUAL_REQUIRED: ${block.page.id}`)
+      if (images.some(asset => !/^[a-f0-9]{64}$/iu.test(asset.sha256) || !asset.sourcePath.trim()
+        || !Number.isFinite(asset.width) || asset.width <= 0 || !Number.isFinite(asset.height) || asset.height <= 0)) {
+        throw new Error(`AUTHORED_REPORT_MATERIAL_INVALID: ${block.page.id}`)
+      }
+    }
+  }
+
+  const professional = legacy.report.assets.filter(asset => ['map', 'diagram', 'chart'].includes(asset.role) || asset.analysisKind !== undefined)
+  const professionalHashes = new Set(professional.map(asset => asset.sha256))
+  const assets: ClientVisualAsset[] = authored.assets.filter(asset => !professionalHashes.has(asset.sha256)).map(asset => {
+    const frozen = legacy.report.assets.find(candidate => candidate.sha256 === asset.sha256)
+    // Preserve an explicitly required visual role, without reviving legacy product bindings.
+    return frozen && profile.requiredVisualRoles.includes(frozen.role) ? { ...asset, role: frozen.role } : asset
+  })
+  const additions = new Map<string, ClientChapter[]>()
+  const manuscriptPageIds = new Set(manuscript.chapters.flatMap(chapter => chapter.pages.map(page => page.id)))
+  const authoredProjectChapters = authored.chapters.filter(chapter => chapter.blocks.some(block => block.type === 'planning-page' && manuscriptPageIds.has(block.page.id)))
+  for (const asset of professional) {
+    const oldChapter = legacy.report.chapters.find(chapter => chapter.id === asset.chapterId)
+    const anchor = authoredProjectChapters.find(chapter => chapter.role === oldChapter?.role) ?? authoredProjectChapters.at(-1)
+    if (!anchor) throw new Error('AUTHORED_REPORT_CHAPTERS_REQUIRED')
+    const chapterId = `professional-${createHash('sha256').update(asset.assetId).digest('hex').slice(0, 16)}`
+    const title = clientCopyText(asset.caption)
+    if (!title) throw new Error(`AUTHORED_REPORT_VISUAL_TITLE_REQUIRED: ${asset.assetId}`)
+    const sourceRefs = [...new Set([
+      ...asset.provenance?.evidenceIds ?? [],
+      ...anchor.blocks.flatMap(block => block.type === 'planning-page' ? block.page.sourceRefs : []),
+    ])]
+    const chapterTitle = asset.role === 'chart' ? '项目判断与实施测算' : '场地条件与空间组织'
+    const page = {
+      id: chapterId, kind: asset.role === 'chart' ? 'financial' as const : 'spatial' as const,
+      title, claim: anchor.claim, body: [], sourceRefs,
+      visual: { kind: 'diagram' as const, subject: title, purpose: anchor.claim, caption: title, sourceMaterialKey: asset.assetId },
+      notes: [],
+    }
+    const chapter: ClientChapter = { id: chapterId, role: anchor.role, headline: title, claim: anchor.claim,
+      blocks: [{ type: 'planning-page', page, chapterTitle }] }
+    additions.set(anchor.id, [...additions.get(anchor.id) ?? [], chapter])
+    const { productId: _legacyProductId, ...preserved } = asset
+    assets.push({ ...preserved, caption: title, chapterId })
+  }
+  // Project source references are the authored evidence IDs. Raw evidence IDs from
+  // workflow findings belong to a different namespace and cannot replace them.
+  const products = authored.products.map(product => {
+    const block = authored.chapters.flatMap(chapter => chapter.blocks).find(block => block.type === 'planning-page' && block.page.id === product.productId)
+    if (block?.type !== 'planning-page') throw new Error(`AUTHORED_PRODUCT_PAGE_MISSING: ${product.productId}`)
+    return { ...product, evidenceIds: block.page.sourceRefs }
+  })
+  const evidence = [...legacy.report.evidence]
+  for (const record of authored.evidence) {
+    const existing = evidence.find(candidate => candidate.evidenceId === record.evidenceId)
+    if (existing && !isDeepStrictEqual(existing, record)) throw new Error(`AUTHORED_EVIDENCE_CONFLICT: ${record.evidenceId}`)
+    if (!existing) evidence.push(record)
+  }
+  const report: ClientReport = {
+    ...authored,
+    chapters: authored.chapters.flatMap(chapter => [chapter, ...additions.get(chapter.id) ?? []]),
+    products, evidence, assets, theme: legacy.report.theme,
+    ...(legacy.report.visualContractVersion === undefined ? {} : { visualContractVersion: legacy.report.visualContractVersion }),
+  }
+  for (const chapter of authored.chapters) {
+    if (chapter.blocks.some(block => block.type === 'planning-page' && block.page.visual.kind !== 'none')
+      && !assets.some(asset => asset.chapterId === chapter.id)) throw new Error(`AUTHORED_REPORT_VISUAL_REQUIRED: ${chapter.id}`)
+  }
+  for (const role of profile.requiredVisualRoles) {
+    if (!assets.some(asset => asset.role === role)) throw new Error(`missing required client visual role ${role}`)
+  }
+  return {
+    report,
+    identity: { ...legacy.identity, adoptedAssetIds: [...new Set([...legacy.identity.adoptedAssetIds, ...assets.map(asset => asset.assetId)])] },
+    governanceAppendix: legacy.governanceAppendix,
+  }
 }
 
 const RESEARCH_DECLARATIONS = ['研究范围（待核）', '非法定红线', '非测绘成果'] as const

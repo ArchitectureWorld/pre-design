@@ -12,6 +12,8 @@ import type {
   ClientReportBundle,
 } from './client-types.ts'
 import { inspectPptxArtifact } from './inspect-pptx.ts'
+import { assertConditionalBundle, type ConditionalReportBundle } from './conditional-report.ts'
+import { MATERIAL_EXPLANATION } from './manuscript/client-copy.ts'
 
 const FORBIDDEN_VISIBLE = /\b(?:Gate|Workflow|Revision|SHA(?:-?256)?|attachment\s*ID|asset\s*ID|boundary\s*ID)\b|附件\s*ID|内部资产\s*ID|边界\s*ID|确认日志|工作项|完成度|artifact-manifest|[A-Z]:[\\/]/iu
 
@@ -171,12 +173,15 @@ async function validateArtifactFiles(
   if (!Number.isInteger(identity.sourceRevision) || identity.sourceRevision < 0) {
     throw new Error('report source revision must be a non-negative integer')
   }
-  const htmlPath = join(stagingRoot, 'html', 'index.html')
-  const htmlText = await readFile(htmlPath, 'utf8')
-  const isClientReport = htmlText.includes('preplan-project-id')
+  const htmlText = formats.includes('html')
+    ? await readFile(join(stagingRoot, 'html', 'index.html'), 'utf8')
+    : undefined
+  const isClientReport = htmlText === undefined || htmlText.includes('preplan-project-id')
   if (isClientReport) {
-    assertIdentity('HTML artifact', readHtmlArtifactIdentity(htmlText), identity)
-    assertVisiblePolicy('HTML artifact', visibleHtmlText(htmlText), sensitive)
+    if (htmlText !== undefined) {
+      assertIdentity('HTML artifact', readHtmlArtifactIdentity(htmlText), identity)
+      assertVisiblePolicy('HTML artifact', visibleHtmlText(htmlText), sensitive)
+    }
     if (formats.includes('pdf')) {
       const printPath = join(stagingRoot, 'print', 'index.html')
       if (!await exists(printPath)) throw new Error('print HTML artifact is missing')
@@ -197,7 +202,7 @@ async function validateArtifactFiles(
       assertVisiblePolicy('PPTX artifact', pptx.visibleText, sensitive)
     }
   } else {
-    const revision = htmlText.match(/data-report-revision=["'](\d+)["']/u)?.[1]
+    const revision = htmlText?.match(/data-report-revision=["'](\d+)["']/u)?.[1]
     if (revision !== String(identity.sourceRevision)) {
       throw new Error(`HTML report revision ${revision ?? 'missing'} does not match frozen revision ${identity.sourceRevision}`)
     }
@@ -225,6 +230,52 @@ export async function validateAndHashReportArtifacts(
     ...(identity.siteBoundaryIntegrityDigest === undefined ? {} : { siteBoundaryIntegrityDigest: identity.siteBoundaryIntegrityDigest }),
     artifacts,
   }
+}
+
+export function normalizeConditionalArtifactFormats(
+  formats: readonly ArtifactRecord['format'][] = ['html'],
+): readonly ArtifactRecord['format'][] {
+  const supported: readonly ArtifactRecord['format'][] = ['html', 'pptx', 'pdf']
+  if (!Array.isArray(formats) || formats.length === 0 || formats.some(format => !supported.includes(format))) {
+    throw new Error('REPORT_FORMATS_INVALID')
+  }
+  return supported.filter(format => formats.includes(format))
+}
+
+/** Check a stored package against its own identity, without applying a new composition's content rules. */
+export async function assertConditionalArtifactIntegrity(
+  root: string,
+  manifest: ArtifactManifestRecord,
+): Promise<void> {
+  const formats = normalizeConditionalArtifactFormats(manifest.artifacts.map(artifact => artifact.format))
+  const actual = await validateArtifactFiles(root, manifest, undefined, formats)
+  if (manifest.artifacts.length !== actual.length || actual.some(artifact => !manifest.artifacts.some(expected =>
+    expected.format === artifact.format && expected.fileName === artifact.fileName
+    && expected.sha256 === artifact.sha256 && expected.bytes === artifact.bytes))) {
+    throw new Error('REPORT_ARTIFACT_CHANGED')
+  }
+}
+
+export async function validateAndHashConditionalArtifacts(
+  stagingRoot: string,
+  identity: ArtifactManifestIdentity,
+  bundle: ConditionalReportBundle,
+  requestedFormats: readonly ArtifactRecord['format'][] = ['html'],
+): Promise<ArtifactManifestRecord> {
+  assertConditionalBundle(bundle)
+  assertIdentity('conditional bundle', bundle.identity, identity)
+  const formats = normalizeConditionalArtifactFormats(requestedFormats)
+  const artifacts = await validateArtifactFiles(stagingRoot, identity, undefined, formats)
+  const visibleTexts: string[] = []
+  if (formats.includes('html')) visibleTexts.push(visibleHtmlText(await readFile(join(stagingRoot, 'html', 'index.html'), 'utf8')))
+  if (formats.includes('pdf')) visibleTexts.push(visibleHtmlText(await readFile(join(stagingRoot, 'print', 'index.html'), 'utf8')))
+  if (formats.includes('pptx')) visibleTexts.push((await inspectPptxArtifact(join(stagingRoot, 'report.pptx'))).visibleText)
+  const authored = bundle.report.chapters.some(chapter => chapter.blocks.some(block => block.type === 'planning-page'))
+  for (const text of visibleTexts) {
+    if (!authored && !text.replace(/\s+/gu, '').includes('条件式策划成果')) throw new Error('CONDITIONAL_REPORT_DISCLOSURE_MISSING')
+    if (authored && MATERIAL_EXPLANATION.test(text.replace(/\s+/gu, ''))) throw new Error('CLIENT_MATERIAL_EXPLANATION_FORBIDDEN')
+  }
+  return { ...identity, deliveryMode: 'conditional', publishable: false, artifacts }
 }
 
 export async function validateAndHashResearchPreviewArtifacts(

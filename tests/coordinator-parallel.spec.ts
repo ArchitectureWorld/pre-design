@@ -2,6 +2,43 @@ import { describe, expect, it, vi } from 'vitest'
 import { AutomationCoordinator } from '../src/runtime/coordinator.ts'
 
 describe('AutomationCoordinator parallel Ready Set selection', () => {
+  it('preserves an immediate resume when the superseded batch fails while draining', async () => {
+    let rejectOld!: (error: unknown) => void
+    const old = new Promise<any>((_resolve, reject) => { rejectOld = reject })
+    let active: Promise<any> | undefined
+    let ready = true
+    const retryBlocked = vi.fn()
+    const transition = vi.fn()
+    const runtime = {
+      current: () => undefined, running: () => [],
+      nextReady: () => ready ? { workflowId: 'ready' } : undefined,
+      snapshot: () => ({ blocked: [] }), retryBlocked, transition,
+    }
+    const parallel = {
+      whenIdle: async () => { await active },
+      canRun: () => ready,
+      runReadyBatch: vi.fn(async () => {
+        if (parallel.runReadyBatch.mock.calls.length === 1) {
+          active = old
+          try { return await old } finally { active = undefined }
+        }
+        ready = false
+        return { attempted: 1, completed: 1, blocked: 0, needsHuman: 0, revised: 0, approvedGates: 0 }
+      }),
+    }
+    const coordinator = new AutomationCoordinator(runtime as never, parallel)
+    const agent = { followup: vi.fn(), whenIdle: async () => undefined }
+    await coordinator.start(agent, 'project')
+    await vi.waitFor(() => expect(parallel.runReadyBatch).toHaveBeenCalledOnce())
+    await coordinator.pause('project')
+    await coordinator.start(agent, 'project')
+    rejectOld(new Error('old batch flush failed'))
+    await vi.waitFor(() => expect(coordinator.isRunning('project')).toBe(false))
+    expect(parallel.runReadyBatch).toHaveBeenCalledTimes(2)
+    expect(transition).not.toHaveBeenCalled()
+    expect(coordinator.lastError('project')).toBeUndefined()
+  })
+
   it('runs parallel waves until no Ready workflow remains', async () => {
     let ready = 5
     const parallel = {

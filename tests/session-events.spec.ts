@@ -2,6 +2,50 @@ import { describe, expect, it } from 'vitest'
 import { buildPreplanningStatus, formatPreplanningStatus, normalizePreplanningStatus, parsePreplanningStatus } from '../src/session/events.ts'
 
 describe('preplanning status snapshot', () => {
+  it('roundtrips conditional artifact links, source revision and a later generation failure', () => {
+    const status = buildPreplanningStatus({ project: { projectId: 'p', name: '少潭河', currentRevision: 104, currentStage: '08-08' }, proposals: [], questions: [] } as never, {
+      governance: { readProject: () => ({ gateDecisions: [], visualAssets: [], visualTasks: [], siteBoundaries: [], reportPackages: [
+        { packageId: 'conditional-103', status: 'generated_conditional', sourceRevision: 103, createdAt: 'a' },
+        { packageId: 'failed-104', status: 'failed', sourceRevision: 104, createdAt: 'b', warnings: ['报告生成失败'] },
+      ] }) } as never,
+      runtime: { snapshot: () => ({ runs: [], blocked: [], chapters: [{ chapterId: '08', completed: 8, total: 8 }] }) } as never,
+    })
+    expect(status.reportPackage).toMatchObject({ id: 'conditional-103', sourceRevision: 103, deliveryMode: 'conditional' })
+    expect(status.reportError).toBe('报告生成失败')
+    expect(parsePreplanningStatus(formatPreplanningStatus(status))).toEqual(status)
+    expect(normalizePreplanningStatus(status)).toEqual(status)
+  })
+  it('does not project an old chapter approval after a workflow is reopened', () => {
+    const status = buildPreplanningStatus({
+      project: { projectId: 'p', name: 'p', currentRevision: 48, currentStage: '07-08' }, proposals: [], questions: [],
+    } as never, {
+      governance: { readProject: () => ({ policy: { mode: 'automatic' }, gateDecisions: [{ gateId: 'G2', revision: 15, decision: 'approved' }], visualAssets: [], visualTasks: [], siteBoundaries: [], reportPackages: [] }) } as never,
+      runtime: { snapshot: () => ({ runs: [], blocked: [], chapters: [{ chapterId: '02', completed: 7, total: 8 }] }) } as never,
+    })
+    expect(status.chapters[0]?.gateStatus).toBe('pending')
+  })
+  it.each([
+    { mode: 'automatic', runs: [{ workItemId: '03-06', status: 'running' }, { workItemId: '04-01', status: 'ready' }], expected: '03-06' },
+    { mode: 'automatic', runs: [{ workItemId: '04-03', status: 'running' }, { workItemId: '03-06', status: 'running' }], expected: '03-06、04-03' },
+    { mode: 'automatic', runs: [{ workItemId: '04-01', status: 'blocked' }], expected: '04-01' },
+    { mode: 'automatic', runs: [{ workItemId: '04-02', status: 'ready' }], expected: '04-02' },
+    { mode: 'automatic', runs: [{ workItemId: '02-07', status: 'confirmed', confirmedRevision: 15 }, { workItemId: '03-06', status: 'confirmed', confirmedRevision: 22 }], expected: '03-06' },
+    { mode: 'manual', runs: [{ workItemId: '03-06', status: 'running' }], expected: '01-01' },
+  ])('shows actual workflow stages without changing boundary facts: $expected / $mode', ({ mode, runs, expected }) => {
+    const status = buildPreplanningStatus({
+      project: { projectId: 'p', name: '当前项目', currentRevision: 22, currentStage: '01-01' }, proposals: [], questions: [],
+    } as never, {
+      governance: { readProject: () => ({ policy: { mode, reportDepth: 'standard' }, gateDecisions: [], visualAssets: [], visualTasks: [], siteBoundaries: [], reportPackages: [] }) } as never,
+      runtime: { snapshot: () => ({ runs, blocked: [], chapters: [{ chapterId: '03', completed: 5, total: 6 }] }) } as never,
+    })
+    expect(status.stage).toBe(expected)
+    const formatted = formatPreplanningStatus(status)
+    expect(formatted).toContain('边界补充事项 "请提供总平图、红线图或闭合红线坐标。"')
+    expect(formatted).not.toContain('；下一步 ')
+    expect(parsePreplanningStatus(formatted)).toEqual(status)
+    expect(parsePreplanningStatus(formatted.replace('；边界补充事项 ', '；下一步 '))).toEqual(status)
+  })
+
   it('生成可通过标准事件文本回放的项目摘要', () => {
     const status = buildPreplanningStatus({
       project: {
@@ -126,6 +170,7 @@ describe('preplanning status snapshot', () => {
         }],
         reportPackages: [{ packageId: 'package-57', status: 'published', sourceRevision: 57 }],
       }) } as never,
+      reportFormats: () => ['html', 'pptx', 'pdf'],
       runtime: { snapshot: () => ({
         blocked: [],
         chapters: Array.from({ length: 8 }, (_, index) => ({

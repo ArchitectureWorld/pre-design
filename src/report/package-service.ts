@@ -6,6 +6,7 @@ import type { ArtifactManifestRecord, ReportPackageRecord } from '../governance/
 import { selectConfirmedSiteBoundary, type SiteBoundaryService } from '../governance/site-boundary-service.ts'
 import { assertClientReportPolicy } from './client-policy.ts'
 import { assertPublishableClientReportBundle, createClientReportBundle } from './client-projection.ts'
+import type { ConditionalReportMaterial } from './conditional-report.ts'
 import type {
   ClientMedium,
   ClientPagePlan,
@@ -46,7 +47,8 @@ export interface ReportPackageServiceOptions {
   readonly browserExecutable: string
   readonly source: (projectId: string, revision: number) => Promise<FrozenProjectInput>
   readonly profile: (projectId: string, input: FrozenProjectInput) => Promise<ClientProjectProfile>
-  readonly projection?: (input: FrozenProjectInput, profile: ClientProjectProfile) => ClientProjectionBundle
+  readonly materials?: (input: FrozenProjectInput) => Promise<readonly ConditionalReportMaterial[]>
+  readonly projection?: (input: FrozenProjectInput, profile: ClientProjectProfile, materials?: readonly ConditionalReportMaterial[]) => ClientProjectionBundle
   readonly policy?: (report: ClientReport) => void
   readonly planner?: (report: ClientReport, medium: ClientMedium) => ClientPagePlan
   readonly renderers?: ReportRenderers
@@ -110,8 +112,17 @@ export class ReportPackageService {
     this.now = options.now ?? (() => new Date().toISOString())
   }
 
+  private assertNoIncompleteRevision(projectId: string): void {
+    const governed = this.options.governance.readProject(projectId)
+    if (governed.workflowRevisions?.some(row => row.status === 'pending')
+      || governed.workflowRuns?.some(run => run.revisionRequest !== undefined && run.status !== 'confirmed' && run.status !== 'not_applicable')) {
+      throw new Error('WORKFLOW_REVISION_INCOMPLETE：内容审查修订尚未完成，不可发布被重开的旧结果。')
+    }
+  }
+
   async publish(projectId: string, revision: number): Promise<ArtifactManifestRecord> {
     safeId('projectId', projectId)
+    this.assertNoIncompleteRevision(projectId)
     const governed = this.options.governance.readProject(projectId)
     const confirmedBoundary = selectConfirmedSiteBoundary(governed.siteBoundaries ?? [], revision)
     if (confirmedBoundary === undefined) throw new Error('SITE_BOUNDARY_CONFIRMATION_REQUIRED: 请提供总平图、红线图或闭合红线坐标并确认。')
@@ -141,7 +152,8 @@ export class ReportPackageService {
       throw new Error(`required visual asset is not adopted: ${pendingRequired.map(task => task.taskId).join(', ')}`)
     }
     const profile = await this.options.profile(projectId, input)
-    const bundle = this.projection(input, profile)
+    const materials = input.manuscript === undefined ? undefined : await this.options.materials?.(input)
+    const bundle = this.projection(input, profile, materials)
     assertPublishableClientReportBundle(bundle)
     this.policy(bundle.report)
     const plans = {
@@ -216,6 +228,7 @@ export class ReportPackageService {
         throw new Error('artifact manifest does not match frozen report identity')
       }
       await writeFile(join(stagingRoot, 'artifact-manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
+      this.assertNoIncompleteRevision(projectId)
       await rename(stagingRoot, publishedRoot)
       published = true
       await this.options.governance.putReportPackage({

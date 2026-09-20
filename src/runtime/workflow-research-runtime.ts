@@ -12,7 +12,9 @@ import type { ProjectContext, StateObjectRecord } from '../state/types.ts'
 const DEFAULT_MAX_FILES = 64
 const DEFAULT_MAX_DEPTH = 4
 const DEFAULT_MAX_FILE_BYTES = 4 * 1024 * 1024
-const SKIP_DIRECTORIES = new Set(['.git', 'node_modules', 'dist', 'lib', 'build', '.next', '.cache'])
+const SKIP_DIRECTORIES = new Set(['.git', 'node_modules', 'dist', 'lib', 'build', '.next', '.cache', 'debug', 'tests', 'fixtures', 'examples', 'schemas'])
+const TECHNICAL_FILE = /(?:^|[._-])(?:schema|schemas|example|examples|fixture|fixtures|debug|envelope|proposal|trace|snapshot|prompt|response)(?:[._-]|$)/iu
+const TECHNICAL_KEYS = new Set(['$schema', '$defs', '$ref', 'definitions', 'schema', 'targetschema', 'outputschema', 'example', 'examples', 'fixture', 'fixtures', 'debug'])
 const JSON_EXTENSIONS = new Set(['.json', '.geojson'])
 const PREFERRED_FILE_NAMES = new Map([
   ['pre-design.research.json', 0],
@@ -21,6 +23,7 @@ const PREFERRED_FILE_NAMES = new Map([
 ])
 
 export interface WorkflowResearchRuntimeOptions {
+  readonly excludedStateObjectIds?: (projectId: string) => readonly string[]
   readonly workspaceRootOf?: (parent: unknown) => string | undefined
   readonly projectContextOf?: (parent: unknown) => Pick<ProjectContext, 'project' | 'stateObjects'> | undefined
   readonly clock?: () => Date
@@ -56,8 +59,16 @@ function pointAliases(point: ResearchDataPoint): ReadonlySet<string> {
   ])
 }
 
+function isSchema(value: unknown): boolean {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
+  const row = value as Record<string, unknown>
+  return '$schema' in row || '$defs' in row || '$ref' in row
+    || ('type' in row && ['properties', 'items', 'enum', 'required', 'additionalProperties'].some(key => key in row))
+}
+
 function findPointer(value: unknown, aliases: ReadonlySet<string>, path: readonly string[] = []): string | undefined {
   if (value === null || typeof value !== 'object') return undefined
+  if (isSchema(value)) return undefined
   if (Array.isArray(value)) {
     for (let index = 0; index < value.length; index += 1) {
       const found = findPointer(value[index], aliases, [...path, String(index)])
@@ -66,6 +77,7 @@ function findPointer(value: unknown, aliases: ReadonlySet<string>, path: readonl
     return undefined
   }
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (TECHNICAL_KEYS.has(normalizedKey(key)) || isSchema(child)) continue
     if (aliases.has(normalizedKey(key))) return `/${[...path, key].map(pointerEscape).join('/')}`
     const found = findPointer(child, aliases, [...path, key])
     if (found !== undefined) return found
@@ -103,10 +115,11 @@ async function discoverJsonFiles(
       assertNotAborted(signal)
       const requested = resolve(directory, row.name)
       if (row.isDirectory()) {
-        if (!SKIP_DIRECTORIES.has(row.name) && depth < options.maxDepth) await walk(requested, depth + 1)
+        if (!SKIP_DIRECTORIES.has(row.name.toLowerCase()) && depth < options.maxDepth) await walk(requested, depth + 1)
         continue
       }
       if (!row.isFile() || !JSON_EXTENSIONS.has(extname(row.name).toLowerCase())) continue
+      if (TECHNICAL_FILE.test(row.name)) continue
       const target = await realpath(requested)
       if (!inside(canonicalRoot, target)) continue
       const fileStat = await stat(target)
@@ -117,6 +130,8 @@ async function discoverJsonFiles(
       } catch {
         continue
       }
+      // A generated proposal is not an independently acquired project source.
+      if (value !== null && typeof value === 'object' && ('proposal_id' in value || 'targetSchema' in value && 'envelope' in value)) continue
       found.push({
         relativePath: relative(canonicalRoot, target).split('\\').join('/'),
         depth,
@@ -227,7 +242,9 @@ export class WorkflowResearchRuntime {
   async collect(parent: unknown, workflowId: string, signal?: AbortSignal): Promise<ResearchExecutionResult> {
     assertNotAborted(signal)
     const root = this.workspaceRootOf(parent)
-    const context = this.projectContextOf?.(parent)
+    const current = this.projectContextOf?.(parent)
+    const excluded = new Set(current === undefined ? [] : this.options.excludedStateObjectIds?.(current.project.projectId) ?? [])
+    const context = current === undefined ? undefined : { ...current, stateObjects: current.stateObjects.filter(row => !excluded.has(row.objectId)) }
     const acquisitions: ResearchAcquisition[] = []
     const providers: ResearchProvider[] = []
 
@@ -255,6 +272,22 @@ export class WorkflowResearchRuntime {
     }
 
     const service = new ResearchExecutionService(this.registry, new ResearchProviderRouter(providers))
-    return service.execute(workflowId, acquisitions, this.clock().toISOString(), signal)
+    const result = await service.execute(workflowId, acquisitions, this.clock().toISOString(), signal)
+    // Missing planning inputs are limitations, not a mandatory interaction node.
+    // Do not relabel missing records as evidence or make incomplete validation pass.
+    if (!result.validation.valid && result.validation.integrityValid
+      && workflowId !== 'preplan.wf.01.01'
+      && (result.records.length > 0 || (context?.stateObjects.length ?? 0) > 0)) {
+      return Object.freeze({ ...result, continuation: Object.freeze({
+        mode: 'conditional' as const, workflowId, policy: 'v2.0.1-research-fallback' as const,
+        missingDataPointIds: result.validation.missingDataPointIds,
+        limitations: Object.freeze([
+          this.registry.workflow(workflowId).fallbackPolicy,
+          ...result.validation.errors,
+          '未取得证据的数据项保持 unknown/assumption/limited；不得生成已核验数字、权属、法定边界或批准结论。',
+        ]),
+      }) })
+    }
+    return result
   }
 }

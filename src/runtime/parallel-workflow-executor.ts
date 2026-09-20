@@ -2,6 +2,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { WorkflowDescriptor } from '../contracts/types.ts'
 import type { PresentationAutoSyncService } from '../presentation/auto-sync.ts'
 import type { ResearchExecutionResult } from '../research/execution-service.ts'
+import { researchAllowsAnalysis } from '../research/execution-service.ts'
 import type { WorkflowRuntime } from './workflow-runtime.ts'
 import type { AutomationWorkflowCommitter } from './automation-workflow-committer.ts'
 import type { AutomaticGateApprover } from './automatic-gate-approver.ts'
@@ -24,6 +25,13 @@ export interface ParallelWorkflowBatchResult {
   readonly approvedGates: number
 }
 
+export interface ParallelWorkflowRunOptions {
+  /** Refill from the current Ready Set as each result is committed. */
+  readonly refill?: boolean
+  /** Admission fence owned by the coordinator; never cancels admitted work. */
+  readonly canDispatch?: () => boolean
+}
+
 interface WorkflowResearchCollector {
   collect(parent: unknown, workflowId: string, signal?: AbortSignal): Promise<ResearchExecutionResult>
 }
@@ -34,7 +42,7 @@ interface ParallelWorkflowExecutorDependencies {
   readonly analyzer: Pick<DshSubagentWorkflowAnalyzer, 'available' | 'analyze'>
   /** Present in V2.0.1 production wiring; optional only for legacy/unit callers. */
   readonly research?: WorkflowResearchCollector
-  readonly committer: Pick<AutomationWorkflowCommitter, 'commit'>
+  readonly committer: Pick<AutomationWorkflowCommitter, 'commit'> & Partial<Pick<AutomationWorkflowCommitter, 'validateCandidate'>>
   readonly gateApprover: Pick<AutomaticGateApprover, 'approveReady'>
   readonly presentationSync: Pick<PresentationAutoSyncService, 'request' | 'flush'>
   readonly maxConcurrency?: number
@@ -76,7 +84,9 @@ function researchBlockedQuality(
   research: ResearchExecutionResult,
   maxAttempts: number,
 ): WorkflowQualityReport {
+  const missing = research.validation.missingDataPointIds ?? []
   const message = `Research evidence validation failed: ${research.validation.errors.join('；')}`
+    + (missing.length === 0 ? '' : `；缺少可追溯数据项：${missing.join('、')}。可用 preplanning_read_material 读取原文并核对来源；材料目录和文件名不能替代字段证据。`)
   return Object.freeze({
     workflowId: descriptor.workflowId,
     targetObjectId: descriptor.targetObjectId,
@@ -105,22 +115,34 @@ interface AnalyzedWorkflow {
 }
 
 export class ParallelWorkflowExecutor {
+  private readonly activeProjects = new Map<string, Promise<ParallelWorkflowBatchResult>>()
   private readonly maxConcurrency: number
   private readonly maxQualityAttemptsOverride?: number
 
   constructor(private readonly dependencies: ParallelWorkflowExecutorDependencies) {
-    const requested = dependencies.maxConcurrency ?? 4
-    this.maxConcurrency = Math.max(1, Math.min(4, Math.trunc(requested)))
+    const requested = dependencies.maxConcurrency ?? 5
+    this.maxConcurrency = Number.isFinite(requested)
+      ? Math.max(1, Math.min(5, Math.trunc(requested)))
+      : 5
     this.maxQualityAttemptsOverride = dependencies.maxQualityAttempts === undefined
       ? undefined
       : Math.max(1, Math.min(8, Math.trunc(dependencies.maxQualityAttempts)))
   }
 
-  canRun(projectId: string): boolean {
+  isEnabled(projectId: string): boolean {
     return this.dependencies.enabled(projectId)
+  }
+
+  async whenIdle(projectId: string): Promise<void> {
+    await this.activeProjects.get(projectId)
+  }
+
+  canRun(projectId: string): boolean {
+    return !this.activeProjects.has(projectId)
+      && this.isEnabled(projectId)
       && this.dependencies.analyzer.available()
-      && this.dependencies.runtime.running(projectId).length === 0
-      && this.dependencies.runtime.ready(projectId).length >= 2
+      && (this.dependencies.runtime.running(projectId).length > 0
+        || this.dependencies.runtime.ready(projectId).length > 0)
   }
 
   private async evaluateCandidate(
@@ -133,6 +155,7 @@ export class ParallelWorkflowExecutor {
     if (initial.status === 'rejected') return { error: initial.reason, revised: 0 }
     let candidate = initial.value
     let revised = 0
+    let schemaCorrections = 0
     let previousQuality: WorkflowQualityReport | undefined
     const maxAttempts = this.maxQualityAttemptsOverride
       ?? descriptor.automationPolicy?.maxAutomaticAttempts
@@ -143,13 +166,37 @@ export class ParallelWorkflowExecutor {
       if (evidence === undefined) {
         return { error: new Error(`workflow '${descriptor.workflowId}' returned no quality evidence`), revised }
       }
-      const quality = evaluateWorkflowQuality(descriptor, evidence, {
+      let quality = evaluateWorkflowQuality(descriptor, evidence, {
         attempt,
         maxAttempts,
+        ...(research === undefined ? {} : { research }),
       })
+      // Validate the normalized candidate before entering the write boundary.
+      // External/conflict failures retain their existing non-retry dispositions.
+      let schemaFeedback: { payload: WorkflowAnalysisCandidate['payload']; errors: readonly string[] } | undefined
+      if (quality.disposition === 'auto_pass' || quality.disposition === 'auto_revise') {
+        let validation: ReturnType<AutomationWorkflowCommitter['validateCandidate']> | undefined
+        try {
+          validation = this.dependencies.committer.validateCandidate?.(agent, projectId, descriptor, candidate)
+        } catch (error) {
+          return { error, revised }
+        }
+        if (validation?.valid === false) {
+          schemaFeedback = { payload: candidate.payload, errors: validation.errors.slice(0, 20) }
+          quality = Object.freeze({ ...quality,
+            disposition: schemaCorrections >= 2 || attempt >= maxAttempts ? 'quality_unresolved' as const : 'auto_revise' as const,
+            reasons: Object.freeze([
+              `候选 Schema/来源完整性校验失败：${schemaFeedback.errors.join('; ')}`,
+              ...(schemaCorrections >= 2 ? ['已达到 Schema/来源完整性自动纠正上限：2次'] : []),
+              ...quality.reasons,
+            ]),
+          })
+        }
+      }
       if (quality.disposition !== 'auto_revise') return { candidate, quality, revised }
       if (attempt >= maxAttempts) return { candidate, quality, revised }
       revised += 1
+      if (schemaFeedback !== undefined) schemaCorrections += 1
       previousQuality = quality
       try {
         candidate = await this.dependencies.analyzer.analyze(
@@ -159,6 +206,7 @@ export class ParallelWorkflowExecutor {
           undefined,
           previousQuality,
           research,
+          schemaFeedback,
         )
       } catch (error) {
         return { error, revised }
@@ -182,7 +230,7 @@ export class ParallelWorkflowExecutor {
       } catch (error) {
         return { error, revised: 0 }
       }
-      if (!research.validation.valid) {
+      if (!researchAllowsAnalysis(research, descriptor.workflowId)) {
         return { quality: researchBlockedQuality(descriptor, research, maxAttempts), revised: 0 }
       }
     }
@@ -210,29 +258,40 @@ export class ParallelWorkflowExecutor {
   async runReadyBatch(
     parent: unknown,
     projectId: string,
+    options: ParallelWorkflowRunOptions = {},
   ): Promise<ParallelWorkflowBatchResult> {
     if (!this.canRun(projectId)) {
       return { attempted: 0, completed: 0, blocked: 0, needsHuman: 0, revised: 0, approvedGates: 0 }
     }
-    const agent = parent as Agent
-    const selected = this.dependencies.runtime.ready(projectId)
-      .slice(0, this.maxConcurrency)
-    for (const descriptor of selected) {
-      await this.dependencies.runtime.transition(projectId, descriptor.workflowId, { to: 'running' })
+    const batch = this.executeBatch(parent, projectId, options)
+    this.activeProjects.set(projectId, batch)
+    try {
+      return await batch
+    } finally {
+      this.activeProjects.delete(projectId)
     }
+  }
 
-    const evaluated = await Promise.all(selected.map(descriptor =>
-      this.analyzeWithResearch(agent, projectId, descriptor)))
-
+  private async executeBatch(parent: unknown, projectId: string, options: ParallelWorkflowRunOptions): Promise<ParallelWorkflowBatchResult> {
+    const agent = parent as Agent
+    // A persisted running item is a recovery candidate, not a reason to bypass
+    // research/quality and send the parent back into unrestricted tool use.
+    const running = this.dependencies.runtime.running(projectId)
+    const initial = [...running, ...this.dependencies.runtime.ready(projectId)]
+      .filter((row, index, rows) => rows.findIndex(other => other.workflowId === row.workflowId) === index)
+      .slice(0, this.maxConcurrency)
+    const admitted = new Set<string>()
+    const pending = new Map<string, Promise<{ descriptor: WorkflowDescriptor; result: AnalyzedWorkflow }>>()
     const workspaceRoot = workspaceRootOf(parent)
+    let attempted = 0
     let completed = 0
     let blocked = 0
     let needsHuman = 0
     let revised = 0
+    let approvedGates = 0
+    let failure: { error: unknown } | undefined
 
-    for (let index = 0; index < selected.length; index += 1) {
-      const descriptor = selected[index] as WorkflowDescriptor
-      const result = evaluated[index] as AnalyzedWorkflow
+    const settle = async (descriptor: WorkflowDescriptor, result: AnalyzedWorkflow) => {
       revised += result.revised
 
       if (result.candidate === undefined && result.quality?.disposition === 'blocked_external') {
@@ -242,7 +301,7 @@ export class ParallelWorkflowExecutor {
           quality: result.quality,
         })
         blocked += 1
-        continue
+        return
       }
 
       if (result.error !== undefined || result.candidate === undefined || result.quality === undefined) {
@@ -251,7 +310,7 @@ export class ParallelWorkflowExecutor {
           reason: failureReason(result.error ?? 'workflow analysis incomplete'),
         })
         blocked += 1
-        continue
+        return
       }
 
       if (result.quality.disposition === 'blocked_external'
@@ -263,7 +322,7 @@ export class ParallelWorkflowExecutor {
           quality: result.quality,
         })
         blocked += 1
-        continue
+        return
       }
 
       if (result.quality.disposition === 'needs_human') {
@@ -272,7 +331,7 @@ export class ParallelWorkflowExecutor {
           quality: result.quality,
         })
         needsHuman += 1
-        continue
+        return
       }
 
       if (result.quality.disposition !== 'auto_pass') {
@@ -282,7 +341,7 @@ export class ParallelWorkflowExecutor {
           quality: result.quality,
         })
         blocked += 1
-        continue
+        return
       }
 
       try {
@@ -314,13 +373,48 @@ export class ParallelWorkflowExecutor {
       }
     }
 
-    const approvedGates = await this.dependencies.gateApprover.approveReady(projectId)
+    const fill = async () => {
+      while (pending.size < this.maxConcurrency && failure === undefined && blocked === 0 && needsHuman === 0
+        && options.canDispatch?.() !== false && this.isEnabled(projectId) && this.dependencies.analyzer.available()) {
+        const candidates = options.refill
+          ? [...this.dependencies.runtime.running(projectId), ...this.dependencies.runtime.ready(projectId)]
+          : initial
+        const descriptor = candidates.find(row => !admitted.has(row.workflowId))
+        if (descriptor === undefined) break
+        admitted.add(descriptor.workflowId)
+        const alreadyRunning = this.dependencies.runtime.running(projectId)
+          .some(row => row.workflowId === descriptor.workflowId)
+        if (!alreadyRunning) await this.dependencies.runtime.transition(projectId, descriptor.workflowId, { to: 'running' })
+        attempted += 1
+        // Each analysis includes its bounded quality/schema retries and owns one
+        // slot until settled. A slow sibling cannot hold up a finished result.
+        pending.set(descriptor.workflowId, this.analyzeWithResearch(agent, projectId, descriptor)
+          .then(result => ({ descriptor, result }), error => ({ descriptor, result: { error, revised: 0 } })))
+      }
+    }
+
+    while (true) {
+      try { await fill() } catch (error) { failure ??= { error } }
+      if (pending.size === 0) break
+      const { descriptor, result } = await Promise.race(pending.values())
+      pending.delete(descriptor.workflowId)
+      try {
+        // Only this loop writes: project Revision/CAS, transitions and gates
+        // remain serialized while all other model calls continue concurrently.
+        await settle(descriptor, result)
+        if (options.refill) approvedGates += await this.dependencies.gateApprover.approveReady(projectId)
+      } catch (error) { failure ??= { error } }
+      // A pause or infrastructure failure closes admission, but already
+      // admitted healthy analyses drain before whenIdle() resolves/rejects.
+    }
+    if (failure !== undefined) throw failure.error
+    if (!options.refill) approvedGates = await this.dependencies.gateApprover.approveReady(projectId)
     await this.dependencies.presentationSync.flush(projectId, {
       ...(workspaceRoot === undefined ? {} : { workspaceRoot }),
-      reason: 'parallel-ready-wave',
+      reason: options.refill ? 'parallel-ready-drained' : 'parallel-ready-wave',
     })
     return {
-      attempted: selected.length,
+      attempted,
       completed,
       blocked,
       needsHuman,

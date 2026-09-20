@@ -48,6 +48,22 @@
         "assumptions": { "type": "array", "items": { "type": "string", "minLength": 1 } }
       }
     },
+    "revisionRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requestId", "rootObjectIds", "reason", "actor", "createdAt"],
+      "properties": {
+        "requestId": { "type": "string", "minLength": 1 },
+        "rootObjectIds": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "reason": { "type": "string", "minLength": 1 },
+        "actor": {
+          "type": "object", "additionalProperties": false,
+          "required": ["actorId", "name", "role"],
+          "properties": { "actorId": { "type": "string", "minLength": 1 }, "name": { "type": "string", "minLength": 1 }, "role": { "type": "string", "minLength": 1 } }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
     "updatedAt": { "type": "string", "format": "date-time" }
   }
 }

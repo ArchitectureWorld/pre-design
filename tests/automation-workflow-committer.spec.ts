@@ -26,7 +26,7 @@ const passingQuality = {
 }
 
 describe('AutomationWorkflowCommitter', () => {
-  it('normalizes protected metadata and commits against the latest Revision only after trusted quality passes', async () => {
+  it.each([false, true])('normalizes protected metadata and selects create/replace against the latest Revision (existing: %s)', async (existing) => {
     let capturedEnvelope: Record<string, unknown> | undefined
     const validateStateObject = vi.fn(() => ({ valid: true, errors: [] }))
     const commitProposal = vi.fn(async () => ({
@@ -38,6 +38,7 @@ describe('AutomationWorkflowCommitter', () => {
         readContext: () => ({
           project: { projectId: 'preplan-1', name: '沙潭河', currentRevision: 4 },
           stateObjects: [
+            ...(existing ? [{ objectId: 'BL03', revision: 3, value: { data: {} } }] : []),
             { objectId: 'PS03', revision: 2, value: { data: {} } },
             { objectId: 'PS07', revision: 4, value: { data: {} } },
           ],
@@ -97,10 +98,11 @@ describe('AutomationWorkflowCommitter', () => {
       actor: Record<string, unknown>
       validation_intent: string
       requested_state: string
-      change_set: { payload: Record<string, unknown> }
+      change_set: { operation: string; payload: Record<string, unknown> }
       dependency_versions: Record<string, number>
     }
     expect(envelope.expected_revision).toBe(4)
+    expect(envelope.change_set.operation).toBe(existing ? 'replace' : 'create')
     expect(envelope.actor).toMatchObject({ role: 'agent', authority_scope: ['propose'] })
     expect(envelope.validation_intent).toBe('provisional_commit')
     expect(envelope.requested_state).toBe('confirmed')

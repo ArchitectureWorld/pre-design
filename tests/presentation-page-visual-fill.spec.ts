@@ -123,6 +123,10 @@ describe('explicit page visual fill', () => {
           records[i] = { ...records[i]!, status: 'adopted', adoptedRevision: revision }
           return records[i]!
         },
+        reject: async (_projectId: string, assetId: string, reason: string) => {
+          const i = records.findIndex(asset => asset.assetId === assetId)
+          records[i] = { ...records[i]!, status: 'rejected', quality: { accepted: false, score: 0, issues: [reason] } }
+        },
       },
       resolveAsset: (fileName: string) => join(root, fileName),
     }
@@ -170,6 +174,14 @@ describe('explicit page visual fill', () => {
     expect(requests).toBe(3)
     const state = JSON.parse(await readFile(join(root, '.pre-design/page-visual-fill.json'), 'utf8'))
     expect(state.requests.map((request: { findingId: string }) => request.findingId)).toEqual([input.findingId, input.findingId, input.findingId])
+    await restored.reject({ ...input, assetId: first.assetId, reason: '错误场景' })
+    const rejected = await preparePresentationMaterials({ frozenProject: source, workspaceRoot: root,
+      previous: { stableIds: rebuilt.stableIds, lastExportedFileHashes: republished.fileHashes } })
+    expect(rejected.assets).toHaveLength(0)
+    expect(records[0]?.status).toBe('rejected')
+    await expect(restored.adopt({ ...input, assetId: first.assetId })).rejects.toThrow('PAGE_VISUAL_CANDIDATE_INVALID')
+    expect(await readFile(join(root, 'candidate.png'), 'utf8')).toBe('candidate image bytes')
+    expect(requests).toBe(3)
   })
 
   it('restores exact page bindings after the sidecar disappears despite fresh broad adopted inputs', async () => {

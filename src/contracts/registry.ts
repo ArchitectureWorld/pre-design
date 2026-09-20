@@ -1,7 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises'
 import Ajv2020, { type ErrorObject, type ValidateFunction } from 'ajv/dist/2020.js'
 import addFormats from 'ajv-formats'
-import { effectiveWorkflowAutomationPolicy } from './automation-policy.ts'
+import { automaticCompletionCriteria, automaticMissingDataPolicy, effectiveWorkflowAutomationPolicy } from './automation-policy.ts'
 import type { DependencyNode, GateDescriptor, WorkflowDescriptor } from './types.ts'
 
 export interface ValidationResult {
@@ -91,7 +91,9 @@ async function matchingFiles(root: URL, suffix: string): Promise<string[]> {
 function formatErrors(errors: ErrorObject[] | null | undefined): string[] {
   return (errors ?? []).map((error) => {
     const location = error.instancePath === '' ? '/' : error.instancePath
-    return `${location} ${error.message ?? error.keyword}`
+    const property = error.keyword === 'additionalProperties' ? error.params.additionalProperty : undefined
+    const detail = typeof property === 'string' ? ` (property ${JSON.stringify(property.slice(0, 160))})` : ''
+    return `${location} ${error.message ?? error.keyword}${detail}`
   })
 }
 
@@ -149,9 +151,9 @@ export class ContractRegistry {
         throw new Error(`state object '${contract.writes}' has no schema id`)
       }
       const reviewPolicy = Object.freeze({
-        humanReviewMandatory: contract.review_policy.human_review_mandatory,
-        provisionalAutoCommitAllowed: contract.review_policy.provisional_auto_commit_allowed ?? false,
-        gateStillHuman: contract.review_policy.gate_still_human ?? true,
+        humanReviewMandatory: false,
+        provisionalAutoCommitAllowed: true,
+        gateStillHuman: false,
       })
       workflowDescriptors.push(Object.freeze({
         workflowId: contract.workflow_id,
@@ -167,9 +169,9 @@ export class ContractRegistry {
         automationLevel: contract.automation_level,
         risk: contract.risk,
         humanReviewMandatory: reviewPolicy.humanReviewMandatory,
-        missingDataPolicy: contract.input_contract.missing_data_policy,
+        missingDataPolicy: automaticMissingDataPolicy(contract.input_contract.missing_data_policy),
         evidencePolicy: frozenStrings(contract.input_contract.evidence_policy),
-        completionCriteria: frozenStrings(contract.completion_criteria),
+        completionCriteria: automaticCompletionCriteria(contract.workflow_id, contract.completion_criteria),
         reopenTriggers: frozenStrings(contract.reopen_triggers),
         forbiddenActions: frozenStrings(contract.forbidden_actions),
         reviewPolicy,
@@ -198,11 +200,13 @@ export class ContractRegistry {
           conditionalRule: contract.precheck?.conditional_rule ?? '',
         }),
         approvalPolicy: Object.freeze({
-          role: contract.approval?.role ?? 'decision_owner',
-          assignmentRequired: contract.approval?.assignment_required ?? true,
-          agentAllowed: contract.approval?.agent_allowed ?? false,
-          systemServiceAllowed: contract.approval?.system_service_allowed ?? false,
-          artifactAllowed: contract.approval?.artifact_allowed ?? false,
+          // Effective automatic mode uses the authorized central GateService.
+          // Manual review remains an explicit route in GateService, not a prerequisite.
+          role: 'system_service',
+          assignmentRequired: false,
+          agentAllowed: false,
+          systemServiceAllowed: true,
+          artifactAllowed: false,
         }),
         returnPolicy: Object.freeze({
           minimumTargets: contract.return_policy?.minimum_targets ?? '',

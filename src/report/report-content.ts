@@ -20,7 +20,7 @@ const LABELS: Readonly<Record<string, string>> = {
   min: '下限', max: '上限', formula: '计算方法', formulas: '计算关系', method: '调查与计算方法',
   expression: '计算表达式', numerator: '分子', denominator: '分母', variables: '计算变量',
   basis: '依据', source_ref: '资料来源', source: '资料来源', sources: '资料来源',
-  notes: '补充说明', limitations: '适用限制', confidence: '证据可信度', level: '可信程度',
+  notes: '补充说明', limitations: '适用限制', confidence: '置信度及评价依据', level: '置信等级',
   score: '评估值', status: '当前状态', claim_class: '内容性质', reliability: '来源可靠性',
   evidence_refs: '证据说明', locator: '资料定位', section: '章节位置', page: '页码',
   as_of: '数据时点', type: '类型', kind: '类型', role: '承担角色', origin_mode: '启动类型',

@@ -9,18 +9,23 @@
     "packageId": { "type": "string", "minLength": 1 },
     "projectId": { "type": "string", "minLength": 1 },
     "sourceRevision": { "type": "integer", "minimum": 0 },
-    "status": { "enum": ["staging", "published", "failed"] },
+    "status": { "enum": ["staging", "published", "generated_conditional", "failed"] },
     "sectionIds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
     "adoptedAssetIds": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
     "warnings": { "type": "array", "items": { "type": "string", "minLength": 1 } },
     "artifactManifestId": { "type": "string", "minLength": 1 },
     "createdAt": { "type": "string", "format": "date-time" },
-    "publishedAt": { "type": "string", "format": "date-time" }
+    "publishedAt": { "type": "string", "format": "date-time" },
+    "generatedAt": { "type": "string", "format": "date-time" }
   },
   "allOf": [
     {
       "if": { "properties": { "status": { "const": "published" } }, "required": ["status"] },
       "then": { "required": ["artifactManifestId", "publishedAt"] }
+    },
+    {
+      "if": { "properties": { "status": { "const": "generated_conditional" } }, "required": ["status"] },
+      "then": { "required": ["artifactManifestId", "generatedAt"], "not": { "required": ["publishedAt"] } }
     }
   ]
 }

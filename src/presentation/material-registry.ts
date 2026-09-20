@@ -5,6 +5,7 @@ import type { FrozenProjectInput } from '../report/types.ts'
 import { classifySourceMaterial } from './material-plan.ts'
 import type { PresentationAdoptedAssetInput, PresentationSourceMaterialInput } from './standard-project-types.ts'
 import { compileReportOutline } from './projector/report-outline.ts'
+import { compileClientReportOutline } from './projector/client-outline.ts'
 import { readPageVisualState } from './page-visual-state.ts'
 
 export const PRESENTATION_MATERIAL_REGISTRY_PATH = '.pre-design/materials.json'
@@ -232,7 +233,7 @@ export async function preparePresentationMaterials(input: PreparePresentationMat
       : asset)
   }
   const root = input.workspaceRoot === undefined ? undefined : resolve(input.workspaceRoot)
-  const findings = new Set(compileReportOutline(input.frozenProject).map(finding => finding.findingId))
+  const findings = new Set((input.frozenProject.manuscript ? compileClientReportOutline : compileReportOutline)(input.frozenProject).map(finding => finding.findingId))
   const raw = root === undefined ? undefined : await readOptional(join(root, PRESENTATION_MATERIAL_REGISTRY_PATH))
   if (raw !== undefined) {
     const registry = object(raw)
@@ -305,11 +306,21 @@ export async function preparePresentationMaterials(input: PreparePresentationMat
     const state = await readPageVisualState(root, input.frozenProject.projectId)
     for (const request of state.requests) {
       if (!request.assetId) continue
+      if (request.status === 'failed') {
+        for (const [key, asset] of assets) if (key === request.assetId || asset.aliases?.includes(request.assetId)) assets.delete(key)
+        continue
+      }
       // Studio owns importing/linking these assets. Never infer canonical page links.
       if (request.target?.kind === 'studio_current_page') { assets.delete(request.assetId); continue }
       const asset = assets.get(request.assetId)
       if (!asset) {
         if (request.status === 'adopted') warnings.push(`补图 ${request.findingId} 的已采用素材 ${request.assetId} 暂不可读取，未视为覆盖`)
+        continue
+      }
+      if (request.scene || request.findingId?.startsWith('report-scene:')) {
+        // A scene is a paid visual request identity, never a fabricated report page.
+        // The scene resolver checks the source version and binds it to real pages/nodes.
+        assets.set(asset.sourceKey, { ...asset, pageBindingOnly: true, pageBindings: [] })
         continue
       }
       assets.set(asset.sourceKey, { ...asset, pageBindingOnly: true, pageBindings: [{ findingId: request.findingId!, role: 'primary' }],

@@ -5,11 +5,36 @@
   "type": "object",
   "additionalProperties": false,
   "required": ["traceId", "workflowId", "claimId", "inputEvidenceIds", "inputObjectIds", "methodId", "methodVersion", "parameters", "calculationSteps", "outputValue", "confidence", "limitations"],
+  "anyOf": [
+    { "properties": { "inputEvidenceIds": { "minItems": 1 } } },
+    {
+      "properties": {
+        "inputObjectIds": { "minItems": 1 },
+        "parameters": {
+          "required": ["upstreamSnapshots"],
+          "properties": {
+            "upstreamSnapshots": {
+              "type": "array", "minItems": 1,
+              "items": {
+                "type": "object", "additionalProperties": false,
+                "required": ["objectId", "revision", "contentHash"],
+                "properties": {
+                  "objectId": { "type": "string", "minLength": 1 },
+                  "revision": { "type": "integer", "minimum": 1 },
+                  "contentHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "properties": {
     "traceId": { "type": "string", "minLength": 1 },
     "workflowId": { "type": "string", "pattern": "^preplan\\.wf\\.[0-9]{2}\\.[0-9]{2}$" },
     "claimId": { "type": "string", "minLength": 1 },
-    "inputEvidenceIds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "inputEvidenceIds": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
     "inputObjectIds": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
     "methodId": { "type": "string", "minLength": 1 },
     "methodVersion": { "type": "string", "minLength": 1 },

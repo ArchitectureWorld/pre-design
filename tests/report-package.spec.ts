@@ -312,6 +312,33 @@ async function realBoundaryPackageFixture(parent: string, kind: 'image' | 'geome
 }
 
 describe('ReportPackageService', () => {
+  it.each(['pending', 'applied'])('rejects publication while a %s content revision is incomplete', async status => {
+    const root = await mkdtemp(join(tmpdir(), 'preplan-revision-report-'))
+    roots.push(root)
+    const ports = fixture(root)
+    const current = ports.governance.readProject()
+    ports.governance.readProject.mockReturnValue({ ...current,
+      workflowRevisions: [{ status }], workflowRuns: [{ status: 'superseded', revisionRequest: { requestId: 'audit' } }],
+    } as never)
+    await expect(ports.service.publish('golden-project', 57)).rejects.toThrow('WORKFLOW_REVISION_INCOMPLETE')
+    expect(ports.renderers.html).not.toHaveBeenCalled()
+    expect(ports.governance.putReportPackage).not.toHaveBeenCalled()
+    expect(await readdir(root)).toEqual([])
+  })
+
+  it('discards a rendered package if content is reopened during rendering', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'preplan-revision-during-render-'))
+    roots.push(root)
+    const ports = fixture(root)
+    const current = ports.governance.readProject()
+    ports.renderers.pdf.mockImplementation(async (_html, output) => {
+      await writeFile(output, Buffer.from('%PDF-1.7\n%%EOF'))
+      ports.governance.readProject.mockReturnValue({ ...current, workflowRevisions: [{ status: 'pending' }] } as never)
+    })
+    await expect(ports.service.publish('golden-project', 57)).rejects.toThrow('WORKFLOW_REVISION_INCOMPLETE')
+    expect(ports.governance.putReportPackage).not.toHaveBeenCalled()
+    expect(await readdir(root)).toEqual([])
+  })
   it('rejects a research-preview projection before policy, package root, staging, or manifest creation', async () => {
     const parent = await mkdtemp(join(tmpdir(), 'preplan-preview-package-'))
     roots.push(parent)

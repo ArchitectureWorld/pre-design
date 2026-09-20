@@ -29,7 +29,7 @@ describe('Preplanning Host presentation binding composition', () => {
     await ctx.plugin(StorageJson, { root })
     await ctx.plugin(StorageDomain, { backend: 'json' })
     ctx.provide('commands', { register: () => () => undefined } as never)
-    ctx.provide('tools', { register: () => () => undefined } as never)
+    ctx.provide('tools', { guard: () => () => undefined, register: () => () => undefined } as never)
     ctx.provide('attachments', { readImage: vi.fn() } as never)
     ctx.provide('llm', { listModels: vi.fn(async () => []) } as never)
     ctx.provide('sessions', { get: vi.fn() } as never)

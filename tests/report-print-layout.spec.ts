@@ -1,9 +1,10 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { runGoldenProject } from '../scripts/build-golden-project.ts'
+import { renderAnalyticalHtml } from '../src/report/render-analytical-html.ts'
 import {
   copyWordBreakViolations,
   directedGraphLayoutViolations,
@@ -16,6 +17,9 @@ import {
 } from './support/edge-print-layout.ts'
 
 const fixtureRoot = fileURLToPath(new URL('./fixtures/golden-project/', import.meta.url))
+const { JSDOM } = require('jsdom') as {
+  JSDOM: new (source: string) => { window: { document: Document }; serialize(): string }
+}
 const roots: string[] = []
 const PROTECTED_HEADING_TERMS = [
   '项目所处的区域网络',
@@ -151,19 +155,40 @@ describe('Golden 打印版真实 Edge 布局', () => {
     expect.soft(sitePlanAxisLabelViolations(current), JSON.stringify(current.sitePlanAxisLabels, null, 2)).toEqual([])
   }, 90_000)
 
-  it.runIf(INSTALLED_EDGE !== undefined)('时段—客群矩阵占满打印内容栏并保持水平居中', async () => {
+  it.runIf(INSTALLED_EDGE !== undefined)('缺少调查数据不合成矩阵，显式矩阵样例仍占满打印内容栏并居中', async () => {
     const root = await mkdtemp(join(tmpdir(), 'preplan-print-matrix-layout-'))
     roots.push(root)
     const outputRoot = join(root, 'golden')
     await runGoldenProject(fixtureRoot, outputRoot, { browserExecutable: INSTALLED_EDGE!, formats: ['html', 'pptx', 'pdf'] })
-    const current = await probePrintLayoutWithEdge(join(outputRoot, 'print', 'index.html'), INSTALLED_EDGE!)
-    const matrix = current.analysisMatrices.find(candidate => candidate.pageNumber.startsWith('28'))
+    const printPath = join(outputRoot, 'print', 'index.html')
+    const original = await probePrintLayoutWithEdge(printPath, INSTALLED_EDGE!)
+    expect(original.analysisMatrices, '缺少时段调查数据时不得虚构高/中/低矩阵').toEqual([])
 
-    expect(matrix, 'PDF 第28页缺少可测量的时段—客群矩阵').toBeDefined()
-    expect(matrix!.table.width / matrix!.copy.width, 'PDF 第28页矩阵未占满内容栏').toBeGreaterThanOrEqual(0.94)
+    // The Golden source intentionally has no daypart observations. Exercise the
+    // renderer and real print CSS with explicit test-only values, not invented
+    // production evidence. Keep the generated report itself unchanged.
+    const document = new JSDOM(await readFile(printPath, 'utf8'))
+    const page = [...document.window.document.querySelectorAll('.print-page')]
+      .find(section => section.querySelector('h1')?.textContent?.includes('多时段内容组合'))
+    expect(page, '缺少用于检验矩阵布局的运营内容页').toBeDefined()
+    const pageNumber = page!.querySelector('.page-number')!.textContent!.trim()
+    const fixtureHtml = renderAnalyticalHtml({
+      kind: 'daypart-matrix', columns: ['样例早间', '样例午间', '样例晚间'],
+      rows: ['测试客群A', '测试客群B'], values: [['高', '中', '低'], ['低', '中', '高']],
+      disclosure: '仅用于排版回归的显式样例，不是项目调查结果。',
+    }, value => value.replace(/[&<>"']/gu, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!))
+    page!.classList.add('has-analysis')
+    page!.querySelector('.page-copy')!.insertAdjacentHTML('beforeend', fixtureHtml)
+    const fixturePath = join(outputRoot, 'print', 'matrix-layout-fixture.html')
+    await writeFile(fixturePath, document.serialize(), 'utf8')
+    const current = await probePrintLayoutWithEdge(fixturePath, INSTALLED_EDGE!)
+    const matrix = current.analysisMatrices.find(candidate => candidate.pageNumber === pageNumber)
+
+    expect(matrix, '显式矩阵样例未生成可测量表格').toBeDefined()
+    expect(matrix!.table.width / matrix!.copy.width, '矩阵未占满内容栏').toBeGreaterThanOrEqual(0.94)
     expect(
       Math.abs((matrix!.table.left + matrix!.table.width / 2) - (matrix!.copy.left + matrix!.copy.width / 2)),
-      'PDF 第28页矩阵未在内容栏中水平居中',
+      '矩阵未在内容栏中水平居中',
     ).toBeLessThanOrEqual(2)
   }, 90_000)
 })

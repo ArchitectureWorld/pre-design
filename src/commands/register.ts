@@ -1,4 +1,5 @@
 import type { Context } from '@deepseek-ai/cordis'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { CommandDefinition, CommandInvocation, CommandResult } from '@deepseek-ai/dsh-commands'
 import type { ImageBlock } from '@deepseek-ai/dsh-llm'
 import type { ContractRegistry } from '../contracts/registry.ts'
@@ -9,6 +10,7 @@ import type { SiteBoundaryService } from '../governance/site-boundary-service.ts
 import type { GateDecisionRecord } from '../governance/types.ts'
 import type { ProposalGateway } from '../proposals/gateway.ts'
 import type { ReportPackageService } from '../report/package-service.ts'
+import type { ConditionalReportPackageService } from '../report/conditional-package-service.ts'
 import type { AutomationService } from '../runtime/automation-service.ts'
 import type { AutomationCoordinator } from '../runtime/coordinator.ts'
 import type { GateService } from '../runtime/gate-service.ts'
@@ -17,9 +19,11 @@ import type { WorkflowRuntime } from '../runtime/workflow-runtime.ts'
 import type { ProjectRepository } from '../state/repository.ts'
 import type { VisualAgentService } from '../visual/agent.ts'
 import type { ActorRef } from '../state/types.ts'
-import { buildPreplanningStatus, formatPreplanningStatus } from '../session/events.ts'
+import { buildPreplanningStatus, formatPreplanningStatus, type PreplanningStatusDependencies } from '../session/events.ts'
 
 export interface CommandDependencies {
+  readonly reportErrors?: ReadonlyMap<string, string>
+  readonly reportFormats?: PreplanningStatusDependencies['reportFormats']
   readonly repository: ProjectRepository
   readonly gateway: ProposalGateway
   readonly governance: GovernanceRepository
@@ -31,6 +35,9 @@ export interface CommandDependencies {
   readonly visual: VisualAgentService
   readonly boundaries: SiteBoundaryService
   readonly reports: ReportPackageService
+  readonly conditionalReports?: Pick<ConditionalReportPackageService, 'generate'>
+  readonly prepareManuscript?: (projectId: string, revision: number, agent: Agent, signal: AbortSignal) => Promise<void>
+  readonly prepareVisuals?: (projectId: string, revision: number, agent: Agent, signal: AbortSignal) => Promise<void>
   readonly registry: ContractRegistry
   readonly presentationSync?: Pick<PresentationAutoSyncService, 'request' | 'flush' | 'status'>
   readonly pageVisualFill?: PageVisualFillService
@@ -145,7 +152,7 @@ async function flushPresentationSync(
 function successWithStatus(
   text: string,
   context: ReturnType<ProjectRepository['readContext']>,
-  dependencies: Pick<CommandDependencies, 'governance' | 'runtime' | 'presentationSync'>,
+  dependencies: Pick<CommandDependencies, 'governance' | 'runtime' | 'presentationSync' | 'reportFormats'>,
 ): CommandResult {
   return { kind: 'success', text: `${text}\n${formatPreplanningStatus(buildPreplanningStatus(context, dependencies))}` }
 }
@@ -213,8 +220,10 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
         const context = repository.readContext(String(invocation.agent.id))
         const pending = context.proposals.filter(proposal => proposal.status === 'pending_review').length
         const open = context.questions.filter(question => question.status === 'open').length
+        const pendingLabel = dependencies.governance.readProject(context.project.projectId).policy?.mode === 'automatic'
+          ? '自动处理' : '待确认'
         return successWithStatus(
-          `${context.project.name}：revision ${context.project.currentRevision}，待确认 ${pending} 项，开放问题 ${open} 项。`,
+          `${context.project.name}：revision ${context.project.currentRevision}，${pendingLabel} ${pending} 项，开放问题 ${open} 项。`,
           context,
           dependencies,
         )
@@ -339,6 +348,7 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
       description: '从当前就绪工作项开始或继续运行前期策划',
       handler: guarded(async (invocation) => {
         const context = repository.readContext(String(invocation.agent.id))
+        await runtime.initializeProject(context.project.projectId)
         await dependencies.coordinator.start(invocation.agent, context.project.projectId)
         return { kind: 'success', text: `项目“${context.project.name}”已开始继续前期策划。` }
       }),
@@ -380,18 +390,24 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
     },
     {
       name: 'preplan-revise',
-      description: '按对象依赖图最小范围重开需要修订的下游工作项',
-      input: { hint: '<objectId[,objectId...]> <修订原因>' },
+      description: '按依赖图重开下游；--source 同时重新分析有问题的源对象',
+      input: { hint: '[--source] <objectId[,objectId...]> <修订原因>' },
       handler: guarded(async (invocation) => {
-        const [rawObjects, ...reasonParts] = invocation.rawInput.trim().split(/\s+/u)
+        const parts = invocation.rawInput.trim().split(/\s+/u)
+        const includeSource = parts[0] === '--source'
+        if (includeSource) parts.shift()
+        const [rawObjects, ...reasonParts] = parts
         const objectIds = rawObjects?.split(',').map(value => value.trim()).filter(Boolean) ?? []
         const reason = reasonParts.join(' ').trim()
         if (objectIds.length === 0 || reason.length === 0) return { kind: 'error', text: '请输入对象 ID 和修订原因。' }
         const context = repository.readContext(String(invocation.agent.id))
+        if (dependencies.coordinator.isRunning(context.project.projectId)) {
+          return { kind: 'error', text: '请先暂停自动派发并等待当前工作项完成，再重开修订。' }
+        }
         const affected = await dependencies.revisions.reopen(context.project.projectId, objectIds, {
-          requestId: dependencies.createId(), reason, actor: actorOf(invocation),
+          requestId: dependencies.createId(), reason, actor: actorOf(invocation), includeSource,
         })
-        return { kind: 'success', text: `已重开 ${affected.length} 个下游对象：${affected.join('、') || '无'}。` }
+        return { kind: 'success', text: `已记录修订原因并重开 ${affected.length} 个${includeSource ? '源及下游' : '下游'}对象：${affected.join('、') || '无'}。` }
       }),
     },
     {
@@ -427,8 +443,40 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
       }),
     },
     {
+      name: 'preplan-visual-budget',
+      description: '将当前授权的图像生成改为按需生成；保留文本任务额度与历史计数',
+      input: { hint: 'unlimited' },
+      handler: guarded(async invocation => {
+        if (invocation.rawInput.trim() !== 'unlimited') return { kind: 'error', text: '请输入 unlimited，将生图设为按需生成。' }
+        const context = repository.readContext(String(invocation.agent.id))
+        const projectId = context.project.projectId
+        const authorization = dependencies.automation.requireValid(projectId, context.project.currentRevision)
+        const governed = governance.readProject(projectId)
+        const policy = governed.visualPolicies.find(p => p.policyId === governed.policy?.visualPolicyId)
+        if (!policy) throw new Error('VISUAL_POLICY_REQUIRED')
+        await governance.putAuthorization({ ...authorization, scope: { ...authorization.scope, visualBudgetMode: 'on_demand' } })
+        await governance.putVisualPolicy({ ...policy, enabled: true, updatedAt: dependencies.now() })
+        return { kind: 'success', text: '已设为按需生图：不限制图片数量，图像任务不占文本策划额度；原文本授权和历史执行记录保留，已有合格图片优先复用。' }
+      }),
+    },
+    {
+      name: 'preplan-visual-reject',
+      description: '记录图片内容问题并从页面撤下不合格的候选或已采用图，保留原图与执行记录',
+      input: { hint: '<assetId> <问题说明>' },
+      handler: guarded(async invocation => {
+        const [assetId, ...parts] = invocation.rawInput.trim().split(/\s+/u)
+        const reason = parts.join(' ')
+        if (!assetId || !reason || !dependencies.pageVisualFill || !dependencies.pageVisualInput) throw new Error('请输入图片编号和具体问题')
+        const context = repository.readContext(String(invocation.agent.id))
+        const input = await dependencies.pageVisualInput(context.project.projectId, context.project.currentRevision, workspaceRootOf(invocation))
+        await dependencies.pageVisualFill.reject({ ...input, assetId, reason })
+        await dependencies.presentationSync?.flush(context.project.projectId, { reason: `visual-rejected:${assetId}` })
+        return { kind: 'success', text: '已记录图片问题并撤下页面图片；原始文件和执行记录保留，继续流程将按更新后的需求补图。' }
+      }),
+    },
+    {
       name: 'preplan-visual',
-      description: '通过固定 Gemini 项目级子 Agent 生成一张概念表现候选图',
+      description: '按“生成图像”子 Agent 类配置生成一张概念表现候选图',
       input: { hint: '<taskId> <章节ID> <工作项ID> <生图要求>' },
       handler: guarded(async (invocation) => {
         const [taskId, chapterId, workItemId, ...promptParts] = invocation.rawInput.trim().split(/\s+/u)
@@ -451,7 +499,7 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
         })
         return {
           kind: 'success',
-          text: `概念表现候选图 ${asset.assetId} 已由 antigravity / gemini-3.1-flash-image 生成；请人工核对后使用 /preplan-visual-adopt ${asset.assetId} 采用。`,
+          text: `概念表现候选图 ${asset.assetId} 已由 ${asset.provider ?? '未知 Provider'} / ${asset.model ?? '未知模型'} 生成；请人工核对后使用 /preplan-visual-adopt ${asset.assetId} 采用。`,
         }
       }),
     },
@@ -581,20 +629,42 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
       }),
     },
     {
+      name: 'preplan-manuscript',
+      description: '基于现有策划成果编写对外汇报文案并同步草案',
+      handler: guarded(async invocation => {
+        if (!dependencies.prepareManuscript) return { kind: 'error', text: '汇报文案服务尚未配置。' }
+        const context = repository.readContext(String(invocation.agent.id))
+        const signal = invocation.signal ?? new AbortController().signal
+        await dependencies.prepareManuscript(context.project.projectId, context.project.currentRevision, invocation.agent, signal)
+        signal.throwIfAborted()
+        const synced = await dependencies.presentationSync?.flush(context.project.projectId, { reason: 'planning-manuscript' })
+        signal.throwIfAborted()
+        if (synced?.state !== 'synced') return { kind: 'error', text: `文案已保存，Presentation 同步未完成（${synced?.state ?? 'unavailable'}）；原文案可从工作区读取。` }
+        return { kind: 'success', text: '汇报文案已编写并同步。完整正文已保存到工作区 .pre-design/report-manuscript.md。' }
+      }),
+    },
+    {
       name: 'preplan-export',
       description: '生成并下载同一 Revision 的甲方汇报成果',
       handler: guarded(async (invocation) => {
         const context = repository.readContext(String(invocation.agent.id))
-        const manifest = await dependencies.reports.publish(
-          context.project.projectId,
-          context.project.currentRevision,
-        )
+        const signal = invocation.signal ?? new AbortController().signal
+        await dependencies.prepareManuscript?.(context.project.projectId, context.project.currentRevision, invocation.agent, signal)
+        signal.throwIfAborted()
+        await dependencies.prepareVisuals?.(context.project.projectId, context.project.currentRevision, invocation.agent, signal)
+        signal.throwIfAborted()
+        const manifest = await (dependencies.conditionalReports === undefined
+          ? dependencies.reports.publish(context.project.projectId, context.project.currentRevision)
+          : dependencies.conditionalReports.generate(context.project.projectId, context.project.currentRevision, signal))
+        signal.throwIfAborted()
         const links = manifest.artifacts.map(artifact =>
           `- ${artifact.format.toUpperCase()}：/preplan-export/${manifest.packageId}/${artifact.fileName}`,
         )
         return {
           kind: 'success',
-          text: `已原子发布 Revision ${manifest.sourceRevision} 的甲方汇报成果：\n${links.join('\n')}`,
+          text: manifest.deliveryMode === 'conditional'
+            ? `已生成版本 ${manifest.sourceRevision} 的条件式策划成果（保留未知条件，不作为法定边界或正式审核结论）：\n${links.join('\n')}`
+            : `已原子发布 Revision ${manifest.sourceRevision} 的甲方汇报成果：\n${links.join('\n')}`,
         }
       }),
     },

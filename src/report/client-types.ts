@@ -117,6 +117,7 @@ export type ClientAnalyticalVisual =
     }>
 
 export type ClientContentBlock =
+  | { readonly type: 'planning-page'; readonly page: import('./manuscript/types.ts').PlanningManuscriptPage; readonly chapterTitle: string }
   | { readonly type: 'narrative'; readonly statement: string; readonly evidenceIds: readonly string[] }
   | { readonly type: 'metric'; readonly label: string; readonly value: string; readonly unit: string; readonly evidenceIds: readonly string[] }
   | { readonly type: 'evidence'; readonly headline: string; readonly evidenceIds: readonly string[]; readonly assetIds: readonly string[] }
@@ -216,6 +217,11 @@ export interface ClientChartContract {
 }
 
 export interface ClientVisualAsset {
+  readonly physicalPlacement?: { readonly pageId: string; readonly mediaIndex: number }
+  readonly imageIdentity?: import('../visual/image-policy.ts').OriginalImageIdentity
+  readonly imageQuality?: import('../visual/image-policy.ts').ImageQualityMetadata
+  /** Diagram nodes illustrated by this photograph on this chapter's page. */
+  readonly stageNodeIds?: readonly string[]
   readonly assetId: string
   readonly role: ClientVisualRole
   readonly chapterId: string
@@ -356,6 +362,9 @@ export type ClientAssetLayout =
 export type ClientMediaPosition = 'background' | 'left' | 'right' | 'top' | 'bottom'
 
 export interface ClientPage {
+  readonly regularLayout?: import('./regular/layout.ts').RegularLayout
+  readonly pagination?: { readonly sourcePageId: string; readonly partIndex: number; readonly partCount: number }
+  readonly planningContent?: import('./manuscript/types.ts').PlanningManuscriptPage
   readonly pageId: string
   readonly kind: ClientPageKind
   readonly layoutVariant: 'full-bleed' | 'split' | 'editorial' | 'data' | 'timeline' | 'summary'
@@ -381,6 +390,7 @@ export interface ClientPage {
 }
 
 export interface ClientPagePlan {
+  readonly canvas?: { readonly width: number; readonly height: number; readonly unit: 'in' }
   readonly medium: ClientMedium
   readonly pages: readonly ClientPage[]
   readonly visualContractVersion?: ClientVisualContractVersion

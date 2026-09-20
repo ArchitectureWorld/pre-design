@@ -40,8 +40,9 @@ describe('registered materials in formal runtime synchronization', () => {
     } as never, 'session-materials', false, root)
     expect(exportProject).toHaveBeenCalledWith(expect.objectContaining({
       sourceMaterials: [expect.objectContaining({ sourceKey: 'site-metrics', sourcePath: join(root, '原件', '指标.csv') })],
-      assets: [],
+      assets: expect.arrayContaining([expect.objectContaining({ semanticRole: 'deterministic_visual', mimeType: 'image/svg+xml' })]),
     }))
+    expect((exportProject.mock.calls[0] as any)[0].assets.some((a: any) => a.sourceKey === 'site-metrics')).toBe(false)
   })
 
   it('uses the same registered material preparation in automatic synchronization', async () => {
@@ -57,8 +58,9 @@ describe('registered materials in formal runtime synchronization', () => {
       expect(result.state).toBe('synced')
       expect(exportProject).toHaveBeenCalledWith(expect.objectContaining({
         sourceMaterials: [expect.objectContaining({ sourceKey: 'site-metrics' })],
-        assets: [],
+        assets: expect.arrayContaining([expect.objectContaining({ semanticRole: 'deterministic_visual', mimeType: 'image/svg+xml' })]),
       }))
+      expect((exportProject.mock.calls[0] as any)[0].assets.some((a: any) => a.sourceKey === 'site-metrics')).toBe(false)
     } finally { await service.close() }
   })
 })

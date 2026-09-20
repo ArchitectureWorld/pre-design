@@ -39,7 +39,7 @@ describe('real Loader composition', () => {
     await context.plugin(StorageJson, { root: join(root, 'storage') })
     await context.plugin(StorageDomain, { backend: 'json' })
     context.provide('commands', { register: () => () => undefined } as never)
-    context.provide('tools', { register: () => () => undefined } as never)
+    context.provide('tools', { guard: () => () => undefined, register: () => () => undefined } as never)
     context.provide('systemPrompt', { section: () => () => undefined } as never)
     context.provide('webServer', { register: () => () => undefined } as never)
     context.provide('attachments', { readImage: async () => undefined } as never)

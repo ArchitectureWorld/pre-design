@@ -34,6 +34,21 @@ afterEach(async () => {
 })
 
 describe('WorkflowRuntime', () => {
+  it('requeues blocked work without confirming it or bypassing a superseded upstream', async () => {
+    const runtime = await openRuntime()
+    await runtime.initializeProject('project-1')
+    await runtime.transition('project-1', 'preplan.wf.01.01', { to: 'blocked', reason: '缺资料' })
+    await runtime.retryBlocked('project-1')
+    expect(runtime.snapshot('project-1').runs[0]?.status).toBe('ready')
+    await runtime.transition('project-1', 'preplan.wf.01.01', { to: 'running' })
+    await runtime.transition('project-1', 'preplan.wf.01.01', { to: 'confirmed', revision: 1 })
+    await runtime.transition('project-1', 'preplan.wf.01.02', { to: 'blocked', reason: '缺资料' })
+    await runtime.supersedeByObject('project-1', 'PS01')
+    await runtime.retryBlocked('project-1')
+    expect(runtime.snapshot('project-1').blocked.map(run => run.workflowId)).toContain('preplan.wf.01.02')
+    expect(runtime.snapshot('project-1').runs[0]?.status).toBe('superseded')
+  })
+
   it('initializes the persisted 57-item graph with one ready item and eight chapter summaries', async () => {
     const runtime = await openRuntime()
 

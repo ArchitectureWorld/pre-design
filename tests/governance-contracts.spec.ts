@@ -44,6 +44,29 @@ const validGate = {
 }
 
 describe('GovernanceContractRegistry', () => {
+  it('accepts conditional artifact metadata only when it explicitly remains non-publishable', async () => {
+    const registry = await GovernanceContractRegistry.open(contractRoot)
+    const manifest = { manifestId: 'manifest-1', packageId: 'conditional-1', projectId: 'project-1', sourceRevision: 103,
+      deliveryMode: 'conditional', publishable: false, createdAt: now,
+      artifacts: ['html', 'pdf', 'pptx'].map(format => ({ format, fileName: `report.${format}`, sha256: 'a'.repeat(64), bytes: 20 })) }
+    expect(registry.validate('artifact-manifest', manifest).valid).toBe(true)
+    expect(registry.validate('artifact-manifest', { ...manifest, publishable: true }).valid).toBe(false)
+    const { publishable, ...missing } = manifest
+    expect(registry.validate('artifact-manifest', missing).valid).toBe(false)
+  })
+  it('requires generatedAt and manifest, without publishedAt, for a conditional report', async () => {
+    const registry = await GovernanceContractRegistry.open(contractRoot)
+    const record = { packageId: 'conditional-1', projectId: 'project-1', sourceRevision: 103,
+      status: 'generated_conditional', sectionIds: ['opening'], adoptedAssetIds: [], warnings: [],
+      artifactManifestId: 'manifest-1', createdAt: now, generatedAt: now }
+    expect(registry.validate('report-package', record).valid).toBe(true)
+    expect(registry.validate('report-package', { ...record, publishedAt: now }).valid).toBe(false)
+    for (const key of ['generatedAt', 'artifactManifestId']) {
+      const missing = { ...record } as Record<string, unknown>
+      delete missing[key]
+      expect(registry.validate('report-package', missing).valid).toBe(false)
+    }
+  })
   it('loads all nine governance schemas and validates the authorization boundary', async () => {
     const registry = await GovernanceContractRegistry.open(contractRoot)
 

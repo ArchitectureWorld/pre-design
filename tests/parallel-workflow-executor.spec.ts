@@ -37,10 +37,11 @@ function passingQuality() {
 }
 
 describe('ParallelWorkflowExecutor', () => {
-  it('analyzes at most four Ready workflows concurrently and commits in Contract order', async () => {
+  it('honors an explicit four-slot limit and serializes commits as analyses finish', async () => {
     let active = 0
     let maxActive = 0
     const analysisOrder: string[] = []
+    const finishedOrder: string[] = []
     const commitOrder: string[] = []
     const transitions: Array<{ workflowId: string; to: string }> = []
     const sync = {
@@ -66,6 +67,7 @@ describe('ParallelWorkflowExecutor', () => {
           analysisOrder.push(descriptor.workflowId)
           await new Promise(resolve => setTimeout(resolve, (6 - Number(descriptor.workItemId.slice(-1))) * 5))
           active -= 1
+          finishedOrder.push(descriptor.workflowId)
           return {
             payload: { object_id: descriptor.targetObjectId, data: { summary: descriptor.title } },
             qualityEvidence: passingQuality(),
@@ -88,17 +90,17 @@ describe('ParallelWorkflowExecutor', () => {
 
     expect(maxActive).toBe(4)
     expect(analysisOrder).toHaveLength(4)
-    expect(commitOrder).toEqual(descriptors.slice(0, 4).map(row => row.workflowId))
+    expect(commitOrder).toEqual(finishedOrder)
     expect(transitions.filter(row => row.to === 'running').map(row => row.workflowId))
       .toEqual(descriptors.slice(0, 4).map(row => row.workflowId))
     expect(transitions.filter(row => row.to === 'confirmed').map(row => row.workflowId))
-      .toEqual(descriptors.slice(0, 4).map(row => row.workflowId))
+      .toEqual(commitOrder)
     expect(sync.request).toHaveBeenCalledTimes(4)
     expect(sync.flush).toHaveBeenCalledOnce()
     expect(result).toEqual({ attempted: 4, completed: 4, blocked: 0, needsHuman: 0, revised: 0, approvedGates: 1 })
   })
 
-  it('does not select the parallel path without automatic authorization, provider capacity, or two Ready tasks', () => {
+  it('requires automatic authorization and provider capacity, including for one Ready or resumed task', () => {
     const base = {
       runtime: { ready: () => descriptors.slice(0, 1), running: () => [], transition: vi.fn(), snapshot: vi.fn() },
       enabled: () => true,
@@ -107,10 +109,11 @@ describe('ParallelWorkflowExecutor', () => {
       gateApprover: { approveReady: vi.fn() },
       presentationSync: { request: vi.fn(), flush: vi.fn() },
     }
-    expect(new ParallelWorkflowExecutor(base as never).canRun('preplan-1')).toBe(false)
+    expect(new ParallelWorkflowExecutor(base as never).canRun('preplan-1')).toBe(true)
     expect(new ParallelWorkflowExecutor({ ...base, runtime: { ...base.runtime, ready: () => descriptors }, enabled: () => false } as never).canRun('preplan-1')).toBe(false)
     expect(new ParallelWorkflowExecutor({ ...base, runtime: { ...base.runtime, ready: () => descriptors }, analyzer: { ...base.analyzer, available: () => false } } as never).canRun('preplan-1')).toBe(false)
-    expect(new ParallelWorkflowExecutor({ ...base, runtime: { ...base.runtime, ready: () => descriptors, running: () => [descriptors[0]] } } as never).canRun('preplan-1')).toBe(false)
+    expect(new ParallelWorkflowExecutor({ ...base, runtime: { ...base.runtime, ready: () => [], running: () => [descriptors[0]] } } as never).canRun('preplan-1')).toBe(true)
+    expect(new ParallelWorkflowExecutor({ ...base, runtime: { ...base.runtime, ready: () => [] } } as never).canRun('preplan-1')).toBe(false)
   })
 
   it('blocks only the failed workflow and still commits successful sibling analyses', async () => {
@@ -180,6 +183,10 @@ describe('DshSubagentWorkflowAnalyzer', () => {
       dispose,
     }))
     const analyzer = new DshSubagentWorkflowAnalyzer({
+      agentClasses: {
+        begin: vi.fn(async () => ({ id: 'text-execution', selected: { provider: 'configured', model: 'text-model' } })),
+        attach: vi.fn(), finish: vi.fn(),
+      },
       subagents: { getProvider: () => ({ name: 'spawn' }), start },
       repository: {
         readContext: () => ({
@@ -204,6 +211,7 @@ describe('DshSubagentWorkflowAnalyzer', () => {
     expect(start).toHaveBeenCalledOnce()
     expect(start.mock.calls[0]?.[0]).toBe('spawn')
     expect(start.mock.calls[0]?.[1]).toMatchObject({
+      agentOptions: { provider: 'configured', model: 'text-model' },
       maxDepth: 1,
       toolFilter: { allow: [] },
       outputSchema: { type: 'object' },

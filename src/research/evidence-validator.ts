@@ -3,6 +3,8 @@ import type { EvidenceRecord, ResearchReliabilityGrade, ResearchSourcePriority }
 
 export interface WorkflowEvidenceValidation {
   readonly valid: boolean
+  /** Integrity of acquired records, separately from completeness/source coverage. */
+  readonly integrityValid?: boolean
   readonly coverage: number
   readonly missingDataPointIds: readonly string[]
   readonly staleEvidenceIds: readonly string[]
@@ -100,13 +102,15 @@ export function validateWorkflowEvidence(
     : (spec.requiredDataPoints.length - missingDataPointIds.length) / spec.requiredDataPoints.length
 
   const independentSources = new Set(accepted.map(record => record.sourceId))
-  const highAuthoritySources = new Set(accepted
+  const authoritative = accepted.filter(record => ['fact', 'source_conclusion'].includes(record.claimClass) && record.reliability !== 'inference')
+  const highAuthoritySources = new Set(authoritative
     .filter(record => HIGH_AUTHORITY_PRIORITIES.has(registry.source(record.sourceId).priority))
     .map(record => record.sourceId))
-  const gradeASources = new Set(accepted
+  const gradeASources = new Set(authoritative
     .filter(record => record.reliability === 'A')
     .map(record => record.sourceId))
   const minimum = spec.minimumEvidence
+  const integrityValid = errors.length === 0
 
   if (missingDataPointIds.length > 0) {
     errors.push(`missing required data points: ${missingDataPointIds.join(', ')}`)
@@ -128,6 +132,7 @@ export function validateWorkflowEvidence(
 
   return Object.freeze({
     valid: errors.length === 0,
+    integrityValid,
     coverage: Number(coverage.toFixed(4)),
     missingDataPointIds: Object.freeze(missingDataPointIds),
     staleEvidenceIds: Object.freeze(staleEvidenceIds),

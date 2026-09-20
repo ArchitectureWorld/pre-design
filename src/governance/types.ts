@@ -24,6 +24,10 @@ export interface WorkflowRunQualityBlocker {
   readonly code: string
   readonly kind: 'external' | 'quality' | 'conflict'
   readonly message: string
+  readonly scope?: 'current_workflow' | 'later_implementation'
+  readonly criterion?: string
+  readonly evidenceIds?: readonly string[]
+  readonly dataPointIds?: readonly string[]
 }
 
 export interface WorkflowRunQualityRecord {
@@ -55,6 +59,9 @@ export interface AutomationAuthorizationScope {
   readonly workflowIds: readonly string[]
   readonly gateIds: readonly string[]
   readonly maxVisualGenerations: number
+  /** Explicit on-demand image authorization; image tasks do not consume the text/model budget. */
+  readonly visualBudgetMode?: 'bounded' | 'on_demand'
+  /** Maximum admitted one-shot class/model tasks; failed dispatches retain their reservation. */
   readonly maxModelTurns: number
   readonly stopOnBlocking: boolean
 }
@@ -73,6 +80,20 @@ export interface AutomationAuthorizationRecord {
   readonly revocationReason?: string
 }
 
+export interface WorkflowRevisionFeedback {
+  readonly requestId: string
+  readonly rootObjectIds: readonly string[]
+  readonly reason: string
+  readonly actor: ActorRef
+  readonly createdAt: string
+}
+
+export interface WorkflowRevisionRecord extends WorkflowRevisionFeedback {
+  readonly projectId: string
+  readonly affectedObjectIds: readonly string[]
+  readonly status: 'pending' | 'applied'
+}
+
 export interface WorkflowRunRecord {
   readonly runId: string
   readonly projectId: string
@@ -86,6 +107,7 @@ export interface WorkflowRunRecord {
   readonly confirmedRevision?: number
   readonly blockedReason?: string
   readonly quality?: WorkflowRunQualityRecord
+  readonly revisionRequest?: WorkflowRevisionFeedback
   readonly updatedAt: string
 }
 
@@ -117,6 +139,8 @@ export interface VisualGenerationPolicyRecord {
 }
 
 export interface VisualTaskRecord {
+  readonly modelRoute?: { readonly provider: string; readonly model: string }
+  readonly executionId?: string
   readonly taskId: string
   readonly projectId: string
   readonly chapterId: string
@@ -227,13 +251,14 @@ export interface ReportPackageRecord {
   readonly packageId: string
   readonly projectId: string
   readonly sourceRevision: number
-  readonly status: 'staging' | 'published' | 'failed'
+  readonly status: 'staging' | 'published' | 'generated_conditional' | 'failed'
   readonly sectionIds: readonly string[]
   readonly adoptedAssetIds: readonly string[]
   readonly warnings: readonly string[]
   readonly artifactManifestId?: string
   readonly createdAt: string
   readonly publishedAt?: string
+  readonly generatedAt?: string
 }
 
 export interface ArtifactRecord {
@@ -244,6 +269,8 @@ export interface ArtifactRecord {
 }
 
 export interface ArtifactManifestRecord {
+  readonly deliveryMode?: 'formal' | 'conditional'
+  readonly publishable?: boolean
   readonly manifestId: string
   readonly packageId: string
   readonly projectId: string
@@ -260,6 +287,7 @@ export interface GovernanceProjectContext {
   readonly policy?: ProjectPolicyRecord
   readonly authorizations: readonly AutomationAuthorizationRecord[]
   readonly workflowRuns: readonly WorkflowRunRecord[]
+  readonly workflowRevisions?: readonly WorkflowRevisionRecord[]
   readonly gateDecisions: readonly GateDecisionRecord[]
   readonly visualPolicies: readonly VisualGenerationPolicyRecord[]
   readonly visualTasks: readonly VisualTaskRecord[]

@@ -1,5 +1,6 @@
 import { effectiveWorkflowAutomationPolicy } from '../contracts/automation-policy.ts'
 import type { WorkflowDescriptor } from '../contracts/types.ts'
+import { researchAllowsAnalysis, type ResearchExecutionResult } from '../research/execution-service.ts'
 
 export type WorkflowQualityDisposition =
   | 'auto_pass'
@@ -27,6 +28,10 @@ export interface WorkflowQualityBlocker {
   readonly code: string
   readonly kind: 'external' | 'quality' | 'conflict'
   readonly message: string
+  readonly scope?: 'current_workflow' | 'later_implementation'
+  readonly criterion?: string
+  readonly evidenceIds?: readonly string[]
+  readonly dataPointIds?: readonly string[]
 }
 
 export interface WorkflowQualityEvidence {
@@ -41,6 +46,33 @@ export interface WorkflowQualityOptions {
   readonly attempt: number
   readonly maxAttempts?: number
   readonly minimumConfidence?: number
+  readonly research?: ResearchExecutionResult
+}
+
+function groundedEvidence(descriptor: WorkflowDescriptor, evidence: WorkflowQualityEvidence, research?: ResearchExecutionResult): WorkflowQualityEvidence {
+  if (!research || !researchAllowsAnalysis(research, descriptor.workflowId)) return evidence
+  const accepted = new Set(research.records.map(record => record.evidenceId)
+    .filter(id => research.validation.acceptedEvidenceIds.includes(id)))
+  const allowedGaps = new Set(research.continuation?.missingDataPointIds ?? [])
+  const criteria = new Set([...(descriptor.completionCriteria ?? []), ...(descriptor.evidencePolicy ?? [])])
+  const blockers = evidence.blockers.map(blocker => {
+    if (blocker.kind === 'quality') return blocker
+    const ids = Array.isArray(blocker.evidenceIds) ? [...new Set(blocker.evidenceIds)] : []
+    const gaps = Array.isArray(blocker.dataPointIds) ? blocker.dataPointIds : []
+    let issue: string | undefined
+    if (blocker.scope !== 'current_workflow' || !criteria.has(blocker.criterion ?? '')) {
+      issue = '阻断理由必须对应本工作项的有效完成条件或证据规则；后续实施条件应记录为限制，不能提前阻断当前问题界定。'
+    } else if (blocker.kind === 'conflict' && (ids.length < 2 || ids.some(id => !accepted.has(id)))) {
+      issue = '证据冲突必须引用至少两条已接受的实际证据及互相矛盾的具体结论；旧资料的现行适用性未知属于时效限制，不自动构成冲突。'
+    } else if (blocker.kind === 'external' && gaps.length > 0 && gaps.every(id => allowedGaps.has(id))) {
+      issue = '这些资料缺口已由中央条件式研究策略接纳；请按允许的研究深度形成有限结论并记录未知，不得把已知缺口重新当成人工确认前置。'
+    } else if (blocker.kind === 'external' && (ids.length === 0 || ids.some(id => !accepted.has(id)))) {
+      issue = '外部阻断须说明实际证据证明的当前不可满足条件；无根据的外部依赖应修订，真实采集或工具故障由中央Runtime保留。'
+    }
+    return issue === undefined ? blocker : Object.freeze({ ...blocker, kind: 'quality' as const,
+      message: `阻断依据待纠正：${issue} 原始${blocker.kind}说明：${blocker.message}` })
+  })
+  return Object.freeze({ ...evidence, blockers: Object.freeze(blockers) })
 }
 
 export interface WorkflowQualityReport {
@@ -91,9 +123,10 @@ function reasonList(
 
 export function evaluateWorkflowQuality(
   descriptor: WorkflowDescriptor,
-  evidence: WorkflowQualityEvidence,
+  rawEvidence: WorkflowQualityEvidence,
   options: WorkflowQualityOptions,
 ): WorkflowQualityReport {
+  const evidence = groundedEvidence(descriptor, rawEvidence, options.research)
   const policy = descriptor.automationPolicy ?? effectiveWorkflowAutomationPolicy(descriptor.risk)
   const attempt = Math.max(1, Math.trunc(options.attempt))
   const maxAttempts = Math.max(1, Math.trunc(options.maxAttempts ?? policy.maxAutomaticAttempts))

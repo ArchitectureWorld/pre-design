@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { VisualAgentError, VisualAgentService } from '../src/visual/agent.ts'
+import type { AgentClassService } from '../src/agent-classes/service.ts'
+import { SessionImageCollector, type SessionEventLike } from '../src/visual/session-image-collector.ts'
+import { PNG } from 'pngjs'
 
 interface StartSpec {
   readonly childId: string
@@ -8,6 +11,7 @@ interface StartSpec {
 }
 
 function fixture(options: {
+  agentClasses?: AgentClassService
   startError?: Error
   waitUntilAborted?: boolean
   existingChild?: boolean
@@ -16,6 +20,8 @@ function fixture(options: {
   existingStatus?: string
   existingBlockedReason?: string
   lateImage?: boolean
+  collector?: SessionImageCollector
+  existingExecutionId?: string
 } = {}) {
   const visualTasks = [{
     taskId: 'task-1', projectId: 'project-1', chapterId: '03', workItemId: '03-06',
@@ -25,6 +31,7 @@ function fixture(options: {
       ? { childId: options.existingChildId ?? 'restored-child' }
       : {}),
     ...(options.existingBlockedReason === undefined ? {} : { blockedReason: options.existingBlockedReason }),
+    ...(options.existingExecutionId ? { executionId: options.existingExecutionId } : {}),
   }]
   const visualAssets: Array<Record<string, unknown>> = []
   const putVisualTask = vi.fn(async (record) => {
@@ -38,6 +45,7 @@ function fixture(options: {
     : vi.fn(async () => { throw options.startError })
   const interrupt = vi.fn()
   const service = new VisualAgentService({
+    agentClasses: options.agentClasses,
     governance: {
       readProject: vi.fn(() => ({ visualTasks, visualAssets })),
       putVisualTask,
@@ -53,7 +61,7 @@ function fixture(options: {
       startContinuable,
       interrupt,
     } as never,
-    collector: {
+    collector: options.collector ?? {
       findExistingImage: vi.fn(async () => options.lateImage ? ({
         mimeType: 'image/png', data: new Uint8Array([1, 2, 3]), width: 1600, height: 900,
       }) : undefined),
@@ -82,6 +90,112 @@ function fixture(options: {
 }
 
 describe('VisualAgentService', () => {
+  const recoveryTask = { taskId: 'task-1', projectId: 'project-1', chapterId: '03', workItemId: '03-06', kind: 'concept' as const, required: true, prompt: '滨水公共文化空间概念表现图' }
+  const completeImage = PNG.sync.write(Object.assign(new PNG({ width: 16, height: 12 }), { data: Buffer.alloc(16 * 12 * 4, 180) }))
+  function attemptEvents(): SessionEventLike[] {
+    return [{ seq: 1, type: 'turn/start', data: { turn: 1 } }, { seq: 13, type: 'assistant/attempt', data: { turn: 1, step: 1,
+      stream: [{ type: 'text-chunks', index: 0, time0: 1, dt: [0], texts: [`![scene](data:image/png;base64,${completeImage.toString('base64')})`] }] } }]
+  }
+  it('drains the owned retry before recording a complete failed-stream image', async () => {
+    const events = attemptEvents()
+    let terminalObserved = false
+    const collector = new SessionImageCollector({ sessions: { get: () => ({ seq: events.length, snapshotEvents: () => events }) }, attachments: { readImage: vi.fn() },
+      waitForEvent: async () => {
+        expect(h.interrupt).toHaveBeenCalledOnce()
+        expect(h.visualAssets).toHaveLength(0)
+        terminalObserved = true
+        events.push({ seq: 20, type: 'turn/end', data: { turn: 1, reason: { kind: 'aborted', reason: { kind: 'parent' } } } })
+      } })
+    const h = fixture({ collector })
+    await expect(h.service.generate({ id: 'parent' } as never, recoveryTask, AbortSignal.timeout(2000), { preserveUncertain: true })).resolves.toMatchObject({ status: 'candidate' })
+    expect(terminalObserved).toBe(true)
+    expect(h.visualAssets).toHaveLength(1)
+    expect(h.startContinuable).toHaveBeenCalledOnce()
+  })
+  it.each(['interrupt-rejected', 'parent-cancelled', 'turn-replaced'])('does not adopt or retry an attempt when settlement is %s', async scenario => {
+    const events = attemptEvents(), parent = new AbortController()
+    const collector = new SessionImageCollector({ sessions: { get: () => ({ seq: events.length, snapshotEvents: () => events }) }, attachments: { readImage: vi.fn() },
+      waitForEvent: async () => {
+        if (scenario === 'parent-cancelled') parent.abort(new Error('user cancelled'))
+        if (scenario === 'turn-replaced') events.push({ seq: 19, type: 'turn/start', data: { turn: 2 } })
+        events.push({ seq: 20, type: 'turn/end', data: { turn: scenario === 'turn-replaced' ? 2 : 1, reason: { kind: 'completed' } } })
+      } })
+    const h = fixture({ collector })
+    if (scenario === 'interrupt-rejected') h.interrupt.mockImplementation(() => { throw new Error('child is not attached') })
+    await expect(h.service.generate({ id: 'parent' } as never, recoveryTask, parent.signal, { preserveUncertain: true })).rejects.toBeInstanceOf(VisualAgentError)
+    expect(h.visualAssets).toHaveLength(0)
+    expect(h.visualTasks[0].status).not.toBe('candidate_ready')
+    expect(h.startContinuable).toHaveBeenCalledOnce()
+  })
+  it('recovers a terminal failed stream on the original execution without dispatch or interruption', async () => {
+    const events = [...attemptEvents(), { seq: 20, type: 'turn/end', data: { turn: 1, reason: { kind: 'aborted', reason: { kind: 'parent' } } } }]
+    const h = coldRecovery(events)
+    await expect(h.service.generate({ id: 'parent' } as never, recoveryTask, AbortSignal.timeout(2000), { recoveryOnly: true })).resolves.toMatchObject({ status: 'candidate' })
+    expect(h.visualTasks[0]).toMatchObject({ attempts: 1, executionId: 'paid-original-execution', status: 'candidate_ready' })
+    expect(h.startContinuable).not.toHaveBeenCalled(); expect(h.interrupt).not.toHaveBeenCalled()
+  })
+  function coldRecovery(events: readonly SessionEventLike[] | undefined | Error) {
+    const finish = vi.fn(), begin = vi.fn(), read = vi.fn(async () => { if (events instanceof Error) throw events; return events })
+    const collector = new SessionImageCollector({ sessions: { get: () => undefined }, readPersistedEvents: read,
+      attachments: { readImage: async () => ({ ref: { mediaType: 'image/png', width: 1600, height: 900, bytes: 3 }, data: new Uint8Array([1, 2, 3]) }) },
+      waitForEvent: vi.fn(async () => { throw new Error('cold recovery must not wait') }) })
+    return { ...fixture({ collector, agentClasses: { begin, finish } as unknown as AgentClassService,
+      existingChildId: 'preplanning-visual-659ab1ce6ceb320a005db7c6', existingAttempts: 1, existingStatus: 'running', existingExecutionId: 'paid-original-execution' }), finish, begin, read }
+  }
+  it('settles an unloaded terminal child and its original class execution without a fresh model call', async () => {
+    const h = coldRecovery([{ seq: 4, type: 'turn/start', data: { turn: 1 } }, { seq: 30, type: 'turn/end', data: { reason: { kind: 'aborted', reason: { kind: 'parent' } } } }])
+    await expect(h.service.generate({ id: 'parent' } as never, recoveryTask, AbortSignal.timeout(1000), { preserveUncertain: true, recoveryOnly: true })).rejects.toMatchObject({ code: 'visual-generation-failed' })
+    expect(h.visualTasks[0]).toMatchObject({ status: 'failed', attempts: 1, executionId: 'paid-original-execution' })
+    expect(h.finish).toHaveBeenCalledWith('paid-original-execution', 'failed', expect.stringContaining('已终结'))
+    expect(h.startContinuable).not.toHaveBeenCalled(); expect(h.begin).not.toHaveBeenCalled(); expect(h.visualAssets).toHaveLength(0)
+  })
+  it('recovers a late cold image and completes the original execution from one persisted observation', async () => {
+    const h = coldRecovery([{ seq: 4, type: 'turn/start', data: {} }, { seq: 29, type: 'assistant/message', data: { message: { content: [{ type: 'image', attachment: { attachmentId: 'late-image' } }] } } },
+      { seq: 30, type: 'turn/end', data: { reason: { kind: 'completed' } } }])
+    await expect(h.service.generate({ id: 'parent' } as never, recoveryTask, AbortSignal.timeout(1000), { preserveUncertain: true, recoveryOnly: true })).resolves.toMatchObject({ status: 'candidate' })
+    expect(h.finish).toHaveBeenCalledWith('paid-original-execution', 'completed', undefined)
+    expect(h.read).toHaveBeenCalledOnce(); expect(h.startContinuable).not.toHaveBeenCalled(); expect(h.begin).not.toHaveBeenCalled()
+  })
+  it.each(['missing', 'unfinished', 'unreadable'] as const)('keeps a %s persisted child unknown without reissuing a paid task or settling the execution', async state => {
+    const h = coldRecovery(state === 'missing' ? undefined : state === 'unreadable' ? new Error('stored log validation failed') : [{ seq: 4, type: 'turn/start', data: {} }])
+    await expect(h.service.generate({ id: 'parent' } as never, recoveryTask, AbortSignal.timeout(1000), { preserveUncertain: true, recoveryOnly: true })).rejects.toMatchObject({ code: 'visual-recovery-required' })
+    expect(h.visualTasks[0]).toMatchObject({ status: 'running', attempts: 1 })
+    expect(h.finish).not.toHaveBeenCalled(); expect(h.begin).not.toHaveBeenCalled(); expect(h.startContinuable).not.toHaveBeenCalled()
+  })
+  it('rejects an adopted image while preserving its file, revision and original execution history', async () => {
+    const h = fixture({ lateImage: true })
+    await h.service.generate({ id: 'parent' } as never, { taskId: 'task-1', projectId: 'project-1',
+      chapterId: '03', workItemId: '03-06', kind: 'concept', required: true, prompt: '茶园研学' }, AbortSignal.timeout(1000))
+    await h.service.adopt('project-1', 'asset-1', 12)
+    const before = { ...h.visualAssets[0] }
+    const childId = h.visualTasks[0]!.childId
+    await h.service.reject('project-1', 'asset-1', '画面出现禁止的水上活动')
+    expect(h.visualAssets[0]).toMatchObject({ ...before, status: 'rejected',
+      quality: { accepted: false, score: 0, issues: ['画面出现禁止的水上活动'] } })
+    expect(h.visualTasks[0]).toMatchObject({ status: 'failed', childId, blockedReason: '画面出现禁止的水上活动' })
+    await expect(h.service.adopt('project-1', 'asset-1', 12)).rejects.toThrow('quality-approved')
+    await expect(h.service.generate({ id: 'parent' } as never, { taskId: 'task-1', projectId: 'project-1',
+      chapterId: '03', workItemId: '03-06', kind: 'concept', required: true, prompt: '茶园研学' }, AbortSignal.timeout(1000)))
+      .rejects.toThrow('VISUAL_BRIEF_REJECTED')
+    expect(h.visualAssets).toHaveLength(1)
+    expect(h.visualAssets[0]?.status).toBe('rejected')
+    expect(h.startContinuable).toHaveBeenCalledOnce()
+  })
+  it('keeps the original class route and execution identity when recovering a paid request after a config change', async () => {
+    const classes = { begin: vi.fn(async () => ({ id: 'execution-original', selected: { provider: 'custom-provider', model: 'image-a' } })), attach: vi.fn(), finish: vi.fn() }
+    const options = { agentClasses: classes as unknown as AgentClassService, waitUntilAborted: true, lateImage: false }
+    const h = fixture(options)
+    const task = { taskId: 'task-1', projectId: 'project-1', chapterId: '03', workItemId: '03-06', kind: 'concept' as const, required: true, prompt: '滨水公共文化空间概念表现图' }
+    await expect(h.service.generate({ id: 'parent' } as never, task, AbortSignal.timeout(40), { preserveUncertain: true })).rejects.toMatchObject({ code: 'visual-recovery-required' })
+    expect(h.startContinuable).toHaveBeenCalledWith(expect.objectContaining({ request: expect.objectContaining({ agentOptions: { provider: 'custom-provider', model: 'image-a', maxTokens: 8192 } }) }))
+    classes.begin.mockResolvedValue({ id: 'execution-new', selected: { provider: 'new-provider', model: 'image-b' } })
+    options.lateImage = true
+    const recovered = await h.service.generate({ id: 'parent' } as never, task, AbortSignal.timeout(1000), { recoveryOnly: true })
+    expect(recovered).toMatchObject({ provider: 'custom-provider', model: 'image-a' })
+    expect(h.startContinuable).toHaveBeenCalledTimes(1)
+    expect(classes.begin).toHaveBeenCalledTimes(1)
+    expect(classes.finish).toHaveBeenLastCalledWith('execution-original', 'completed', undefined)
+  })
   it('creates one isolated task child on the exact spawn and Gemini route', async () => {
     const { service, startContinuable } = fixture()
     const parent = { id: 'parent-1' }

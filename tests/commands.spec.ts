@@ -24,6 +24,84 @@ function commandDependencies(overrides: Record<string, unknown> = {}) {
 }
 
 describe('preplanning commands', () => {
+  it('prepares current manuscript visuals before exporting, and stops export when visual preparation fails', async () => {
+    const definitions: CommandDefinition[] = [], calls: string[] = []
+    let failVisual = false
+    const ctx = { commands: { register: (d: CommandDefinition) => definitions.push(d) } } as unknown as Context
+    registerPreplanningCommands(ctx, commandDependencies({ repository: { readContext: () => ({ project: { projectId: 'p', currentRevision: 1 } }) },
+      prepareManuscript: async () => { calls.push('manuscript') },
+      prepareVisuals: async () => { calls.push('visuals'); if (failVisual) throw new Error('IMAGE_FAILED') },
+      conditionalReports: { generate: async () => { calls.push('export'); return { sourceRevision: 1, packageId: 'p', artifacts: [] } } },
+    }) as never)
+    const run = () => definitions.find(d => d.name === 'preplan-export')!.handler({ agent: { id: 's' } } as never)
+    expect((await run()).kind).toBe('success')
+    expect(calls).toEqual(['manuscript','visuals','export'])
+    failVisual = true; calls.length = 0
+    expect((await run()).kind).toBe('error')
+    expect(calls).toEqual(['manuscript','visuals'])
+  })
+  it('does not claim the manuscript was synced when the workspace rejected the update', async () => {
+    const definitions: CommandDefinition[] = []
+    const ctx = { commands: { register: (d: CommandDefinition) => definitions.push(d) } } as unknown as Context
+    registerPreplanningCommands(ctx, commandDependencies({ repository: { readContext: () => ({ project: { projectId: 'p', currentRevision: 1 } }) },
+      prepareManuscript: async () => undefined, presentationSync: { flush: async () => ({ state: 'external_changes' }) } }) as never)
+    const result = await definitions.find(d => d.name === 'preplan-manuscript')!.handler({ agent: { id: 's' } } as never)
+    expect(result).toMatchObject({ kind: 'error', text: expect.stringContaining('文案已保存') })
+  })
+  it('forwards command cancellation through the report export and does not return a success afterwards', async () => {
+    const definitions: CommandDefinition[] = [], cancellation = new AbortController()
+    let exportSignal: AbortSignal | undefined
+    const ctx = { commands: { register: (d: CommandDefinition) => definitions.push(d) } } as unknown as Context
+    registerPreplanningCommands(ctx, commandDependencies({ repository: { readContext: () => ({ project: { projectId: 'p', currentRevision: 1 } }) },
+      prepareManuscript: async () => undefined, conditionalReports: { generate: async (_p: string, _r: number, signal?: AbortSignal) => {
+        exportSignal = signal; cancellation.abort(new Error('cancelled')); return { sourceRevision: 1, packageId: 'p', artifacts: [] }
+      } } }) as never)
+    const result = await definitions.find(d => d.name === 'preplan-export')!.handler({ agent: { id: 's' }, signal: cancellation.signal } as never)
+    expect(exportSignal).toBe(cancellation.signal)
+    expect(result.kind).toBe('error')
+  })
+  it('grants on-demand images without renewing or resetting the current text authorization', async () => {
+    const definitions: CommandDefinition[] = []
+    const authorization = { authorizationId: 'same-grant', scope: { maxModelTurns: 120, maxVisualGenerations: 20 }, grantedAt: 'original' }
+    const putAuthorization = vi.fn(async (row: unknown) => row)
+    const ctx = { commands: { register: (definition: CommandDefinition) => { definitions.push(definition) } } } as unknown as Context
+    registerPreplanningCommands(ctx, commandDependencies({ repository: { readContext: () => ({ project: { projectId:'p',currentRevision:1 } }) },
+      automation: { requireValid: () => authorization }, governance: { readProject: () => ({ policy: { visualPolicyId:'v' }, visualPolicies:[{policyId:'v'}] }),
+        putAuthorization, putVisualPolicy: vi.fn() } }) as never)
+    const result = await definitions.find(d => d.name === 'preplan-visual-budget')!.handler({rawInput:'unlimited',agent:{id:'s'}} as never)
+    expect(result.kind).toBe('success')
+    expect(putAuthorization).toHaveBeenCalledWith({ ...authorization, scope: { ...authorization.scope, visualBudgetMode:'on_demand' } })
+  })
+  it('routes production export to conditional generation without invoking formal publication', async () => {
+    const definitions: CommandDefinition[] = []
+    const generate = vi.fn(async () => ({ packageId: 'conditional-103', sourceRevision: 103, deliveryMode: 'conditional',
+      artifacts: [{ format: 'pdf', fileName: 'report.pdf' }] }))
+    const publish = vi.fn()
+    const ctx = { commands: { register: (definition: CommandDefinition) => { definitions.push(definition); return () => undefined } } } as unknown as Context
+    registerPreplanningCommands(ctx, commandDependencies({ repository: { readContext: () => ({ project: { projectId: 'project', currentRevision: 103 } }) },
+      conditionalReports: { generate }, reports: { publish } }) as never)
+    const result = await definitions.find(row => row.name === 'preplan-export')!.handler({ rawInput: '', agent: { id: 'session' } } as never)
+    expect(generate).toHaveBeenCalledWith('project', 103, expect.any(AbortSignal))
+    expect(publish).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ kind: 'success', text: expect.stringContaining('条件式策划成果') })
+  })
+  it('passes source replay and its reason to the audited revision service only when dispatch is paused', async () => {
+    const definitions: CommandDefinition[] = []
+    const reopen = vi.fn(async () => ['BL01', 'SP07'])
+    let running = true
+    const ctx = { commands: { register: (definition: CommandDefinition) => { definitions.push(definition); return () => undefined } } } as unknown as Context
+    registerPreplanningCommands(ctx, commandDependencies({
+      repository: { readContext: () => ({ project: { projectId: 'p' } }) },
+      coordinator: { isRunning: () => running }, revisions: { reopen },
+    }) as never)
+    const command = definitions.find(row => row.name === 'preplan-revise')!
+    const invocation = { rawInput: '--source BL01,PG06 correct cited distances', agent: { id: 's', session: { header: { delegationDepth: 0 } } } } as never
+    expect(await command.handler(invocation)).toMatchObject({ kind: 'error' })
+    expect(reopen).not.toHaveBeenCalled()
+    running = false
+    expect(await command.handler(invocation)).toMatchObject({ kind: 'success' })
+    expect(reopen).toHaveBeenCalledWith('p', ['BL01', 'PG06'], expect.objectContaining({ includeSource: true, reason: 'correct cited distances' }))
+  })
   it('plans and generates without syncing, then reports an adoption sync conflict honestly', async () => {
     const definitions: CommandDefinition[] = []
     const calls: string[] = []
@@ -90,8 +168,8 @@ describe('preplanning commands', () => {
     expect(definitions.map(definition => definition.name)).toEqual([
       'preplan-new', 'preplan-open', 'preplan-list', 'preplan-status', 'preplan-confirm',
       'preplan-mode', 'preplan-run', 'preplan-pause', 'preplan-gate', 'preplan-revise',
-      'preplan-visual-fill', 'preplan-visual', 'preplan-visual-adopt', 'preplan-visual-replace',
-      'preplan-boundary-asset', 'preplan-boundary-coordinates', 'preplan-boundary-confirm', 'preplan-export',
+      'preplan-visual-fill', 'preplan-visual-budget', 'preplan-visual-reject', 'preplan-visual', 'preplan-visual-adopt', 'preplan-visual-replace',
+      'preplan-boundary-asset', 'preplan-boundary-coordinates', 'preplan-boundary-confirm', 'preplan-manuscript', 'preplan-export',
     ])
     expect(definitions.every(definition => /[\u4e00-\u9fff]/u.test(definition.description))).toBe(true)
   })
@@ -231,6 +309,7 @@ describe('preplanning commands', () => {
 
   it('preplan-run 将真实命令 Agent 交给 Coordinator', async () => {
     const definitions: CommandDefinition[] = []
+    const initializeProject = vi.fn(async () => undefined)
     const start = vi.fn(async () => undefined)
     const agent = { id: 'session-1' }
     const ctx = {
@@ -239,11 +318,14 @@ describe('preplanning commands', () => {
     registerPreplanningCommands(ctx, commandDependencies({
       repository: { readContext: vi.fn(() => ({ project: { projectId: 'project-1', name: '运行项目' } })) } as never,
       coordinator: { start } as never,
+      runtime: { initializeProject },
     }) as never)
 
     const result = await definitions.find(row => row.name === 'preplan-run')?.handler({ rawInput: '', agent } as never)
 
     expect(start).toHaveBeenCalledWith(agent, 'project-1')
+    expect(initializeProject).toHaveBeenCalledWith('project-1')
+    expect(initializeProject.mock.invocationCallOrder[0]).toBeLessThan(start.mock.invocationCallOrder[0]!)
     expect(result).toMatchObject({ kind: 'success', text: expect.stringContaining('已开始') })
   })
 

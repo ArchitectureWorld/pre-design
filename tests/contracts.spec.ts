@@ -46,7 +46,7 @@ describe('ContractRegistry', () => {
       requiredUpstream: ['IM01', 'IM02', 'IM03', 'IM04', 'IM05', 'IM06', 'IM07', 'OB03'],
       automationLevel: 'A2',
       risk: 'H',
-      humanReviewMandatory: true,
+      humanReviewMandatory: false,
     })
     expect(registry.gate('G1')).toMatchObject({
       chapterId: '01',
@@ -69,7 +69,7 @@ describe('ContractRegistry', () => {
     ])
     expect(workflow.completionCriteria).toEqual([
       '非参与人员能够准确复述项目；背景与触发分开；不得提前推导方案。',
-      '项目发起人或项目负责人确认项目对象及启动原因。',
+      '已自动核对现有任务输入、来源和上游结论；未知、假设、冲突及后续验证条件已明确记录，不把自动策划结论当作外部授权或实施批准。',
     ])
     expect(workflow.reopenTriggers).toEqual([
       '项目对象、主任务来源、硬性时间或资料归属发生变化',
@@ -80,9 +80,9 @@ describe('ContractRegistry', () => {
       'fabricate_missing_values',
     ]))
     expect(workflow.reviewPolicy).toEqual({
-      humanReviewMandatory: true,
-      provisionalAutoCommitAllowed: false,
-      gateStillHuman: true,
+      humanReviewMandatory: false,
+      provisionalAutoCommitAllowed: true,
+      gateStillHuman: false,
     })
 
     expect(registry.gate('G1')).toMatchObject({
@@ -92,10 +92,10 @@ describe('ContractRegistry', () => {
         conditionalRule: expect.stringContaining('non_blocking'),
       },
       approvalPolicy: {
-        role: 'decision_owner',
-        assignmentRequired: true,
+        role: 'system_service',
+        assignmentRequired: false,
         agentAllowed: false,
-        systemServiceAllowed: false,
+        systemServiceAllowed: true,
         artifactAllowed: false,
       },
       returnPolicy: {

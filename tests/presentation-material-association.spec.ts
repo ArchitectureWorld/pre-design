@@ -8,7 +8,7 @@ import { createStandardFrozenProject } from './presentation-standard-fixture.ts'
 import type { PresentationAdoptedAssetInput } from '../src/presentation/standard-project-types.ts'
 
 const planner = vi.hoisted(() => ({ compile: vi.fn() }))
-vi.mock('../src/presentation/projector/report-outline.ts', () => ({ compileReportOutline: planner.compile }))
+vi.mock('../src/presentation/projector/client-outline.ts', async importOriginal => ({ ...await importOriginal<object>(), compileClientReportOutline: planner.compile }))
 const roots: string[] = []
 afterEach(async () => { planner.compile.mockReset(); for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }) })
 function page(id: string, evidenceIds: string[] = [], assetIds: string[] = []) {

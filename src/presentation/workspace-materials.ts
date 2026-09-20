@@ -4,6 +4,7 @@ import {
   type PreparePresentationMaterialsInput,
 } from './material-registry.ts'
 import { scanWorkspaceSourceInbox } from './source-inbox.ts'
+import { prepareClientVisuals } from './client-visuals.ts'
 
 export interface PreparedWorkspacePresentationMaterials extends PreparedPresentationMaterials {
   readonly sourceInboxFileCount: number
@@ -16,7 +17,7 @@ export interface PreparedWorkspacePresentationMaterials extends PreparedPresenta
  * current inbox files only add or refresh matching stable source keys.
  */
 export async function prepareWorkspacePresentationMaterials(
-  input: PreparePresentationMaterialsInput,
+  input: PreparePresentationMaterialsInput & { readonly diagrams?: boolean },
 ): Promise<PreparedWorkspacePresentationMaterials> {
   const prepared = await preparePresentationMaterials(input)
   if (input.workspaceRoot === undefined) {
@@ -30,11 +31,14 @@ export async function prepareWorkspacePresentationMaterials(
   const sourceMaterials = [...sources.values()]
     .sort((left, right) => left.sourceKey.localeCompare(right.sourceKey, 'en-US'))
   const materialWarnings = [...prepared.materialWarnings, ...inbox.warnings]
+  const visuals = await prepareClientVisuals({ frozenProject: input.frozenProject, workspaceRoot: input.workspaceRoot,
+    sources: sourceMaterials, assets: prepared.assets, diagrams: input.diagrams })
 
   return Object.freeze({
     ...prepared,
+    assets: Object.freeze(visuals.assets),
     sourceMaterials: Object.freeze(sourceMaterials),
-    materialWarnings: Object.freeze(materialWarnings),
+    materialWarnings: Object.freeze([...materialWarnings, ...visuals.warnings]),
     sourceInboxFileCount: inbox.sourceMaterials.length,
     sourceInboxRoot: inbox.inboxRoot,
   })

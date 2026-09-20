@@ -1,3 +1,6 @@
+import { isConditionalReport, assertConditionalPagePlan } from './conditional-report.ts'
+import { assertRegularPagePlan, planRegularPages } from './regular/plan.ts'
+import { planningProductRows } from './render-planning-page.ts'
 import type {
   ClientAssetLayout,
   ClientAnalyticalVisual,
@@ -178,7 +181,7 @@ function chapterDivider(chapter: ClientChapter): ClientPage {
 
 function evidenceIds(block: ClientContentBlock): readonly string[] {
   if (block.type === 'decision') return [...new Set(block.rationaleEvidenceIds)]
-  if (block.type === 'product' || block.type === 'scene') return []
+  if (block.type === 'product' || block.type === 'scene' || block.type === 'planning-page') return []
   return [...new Set(block.evidenceIds)]
 }
 
@@ -225,6 +228,7 @@ function kindFor(
 }
 
 function headlineFor(report: ClientReport, chapter: ClientChapter, block: ClientContentBlock): string {
+  if (block.type === 'planning-page') return block.page.title
   if (block.type === 'narrative') {
     return chapter.role === 'decision'
       ? '同步确定定位、首期边界与协同机制'
@@ -254,6 +258,7 @@ function headlineFor(report: ClientReport, chapter: ClientChapter, block: Client
 }
 
 function focusFor(block: ClientContentBlock): ClientPage['primaryFocus'] {
+  if (block.type === 'planning-page') return { type: 'claim', statement: block.page.claim }
   const assets = assetIds(block)
   if (assets.length > 0) return { type: 'asset', assetId: assets[0]! }
   if (block.type === 'product') return { type: 'product', productId: block.productId }
@@ -620,6 +625,10 @@ function applyHtmlBackdrops(report: ClientReport, pages: readonly ClientPage[]):
 }
 
 export function planClientPages(report: ClientReport, medium: ClientMedium): ClientPagePlan {
+  if (report.chapters.some(chapter => chapter.blocks.some(block => block.type === 'planning-page'))) {
+    return { ...planRegularPages(report, medium),
+      ...(report.visualContractVersion === undefined ? {} : { visualContractVersion: report.visualContractVersion }) }
+  }
   const urgencyVisual: ClientAnalyticalVisual = {
     kind: 'urgency-signals',
     countLabel: '3 个同步行动层',
@@ -733,6 +742,20 @@ export function validateClientPagePlan(
   report?: ClientReport,
 ): ClientPolicyViolation[] {
   const violations: ClientPolicyViolation[] = []
+  if (plan.canvas !== undefined) {
+    if (report === undefined) return [violation('REGULAR_REPORT_REQUIRED', 'pages', 'regular plans require the projected report')]
+    try { assertRegularPagePlan(plan, report) }
+    catch (error) { violations.push(violation('REGULAR_PAGE_PLAN_INVALID', 'pages', error instanceof Error ? error.message : String(error))) }
+    if (report.visualContractVersion !== plan.visualContractVersion) {
+      violations.push(violation('VISUAL_CONTRACT_MISMATCH', 'visualContractVersion', 'the page plan must preserve the report visual contract'))
+    }
+    if (plan.layoutContract.safeMarginRatio < 0.05 || plan.layoutContract.safeMarginRatio > 0.07
+      || plan.layoutContract.minimumTitle < 24 || plan.layoutContract.minimumBody < 14 || plan.layoutContract.minimumCaption < 10) {
+      violations.push(violation('LAYOUT_CONTRACT_INVALID', 'layoutContract', 'layout contract is below the client minimum'))
+    }
+    violations.push(...validateRegularPageContent(plan, report))
+    return violations
+  }
   if (plan.medium === 'pptx' && (plan.pages.length < 32 || plan.pages.length > 48)) {
     violations.push(violation('PAGE_COUNT_OUT_OF_RANGE', 'pages', 'PPTX requires 32-48 pages'))
   }
@@ -812,6 +835,58 @@ export function validateClientPagePlan(
       ))
     }
   }
+  violations.push(...validateArchitecturalPageCoverage(plan))
+  return violations
+}
+
+/** The regular layout contract preserves complete copy and placed images across pagination. */
+function validateRegularPageContent(plan: ClientPagePlan, report: ClientReport): ClientPolicyViolation[] {
+  const violations: ClientPolicyViolation[] = []
+  const comparable = (value: string) => value.replace(/\s+/gu, '')
+  const used = new Set(plan.pages.flatMap(page => page.assetIds))
+  for (const asset of report.assets) {
+    if (!used.has(asset.assetId)) violations.push(violation('REGULAR_ASSET_UNPLACED', 'assets', `unplaced image ${asset.assetId}`))
+  }
+  for (const page of plan.pages) {
+    for (const text of page.regularLayout?.texts ?? []) {
+      if ((text.role === 'title' && text.size < 24) || ((text.role === 'body' || text.role === 'claim') && text.size < 14)) {
+        violations.push(violation('LAYOUT_CONTRACT_INVALID', page.pageId, 'regular page type is below the client minimum'))
+      }
+    }
+  }
+  for (const chapter of report.chapters) chapter.blocks.forEach((block, index) => {
+    if (block.type !== 'planning-page') {
+      violations.push(violation('REGULAR_PLANNING_BLOCK_REQUIRED', chapter.id, 'regular reports require authored planning pages'))
+      return
+    }
+    const pages = plan.pages.filter(page => page.kind !== 'cover' && page.chapterId === chapter.id && page.blockIndexes.includes(index))
+    const source = block.page
+    const plannedBody = pages.flatMap(page => page.regularLayout?.texts.filter(text => text.role === 'body').map(text => text.text) ?? []).join('')
+    const sourceBody = [...source.body, ...source.editorialSummary ? [] : planningProductRows(source).map(([label, value]) => `${label}｜${value}`)].join('')
+    if (pages.length === 0 || comparable(plannedBody) !== comparable(sourceBody)
+      || pages.some(page => comparable(page.regularLayout?.texts.find(text => text.role === 'title')?.text ?? '') !== comparable(source.title)
+        || comparable(page.regularLayout?.texts.find(text => text.role === 'claim')?.text ?? '') !== comparable(source.claim))) {
+      violations.push(violation('REGULAR_COPY_INCOMPLETE', chapter.id, 'page copy must be preserved across continuation pages'))
+    }
+    const bound = report.assets.filter(asset => asset.chapterId === chapter.id)
+    if (bound.some(asset => !pages.some(page => page.assetIds.includes(asset.assetId)))) {
+      violations.push(violation('REGULAR_ASSET_UNPLACED', chapter.id, 'each bound image must be placed on its authored page'))
+    }
+    const tables = pages.flatMap(page => page.regularLayout?.table ? [page.regularLayout.table] : [])
+    if (source.table) {
+      const original = source.table
+      if (tables.length === 0 || tables.some(table => JSON.stringify(table.columns.map(comparable)) !== JSON.stringify(original.columns.map(comparable)))
+        || original.columns.some((_, column) => comparable(original.rows.map(row => row[column] ?? '').join(''))
+          !== comparable(tables.flatMap(table => table.rows.map(row => row[column] ?? '')).join('')))) {
+        violations.push(violation('REGULAR_TABLE_INCOMPLETE', chapter.id, 'comparison columns and cells must be preserved'))
+      }
+    } else if (tables.length > 0) violations.push(violation('REGULAR_TABLE_UNEXPECTED', chapter.id, 'table does not exist in authored source'))
+  })
+  return violations
+}
+
+function validateArchitecturalPageCoverage(plan: ClientPagePlan): ClientPolicyViolation[] {
+  const violations: ClientPolicyViolation[] = []
   if (plan.visualContractVersion === 'architectural-v1') {
     const isExempt = (page: ClientPage): boolean => page.kind === 'cover'
       || page.kind === 'opening-claim'
@@ -876,6 +951,7 @@ export function validateClientPagePlan(
 }
 
 export function assertClientPagePlan(plan: ClientPagePlan, report?: ClientReport): void {
+  if (isConditionalReport(report)) return assertConditionalPagePlan(plan, report)
   const violations = validateClientPagePlan(plan, report)
   if (violations.length > 0) {
     throw new Error(violations.map(row => row.code + ' ' + row.path + ': ' + row.message).join('\n'))

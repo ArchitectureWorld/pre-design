@@ -4,6 +4,8 @@ import type { ContractRegistry } from '../contracts/registry.ts'
 import type { WorkflowDescriptor } from '../contracts/types.ts'
 import type { GovernanceRepository } from '../governance/repository.ts'
 import type { EvidenceRecord } from '../research/types.ts'
+import { researchAllowsAnalysis } from '../research/execution-service.ts'
+import { validateCandidateStateProvenance } from '../research/project-state-provenance.ts'
 import type { ProposalGateway } from '../proposals/gateway.ts'
 import type { ProjectRepository } from '../state/repository.ts'
 import type { JSONType } from 'zod'
@@ -45,23 +47,25 @@ function jsonValue(value: unknown): JSONType {
 }
 
 function evidenceRef(record: EvidenceRecord): Readonly<Record<string, unknown>> {
+  // Research locators carry provider-specific fields. The v0.6 contract is
+  // closed: use its section field for a source locator and retain the complete
+  // EvidenceRecord in the research audit event, not as undeclared properties.
+  const pointer = record.locator.jsonPointer ?? record.locator.selector
+  const detail = typeof pointer === 'string'
+    ? `JSON Pointer ${pointer}`
+    : typeof record.locator.startLine === 'number' && typeof record.locator.endLine === 'number'
+      ? `lines ${record.locator.startLine}-${record.locator.endLine}`
+      : undefined
   return Object.freeze({
     evidence_id: record.evidenceId,
     asset_id: `research:${record.sourceId}`,
     version_id: record.contentHash,
     claim_class: record.claimClass,
-    locator: {
-      ...jsonValue(record.locator) as Record<string, JSONType>,
-      source_id: record.sourceId,
-      source_type: record.sourceType,
-      source_uri: record.sourceUri,
-      source_title: record.sourceTitle,
-      publisher: record.publisher,
-      captured_at: record.capturedAt,
-      as_of: record.asOf,
-      normalized_value: jsonValue(record.normalizedValue),
-      unit: record.unit,
-    },
+    locator: { section: [record.sourceUri, detail].filter(value => value !== undefined).join(' | ') },
+    quote_hash: stringValue(record.locator.fragmentHash, record.contentHash),
+    captured_at: record.capturedAt,
+    reliability: record.reliability === 'inference' ? 'unknown' : record.reliability,
+    notes: `${record.sourceTitle} — ${record.publisher}`,
   })
 }
 
@@ -91,30 +95,38 @@ export class AutomationWorkflowCommitter {
     this.createId = dependencies.createId ?? (() => randomUUID())
   }
 
-  async commit(
+  /** Pure preflight uses the same protected-metadata normalization as final commit. */
+  validateCandidate(parent: Agent, projectId: string, descriptor: WorkflowDescriptor, candidate: WorkflowAnalysisCandidate) {
+    const prepared = this.prepareCandidate(parent, projectId, descriptor, candidate)
+    return this.validatePrepared(projectId, descriptor, candidate, prepared)
+  }
+
+  private validatePrepared(projectId: string, descriptor: WorkflowDescriptor, candidate: WorkflowAnalysisCandidate, prepared: ReturnType<AutomationWorkflowCommitter['prepareCandidate']>) {
+    const schema = this.dependencies.registry.validateStateObject(descriptor.targetObjectId, prepared.payload)
+    if (!schema.valid) return schema
+    const governed = this.dependencies.governance.readProject(projectId)
+    const unresolvedObjectIds = new Set((governed.workflowRuns ?? [])
+      .filter(row => row.status === 'superseded' || (row.revisionRequest !== undefined && row.status !== 'confirmed'))
+      .map(row => row.targetObjectId))
+    for (const journal of governed.workflowRevisions ?? []) {
+      if (journal.status === 'pending') journal.affectedObjectIds.forEach(objectId => unresolvedObjectIds.add(objectId))
+    }
+    return validateCandidateStateProvenance(prepared.payload, {
+      projectId, stateObjects: prepared.stateObjects, researchEvidence: candidate.researchEvidence, unresolvedObjectIds,
+    })
+  }
+
+  private prepareCandidate(
     parent: Agent,
     projectId: string,
     descriptor: WorkflowDescriptor,
     candidate: WorkflowAnalysisCandidate,
-    quality?: WorkflowQualityReport,
-  ): Promise<AutomationWorkflowCommitResult> {
-    const trustedQuality = requireTrustedQuality(descriptor, quality)
+  ) {
     const sessionId = String(parent.id)
     const context = this.dependencies.repository.readContext(sessionId)
     if (context.project.projectId !== projectId) {
       throw new Error(`parent Session is bound to '${context.project.projectId}', not '${projectId}'`)
     }
-    if (candidate.researchValidation !== undefined && !candidate.researchValidation.valid) {
-      throw new Error(`workflow '${descriptor.workflowId}' cannot commit unvalidated Research evidence`)
-    }
-    const researchEvidence = candidate.researchEvidence ?? []
-    if (candidate.researchValidation !== undefined) {
-      const accepted = new Set(candidate.researchValidation.acceptedEvidenceIds)
-      if (researchEvidence.some(record => !accepted.has(record.evidenceId))) {
-        throw new Error(`workflow '${descriptor.workflowId}' Research evidence set contains records not accepted by the independent validator`)
-      }
-    }
-
     const currentRevision = context.project.currentRevision
     const timestamp = this.now()
     const sourceSnapshot = Object.fromEntries(descriptor.requiredUpstream
@@ -166,10 +178,34 @@ export class AutomationWorkflowCommitter {
           : typeof exampleApproval.comment === 'string' ? exampleApproval.comment : '',
       },
     }
-    const validation = this.dependencies.registry.validateStateObject(
-      descriptor.targetObjectId,
-      payload,
-    )
+    const operation = context.stateObjects.some(record => record.objectId === descriptor.targetObjectId) ? 'replace' : 'create'
+    return { payload, sessionId, currentRevision, timestamp, sourceSnapshot, actor, operation, stateObjects: context.stateObjects }
+  }
+
+  async commit(
+    parent: Agent,
+    projectId: string,
+    descriptor: WorkflowDescriptor,
+    candidate: WorkflowAnalysisCandidate,
+    quality?: WorkflowQualityReport,
+  ): Promise<AutomationWorkflowCommitResult> {
+    const trustedQuality = requireTrustedQuality(descriptor, quality)
+    if (candidate.researchValidation !== undefined && !researchAllowsAnalysis({
+      records: candidate.researchEvidence ?? [], validation: candidate.researchValidation,
+      ...(candidate.researchContinuation === undefined ? {} : { continuation: candidate.researchContinuation }),
+    }, descriptor.workflowId)) {
+      throw new Error(`workflow '${descriptor.workflowId}' cannot commit unvalidated Research evidence`)
+    }
+    const researchEvidence = candidate.researchEvidence ?? []
+    if (candidate.researchValidation !== undefined) {
+      const accepted = new Set(candidate.researchValidation.acceptedEvidenceIds)
+      if (researchEvidence.some(record => !accepted.has(record.evidenceId))) {
+        throw new Error(`workflow '${descriptor.workflowId}' Research evidence set contains records not accepted by the independent validator`)
+      }
+    }
+    const prepared = this.prepareCandidate(parent, projectId, descriptor, candidate)
+    const { payload, sessionId, currentRevision, timestamp, sourceSnapshot, actor, operation } = prepared
+    const validation = this.validatePrepared(projectId, descriptor, candidate, prepared)
     if (!validation.valid) {
       throw new Error(`${descriptor.targetObjectId} validation failed: ${validation.errors.join('; ')}`)
     }
@@ -192,7 +228,7 @@ export class AutomationWorkflowCommitter {
       actor,
       created_at: timestamp,
       change_set: {
-        operation: 'create',
+        operation,
         payload,
         semantic_paths: [`/${descriptor.targetObjectId}`],
         editorial_only: false,
@@ -221,7 +257,7 @@ export class AutomationWorkflowCommitter {
       },
     }, sessionId)
 
-    if (candidate.analysisTrace !== undefined) {
+    if (candidate.analysisTrace !== undefined || researchEvidence.length > 0 || candidate.researchValidation !== undefined) {
       await this.dependencies.repository.putAuditEvent({
         eventId: `${committed.proposalId}:research-trace`,
         projectId,
@@ -237,7 +273,10 @@ export class AutomationWorkflowCommitter {
           workflowId: descriptor.workflowId,
           targetObjectId: descriptor.targetObjectId,
           evidenceIds: researchEvidence.map(record => record.evidenceId),
-          analysisTrace: candidate.analysisTrace,
+          evidenceRecords: researchEvidence,
+          ...(candidate.researchValidation === undefined ? {} : { researchValidation: candidate.researchValidation }),
+          ...(candidate.researchContinuation === undefined ? {} : { researchContinuation: candidate.researchContinuation }),
+          ...(candidate.analysisTrace === undefined ? {} : { analysisTrace: candidate.analysisTrace }),
         }),
       })
     }

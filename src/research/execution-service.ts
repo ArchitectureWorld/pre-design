@@ -12,6 +12,30 @@ export interface ResearchAcquisition {
 export interface ResearchExecutionResult {
   readonly records: readonly EvidenceRecord[]
   readonly validation: WorkflowEvidenceValidation
+  /** Issued only by the central runtime, never inferred from model output. */
+  readonly continuation?: ResearchContinuation
+}
+
+export interface ResearchContinuation {
+  readonly mode: 'conditional'
+  readonly workflowId: string
+  readonly policy: 'v2.0.1-research-fallback'
+  readonly missingDataPointIds: readonly string[]
+  readonly limitations: readonly string[]
+}
+
+export function researchAllowsAnalysis(result: ResearchExecutionResult, workflowId: string): boolean {
+  if (result.validation.valid) return true
+  const continuation = result.continuation
+  return workflowId !== 'preplan.wf.01.01'
+    && result.validation.integrityValid === true
+    && result.validation.staleEvidenceIds.length === 0
+    && result.validation.rejectedEvidenceIds.length === 0
+    && continuation?.mode === 'conditional'
+    && continuation.workflowId === workflowId
+    && continuation.policy === 'v2.0.1-research-fallback'
+    && continuation.limitations.length > 0
+    && JSON.stringify([...continuation.missingDataPointIds].sort()) === JSON.stringify([...result.validation.missingDataPointIds].sort())
 }
 
 function assertIdentity(

@@ -31,6 +31,17 @@ function evidence(overrides: Partial<EvidenceRecord> & Pick<EvidenceRecord, 'evi
 }
 
 describe('Pre 2.0.1 independent workflow evidence validator', () => {
+  it('does not count an inherited assumption as an authoritative grade A source', async () => {
+    const registry = await ResearchRegistry.open(researchRoot)
+    const result = validateWorkflowEvidence(registry, 'preplan.wf.02.01', [evidence({
+      evidenceId: 'assumed-policy', workflowId: 'preplan.wf.02.01', dataPointId: 'applicable-policies',
+      sourceId: 'cn-gov-policy', sourceType: 'web_page', sourceUri: 'https://www.gov.cn/zhengce/',
+      claimClass: 'assumption', reliability: 'A',
+    })], NOW)
+    expect(result.highAuthorityCount).toBe(0)
+    expect(result.gradeACount).toBe(0)
+  })
+
   it('passes a high-risk statutory workflow only when every required data point has fresh authoritative evidence', async () => {
     const registry = await ResearchRegistry.open(researchRoot)
     const records: EvidenceRecord[] = [

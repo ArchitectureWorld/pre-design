@@ -36,6 +36,32 @@ afterEach(async () => {
 })
 
 describe('GovernanceRepository', () => {
+  it('persists conditional generation separately from formal publication', async () => {
+    const ctx = await openStorage()
+    const repository = await GovernanceRepository.open(ctx.storage.domain)
+    const record = { packageId: 'conditional-1', projectId: 'project-1', sourceRevision: 103,
+      status: 'generated_conditional' as const, sectionIds: ['opening'], adoptedAssetIds: [], warnings: [],
+      artifactManifestId: 'manifest-1', createdAt: now, generatedAt: now }
+    await repository.putReportPackage(record)
+    expect(repository.readProject('project-1').reportPackages).toEqual([record])
+    await expect(repository.putReportPackage({ ...record, publishedAt: now })).rejects.toThrow()
+    await expect(repository.putReportPackage({ ...record, generatedAt: undefined })).rejects.toThrow()
+  })
+  it.each(['quality_unresolved', 'evidence_conflict'] as const)('persists %s with the original blocker grounding', async disposition => {
+    const ctx = await openStorage()
+    const repository = await GovernanceRepository.open(ctx.storage.domain)
+    const record = { runId: 'grounded-run', projectId: 'project', workflowId: 'preplan.wf.01.02', chapterId: '01',
+      workItemId: '01-02', targetObjectId: 'PS02', status: 'blocked' as const, attempt: 1, blockedReason: '有依据的未决事项', updatedAt: now,
+      quality: { workflowId: 'preplan.wf.01.02', targetObjectId: 'PS02', disposition, score: 0.9, completionCoverage: 1,
+        evidenceCoverage: 1, confidence: 0.9, attempt: 1, maxAttempts: 5, reasons: ['原始证据冲突'], assumptions: [],
+        blockers: [{ code: 'conflict', kind: 'conflict' as const, message: '两份来源有矛盾', scope: 'current_workflow' as const,
+          criterion: '当前条件', evidenceIds: ['e1', 'e2'], dataPointIds: [] }] } }
+    await repository.putWorkflowRun(record)
+    await repository.close()
+    const reopened = await GovernanceRepository.open(ctx.storage.domain)
+    expect(reopened.readProject('project').workflowRuns).toEqual([record])
+  })
+
   it('persists a project/source-independent synthetic fingerprint and rejects a cross-project human replay before governance writes', async () => {
     const ctx = await openStorage()
     const governance = await GovernanceRepository.open(ctx.storage.domain)

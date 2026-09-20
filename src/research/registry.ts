@@ -220,6 +220,16 @@ export class ResearchRegistry {
     if (!this.traceValidator(value)) return { valid: false, errors: formatErrors(this.traceValidator.errors) }
     const trace = value as AnalysisTrace
     if (!this.workflowById.has(trace.workflowId)) return { valid: false, errors: [`unknown workflow research spec '${trace.workflowId}'`] }
+    if (trace.inputEvidenceIds.length === 0) {
+      // Object-only analysis is auditable only against the exact confirmed versions.
+      // These snapshots never count as newly acquired external evidence.
+      const snapshots = trace.parameters.upstreamSnapshots as { objectId: string }[]
+      const ids = snapshots.map(row => row.objectId)
+      if (ids.length !== trace.inputObjectIds.length || new Set(ids).size !== ids.length
+        || trace.inputObjectIds.some(id => !ids.includes(id))) {
+        return { valid: false, errors: ['upstreamSnapshots must identify every inputObjectId exactly once'] }
+      }
+    }
     return { valid: true, errors: [] }
   }
 }

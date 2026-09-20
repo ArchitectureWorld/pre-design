@@ -4,6 +4,7 @@ import {
   preplanningGovernanceDomainSpec,
   preplanningSyntheticBoundaryFingerprintDomainSpec,
   validateSiteBoundaryRecord,
+  validateReportPackageRecord,
 } from './domain.ts'
 import type { SiteBoundaryStorageRecord, SyntheticBoundaryFingerprintStorageRecord } from './domain.ts'
 import type {
@@ -17,6 +18,7 @@ import type {
   VisualGenerationPolicyRecord,
   VisualTaskRecord,
   WorkflowRunRecord,
+  WorkflowRevisionRecord,
 } from './types.ts'
 
 type GovernanceDomain = Domain<typeof preplanningGovernanceDomainSpec>
@@ -124,6 +126,10 @@ export class GovernanceRepository {
     return this.put(this.domain.table('workflow_runs'), record.runId, record)
   }
 
+  putWorkflowRevision(record: WorkflowRevisionRecord): Promise<WorkflowRevisionRecord> {
+    return this.put(this.domain.table('workflow_revisions'), `${record.projectId}:${record.requestId}`, record)
+  }
+
   putGateDecision(record: GateDecisionRecord): Promise<GateDecisionRecord> {
     return this.put(this.domain.table('gate_decisions'), record.decisionId, record)
   }
@@ -225,8 +231,8 @@ export class GovernanceRepository {
     })
   }
 
-  putReportPackage(record: ReportPackageRecord): Promise<ReportPackageRecord> {
-    return this.put(this.domain.table('report_packages'), record.packageId, record)
+  async putReportPackage(record: ReportPackageRecord): Promise<ReportPackageRecord> {
+    return this.put(this.domain.table('report_packages'), record.packageId, validateReportPackageRecord(record))
   }
 
   readProject(projectId: string): GovernanceProjectContext {
@@ -235,6 +241,7 @@ export class GovernanceRepository {
       policy: this.domain.table('project_policies').get(projectId),
       authorizations: this.forProject(this.domain.table('authorizations').entries(), projectId, 'grantedAt'),
       workflowRuns: this.forProject(this.domain.table('workflow_runs').entries(), projectId, 'workflowId'),
+      workflowRevisions: this.forProject(this.domain.table('workflow_revisions').entries(), projectId, 'createdAt'),
       gateDecisions: this.forProject(this.domain.table('gate_decisions').entries(), projectId, 'decisionId'),
       visualPolicies: this.forProject(this.domain.table('visual_policies').entries(), projectId, 'policyId'),
       visualTasks: this.forProject(this.domain.table('visual_tasks').entries(), projectId, 'taskId'),

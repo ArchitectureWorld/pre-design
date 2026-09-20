@@ -1,10 +1,17 @@
 import type { GovernanceRepository } from '../governance/repository.ts'
+import type {} from '@deepseek-ai/dsh-session/types'
 import { deriveSiteBoundaryState } from '../governance/site-boundary-status.ts'
-import type { SiteBoundarySource, SiteBoundaryStateSummary } from '../governance/types.ts'
+import type { ArtifactRecord, ReportPackageRecord, SiteBoundarySource, SiteBoundaryStateSummary } from '../governance/types.ts'
 import type { PresentationAutoSyncService, PresentationAutoSyncState } from '../presentation/auto-sync.ts'
 import type { WorkflowRuntime } from '../runtime/workflow-runtime.ts'
 import type { ProjectContext } from '../state/types.ts'
-import { reportLinks, type ReportPackageLinks } from '../client/report-links.ts'
+import { reportLinkFormats, reportLinks, type ReportPackageLinks } from '../client/report-links.ts'
+
+declare module '@deepseek-ai/dsh-session/types' {
+  interface SessionEventMap {
+    'preplanning/status': PreplanningStatusEventData
+  }
+}
 
 export interface PreplanningChapterStatus {
   readonly id: string
@@ -52,9 +59,12 @@ export interface PreplanningStatusEventData {
   readonly modelRoute: { readonly primary: string; readonly visual: string }
   readonly presentation?: PreplanningPresentationStatus
   readonly reportPackage?: ReportPackageLinks
+  readonly reportError?: string
 }
 
 export interface PreplanningStatusDependencies {
+  readonly reportErrors?: ReadonlyMap<string, string>
+  readonly reportFormats?: (record: ReportPackageRecord) => readonly ArtifactRecord['format'][] | undefined
   readonly governance: Pick<GovernanceRepository, 'readProject'>
   readonly runtime: Pick<WorkflowRuntime, 'snapshot'>
   readonly presentationSync?: Pick<PresentationAutoSyncService, 'status'>
@@ -62,7 +72,7 @@ export interface PreplanningStatusDependencies {
 
 const CHAPTER_TOTALS = [7, 8, 6, 6, 7, 7, 8, 8] as const
 const PRIMARY_MODEL_ROUTE = '当前 DSH Session 所选模型'
-const VISUAL_MODEL_ROUTE = 'antigravity / gemini-3.1-flash-image'
+const VISUAL_MODEL_ROUTE = '按子 Agent 类配置；实际模型见前期策划面板'
 const PRESENTATION_STATES: readonly PresentationAutoSyncState[] = [
   'pending', 'syncing', 'synced', 'migration_required', 'external_changes', 'error',
 ]
@@ -134,6 +144,19 @@ export function buildPreplanningStatus(
   }
   const governed = dependencies.governance.readProject(context.project.projectId)
   const workflow = dependencies.runtime.snapshot(context.project.projectId)
+  // Automatic commits advance workflow runs, while the legacy project stage may
+  // remain at its seed value. Project status must reflect the actual run snapshot.
+  const runs = workflow.runs ?? []
+  let stage = base.stage
+  if (governed.policy?.mode === 'automatic') {
+    const current = ['running', 'blocked', 'pending_review', 'ready']
+      .map(status => runs.filter(run => run.status === status))
+      .find(rows => rows.length > 0)
+    const latestConfirmed = runs.filter(run => run.status === 'confirmed'
+      && (run.confirmedRevision ?? 0) <= context.project.currentRevision)
+      .sort((left, right) => (right.confirmedRevision ?? 0) - (left.confirmedRevision ?? 0))[0]
+    stage = current?.map(run => run.workItemId).sort().join('、') ?? latestConfirmed?.workItemId ?? stage
+  }
   const gateByChapter = new Map<string, { revision: number; decision: string }>()
   for (const gate of governed.gateDecisions) {
     if (gate.revision > context.project.currentRevision) continue
@@ -142,19 +165,36 @@ export function buildPreplanningStatus(
     if (existing === undefined || existing.revision <= gate.revision) gateByChapter.set(chapterId, gate)
   }
   const latestPackage = [...governed.reportPackages]
-    .filter(row => row.status === 'published' && row.sourceRevision <= context.project.currentRevision)
-    .sort((left, right) => left.sourceRevision - right.sourceRevision || left.packageId.localeCompare(right.packageId))
+    .filter(row => (row.status === 'published' || row.status === 'generated_conditional') && row.sourceRevision <= context.project.currentRevision)
+    .sort((left, right) => left.sourceRevision - right.sourceRevision || (left.createdAt ?? '').localeCompare(right.createdAt ?? '') || left.packageId.localeCompare(right.packageId))
     .at(-1)
   const presentation = presentationStatus(context, dependencies)
+  const latestReportAttempt = [...governed.reportPackages].filter(row => row.sourceRevision === context.project.currentRevision)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt)).at(-1)
+  let reportPackage: ReportPackageLinks | undefined
+  let manifestError: string | undefined
+  if (latestPackage !== undefined) {
+    const metadata = { deliveryMode: latestPackage.status === 'generated_conditional' ? 'conditional' as const : 'formal' as const,
+      sourceRevision: latestPackage.sourceRevision }
+    reportPackage = { id: latestPackage.packageId, ...metadata }
+    try {
+      const formats = dependencies.reportFormats?.(latestPackage)
+      if (formats === undefined || formats.length === 0) throw new Error('REPORT_MANIFEST_UNAVAILABLE')
+      reportPackage = reportLinks(latestPackage.packageId, metadata, formats)
+    } catch {
+      manifestError = '成果清单缺失或校验失败，暂不提供下载链接；请重新生成成果。'
+    }
+  }
   return {
     ...base,
+    stage,
     mode: governed.policy?.mode ?? 'manual',
     reportDepth: governed.policy?.reportDepth ?? 'standard',
     chapters: workflow.chapters.map(chapter => ({
       id: chapter.chapterId,
       completed: chapter.completed,
       total: chapter.total,
-      gateStatus: gateByChapter.get(chapter.chapterId)?.decision ?? 'pending',
+      gateStatus: chapter.completed === chapter.total ? gateByChapter.get(chapter.chapterId)?.decision ?? 'pending' : 'pending',
     })),
     blocked: workflow.blocked.length,
     blockers: workflow.blocked.map(run => ({
@@ -170,7 +210,11 @@ export function buildPreplanningStatus(
     boundary: statusBoundary(governed.siteBoundaries, context.project.currentRevision),
     modelRoute: { primary: PRIMARY_MODEL_ROUTE, visual: VISUAL_MODEL_ROUTE },
     ...(presentation === undefined ? {} : { presentation }),
-    ...(latestPackage === undefined ? {} : { reportPackage: reportLinks(latestPackage.packageId) }),
+    ...(reportPackage === undefined ? {} : { reportPackage }),
+    ...(dependencies.reportErrors?.has(context.project.projectId)
+      ? { reportError: dependencies.reportErrors.get(context.project.projectId)! }
+      : latestReportAttempt?.status === 'failed' ? { reportError: latestReportAttempt.warnings.join('；') || '报告生成失败。' }
+        : manifestError === undefined ? {} : { reportError: manifestError }),
   }
 }
 
@@ -183,20 +227,26 @@ export function formatPreplanningStatus(status: PreplanningStatusEventData): str
     .join(',')
   const report = status.reportPackage?.id ?? 'none'
   const source = status.boundary.source === undefined ? '' : `（来源 ${JSON.stringify(status.boundary.source)}）`
-  const detail = `前期策划全流程：模式 ${status.mode}；报告 ${status.reportDepth}；阻断 ${status.blocked}；视觉 ${status.visual.candidates}/${status.visual.adopted}/${status.visual.blocked}；章节 ${chapters}；成果 ${report}；主模型 ${JSON.stringify(status.modelRoute.primary)}；视觉模型 ${JSON.stringify(status.modelRoute.visual)}；场地边界 ${JSON.stringify(status.boundary.label)}${source}；下一步 ${JSON.stringify(status.boundary.nextAction)}。`
+  const detail = `前期策划全流程：模式 ${status.mode}；报告 ${status.reportDepth}；阻断 ${status.blocked}；视觉 ${status.visual.candidates}/${status.visual.adopted}/${status.visual.blocked}；章节 ${chapters}；成果 ${report}；主模型 ${JSON.stringify(status.modelRoute.primary)}；视觉模型 ${JSON.stringify(status.modelRoute.visual)}；场地边界 ${JSON.stringify(status.boundary.label)}${source}；边界补充事项 ${JSON.stringify(status.boundary.nextAction)}。`
   const blockers = (status.blockers?.length ?? 0) === 0
     ? ''
     : `\n前期策划阻断详情：${JSON.stringify(status.blockers)}。`
   const presentation = status.presentation === undefined
     ? ''
     : `\n前期策划 Presentation：${JSON.stringify(status.presentation)}。`
-  return `${base}\n${detail}${blockers}${presentation}`
+  const reportDetails = status.reportPackage === undefined ? ''
+    : `\n前期策划成果信息：${JSON.stringify({ id: status.reportPackage.id, sourceRevision: status.reportPackage.sourceRevision,
+      deliveryMode: status.reportPackage.deliveryMode, formats: reportLinkFormats(status.reportPackage) })}。`
+  const reportError = status.reportError === undefined ? '' : `\n前期策划成果错误：${JSON.stringify(status.reportError)}。`
+  return `${base}\n${detail}${blockers}${presentation}${reportDetails}${reportError}`
 }
 
 const STATUS_PATTERN = /(?:^|\n)前期策划状态：项目 ("(?:\\.|[^"\\])*")（([^）\r\n]+)），revision (\d+)，阶段 ([^，\r\n]+)，(?:待确认|自动处理) (\d+) 项，开放问题 (\d+) 项(?:，(?:待确认|自动处理)提案 ("(?:\\.|[^"\\])*"))?。(?:$|\n)/u
-const DETAIL_PATTERN = /(?:^|\n)前期策划全流程：模式 (manual|automatic)；报告 (standard|extended)；阻断 (\d+)；视觉 (\d+)\/(\d+)\/(\d+)；章节 ([^；\r\n]+)；成果 ([A-Za-z0-9._-]+|none)；主模型 ("(?:\\.|[^"\\])*")；视觉模型 ("(?:\\.|[^"\\])*")(?:；场地边界 ("(?:\\.|[^"\\])*")(?:（来源 ("(?:\\.|[^"\\])*")）)?；下一步 ("(?:\\.|[^"\\])*"))?。(?:$|\n)/u
+const DETAIL_PATTERN = /(?:^|\n)前期策划全流程：模式 (manual|automatic)；报告 (standard|extended)；阻断 (\d+)；视觉 (\d+)\/(\d+)\/(\d+)；章节 ([^；\r\n]+)；成果 ([A-Za-z0-9._-]+|none)；主模型 ("(?:\\.|[^"\\])*")；视觉模型 ("(?:\\.|[^"\\])*")(?:；场地边界 ("(?:\\.|[^"\\])*")(?:（来源 ("(?:\\.|[^"\\])*")）)?；(?:下一步|边界补充事项) ("(?:\\.|[^"\\])*"))?。(?:$|\n)/u
 const BLOCKERS_PATTERN = /(?:^|\n)前期策划阻断详情：(\[[^\r\n]*\])。(?:$|\n)/u
 const PRESENTATION_PATTERN = /(?:^|\n)前期策划 Presentation：(\{[^\r\n]*\})。(?:$|\n)/u
+const REPORT_PATTERN = /(?:^|\n)前期策划成果信息：(\{[^\r\n]*\})。(?:$|\n)/u
+const REPORT_ERROR_PATTERN = /(?:^|\n)前期策划成果错误：("(?:\\.|[^"\\])*")。(?:$|\n)/u
 
 function parseChapters(text: string): PreplanningChapterStatus[] | undefined {
   const chapters = text.split(',').map(value => {
@@ -347,6 +397,21 @@ export function parsePreplanningStatus(text: string): PreplanningStatusEventData
   const boundary = parseBoundary(detail[11], detail[12], detail[13])
   if (boundary === undefined) return undefined
   const packageId = detail[8]!
+  let packageLinks = packageId === 'none' ? undefined : reportLinks(packageId)
+  try {
+    const metadata = REPORT_PATTERN.exec(text)?.[1]
+    if (metadata !== undefined) {
+      const row = JSON.parse(metadata) as Partial<ReportPackageLinks> & { formats?: readonly ArtifactRecord['format'][] }
+      if (row.id !== packageId
+        || (row.sourceRevision !== undefined && (!Number.isSafeInteger(row.sourceRevision) || row.sourceRevision < 0 || row.sourceRevision > revision))
+        || (row.deliveryMode !== undefined && row.deliveryMode !== 'formal' && row.deliveryMode !== 'conditional')) return undefined
+      packageLinks = reportLinks(packageId, {
+        ...(row.sourceRevision === undefined ? {} : { sourceRevision: row.sourceRevision }),
+        ...(row.deliveryMode === undefined ? {} : { deliveryMode: row.deliveryMode }),
+      }, row.formats === undefined ? [] : row.formats)
+    }
+  } catch { return undefined }
+  const reportError = REPORT_ERROR_PATTERN.exec(text)?.[1]
   return {
     ...base,
     mode: detail[1] as PreplanningStatusEventData['mode'],
@@ -356,13 +421,15 @@ export function parsePreplanningStatus(text: string): PreplanningStatusEventData
     chapters,
     modelRoute: { primary: JSON.parse(detail[9]!) as string, visual: JSON.parse(detail[10]!) as string },
     boundary,
-    ...(packageId === 'none' ? {} : { reportPackage: reportLinks(packageId) }),
+    ...(packageLinks === undefined ? {} : { reportPackage: packageLinks }),
+    ...(reportError === undefined ? {} : { reportError: JSON.parse(reportError) as string }),
   }
 }
 
 export function normalizePreplanningStatus(value: unknown): PreplanningStatusEventData | undefined {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return undefined
   const record = value as Record<string, unknown>
+  if (record.reportError !== undefined && typeof record.reportError !== 'string') return undefined
   if (typeof record.projectId !== 'string' || typeof record.projectName !== 'string'
     || typeof record.revision !== 'number' || !Number.isSafeInteger(record.revision) || record.revision < 0
     || typeof record.stage !== 'string'
@@ -373,10 +440,23 @@ export function normalizePreplanningStatus(value: unknown): PreplanningStatusEve
   if (blockers === undefined) return undefined
   const presentation = normalizedPresentation(record.presentation)
   if (record.presentation !== undefined && presentation === undefined) return undefined
+  let normalizedReport: ReportPackageLinks | undefined
+  if (record.reportPackage !== undefined) {
+    if (record.reportPackage === null || typeof record.reportPackage !== 'object') return undefined
+    const report = record.reportPackage as Partial<ReportPackageLinks>
+    if (typeof report.id !== 'string'
+      || (report.deliveryMode !== undefined && report.deliveryMode !== 'formal' && report.deliveryMode !== 'conditional')
+      || (report.sourceRevision !== undefined && (!Number.isSafeInteger(report.sourceRevision) || report.sourceRevision < 0 || report.sourceRevision > record.revision))) return undefined
+    try { normalizedReport = reportLinks(report.id, {
+      ...(report.deliveryMode === undefined ? {} : { deliveryMode: report.deliveryMode }),
+      ...(report.sourceRevision === undefined ? {} : { sourceRevision: report.sourceRevision }),
+    }, reportLinkFormats(report as ReportPackageLinks)) } catch { return undefined }
+  }
   const base = record as unknown as Omit<PreplanningStatusEventData, 'mode' | 'reportDepth' | 'chapters' | 'blocked' | 'blockers' | 'visual' | 'modelRoute' | 'boundary' | 'presentation'>
   const rich = record.mode === 'manual' || record.mode === 'automatic'
   if (!rich) return {
     ...base, mode: 'manual', reportDepth: 'standard', chapters: defaultChapters(), blocked: blockers.length, blockers,
+    ...(normalizedReport === undefined ? {} : { reportPackage: normalizedReport }),
     visual: { candidates: 0, adopted: 0, blocked: 0 },
     boundary: defaultBoundary(record.revision),
     modelRoute: { primary: PRIMARY_MODEL_ROUTE, visual: VISUAL_MODEL_ROUTE },
@@ -384,6 +464,7 @@ export function normalizePreplanningStatus(value: unknown): PreplanningStatusEve
   }
   return {
     ...(value as Omit<PreplanningStatusEventData, 'blockers' | 'boundary' | 'presentation'>),
+    ...(normalizedReport === undefined ? {} : { reportPackage: normalizedReport }),
     blockers,
     boundary: normalizedBoundary(record.boundary, record.revision),
     ...(presentation === undefined ? {} : { presentation }),

@@ -9,6 +9,9 @@ export interface PreplanningProjectFormProps {
   readonly workspaceTitle?: string
   readonly openProjectFolder?: () => Promise<void>
   readonly embedded?: boolean
+  readonly checkingProject?: boolean
+  readonly existingProjectId?: string
+  readonly projectRunning?: boolean
 }
 
 type SubmitState = 'idle' | 'running' | 'success' | 'waiting_for_source'
@@ -25,6 +28,9 @@ export function PreplanningProjectForm({
   workspaceTitle,
   openProjectFolder,
   embedded = false,
+  checkingProject = false,
+  existingProjectId,
+  projectRunning = false,
 }: PreplanningProjectFormProps) {
   const [submitState, setSubmitState] = useState<SubmitState>('idle')
   const [startResult, setStartResult] = useState<DirectStartResult>()
@@ -36,6 +42,7 @@ export function PreplanningProjectForm({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (checkingProject || existingProjectId || submitState === 'running' || submitState === 'success') return
     if (workspaceMissing) {
       setError('请先选择或创建 DSH 工作区。该工作区就是当前 Pre 项目。')
       return
@@ -141,9 +148,11 @@ export function PreplanningProjectForm({
         gap: 6,
         padding: '12px 14px',
       }}>
-        <span style={{ fontSize: 12, fontWeight: 600 }}>零输入启动</span>
+        <span style={{ fontSize: 12, fontWeight: 600 }}>{existingProjectId ? '当前会话已关联前期策划项目。' : '零输入启动'}</span>
         <small style={{ lineHeight: 1.55, opacity: 0.72 }}>
-          Pre 直接使用当前 DSH 工作区，并自动读取工作区中的“原始资料”目录；无需填写项目描述或项目名称。
+          {existingProjectId
+            ? '下方显示当前项目的实际执行记录，重新打开面板不会再次启动项目。'
+            : 'Pre 直接使用当前 DSH 工作区，并自动读取工作区中的“原始资料”目录；无需填写项目描述或项目名称。'}
         </small>
       </div>
 
@@ -177,7 +186,7 @@ export function PreplanningProjectForm({
       )}
 
       <button
-        disabled={submitState === 'running' || submitState === 'success' || workspaceMissing}
+        disabled={checkingProject || !!existingProjectId || submitState === 'running' || submitState === 'success' || workspaceMissing}
         style={{
           background: 'var(--dsh-color-accent, #3568d4)', border: 0, borderRadius: 9,
           color: '#fff', cursor: submitState === 'running' ? 'wait' : 'pointer',
@@ -185,7 +194,13 @@ export function PreplanningProjectForm({
         }}
         type="submit"
       >
-        {submitState === 'running'
+        {checkingProject
+          ? '正在读取项目状态…'
+          : existingProjectId
+            ? projectRunning ? '项目运行中' : '已关联项目'
+          : submitState === 'success'
+            ? '前期策划已启动'
+          : submitState === 'running'
           ? '正在启动…'
           : submitState === 'waiting_for_source'
             ? '重新检测原始资料'

@@ -114,7 +114,9 @@ export function buildControlledContext(
     },
     reportSummary: {
       packages: governance.reportPackages.length,
-      latest: governance.reportPackages.at(-1) ?? null,
+      latest: [...governance.reportPackages]
+        .filter(row => (row.status === 'published' || row.status === 'generated_conditional') && row.sourceRevision <= context.project.currentRevision)
+        .sort((a, b) => a.sourceRevision - b.sourceRevision || a.createdAt.localeCompare(b.createdAt)).at(-1) ?? null,
     },
   }
 }

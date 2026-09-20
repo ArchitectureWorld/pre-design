@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PreplanningDashboard } from '../src/client/PreplanningDashboard.tsx'
 import { PreplanningLauncher } from '../src/client/PreplanningLauncher.tsx'
 import { PreplanningProjectForm } from '../src/client/PreplanningProjectForm.tsx'
+import { buildPreplanningStatus } from '../src/session/events.ts'
 
 afterEach(cleanup)
 
@@ -14,6 +15,32 @@ const runningStart = async () => ({
 })
 
 describe('Preplanning full-flow UI', () => {
+  it('HTML-only 成果仅显示真实 HTML 入口，不显示不存在的 PPTX 或 PDF 下载', () => {
+    const status = buildPreplanningStatus({ project: { projectId: 'project-1', name: '验收项目',
+      currentRevision: 57, currentStage: '08-08' }, proposals: [], questions: [] } as never)
+    const view = render(<PreplanningDashboard status={{ ...status, reportPackage: {
+      id: 'html-57', deliveryMode: 'conditional', sourceRevision: 57,
+      html: '/preplan-export/html-57/html/index.html',
+    } }} />)
+    expect(view.getByRole('link', { name: '浏览 HTML' }).getAttribute('href')).toBe('/preplan-export/html-57/html/index.html')
+    expect(view.queryByRole('link', { name: '下载 PPTX' })).toBeNull()
+    expect(view.queryByRole('link', { name: '下载 PDF' })).toBeNull()
+    expect(view.queryByText('下载 PPTX')).toBeNull()
+    expect(view.queryByText('下载 PDF')).toBeNull()
+  })
+
+  it('无法确认成果文件时保留成果状态和诊断信息，不显示猜测下载地址', () => {
+    const status = buildPreplanningStatus({ project: { projectId: 'project-1', name: '验收项目',
+      currentRevision: 57, currentStage: '08-08' }, proposals: [], questions: [] } as never)
+    const view = render(<PreplanningDashboard status={{ ...status, reportPackage: {
+      id: 'missing-57', deliveryMode: 'conditional', sourceRevision: 57,
+    }, reportError: '成果清单不可用，暂不提供下载链接。' }} />)
+    expect(view.getByText('条件式策划成果 · 版本 57')).toBeTruthy()
+    expect(view.getByRole('alert').textContent).toContain('成果清单不可用')
+    expect(view.queryAllByRole('link')).toHaveLength(0)
+    expect(view.container.querySelectorAll('a')).toHaveLength(0)
+  })
+
   it('Session 顶部入口只负责打开 Workspace 级前期策划面板', () => {
     const openPanel = vi.fn()
     const view = render(<PreplanningLauncher openPanel={openPanel} />)

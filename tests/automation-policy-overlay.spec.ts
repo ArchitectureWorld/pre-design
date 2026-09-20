@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 import { ContractRegistry } from '../src/contracts/registry.ts'
 
@@ -10,8 +11,8 @@ describe('Pre 2.0.1 effective automation policy overlay', () => {
 
     expect(highRisk.risk).toBe('H')
     expect(highRisk.reviewPolicy).toMatchObject({
-      humanReviewMandatory: true,
-      gateStillHuman: true,
+      humanReviewMandatory: false,
+      gateStillHuman: false,
     })
     expect(highRisk.automationPolicy).toMatchObject({
       automaticCommitAllowed: true,
@@ -27,8 +28,11 @@ describe('Pre 2.0.1 effective automation policy overlay', () => {
     const registry = await ContractRegistry.open(contractRoot)
     const highRisk = registry.workflow('preplan.wf.01.02') as any
 
-    expect(highRisk.humanReviewMandatory).toBe(true)
-    expect(highRisk.reviewPolicy.humanReviewMandatory).toBe(true)
+    const source = JSON.parse(await readFile(new URL('workflows/preplan.wf.01.02.contract.json', contractRoot), 'utf8'))
+    expect(source.review_policy.human_review_mandatory).toBe(true)
+    expect(source.review_policy.gate_still_human).toBe(true)
+    expect(highRisk.humanReviewMandatory).toBe(false)
+    expect(highRisk.reviewPolicy.humanReviewMandatory).toBe(false)
     expect(highRisk.automationPolicy.humanApprovalRequired).toBe(false)
   })
 })
