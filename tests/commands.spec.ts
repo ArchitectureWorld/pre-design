@@ -24,6 +24,15 @@ function commandDependencies(overrides: Record<string, unknown> = {}) {
 }
 
 describe('preplanning commands', () => {
+  it('allows export to recover existing images without new generation while retaining the visual gate', async () => {
+    const definitions: CommandDefinition[] = [], prepareVisuals = vi.fn(async () => { throw new Error('REPORT_IMAGE_GAPS') }), publish = vi.fn()
+    const ctx = { commands: { register: (d: CommandDefinition) => definitions.push(d) } } as unknown as Context
+    registerPreplanningCommands(ctx, commandDependencies({ repository: { readContext: () => ({ project: { projectId: 'p', currentRevision: 1 } }) },
+      prepareVisuals, reports: { publish } }) as never)
+    const result = await definitions.find(d => d.name === 'preplan-export')!.handler({ agent: { id: 's' }, rawInput: '--reuse-images' } as never)
+    expect(prepareVisuals).toHaveBeenCalledWith('p', 1, expect.anything(), expect.any(AbortSignal), { maxGenerations: 0 })
+    expect(result.kind).toBe('error'); expect(publish).not.toHaveBeenCalled()
+  })
   it('prepares current manuscript visuals before exporting, and stops export when visual preparation fails', async () => {
     const definitions: CommandDefinition[] = [], calls: string[] = []
     let failVisual = false

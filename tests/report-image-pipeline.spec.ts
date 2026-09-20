@@ -30,7 +30,7 @@ async function material(root: string, name: string, index: number, height = 1200
     semanticRole: 'concept_visual', createdAt: '2026-09-19', adoptedAt: '2026-09-19', objectIds: [], evidenceIds: [], pageBindingOnly: true,
     pageBindings: [{ findingId: `manuscript:scene-${index}` }], origin: { type: 'generated_by_plugin', sourceMaterialKeys: [], parentAssetKeys: [], sourceTool: null, method: JSON.stringify({ prompt: name }) } }
 }
-it.each([['normal', false, 1200], ['scarce', true, 1200], ['panorama', false, 400], ['large-original', false, 3000], ['large-generated', false, 3000], ['padded-jpeg', false, 1200]] as const)('finishes %s source review, physical placement and cache replay without regeneration', async (_name, scarce, height) => {
+it.each([['normal', false, 1200], ['recovered', false, 1200], ['scarce', true, 1200], ['panorama', false, 400], ['large-original', false, 3000], ['large-generated', false, 3000], ['padded-jpeg', false, 1200]] as const)('finishes %s source review, physical placement and cache replay without regeneration', async (_name, scarce, height) => {
   const root = await mkdtemp(join(tmpdir(),'image-pipeline-')), input = project(), route = { provider: 'fixture', model: 'fixture-vision' }
   try {
     const names = scarce ? ['林下座椅休憩；滨水步道漫游', '林下座椅休憩'] : ['林下座椅休憩','滨水步道漫游']
@@ -55,13 +55,15 @@ it.each([['normal', false, 1200], ['scarce', true, 1200], ['panorama', false, 40
       if (_name === 'large-generated' && demand.brief.pageId === 'scene-1') return { material: assets[1]!, adopt }
       throw new Error(`unexpected-generation:${demand.brief.id};reviews:${inspect.mock.calls.length}`)
     }), pipeline = new ReportImagePipeline({ classes: { settings: () => ({ routes: { review: route } }), execution: () => ({ classId: 'review', status: 'completed', actual: route }) } as never,
-      inspection: { inspect } as never, candidates: async () => _name === 'large-generated' ? [assets[0]!] : assets, generate })
-    const result = await pipeline.prepare(input, root, {} as never, AbortSignal.timeout(20_000), () => {})
+      inspection: { inspect } as never, candidates: async () => _name === 'recovered' ? [] : _name === 'large-generated' ? [assets[0]!] : assets, generate,
+      recover: async demand => _name === 'recovered' ? { material: assets[demand.brief.pageId === 'scene-1' ? 1 : 0]!, adopt } : undefined })
+    const result = await pipeline.prepare(input, root, {} as never, AbortSignal.timeout(20_000), () => {}, _name === 'recovered' ? { maxGenerations: 0 } : {})
     const bundle = createConditionalReportBundle(input, result), plan = planConditionalPages(bundle,'html'), audit = auditRegularVisuals(plan,bundle.report,{ requireInspectedImages: true })
     expect(audit.unreviewedImages).toEqual([]); expect(audit.repeatedOriginals).toEqual([]); expect(audit.samePageDuplicates).toEqual([])
     expect(audit.textOnlyRatio).toBeLessThanOrEqual(.15)
     if (_name === 'large-generated') { expect(generate).toHaveBeenCalledOnce(); expect(adopt).toHaveBeenCalledOnce() }
     else expect(generate).not.toHaveBeenCalled()
+    if (_name === 'recovered') expect(adopt).toHaveBeenCalledTimes(2)
     const calls = inspect.mock.calls.length
     expect(await pipeline.prepare(input,root,{} as never,AbortSignal.timeout(20_000),()=>{})).toEqual(result)
     expect(inspect).toHaveBeenCalledTimes(calls)
@@ -82,6 +84,15 @@ it('runs source-image quality preparation even when new image generation is disa
   await complete('test-images',1,{} as never,AbortSignal.timeout(1000))
   expect(prepareImageQuality).toHaveBeenCalledWith(expect.anything(),expect.anything(),expect.anything(),expect.any(Function),0)
   expect(pageVisualFill.generate).not.toHaveBeenCalled(); expect(sync).toHaveBeenCalledOnce()
+})
+it('caps new images for one export without changing the global on-demand policy', async () => {
+  const prepareImageQuality = vi.fn(), target = vi.fn(() => Infinity), sync = vi.fn()
+  const complete = createAutomaticVisualCompletion({ prepareImageQuality, pageVisualFill: {} as never, sync, target,
+    input: async () => ({ frozenProject: project(), workspaceRoot: 'isolated-not-used' }), assertCurrent: () => {} })
+  await complete('test-images', 1, {} as never, AbortSignal.timeout(1000), { maxGenerations: 0 })
+  expect(prepareImageQuality.mock.calls[0]?.[4]).toBe(0)
+  await complete('test-images', 1, {} as never, AbortSignal.timeout(1000))
+  expect(prepareImageQuality.mock.calls[1]?.[4]).toBe(Infinity)
 })
 it('reports unresolved gaps without generating when the generation policy is disabled', async () => {
   const root = await mkdtemp(join(tmpdir(),'image-pipeline-')), generate = vi.fn()

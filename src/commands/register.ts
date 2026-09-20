@@ -37,7 +37,7 @@ export interface CommandDependencies {
   readonly reports: ReportPackageService
   readonly conditionalReports?: Pick<ConditionalReportPackageService, 'generate'>
   readonly prepareManuscript?: (projectId: string, revision: number, agent: Agent, signal: AbortSignal) => Promise<void>
-  readonly prepareVisuals?: (projectId: string, revision: number, agent: Agent, signal: AbortSignal) => Promise<void>
+  readonly prepareVisuals?: (projectId: string, revision: number, agent: Agent, signal: AbortSignal, options?: { readonly maxGenerations?: number }) => Promise<void>
   readonly registry: ContractRegistry
   readonly presentationSync?: Pick<PresentationAutoSyncService, 'request' | 'flush' | 'status'>
   readonly pageVisualFill?: PageVisualFillService
@@ -645,13 +645,16 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
     },
     {
       name: 'preplan-export',
-      description: '生成并下载同一 Revision 的甲方汇报成果',
+      description: '生成并下载同一 Revision 的甲方汇报成果；--reuse-images 仅复用现有图片及网络素材，不发起新生图',
       handler: guarded(async (invocation) => {
+        const mode = invocation.rawInput?.trim() ?? ''
+        if (mode && mode !== '--reuse-images') return { kind: 'error', text: '用法：/preplan-export [--reuse-images]' }
         const context = repository.readContext(String(invocation.agent.id))
         const signal = invocation.signal ?? new AbortController().signal
         await dependencies.prepareManuscript?.(context.project.projectId, context.project.currentRevision, invocation.agent, signal)
         signal.throwIfAborted()
-        await dependencies.prepareVisuals?.(context.project.projectId, context.project.currentRevision, invocation.agent, signal)
+        await dependencies.prepareVisuals?.(context.project.projectId, context.project.currentRevision, invocation.agent, signal,
+          ...(mode === '--reuse-images' ? [{ maxGenerations: 0 }] : []))
         signal.throwIfAborted()
         const manifest = await (dependencies.conditionalReports === undefined
           ? dependencies.reports.publish(context.project.projectId, context.project.currentRevision)

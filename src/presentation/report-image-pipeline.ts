@@ -94,13 +94,15 @@ function score(asset: PresentationAdoptedAssetInput, demand: ReportImageDemand):
   const match = [...grams].filter(word => haystack.includes(word)).length
   return (explicit ? 1000 : 0) + match
 }
+export interface GeneratedReportImage { readonly material: PresentationAdoptedAssetInput; readonly adopt: () => Promise<void> }
 interface PipelineDependencies {
   readonly classes: AgentClassService
   readonly inspection: ImageInspectionAgent
   readonly resolveDemands?: (demands: readonly ReportImageDemand[], parent: Agent, signal: AbortSignal, input: FrozenProjectInput, root: string) => Promise<readonly ReportImageDemand[]>
   readonly candidates: (input: FrozenProjectInput, root: string, signal: AbortSignal) => Promise<readonly PresentationAdoptedAssetInput[]>
   readonly search?: (demand: ReportImageDemand, parent: Agent, signal: AbortSignal, input: FrozenProjectInput, root: string) => Promise<readonly PresentationAdoptedAssetInput[]>
-  readonly generate?: (demand: ReportImageDemand, parent: Agent, signal: AbortSignal, input: FrozenProjectInput, root: string) => Promise<{ material: PresentationAdoptedAssetInput; adopt: () => Promise<void> }>
+  readonly recover?: (demand: ReportImageDemand, parent: Agent, signal: AbortSignal, input: FrozenProjectInput, root: string) => Promise<GeneratedReportImage | undefined>
+  readonly generate?: (demand: ReportImageDemand, parent: Agent, signal: AbortSignal, input: FrozenProjectInput, root: string) => Promise<GeneratedReportImage>
 }
 interface SavedPlan { readonly version: string; readonly fingerprint: string; readonly projectId: string; readonly materials: readonly ConditionalReportMaterial[] }
 async function atomicJson(path: string, value: unknown) { const temp = `${path}.${randomUUID()}.tmp`; await writeFile(temp, JSON.stringify(value, null, 2) + '\n'); await rename(temp, path) }
@@ -374,8 +376,40 @@ export class ReportImagePipeline {
         }
       }
     }
-    const replenish = async () => {
+    const recovered = new Set<string>(), adopted = new Set<string>()
+    const ingestGenerated = async (demand: ReportImageDemand, result: GeneratedReportImage) => {
+      targetAcquisition(result.material, demand.brief.id)
+      await ingest([{ ...result.material, pageBindings: [{ findingId: demand.findingId,
+        ...(demand.brief.nodeId ? { nodeIds: [demand.brief.nodeId] } : {}) }] }])
+    }
+    const adoptAssigned = async (results: readonly GeneratedReportImage[]) => {
+      for (const result of results) {
+        assertCurrent(); signal.throwIfAborted()
+        const digest = sha(await readFile(result.material.sourcePath))
+        if (!adopted.has(digest) && allocation().assigned.some(candidate => candidate.material.imageIdentity?.fileSha256 === digest
+          || candidate.material.imagePreparation?.sourceSha256 === digest)) {
+          await result.adopt(); adopted.add(digest)
+        }
+      }
+    }
+    const saveGaps = async (error?: unknown) => atomicJson(join(directory, 'report-image-gaps.json'), {
+      version: REPORT_IMAGE_POLICY_VERSION, fingerprint: fingerprint(input),
+      gaps: error ? allocation().gaps.map(brief => ({ id: brief.id, reason: '素材准备中断，此位置尚未分配合格素材' })) : gaps,
+      ...(error ? { error: error instanceof Error ? error.message : '素材准备失败', status: 'incomplete' } : {}),
+    })
+    const replenishOnce = async () => {
+      // Completed native images survive a failed sibling and are recovered before
+      // any new acquisition, including when this export disables new generation.
+      const available: GeneratedReportImage[] = []
+      if (this.dependencies.recover) for (const demand of demands) {
+        assertCurrent(); signal.throwIfAborted()
+        if (recovered.has(demand.brief.id)) continue
+        recovered.add(demand.brief.id)
+        const result = await this.dependencies.recover(demand, parent, signal, input, root)
+        if (result) { await ingestGenerated(demand, result); available.push(result) }
+      }
       await resolveExisting()
+      await adoptAssigned(available)
       const missing = allocation().gaps
       // Retrieval, generation and inspection use separate waves. No wave overlaps
       // another, so the five-child limit also holds across capability classes.
@@ -393,12 +427,13 @@ export class ReportImagePipeline {
             return { demand, assets: await this.dependencies.search!(demand, parent, signal, input, root) }
           }))
           const failure = results.find(result => result.status === 'rejected')
-          if (failure?.status === 'rejected') throw failure.reason
+          assertCurrent(); signal.throwIfAborted()
           for (const result of results) if (result.status === 'fulfilled') {
             for (const asset of result.value.assets) targetAcquisition(asset, result.value.demand.brief.id)
             await ingest(result.value.assets)
           }
           await resolveExisting()
+          if (failure?.status === 'rejected') throw failure.reason
         }
         const remainingIds = new Set(allocation().gaps.map(brief => brief.id))
         const generation = wave.filter(demand => remainingIds.has(demand.brief.id)
@@ -412,28 +447,27 @@ export class ReportImagePipeline {
             return { demand, result: await this.dependencies.generate!(demand, parent, signal, input, root) }
           }))
           const failure = results.find(result => result.status === 'rejected')
-          if (failure?.status === 'rejected') throw failure.reason
+          assertCurrent(); signal.throwIfAborted()
           const completed = results.flatMap(result => result.status === 'fulfilled' ? [result.value] : [])
-          for (const { demand, result } of completed) {
-            targetAcquisition(result.material, demand.brief.id)
-            await ingest([{ ...result.material, pageBindings: [{ findingId: demand.findingId,
-              ...(demand.brief.nodeId ? { nodeIds: [demand.brief.nodeId] } : {}) }] }])
-          }
+          for (const { demand, result } of completed) await ingestGenerated(demand, result)
           await resolveExisting()
-          for (const { result } of completed) {
-            assertCurrent(); signal.throwIfAborted()
-            const digest = sha(await readFile(result.material.sourcePath))
-            if (allocation().assigned.some(candidate => candidate.material.imageIdentity?.fileSha256 === digest
-              || candidate.material.imagePreparation?.sourceSha256 === digest)) await result.adopt()
-          }
+          await adoptAssigned(completed.map(row => row.result))
+          if (failure?.status === 'rejected') throw failure.reason
         }
       }
       for (const brief of allocation().gaps) gaps.push({ id: brief.id, reason: '无满足内容、质量、来源和原图使用次数要求的素材' })
     }
+    const replenish = async () => {
+      try { await replenishOnce() }
+      catch (error) {
+        // Retain a diagnostic of unassigned positions before propagating failure.
+        if (!signal.aborted) { assertCurrent(); await saveGaps(error) }
+        throw error
+      }
+    }
     const selectedMaterials = () => allocation().assigned.map(c => ({ ...c.material, sha256: c.material.imageIdentity!.fileSha256 }))
     await replenish()
     let materials: ConditionalReportMaterial[] = selectedMaterials()
-    const saveGaps = async () => atomicJson(join(directory, 'report-image-gaps.json'), { version: REPORT_IMAGE_POLICY_VERSION, fingerprint: fingerprint(input), gaps })
     if (gaps.length) { await saveGaps(); throw new Error(`REPORT_IMAGE_GAPS: ${gaps.length} 个位置待补充合格素材，详见资料缺口记录。`) }
     // Page overflow is resolved through actual layout, never by duplicating a background.
     for (let round = 0; round < 3; round++) {

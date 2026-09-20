@@ -1,6 +1,7 @@
 import { mkdtemp, readFile, readdir, rm, writeFile, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { createHash } from 'node:crypto'
 import { PNG } from 'pngjs'
 import { afterEach, expect, it, vi } from 'vitest'
 import { createNativeReportImagePipeline } from '../src/presentation/report-image-runtime.ts'
@@ -10,12 +11,29 @@ import { imageBriefHash } from '../src/visual/image-policy.ts'
 import type { FrozenProjectInput } from '../src/report/types.ts'
 import type { PresentationAdoptedAssetInput } from '../src/presentation/standard-project-types.ts'
 import { WebRetrievalExhaustedError, type WebQueryAgent } from '../src/agent-classes/web-query.ts'
-import type { VisualAgentService } from '../src/visual/agent.ts'
+import { VisualAgentService } from '../src/visual/agent.ts'
 
 // Network boundaries are local fixtures; the cache reader, downloader, parser,
 // pixel validation and filesystem are the real production implementations.
 vi.mock('node:dns/promises', () => ({ lookup: async () => [{ address: '203.0.113.10', family: 4 }] }))
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
+it.each(['candidate', 'adopted', 'rejected', 'missing'] as const)('recovers only the matching saved %s without launching or adopting a model task', async status => {
+  const requested: ReportImageDemand = { findingId: 'scene', brief: { id: 'scene:main', pageId: 'scene', version: 'fixture',
+    conclusion: '日间游憩', subjects: ['林下步道'], activities: ['散步'], environment: '公园', scale: 'scene',
+    allowedKinds: ['render'], allowedSources: ['generated'], locale: 'domestic' } }
+  const project = { ...input, stateObjects: [{ objectId: 'o', chapterId: 'spatial', workItemId: 's', title: '公园', summary: '公园', facts: [] }] }
+  const taskId = `report-image-${createHash('sha256').update(JSON.stringify([project.projectId, project.revision, imageBriefHash(requested.brief)])).digest('hex')}`
+  const asset = { projectId: input.projectId, taskId, assetId: 'saved-image', status, quality: { accepted: true }, kind: 'concept',
+    fileName: 'saved.jpg', mimeType: 'image/jpeg', width: 1024, height: 1024, createdAt: '2026-09-20' }
+  const visual = new VisualAgentService({ governance: { readProject: () => ({ visualAssets: status === 'missing' ? [] : [asset] }) } } as never)
+  const generate = vi.spyOn(visual, 'generate'), adopt = vi.spyOn(visual, 'adopt')
+  const runtime = callbacks(undefined, { findCandidate: visual.findCandidate.bind(visual), generate: visual.generate.bind(visual), adopt: visual.adopt.bind(visual) })
+  const recovered = await runtime.recover!(requested, {} as never, AbortSignal.timeout(1000), project, 'unused')
+  if (status === 'candidate' || status === 'adopted') expect(recovered?.material).toMatchObject({ sourceKey: asset.assetId, sourcePath: 'saved.jpg' })
+  else expect(recovered).toBeUndefined()
+  expect(await runtime.recover!(requested, {} as never, AbortSignal.timeout(1000), { ...project, revision: 2 }, 'unused')).toBeUndefined()
+  expect(generate).not.toHaveBeenCalled(); expect(adopt).not.toHaveBeenCalled()
+})
 const input: FrozenProjectInput = { projectId: 'runtime-cache', projectName: '公共公园', revision: 1, generatedAt: '2026-09-19',
   recommendation: '林下日常休闲', decisionItems: [], gates: [], visualAssets: [], stateObjects: [] }
 const candidate = { imageUrl: 'https://www.gooood.cn/runtime-original.png', sourcePageUrl: 'https://www.gooood.cn/runtime-article',
@@ -37,9 +55,9 @@ type Callbacks = Omit<ConstructorParameters<typeof ReportImagePipeline>[0], 'can
   candidates: (input: FrozenProjectInput, root: string, signal: AbortSignal) => Promise<readonly PresentationAdoptedAssetInput[]>
 }
 function callbacks(query: WebQueryAgent['query'] = vi.fn(async () => { throw new Error('UNEXPECTED_MODEL_CALL') }),
-  visual: Partial<Pick<VisualAgentService, 'generate' | 'adopt'>> = {}) {
+  visual: Partial<Pick<VisualAgentService, 'generate' | 'adopt' | 'findCandidate'>> = {}) {
   const pipeline = createNativeReportImagePipeline({ classes: {} as never, inspection: {} as never, web: { query } as never,
-    sceneSpecs: { resolve: vi.fn(async () => { throw new Error('UNEXPECTED_SCENE_PLANNING') }) }, visual: visual as never, resolveAsset: name => name })
+    sceneSpecs: { resolve: vi.fn(async () => { throw new Error('UNEXPECTED_SCENE_PLANNING') }) }, visual: { findCandidate: () => undefined, ...visual } as never, resolveAsset: name => name })
   // Exercise the registered native callbacks without invoking orchestration,
   // which would otherwise require unrelated authorization and review fixtures.
   return (pipeline as unknown as { dependencies: Callbacks }).dependencies

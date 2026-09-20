@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile, readFile, readdir } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -16,6 +16,36 @@ const demands = (count: number): ReportImageDemand[] => Array.from({ length: cou
   brief: { id: `scene-${i}:main`, pageId: `scene-${i}`, version: 'parallel-fixture', conclusion: '滨水活动', subjects: [`场景${i}`],
     activities: [], environment: '河岸', scale: 'scene', allowedKinds: ['render'], allowedSources: ['web', 'generated'], locale: 'domestic' } }))
 const classes = { settings: () => ({ routes: { review: { provider: 'fixture', model: 'vision' } } }) } as never
+
+it('reviews and adopts successful siblings before propagating a generation failure, and records the remaining gaps', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'partial-image-wave-')), adopt = vi.fn(async () => {})
+  try {
+    const sourcePath = join(root, 'success.png')
+    await writeFile(sourcePath, png(resize(scene(47), 1600, 1000)))
+    const inspect = vi.fn(async (_parent: unknown, request: any) => request.slots.map((slot: any) => ({
+      schemaVersion: 'pre-design.image-inspection.v1', imageSha256: createHash('sha256').update(request.bytes).digest('hex'),
+      requirementHash: imageBriefHash(slot.brief), usageId: slot.brief.id, placementHash: slot.placementHash,
+      inspectedAt: 'fixture', actualImageInput: true, actualModel: { provider: 'fixture', model: 'vision' }, executionId: 'fixture-run',
+      contentKind: 'render', relevant: slot.brief.id === 'scene-1:main', matchedSubjects: slot.brief.subjects,
+      mismatches: [], domesticContext: 'supported', textLanguages: [], textLegible: true, watermark: 'none', quality: 'pass',
+      essentialBounds: [{ x: 0, y: 0, width: 1, height: 1 }], decision: slot.brief.id === 'scene-1:main' ? 'approved' : 'rejected',
+      sourceContextHash: imageSourceContextHash(request),
+    })))
+    const pipeline = new ReportImagePipeline({ classes, inspection: { inspect } as never, candidates: async () => [],
+      resolveDemands: async () => demands(3), generate: async demand => {
+        if (demand.brief.id !== 'scene-1:main') throw new Error('provider-unavailable')
+        return { adopt, material: { sourceKey: 'success', sourcePath, originalFileName: 'success.png', displayName: '场景1',
+          mimeType: 'image/png', widthPx: 1600, heightPx: 1000, semanticRole: 'concept_visual', createdAt: 'fixture', adoptedAt: 'fixture',
+          objectIds: [], evidenceIds: [], origin: { type: 'generated_by_plugin', parentAssetKeys: [], sourceMaterialKeys: [], sourceTool: null, method: '{}' } } }
+      } })
+    await expect(pipeline.prepare(input, root, {} as never, AbortSignal.timeout(10_000), () => {})).rejects.toThrow('provider-unavailable')
+    expect(adopt).toHaveBeenCalledOnce()
+    expect((await readdir(join(root, '.pre-design', 'image-inspections'))).length).toBeGreaterThan(0)
+    const receipt = JSON.parse(await readFile(join(root, '.pre-design', 'report-image-gaps.json'), 'utf8'))
+    expect(receipt.gaps.map((gap: any) => gap.id).sort()).toEqual(['scene-0:main', 'scene-2:main'])
+    expect(receipt.error).toBe('provider-unavailable')
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
 
 it('searches independent gaps in waves of five and visits each gap only once', async () => {
   const root = await mkdtemp(join(tmpdir(), 'parallel-image-search-'))

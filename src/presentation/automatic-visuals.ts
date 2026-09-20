@@ -17,10 +17,11 @@ export interface AutomaticVisualDependencies {
 
 /** Automatic mode owns the complete lifecycle, including adoption and page linking. */
 export function createAutomaticVisualCompletion(dependencies: AutomaticVisualDependencies) {
-  return async (projectId: string, revision: number, parent: Agent, signal: AbortSignal): Promise<void> => {
+  return async (projectId: string, revision: number, parent: Agent, signal: AbortSignal, options: { readonly maxGenerations?: number } = {}): Promise<void> => {
     const assertCurrent = () => { signal.throwIfAborted(); dependencies.assertCurrent(projectId, revision, parent) }
     assertCurrent()
-    const target = dependencies.target(projectId, revision)
+    if (options.maxGenerations !== undefined && (!Number.isInteger(options.maxGenerations) || options.maxGenerations < 0)) throw new Error('REPORT_IMAGE_GENERATION_LIMIT_INVALID')
+    const target = Math.min(dependencies.target(projectId, revision), options.maxGenerations ?? Infinity)
     if (target <= 0 && !dependencies.prepareImageQuality) { await dependencies.sync(projectId); return }
     const initial = await dependencies.input(projectId, revision)
     if (initial.frozenProject.manuscript && dependencies.prepareImageQuality) {

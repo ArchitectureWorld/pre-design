@@ -7,10 +7,12 @@ import { WebRetrievalExhaustedError, type WebQueryAgent } from '../agent-classes
 import type { VisualAgentService } from '../visual/agent.ts'
 import type { ImageInspectionAgent } from '../visual/image-inspection.ts'
 import type { SceneSpecificationAgent } from '../visual/scene-spec-agent.ts'
+import type { Agent } from '@deepseek-ai/dsh-agent'
+import type { FrozenProjectInput } from '../report/types.ts'
 import { acquireWebImage, discoverCasePublicationImages, discoverPublicationImages, validateCachedWebImage, validateWebImageCase,
   parseWebImageSuggestions, webImageCandidateSchema, webPublicationDescriptorSchema } from '../visual/web-image-source.ts'
 import { imageBriefHash, REPORT_IMAGE_POLICY_VERSION } from '../visual/image-policy.ts'
-import { ReportImagePipeline } from './report-image-pipeline.ts'
+import { ReportImagePipeline, type ReportImageDemand, type GeneratedReportImage } from './report-image-pipeline.ts'
 import { preparePresentationMaterials } from './material-registry.ts'
 import { prepareWorkspacePresentationMaterials } from './workspace-materials.ts'
 import { adoptedPresentationAssets } from './runtime-integration.ts'
@@ -18,7 +20,31 @@ import type { PresentationAdoptedAssetInput } from './standard-project-types.ts'
 
 export function createNativeReportImagePipeline(deps: { classes: AgentClassService; inspection: ImageInspectionAgent; web: WebQueryAgent;
   sceneSpecs: Pick<SceneSpecificationAgent, 'resolve'>; visual: VisualAgentService; resolveAsset: (fileName: string) => string }) {
+  const generatedImage = async (demand: ReportImageDemand, parent: Agent, signal: AbortSignal, project: FrozenProjectInput,
+    recoveryOnly: boolean): Promise<GeneratedReportImage | undefined> => {
+    signal.throwIfAborted()
+    if (demand.caseSource || demand.sourceMaterialKey || !demand.brief.allowedSources.includes('generated')) {
+      if (recoveryOnly) return undefined
+      throw new Error('REPORT_IMAGE_SOURCE_REQUIRED: 指定来源必须使用已核验的真实图片')
+    }
+    const owner = project.stateObjects.find(object => object.workItemId)
+    if (!owner?.workItemId) { if (recoveryOnly) return undefined; throw new Error('REPORT_IMAGE_SOURCE_REQUIRED') }
+    const taskId = `report-image-${createHash('sha256').update(JSON.stringify([project.projectId, project.revision, imageBriefHash(demand.brief)])).digest('hex')}`
+    const saved = deps.visual.findCandidate(project.projectId, taskId)
+    if (recoveryOnly && !saved) return undefined
+    const locale = demand.brief.locale === 'domestic' ? '中国本土环境、中国人的活动；若必要标识则只用清晰中文。不要外国生活场景、英文招牌或装饰文字。' : '按本页明确的国际定位表现相应空间；不添加无关外文装饰。'
+    const prompt = `前期策划对外汇报场景图。具体需求：${JSON.stringify(demand.brief)}。正文依据：${JSON.stringify(demand.sceneContext ?? null)}。${locale}单一真实空间视角，主体完整，能清楚理解正文设施、活动与环境。正文中的论证、资金和阶段是表达意图；图像主体和活动以具体需求为准，不绘制总图、流程图、分析拼图、表格和说明标签；不要水印或乱码。正文未支持的设施不得添加。`
+    const asset = saved ?? await deps.visual.generate(parent, { taskId, projectId: project.projectId, chapterId: owner.chapterId, workItemId: owner.workItemId,
+      kind: 'concept', required: false, prompt }, signal, { preserveUncertain: true })
+    const material: PresentationAdoptedAssetInput = { sourceKey: asset.assetId, sourcePath: deps.resolveAsset(asset.fileName), originalFileName: asset.fileName,
+      displayName: demand.brief.subjects.join('；'), mimeType: asset.mimeType, semanticRole: 'concept_visual', widthPx: asset.width, heightPx: asset.height,
+      createdAt: asset.createdAt, adoptedAt: asset.createdAt, objectIds: [], evidenceIds: [], pageBindingOnly: true,
+      imageQuality: { sourceLocation: demand.brief.locale === 'domestic' ? '中国场景效果图' : undefined },
+      origin: { type: 'generated_by_plugin', parentAssetKeys: [], sourceMaterialKeys: [], sourceTool: { name: 'pre-design', version: REPORT_IMAGE_POLICY_VERSION }, method: JSON.stringify({ kind: 'ai-concept', taskId, prompt }) } }
+    return { material, adopt: async () => { if (asset.status !== 'adopted') await deps.visual.adopt(project.projectId, asset.assetId, project.revision) } }
+  }
   return new ReportImagePipeline({ classes: deps.classes, inspection: deps.inspection,
+    recover: (demand, parent, signal, project) => generatedImage(demand, parent, signal, project, true),
     resolveDemands: async (demands, parent, signal, project, root) => {
       const scenes = demands.filter(demand => !demand.sourceMaterialKey && !demand.caseSource
         && demand.brief.allowedKinds.every(kind => kind === 'photo' || kind === 'render'))
@@ -146,21 +172,7 @@ export function createNativeReportImagePipeline(deps: { classes: AgentClassServi
       return acquired.flatMap(result => result.status === 'fulfilled' ? [result.value] : [])
     },
     generate: async (demand, parent, signal, project) => {
-      signal.throwIfAborted()
-      if (demand.caseSource || demand.sourceMaterialKey || !demand.brief.allowedSources.includes('generated')) throw new Error('REPORT_IMAGE_SOURCE_REQUIRED: 指定来源必须使用已核验的真实图片')
-      const owner = project.stateObjects.find(object => object.workItemId)
-      if (!owner?.workItemId) throw new Error('REPORT_IMAGE_SOURCE_REQUIRED')
-      const taskId = `report-image-${createHash('sha256').update(JSON.stringify([project.projectId, project.revision, imageBriefHash(demand.brief)])).digest('hex')}`
-      const locale = demand.brief.locale === 'domestic' ? '中国本土环境、中国人的活动；若必要标识则只用清晰中文。不要外国生活场景、英文招牌或装饰文字。' : '按本页明确的国际定位表现相应空间；不添加无关外文装饰。'
-      const prompt = `前期策划对外汇报场景图。具体需求：${JSON.stringify(demand.brief)}。正文依据：${JSON.stringify(demand.sceneContext ?? null)}。${locale}单一真实空间视角，主体完整，能清楚理解正文设施、活动与环境。正文中的论证、资金和阶段是表达意图；图像主体和活动以具体需求为准，不绘制总图、流程图、分析拼图、表格和说明标签；不要水印或乱码。正文未支持的设施不得添加。`
-      const asset = await deps.visual.generate(parent, { taskId, projectId: project.projectId, chapterId: owner.chapterId, workItemId: owner.workItemId,
-        kind: 'concept', required: false, prompt }, signal, { preserveUncertain: true })
-      const material: PresentationAdoptedAssetInput = { sourceKey: asset.assetId, sourcePath: deps.resolveAsset(asset.fileName), originalFileName: asset.fileName,
-        displayName: demand.brief.subjects.join('；'), mimeType: asset.mimeType, semanticRole: 'concept_visual', widthPx: asset.width, heightPx: asset.height,
-        createdAt: asset.createdAt, adoptedAt: asset.createdAt, objectIds: [], evidenceIds: [], pageBindingOnly: true,
-        imageQuality: { sourceLocation: demand.brief.locale === 'domestic' ? '中国场景效果图' : undefined },
-        origin: { type: 'generated_by_plugin', parentAssetKeys: [], sourceMaterialKeys: [], sourceTool: { name: 'pre-design', version: REPORT_IMAGE_POLICY_VERSION }, method: JSON.stringify({ kind: 'ai-concept', taskId, prompt }) } }
-      return { material, adopt: async () => { if (asset.status !== 'adopted') await deps.visual.adopt(project.projectId, asset.assetId, project.revision) } }
+      return (await generatedImage(demand, parent, signal, project, false))!
     },
   })
 }

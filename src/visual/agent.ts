@@ -75,6 +75,13 @@ export class VisualAgentService {
     this.now = dependencies.now ?? (() => new Date().toISOString())
   }
 
+  findCandidate(projectId: string, taskId: string): VisualAssetRecord | undefined {
+    const assets = this.dependencies.governance.readProject(projectId).visualAssets.filter(asset => asset.taskId === taskId)
+    if (assets.some(asset => asset.status === 'rejected')) return undefined
+    return assets.filter(asset => (asset.status === 'candidate' || asset.status === 'adopted') && asset.quality?.accepted === true)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
+  }
+
   async probeModel(): Promise<{
     provider: typeof VISUAL_MODEL_PROVIDER
     model: typeof VISUAL_MODEL_ID
