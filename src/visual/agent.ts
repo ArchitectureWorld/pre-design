@@ -192,7 +192,7 @@ export class VisualAgentService {
             updatedAt: this.now(),
           }
           await this.dependencies.governance.putVisualTask(recoveredRunning)
-          return await this.recordCandidate(task, recoveredRunning, lateImage)
+          return await this.recordCandidate(task, recoveredRunning, lateImage, signal)
         }
       }
       if (options.recoveryOnly || (options.preserveUncertain && existing && existing.attempts > 0 && existing.status !== 'failed')) {
@@ -240,7 +240,7 @@ export class VisualAgentService {
         const received = await this.dependencies.collector.waitForImage(childId, 0, signal)
         producedImage = true
         const image = await this.settleAttemptImage(parent, running, received, signal)
-        return await this.recordCandidate(task, running, image)
+        return await this.recordCandidate(task, running, image, signal)
       } finally {
         signal.removeEventListener('abort', interruptChild)
       }
@@ -320,8 +320,28 @@ export class VisualAgentService {
     task: VisualGenerationTask,
     running: VisualTaskRecord,
     image: VisualImageData,
+    signal: AbortSignal,
   ): Promise<VisualAssetRecord> {
+    signal.throwIfAborted()
+    const classes = this.dependencies.agentClasses
+    if (image.attemptSource && running.executionId && classes) {
+      const original = classes.execution(running.executionId)
+      if (!original || original.classId !== 'image' || original.projectId !== task.projectId || original.childId !== running.childId
+        || original.status === 'cancelled') throw new Error('VISUAL_RECOVERY_EXECUTION_UNVERIFIED: 原生图执行不允许恢复')
+      // A verified artifact can survive a failed stream. Never rewrite its aborted
+      // native execution as completed, including when its session is unloaded.
+      await classes.finish(original.id, 'failed', original.status === 'failed' && original.error ? original.error
+        : '流式生图未正常结束；完整图像已独立核验，原执行仍保留失败状态。')
+      const observed = classes.execution(original.id)!
+      if (!observed.actual || observed.actual.provider !== original.selected.provider || observed.actual.model !== original.selected.model
+        || observed.error?.startsWith('MODEL_ROUTE_MISMATCH')
+        || running.modelRoute?.provider !== original.selected.provider || running.modelRoute.model !== original.selected.model) {
+        throw new Error('VISUAL_RECOVERY_ROUTE_UNVERIFIED: 完整图像的实际模型与原派发记录不一致')
+      }
+      signal.throwIfAborted()
+    }
     const stored = await this.dependencies.store.saveCandidate(task, image)
+    signal.throwIfAborted()
     const quality = checkVisualQuality({
       mimeType: stored.mimeType,
       width: stored.width,
@@ -334,10 +354,12 @@ export class VisualAgentService {
       provider: running.modelRoute?.provider ?? VISUAL_MODEL_PROVIDER,
       model: running.modelRoute?.model ?? VISUAL_MODEL_ID,
       promptSummary: task.prompt.slice(0, 240),
+      ...(image.attemptSource ? { recoveredFrom: { childId: running.childId!,
+        ...(running.executionId ? { executionId: running.executionId } : {}), ...image.attemptSource } } : {}),
       quality,
     }
-    if (running.executionId && this.dependencies.agentClasses) {
-      await this.dependencies.agentClasses.finish(running.executionId, quality.accepted ? 'completed' : 'failed', quality.accepted ? undefined : quality.issues.join('；'))
+    if (running.executionId && classes && !image.attemptSource) {
+      await classes.finish(running.executionId, quality.accepted ? 'completed' : 'failed', quality.accepted ? undefined : quality.issues.join('；'))
     }
     await this.dependencies.governance.putVisualAsset(candidate)
     await this.dependencies.governance.putVisualTask({

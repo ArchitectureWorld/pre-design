@@ -169,6 +169,8 @@ const visualAssetSchema = z.object({
   provider: z.string().min(1).optional(),
   model: z.string().min(1).optional(),
   promptSummary: z.string().min(1).optional(),
+  recoveredFrom: z.object({ childId: z.string().min(1), executionId: z.string().min(1).optional(),
+    eventSeq: z.number().int().min(0), turn: z.number().int().min(1), step: z.number().int().min(1) }).strict().optional(),
   mimeType: z.enum(['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']),
   fileName: z.string().min(1),
   sha256: z.string().regex(/^[a-fA-F0-9]{64}$/),

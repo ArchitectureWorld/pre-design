@@ -1,6 +1,7 @@
 import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { createHash } from 'node:crypto'
 import { Context } from '@deepseek-ai/cordis'
 import Storage from '@deepseek-ai/dsh-storage'
 import * as StorageDomain from '@deepseek-ai/dsh-storage-domain'
@@ -11,6 +12,8 @@ import { AgentClassService } from '../src/agent-classes/service.ts'
 import { ImageInspectionAgent } from '../src/visual/image-inspection.ts'
 import { SceneSpecificationAgent } from '../src/visual/scene-spec-agent.ts'
 import { VisualAgentService } from '../src/visual/agent.ts'
+import { VisualAssetStore } from '../src/visual/asset-store.ts'
+import { SessionImageCollector, type SessionEventLike } from '../src/visual/session-image-collector.ts'
 import { DshSubagentWorkflowAnalyzer } from '../src/runtime/subagent-workflow-analyzer.ts'
 import { PlanningManuscriptService } from '../src/report/manuscript/service.ts'
 import { PlanningManuscriptEditor } from '../src/report/manuscript/editorial-service.ts'
@@ -105,6 +108,64 @@ it('uses the text backup for workflow analysis without consuming the independent
   expect(f.start.mock.calls.map(c => c[1].agentOptions.model)).toEqual(['a', 'b'])
   expect(f.start.mock.calls[1]![1].prompt).toEqual(f.start.mock.calls[0]![1].prompt)
   expect(new Set((await f.classes.executions('p')).map(e => e.chainId)).size).toBe(1)
+})
+it.each(['live', 'cold', 'wrong-route', 'cancelled'] as const)('recovers only a verified %s failed-stream raster without declaring its native execution successful', async mode => {
+  const f = await fixture(() => undefined, false), visualTasks: any[] = [], visualAssets: any[] = []
+  const task = { taskId: 'raster', projectId: 'p', chapterId: '03', workItemId: '03-01', kind: 'concept' as const, required: true, prompt: '树林步行' }
+  const childId = 'preplanning-visual-' + createHash('sha256').update('p\0raster\x001').digest('hex').slice(0, 24)
+  const raster = PNG.sync.write(new PNG({ width: 1024, height: 768 }))
+  const events: SessionEventLike[] = [
+    { seq: 1, type: 'turn/start', data: { turn: 1 } },
+    { seq: 2, type: 'step/start', data: { step: 1 } },
+    { seq: 3, type: 'request/header', data: { header: { config: mode === 'wrong-route' ? b : a } } },
+    { seq: 4, type: 'assistant/attempt', data: { turn: 1, step: 1, stream: [
+      { type: 'text-chunks', index: 0, texts: [`![scene](data:image/png;base64,${raster.toString('base64')})`] },
+    ] } },
+  ]
+  const terminal = () => events.push({ seq: 5, type: 'turn/end', data: { turn: 1, reason: { kind: 'aborted', reason: { kind: 'parent' } } } })
+  const startContinuable = vi.fn(async (spec: any) => {
+    expect(spec.childId).toBe(childId)
+    f.childEvents.set(childId, events)
+    return { childId, messageId: 'one' }
+  })
+  const interrupt = vi.fn(terminal)
+  let originalExecution: string | undefined
+  if (mode === 'cold' || mode === 'cancelled') {
+    const run = await f.classes.begin('p', 'image', task.prompt, parent, signal())
+    originalExecution = run.id
+    await f.classes.attach(run.id, childId)
+    f.childEvents.set(childId, events); terminal()
+    await f.classes.finish(run.id, mode === 'cancelled' ? 'cancelled' : 'failed', 'original native failure')
+    f.childEvents.delete(childId)
+    visualTasks.push({ ...task, attempts: 1, childId, executionId: run.id, modelRoute: a, status: 'failed', updatedAt: new Date().toISOString() })
+  }
+  const collector = new SessionImageCollector({
+    sessions: { get: () => mode === 'cold' || mode === 'cancelled' ? undefined : ({ seq: events.length, snapshotEvents: () => events }) },
+    readPersistedEvents: async () => events,
+    attachments: { readImage: vi.fn() }, waitForEvent: async () => { throw Error('terminal must already be observed') },
+  })
+  const service = new VisualAgentService({ agentClasses: f.classes, llm: {} as never,
+    governance: { readProject: () => ({ visualTasks, visualAssets }), putVisualTask: async (value: any) => { visualTasks[0] = value },
+      putVisualAsset: async (value: any) => { visualAssets.push(value) } } as never,
+    subagents: { startContinuable, interrupt } as never, collector, store: new VisualAssetStore(f.root),
+  })
+  const result = service.generate(parent, task, signal(), { preserveUncertain: true, recoveryOnly: mode === 'cold' || mode === 'cancelled' })
+  if (mode === 'wrong-route' || mode === 'cancelled') {
+    await expect(result).rejects.toThrow()
+    expect(visualAssets).toHaveLength(0)
+    expect(visualTasks[0].status).not.toBe('candidate_ready')
+  } else {
+    const asset = await result
+    expect(asset).toMatchObject({ status: 'candidate', provider: 'test', model: 'a',
+      recoveredFrom: { childId, executionId: visualTasks[0].executionId, eventSeq: 4, turn: 1, step: 1 } })
+    expect(asset.sha256).toBe(createHash('sha256').update(raster).digest('hex'))
+    expect(visualTasks[0]).toMatchObject({ attempts: 1, status: 'candidate_ready', childId })
+    expect(f.classes.execution(visualTasks[0].executionId)).toMatchObject({ status: 'failed', actual: a, childStopReason: 'aborted' })
+    if (originalExecution) expect(f.classes.execution(originalExecution)).toMatchObject({ error: 'original native failure' })
+  }
+  if (mode === 'cold' || mode === 'cancelled') { expect(startContinuable).not.toHaveBeenCalled(); expect(interrupt).not.toHaveBeenCalled() }
+  else { expect(startContinuable).toHaveBeenCalledOnce(); expect(interrupt).toHaveBeenCalledOnce() }
+  expect(await f.classes.executions('p')).toHaveLength(1)
 })
 it.each(['terminal', 'unknown'] as const)('handles %s image failure while preserving paid attempt identities', async mode => {
   const f = await fixture(() => undefined), visualTasks: any[] = [], visualAssets: any[] = []

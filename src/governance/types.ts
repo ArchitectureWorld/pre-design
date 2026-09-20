@@ -171,6 +171,8 @@ export interface VisualAssetRecord {
   readonly provider?: string
   readonly model?: string
   readonly promptSummary?: string
+  /** Complete raster recovered from the original failed stream; execution outcome is retained. */
+  readonly recoveredFrom?: { readonly childId: string; readonly executionId?: string; readonly eventSeq: number; readonly turn: number; readonly step: number }
   readonly mimeType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/svg+xml'
   readonly fileName: string
   readonly sha256: string

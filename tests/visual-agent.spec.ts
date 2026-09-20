@@ -22,6 +22,7 @@ function fixture(options: {
   lateImage?: boolean
   collector?: SessionImageCollector
   existingExecutionId?: string
+  existingModelRoute?: { provider: string; model: string }
 } = {}) {
   const visualTasks = [{
     taskId: 'task-1', projectId: 'project-1', chapterId: '03', workItemId: '03-06',
@@ -32,6 +33,7 @@ function fixture(options: {
       : {}),
     ...(options.existingBlockedReason === undefined ? {} : { blockedReason: options.existingBlockedReason }),
     ...(options.existingExecutionId ? { executionId: options.existingExecutionId } : {}),
+    ...(options.existingModelRoute ? { modelRoute: options.existingModelRoute } : {}),
   }]
   const visualAssets: Array<Record<string, unknown>> = []
   const putVisualTask = vi.fn(async (record) => {
@@ -139,8 +141,12 @@ describe('VisualAgentService', () => {
     const collector = new SessionImageCollector({ sessions: { get: () => undefined }, readPersistedEvents: read,
       attachments: { readImage: async () => ({ ref: { mediaType: 'image/png', width: 1600, height: 900, bytes: 3 }, data: new Uint8Array([1, 2, 3]) }) },
       waitForEvent: vi.fn(async () => { throw new Error('cold recovery must not wait') }) })
-    return { ...fixture({ collector, agentClasses: { begin, finish } as unknown as AgentClassService,
-      existingChildId: 'preplanning-visual-659ab1ce6ceb320a005db7c6', existingAttempts: 1, existingStatus: 'running', existingExecutionId: 'paid-original-execution' }), finish, begin, read }
+    const execution = () => ({ id: 'paid-original-execution', projectId: 'project-1', classId: 'image', status: 'failed',
+      childId: 'preplanning-visual-659ab1ce6ceb320a005db7c6', selected: { provider: 'antigravity', model: 'gemini-3.1-flash-image' },
+      actual: { provider: 'antigravity', model: 'gemini-3.1-flash-image' } })
+    return { ...fixture({ collector, agentClasses: { begin, finish, execution } as unknown as AgentClassService,
+      existingChildId: 'preplanning-visual-659ab1ce6ceb320a005db7c6', existingAttempts: 1, existingStatus: 'running', existingExecutionId: 'paid-original-execution',
+      existingModelRoute: { provider: 'antigravity', model: 'gemini-3.1-flash-image' } }), finish, begin, read }
   }
   it('settles an unloaded terminal child and its original class execution without a fresh model call', async () => {
     const h = coldRecovery([{ seq: 4, type: 'turn/start', data: { turn: 1 } }, { seq: 30, type: 'turn/end', data: { reason: { kind: 'aborted', reason: { kind: 'parent' } } } }])
