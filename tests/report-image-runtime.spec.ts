@@ -364,3 +364,42 @@ it.each(['HTTP failure', 'invalid evidence'])('retains a valid publication when 
     expect(query).toHaveBeenCalledTimes(1)
   } finally { await rm(root, { recursive: true, force: true }) }
 })
+
+it('omits unusable optional proof without granting the claim or losing a completed search', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'native-publication-optional-proof-'))
+  const { imageUrl: _unused, ...publication } = { ...candidate, sourceLocationEvidence: '项目地点：中国浙江杭州。',
+    usageRightsEvidence: '未说明', publisherEvidence: '', authorEvidence: null }
+  const query = vi.fn<WebQueryAgent['query']>(async () => queryResult([publication]))
+  const html = `<article>${publication.evidenceExcerpt}${publication.sourceLocationEvidence}<img src="${candidate.imageUrl}"></article>`
+  try {
+    vi.stubGlobal('fetch', async (source: URL | RequestInfo) => String(source).endsWith('.png') ? imageResponse() : new Response(html))
+    const runtime = callbacks(query)
+    const assets = await runtime.search!(demand, {} as never, new AbortController().signal, input, root)
+    expect(assets).toHaveLength(1)
+    expect(JSON.parse(assets[0]!.origin.method).sourceClaims.usageRights.status).toBe('unverified')
+    const cached = JSON.parse(await readFile(join(root, '.pre-design', 'image-searches', `${imageBriefHash(demand.brief)}.json`), 'utf8'))
+    expect(cached.status).toBe('completed')
+    expect(cached.candidates[0]).not.toHaveProperty('usageRightsEvidence')
+    expect(cached.omittedEvidence).toEqual([{ index: 0, fields: ['authorEvidence', 'usageRightsEvidence', 'publisherEvidence'] }])
+    expect(await runtime.search!(demand, {} as never, new AbortController().signal, input, root)).toHaveLength(1)
+    expect(query).toHaveBeenCalledTimes(1)
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+
+it.each([true, false])('rejects malformed required evidence per candidate while caching a completed result (valid sibling %s)', async withValid => {
+  const root = await mkdtemp(join(tmpdir(), 'native-publication-required-proof-'))
+  const { imageUrl: _unused, ...publication } = { ...candidate, sourceLocationEvidence: '项目地点：中国浙江杭州。' }
+  const invalid = { ...publication, sourceLocationEvidence: '短' }
+  const query = vi.fn<WebQueryAgent['query']>(async () => queryResult([invalid, ...(withValid ? [publication] : [])]))
+  const html = `<article>${publication.evidenceExcerpt}${publication.sourceLocationEvidence}<img src="${candidate.imageUrl}"></article>`
+  try {
+    vi.stubGlobal('fetch', async (source: URL | RequestInfo) => String(source).endsWith('.png') ? imageResponse() : new Response(html))
+    const runtime = callbacks(query)
+    expect(await runtime.search!(demand, {} as never, new AbortController().signal, input, root)).toHaveLength(withValid ? 1 : 0)
+    const cached = JSON.parse(await readFile(join(root, '.pre-design', 'image-searches', `${imageBriefHash(demand.brief)}.json`), 'utf8'))
+    expect(cached.status).toBe('completed')
+    expect(cached.rejectedCandidates).toEqual([{ index: 0, reason: expect.any(String) }])
+    expect(await runtime.search!(demand, {} as never, new AbortController().signal, input, root)).toHaveLength(withValid ? 1 : 0)
+    expect(query).toHaveBeenCalledTimes(1)
+  } finally { await rm(root, { recursive: true, force: true }) }
+})

@@ -8,7 +8,7 @@ import type { VisualAgentService } from '../visual/agent.ts'
 import type { ImageInspectionAgent } from '../visual/image-inspection.ts'
 import type { SceneSpecificationAgent } from '../visual/scene-spec-agent.ts'
 import { acquireWebImage, discoverCasePublicationImages, discoverPublicationImages, validateCachedWebImage, validateWebImageCase,
-  webImageCandidateSchema, webPublicationDescriptorSchema } from '../visual/web-image-source.ts'
+  parseWebImageSuggestions, webImageCandidateSchema, webPublicationDescriptorSchema } from '../visual/web-image-source.ts'
 import { imageBriefHash, REPORT_IMAGE_POLICY_VERSION } from '../visual/image-policy.ts'
 import { ReportImagePipeline } from './report-image-pipeline.ts'
 import { preparePresentationMaterials } from './material-registry.ts'
@@ -91,8 +91,7 @@ export function createNativeReportImagePipeline(deps: { classes: AgentClassServi
             : ''
           const result = await deps.web.query(parent, project.projectId,
             `为汇报用图需求寻找最多3个真实图片发布页。先用web_search，总计工具调用不超过6次；找到满足条件的发布页及原文证据后立即返回JSON。优先gov.cn、edu.cn、archdaily.cn/com、gooood.cn、archiposition.com、designboom.com、commons.wikimedia.org。需求：${JSON.stringify(demand.brief)}。正文依据：${JSON.stringify(demand.sceneContext ?? null)}。${caseConstraint}程序会从发布页完整HTML提取原图，你无需查找imageUrl，也无需枚举图片链接、尝试代理阅读器或反复读取被截断页面。不能用搜索缩略图、不得把外部素材当本项目现状；国内项目按来源地点筛选，不凭人物长相判断国籍。只返回JSON数组，每项为sourcePageUrl,publisher,author,usageRights,sourceLocation,description,evidenceExcerpt,sourceLocationEvidence；后两项必须是同一发布页正文的真实摘录，地点摘录必须包含sourceLocation原文。可补充authorEvidence,usageRightsEvidence,publisherEvidence；作者或权利未知填未说明。找不到真实发布页及原文依据则不返回该项；无结果返回[]。`, signal, { maxToolCalls: 6 })
-          const returned = z.array(z.union([webImageCandidateSchema, webPublicationDescriptorSchema])).max(6)
-            .parse(JSON.parse(result.summary.trim().replace(/^```(?:json)?\s*/u, '').replace(/\s*```$/u, '')))
+          const { candidates: returned, omittedEvidence, rejectedCandidates } = parseWebImageSuggestions(result.summary)
           const publications = z.array(webPublicationDescriptorSchema).max(3).parse(returned.filter(value => !('imageUrl' in value)))
           const originals: z.infer<typeof webImageCandidateSchema>[] = []
           const publicationResults: { sourcePageUrl: string; status: 'discovered' | 'rejected'; imageUrls?: string[]; reason?: string }[] = []
@@ -113,7 +112,8 @@ export function createNativeReportImagePipeline(deps: { classes: AgentClassServi
           }
           signal.throwIfAborted()
           suggestions = [...returned.filter((value): value is z.infer<typeof webImageCandidateSchema> => 'imageUrl' in value), ...originals].slice(0, 6)
-          await writeFile(path, JSON.stringify({ status: 'completed', executionId: result.executionId, candidates: suggestions, publications: publicationResults }, null, 2))
+          await writeFile(path, JSON.stringify({ status: 'completed', executionId: result.executionId, candidates: suggestions, publications: publicationResults,
+            omittedEvidence, rejectedCandidates }, null, 2))
         } catch (error) {
           const message = error instanceof Error ? error.message : 'failed'
           const notStarted = /^(?:PREPLANNING_MODEL_(?:TURN_LIMIT|BUDGET_INVALID)|MODEL_UNAVAILABLE):/u.test(message)

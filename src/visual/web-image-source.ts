@@ -17,6 +17,37 @@ export const webPublicationDescriptorSchema = webImageCandidateSchema.omit({ ima
   sourceLocationEvidence: z.string().min(8).max(4000),
 })
 export type WebPublicationDescriptor = z.infer<typeof webPublicationDescriptorSchema>
+/** Optional proof may be absent; missing proof never establishes a source claim. */
+export function parseWebImageSuggestions(summary: string) {
+  const inputs = z.array(z.unknown()).max(6).parse(JSON.parse(summary.trim().replace(/^```(?:json)?\s*/u, '').replace(/\s*```$/u, '')))
+  const schema = z.union([webImageCandidateSchema, webPublicationDescriptorSchema])
+  const candidates: z.infer<typeof schema>[] = []
+  const omittedEvidence: { index: number; fields: string[] }[] = []
+  const rejectedCandidates: { index: number; reason: string }[] = []
+  let publications = 0
+  for (const [index, input] of inputs.entries()) {
+    let value = input
+    if (input && typeof input === 'object' && !Array.isArray(input)) {
+      const copy = { ...input } as Record<string, unknown>, fields: string[] = []
+      for (const field of ['authorEvidence', 'usageRightsEvidence', 'publisherEvidence']) {
+        if (field in copy && !z.string().min(8).max(4000).safeParse(copy[field]).success) { delete copy[field]; fields.push(field) }
+      }
+      if (fields.length) omittedEvidence.push({ index, fields })
+      value = copy
+    }
+    const parsed = schema.safeParse(value)
+    if (!parsed.success) {
+      rejectedCandidates.push({ index, reason: JSON.stringify(parsed.error.issues) })
+      continue
+    }
+    if (!('imageUrl' in parsed.data) && ++publications > 3) {
+      rejectedCandidates.push({ index, reason: 'WEB_IMAGE_PUBLICATION_LIMIT: 最多检查三个发布页' })
+      continue
+    }
+    candidates.push(parsed.data)
+  }
+  return { candidates, omittedEvidence, rejectedCandidates }
+}
 export const DEFAULT_IMAGE_SOURCE_HOSTS = ['gov.cn', 'edu.cn', 'archdaily.cn', 'archdaily.com', 'gooood.cn', 'archiposition.com', 'designboom.com', 'commons.wikimedia.org'] as const
 const hash = (bytes: Uint8Array | string) => createHash('sha256').update(bytes).digest('hex')
 const PAGE_LIMIT = 5 * 1024 * 1024, IMAGE_LIMIT = 25 * 1024 * 1024
