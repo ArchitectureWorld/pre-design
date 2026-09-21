@@ -59,7 +59,7 @@ export async function handleAgentClasses(request: IncomingMessage, response: Ser
     send(response, 200, await deps.classes.view(projectId, (payload.sessionId ? deps.routeForSession?.(payload.sessionId) : undefined) ?? modelRoute(session?.requestHeader?.()?.config)))
   } catch (error) {
     const message = error instanceof Error ? error.message : ''
-    const invalid = /^(MODEL_ROUTE_DUPLICATE|MODEL_PRIMARY_REQUIRED):/u.test(message)
+    const invalid = /^(MODEL_ROUTE_DUPLICATE|MODEL_PRIMARY_REQUIRED|MODEL_COMPANION_REQUIRED|MODEL_COMPANION_INVALID|MODEL_TOOL_CLASS_INVALID):/u.test(message)
     const known = invalid || /^(CONFIG_CONFLICT|MODEL_UNAVAILABLE):/u.test(message)
     send(response, invalid ? 400 : known ? 409 : 500, { error: known ? message : '子 Agent 配置操作失败，请检查 DSH 服务。' })
   }

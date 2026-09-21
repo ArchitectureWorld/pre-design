@@ -4,6 +4,27 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { AgentClassPanel } from '../src/client/AgentClassPanel.tsx'
 import type { AgentClassView } from '../src/agent-classes/types.ts'
 afterEach(cleanup)
+it.each(['primary', 'backup'])('requires a separate DSH LLM selection for a ComfyUI %s route', async placement => {
+  const data = snapshot()
+  const catalog = [...data.catalog, { provider: 'Comfyui-PIC', name: 'ComfyUI', available: true,
+    models: [{ id: 'Klein', name: 'Klein', imageTool: 'comfyui_pic' }] }]
+  const request = vi.fn(async (_payload: any) => ({ ...data, catalog }))
+  const view = render(<AgentClassPanel request={request} />)
+  await view.findByLabelText('生成图像模型')
+  if (placement === 'backup') fireEvent.click(view.getByRole('button', { name: '生成图像添加备用模型' }))
+  fireEvent.change(view.getByLabelText(placement === 'primary' ? '生成图像模型' : '生成图像选择备用模型'),
+    { target: { value: JSON.stringify(['Comfyui-PIC', 'Klein']) } })
+  const label = placement === 'primary' ? '生成图像配套 LLM' : '生成图像备用模型1配套 LLM'
+  const companion = view.getByLabelText(label) as HTMLSelectElement
+  expect(companion.required).toBe(true)
+  expect([...companion.options].some(row => row.value.includes('Comfyui-PIC'))).toBe(false)
+  expect((view.getByRole('button', { name: '保存配置' }) as HTMLButtonElement).disabled).toBe(true)
+  fireEvent.change(companion, { target: { value: JSON.stringify(['p', 'b']) } })
+  fireEvent.click(view.getByRole('button', { name: '保存配置' }))
+  await waitFor(() => expect(request.mock.calls.at(-1)?.[0]).toMatchObject(placement === 'primary'
+    ? { routes: { image: { provider: 'Comfyui-PIC', model: 'Klein', llm: b } } }
+    : { fallbacks: { image: [{ provider: 'Comfyui-PIC', model: 'Klein', llm: b }] } }))
+})
 const a = { provider: 'p', model: 'a' }
 const b = { provider: 'p', model: 'b' }
 function snapshot(projectId = 'project', revision = 0): AgentClassView {

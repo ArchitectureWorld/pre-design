@@ -1,10 +1,11 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { PromptAssembly } from '@deepseek-ai/dsh-system-prompt'
+import { COMFYUI_IMAGE_TOOL } from './image-tools.ts'
 
-type ChildRole = 'web' | 'scene_spec' | 'review' | 'visual_task'
+type ChildRole = 'web' | 'scene_spec' | 'review' | 'visual_task' | 'visual_tool_task'
 const allowedTools: Readonly<Record<ChildRole, readonly string[]>> = {
-  web: ['web_search', 'web_fetch'], scene_spec: [], review: [], visual_task: [],
+  web: ['web_search', 'web_fetch'], scene_spec: [], review: [], visual_task: [], visual_tool_task: [COMFYUI_IMAGE_TOOL],
 }
 
 /** The same capability policy drives dispatch, model schemas and execution. */
@@ -12,7 +13,7 @@ export function preplanningChildToolFilter(role: ChildRole): { allow: string[] }
   return { allow: [...allowedTools[role]] }
 }
 
-function nativeChildPolicy(agent: Agent | undefined): { allow: readonly string[]; retrievalBudget?: number } | undefined {
+function nativeChildPolicy(agent: Agent | undefined): { allow: readonly string[]; retrievalBudget?: number; imageTool?: true } | undefined {
   if (!agent) return undefined
   const header = agent.session.header
   if (!header || header.origin !== 'subagent' || !header.parentSession || String(header.id) !== String(agent.id)
@@ -24,20 +25,21 @@ function nativeChildPolicy(agent: Agent | undefined): { allow: readonly string[]
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
   const descriptor = value as Record<string, unknown>
   if (descriptor.version !== 3 || descriptor.provider !== 'spawn' || typeof descriptor.label !== 'string') return undefined
-  const role = /^preplanning_(web|scene_spec|review|visual_task):.+/u.exec(descriptor.label)?.[1] as ChildRole | undefined
-  if (!role || descriptor.mode !== (role === 'visual_task' ? 'continuable' : 'one-shot')) return undefined
+  const role = /^preplanning_(web|scene_spec|review|visual_task|visual_tool_task):.+/u.exec(descriptor.label)?.[1] as ChildRole | undefined
+  if (!role || descriptor.mode !== (role.startsWith('visual_') ? 'continuable' : 'one-shot')) return undefined
   const budget = role === 'web' ? /:retrieval=([1-9]|1\d|20)$/u.exec(descriptor.label)?.[1] : undefined
-  return { allow: allowedTools[role], ...(budget ? { retrievalBudget: Number(budget) } : {}) }
+  return { allow: allowedTools[role], ...(budget ? { retrievalBudget: Number(budget) } : {}),
+    ...(role === 'visual_tool_task' ? { retrievalBudget: 1, imageTool: true } : {}) }
 }
 
-function currentRetrievalCalls(agent: Agent): { callId: unknown; name: unknown }[] {
+function currentRetrievalCalls(agent: Agent, allow: readonly string[] = allowedTools.web): { callId: unknown; name: unknown }[] {
   const events = agent.session.snapshotEvents()
   const start = events.findLastIndex(event => event.type === 'turn/start')
   if (start < 0) return []
   return events.slice(start + 1).flatMap(event => {
     if (event.type !== 'tool/call' || !event.data || typeof event.data !== 'object') return []
     const data = event.data as { callId?: unknown; name?: unknown }
-    return typeof data.name === 'string' && allowedTools.web.includes(data.name) ? [{ callId: data.callId, name: data.name }] : []
+    return typeof data.name === 'string' && allow.includes(data.name) ? [{ callId: data.callId, name: data.name }] : []
   })
 }
 
@@ -47,7 +49,7 @@ export function registerPreplanningChildToolBoundary(ctx: Context): void {
   const restrict = (assembled: PromptAssembly, agent: Agent | undefined): void => {
     const policy = nativeChildPolicy(agent)
     if (!policy) return
-    const exhausted = policy.retrievalBudget !== undefined && currentRetrievalCalls(agent!).length >= policy.retrievalBudget
+    const exhausted = policy.retrievalBudget !== undefined && currentRetrievalCalls(agent!, policy.allow).length >= policy.retrievalBudget
     const allow = exhausted ? [] : policy.allow
     const removedGuidance = new Set(assembled.tools.filter(tool => !allow.includes(tool.name)).map(tool => `tool:${tool.name}`))
     // SystemPrompt may shallow-copy the envelope when enforcing a complete
@@ -56,7 +58,8 @@ export function registerPreplanningChildToolBoundary(ctx: Context): void {
     assembled.sections.splice(0, assembled.sections.length, ...assembled.sections.filter(section => !removedGuidance.has(section.name)))
     if (exhausted && !assembled.sections.some(section => section.name === 'preplanning:web-retrieval-limit')) assembled.sections.push({
       name: 'preplanning:web-retrieval-limit',
-      text: `本轮已达到 ${policy.retrievalBudget} 次检索上限，检索工具已关闭。请立即根据已有结果返回所要求的最终 JSON；证据不足的项目省略，无结果返回 []。不得继续检索或委派。`,
+      text: policy.imageTool ? '当前图片请求已提交。请根据工具结果结束本任务；不得重复生图、换模型或委派。'
+        : `本轮已达到 ${policy.retrievalBudget} 次检索上限，检索工具已关闭。请立即根据已有结果返回所要求的最终 JSON；证据不足的项目省略，无结果返回 []。不得继续检索或委派。`,
     })
   }
   ctx.tools.guard(exec => {
@@ -66,9 +69,11 @@ export function registerPreplanningChildToolBoundary(ctx: Context): void {
     if (policy.retrievalBudget !== undefined && exec.agent) {
       // The native loop logs tool/call BEFORE tools.execute. Its zero-based
       // position, not the total batch size, admits exactly the first N calls.
-      const calls = currentRetrievalCalls(exec.agent)
+      const calls = currentRetrievalCalls(exec.agent, policy.allow)
       const own = calls.findLastIndex(call => call.callId === exec.callId && call.name === exec.name)
-      if ((own < 0 ? calls.length : own) >= policy.retrievalBudget) return 'PREPLANNING_WEB_RETRIEVAL_LIMIT: 检索次数已达上限，请根据已有结果立即返回最终 JSON。'
+      if ((own < 0 ? calls.length : own) >= policy.retrievalBudget) return policy.imageTool
+        ? 'PREPLANNING_IMAGE_ALREADY_SUBMITTED: 当前图片已提交，请读取现有结果，不得重复生成。'
+        : 'PREPLANNING_WEB_RETRIEVAL_LIMIT: 检索次数已达上限，请根据已有结果立即返回最终 JSON。'
     }
     return undefined
   })

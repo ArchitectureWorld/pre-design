@@ -140,7 +140,7 @@ export interface VisualGenerationPolicyRecord {
 }
 
 export interface VisualTaskRecord {
-  readonly modelRoute?: { readonly provider: string; readonly model: string }
+  readonly modelRoute?: import('../agent-classes/types.ts').ModelRoute
   readonly executionId?: string
   readonly taskId: string
   readonly projectId: string

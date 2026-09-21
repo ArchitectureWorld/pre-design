@@ -5,7 +5,11 @@ export const AGENT_CLASSES = [
   { id: 'text', title: '文本生成', description: '完成工作流分析和结构化文本候选。' },
 ] as const
 export type AgentClassId = typeof AGENT_CLASSES[number]['id']
-export interface ModelRoute { readonly provider: string; readonly model: string }
+export interface LlmRoute { readonly provider: string; readonly model: string }
+export interface ModelRoute extends LlmRoute {
+  /** Required for a tool-backed image route; never inherited from another class. */
+  readonly llm?: LlmRoute
+}
 export type ClassRoutes = Record<Exclude<AgentClassId, 'review'>, ModelRoute | null> & { readonly review?: ModelRoute | null }
 export const MAX_CLASS_FALLBACKS = 16
 export type ClassFallbacks = Partial<Record<AgentClassId, readonly ModelRoute[]>>
@@ -21,7 +25,7 @@ export interface CatalogProvider {
   readonly name: string
   readonly available: boolean
   readonly error?: string
-  readonly models: readonly { readonly id: string; readonly name: string }[]
+  readonly models: readonly { readonly id: string; readonly name: string; readonly imageTool?: string }[]
 }
 export type ExecutionStatus = 'starting' | 'running' | 'completed' | 'failed' | 'cancelled' | 'recovery_required'
 export interface ClassExecution {

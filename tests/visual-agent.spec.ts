@@ -92,6 +92,20 @@ function fixture(options: {
 }
 
 describe('VisualAgentService', () => {
+  it('dispatches ComfyUI through its paired LLM and only the image tool, while recording the image producer', async () => {
+    const route = { provider: 'Comfyui-PIC', model: 'Klein', llm: { provider: 'test', model: 'writer' } }
+    const agentClasses = { begin: vi.fn(async () => ({ id: 'comfy-execution', selected: route })), attach: vi.fn(), finish: vi.fn() } as unknown as AgentClassService
+    const f = fixture({ agentClasses })
+    const asset = await f.service.generate({ id: 'parent' } as never, {
+      taskId: 'task-1', projectId: 'project-1', chapterId: '03', workItemId: '03-06', kind: 'concept', required: true, prompt: '林下休憩空间',
+    })
+    expect(f.startContinuable).toHaveBeenCalledWith(expect.objectContaining({ label: 'preplanning_visual_tool_task:project-1:task-1:1',
+      request: expect.objectContaining({ agentOptions: { ...route.llm, maxTokens: 8192 }, toolFilter: { allow: ['comfyui_pic'] },
+        persona: expect.stringContaining('comfyui_pic') }) }))
+    expect((f.startContinuable.mock.calls[0]?.[0] as any).request.persona).not.toContain('禁止调用任何工具')
+    expect(f.visualTasks[0]).toMatchObject({ modelRoute: route })
+    expect(asset).toMatchObject({ provider: 'Comfyui-PIC', model: 'Klein' })
+  })
   const recoveryTask = { taskId: 'task-1', projectId: 'project-1', chapterId: '03', workItemId: '03-06', kind: 'concept' as const, required: true, prompt: '滨水公共文化空间概念表现图' }
   const completeImage = PNG.sync.write(Object.assign(new PNG({ width: 16, height: 12 }), { data: Buffer.alloc(16 * 12 * 4, 180) }))
   function attemptEvents(): SessionEventLike[] {

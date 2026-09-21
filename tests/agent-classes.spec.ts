@@ -36,6 +36,82 @@ const a = { provider: 'test', model: 'a' }
 const b = { provider: 'test', model: 'b' }
 const parent = { id: 'parent', options: a } as never
 
+async function comfyFixture() {
+  const f = await fixture()
+  f.llm.listProviders = () => [{ id: 'test', name: 'Test' }, { id: 'Comfyui-PIC', name: 'ComfyUI' }]
+  f.llm.listModels.mockImplementation(async (provider?: string) => provider === 'Comfyui-PIC'
+    ? [{ provider, id: 'Klein', name: 'Klein' }]
+    : [a, b].map(r => ({ provider: r.provider, id: r.model, name: r.model })))
+  Object.assign(f.deps, { tools: { schemas: () => [{ name: 'comfyui_pic' }] } })
+  return f
+}
+const comfy = { provider: 'Comfyui-PIC', model: 'Klein' }
+it('requires an explicit LLM for primary and backup ComfyUI routes and persists it globally', async () => {
+  const { service, ctx, deps } = await comfyFixture()
+  const routes = { image: comfy, text: a, web: a }
+  await expect(service.save(0, routes)).rejects.toThrow('MODEL_COMPANION_REQUIRED')
+  await expect(service.save(0, { ...routes, image: a }, { image: [comfy] })).rejects.toThrow('MODEL_COMPANION_REQUIRED')
+  await service.save(0, { ...routes, image: { ...comfy, llm: a } }, { image: [b] })
+  expect(await service.catalog()).toContainEqual(expect.objectContaining({ provider: comfy.provider,
+    models: [expect.objectContaining({ id: comfy.model, imageTool: 'comfyui_pic' })] }))
+  await service.close()
+  const restored = await AgentClassService.open(ctx.storage.domain, deps)
+  expect((await restored.view('unrelated-project')).settings.routes.image).toEqual({ ...comfy, llm: a })
+})
+it('rejects tool recursion, non-image tool routes and companions attached to direct image models', async () => {
+  const { service } = await comfyFixture()
+  const routes = { image: a, text: a, web: a }
+  await expect(service.save(0, { ...routes, image: { ...comfy, llm: comfy } })).rejects.toThrow('MODEL_COMPANION_INVALID')
+  await expect(service.save(0, { ...routes, text: { ...comfy, llm: a } })).rejects.toThrow('MODEL_TOOL_CLASS_INVALID')
+  await expect(service.save(0, { ...routes, image: { ...a, llm: b } })).rejects.toThrow('MODEL_COMPANION_INVALID')
+  await expect(service.save(0, { ...routes, image: { ...comfy, llm: { provider: 'gone', model: 'x' } } })).rejects.toThrow('MODEL_UNAVAILABLE')
+})
+it('verifies the companion as the actual model and preserves the paired fallback snapshot', async () => {
+  const { service, events } = await comfyFixture()
+  await service.save(0, { image: a, text: a, web: a }, { image: [{ ...comfy, llm: b }] })
+  const first = await service.begin('p', 'image', 'scene', parent)
+  await service.attach(first.id, 'child')
+  events.push({ type: 'request/header', data: { header: { config: a } } },
+    { type: 'turn/end', data: { reason: { kind: 'error', error: { code: 'SERVER' } } } })
+  await service.finish(first.id, 'failed')
+  await service.save(1, { image: { ...comfy, llm: a }, text: a, web: a }, { image: [] })
+  const backup = (await service.fallback(first.id, parent))!
+  expect(backup.selected).toEqual({ ...comfy, llm: b })
+  events.splice(0, events.length, { type: 'request/header', data: { header: { config: b } } },
+    { type: 'turn/end', data: { reason: { kind: 'completed' } } })
+  await service.attach(backup.id, 'child-backup')
+  await service.finish(backup.id, 'completed')
+  expect(service.execution(backup.id)).toMatchObject({ actual: b, selected: { ...comfy, llm: b }, status: 'completed' })
+})
+it('skips a missing image tool without dispatch and rejects a child using the wrong companion', async () => {
+  const { service, deps, events } = await comfyFixture()
+  await service.save(0, { image: { ...comfy, llm: a }, text: a, web: a }, { image: [b] })
+  Object.assign(deps, { tools: { schemas: () => [] } })
+  const fallback = await service.begin('p', 'image', 'scene', parent)
+  expect(fallback.selected).toEqual(b)
+  expect((await service.executions('p')).find(row => row.selected.provider === comfy.provider)).toMatchObject({ status: 'failed', availabilityFailure: 'catalog' })
+  Object.assign(deps, { tools: { schemas: () => [{ name: 'comfyui_pic' }] } })
+  const run = await service.begin('p', 'image', 'another scene', parent)
+  await service.attach(run.id, 'wrong-child')
+  events.push({ type: 'request/header', data: { header: { config: b } } })
+  await expect(service.finish(run.id, 'completed')).rejects.toThrow('MODEL_ROUTE_MISMATCH')
+})
+it('verifies a settled ComfyUI companion from persisted evidence after the native child unloads', async () => {
+  const { service, deps } = await comfyFixture()
+  await service.save(0, { image: { ...comfy, llm: b }, text: a, web: a })
+  const run = await service.begin('p', 'image', 'scene', parent)
+  await service.attach(run.id, 'unloaded-child')
+  deps.sessions.get.mockReturnValue(undefined as never)
+  const readPersistedEvents = vi.fn(async () => [
+    { type: 'request/header', data: { header: { config: b } } },
+    { type: 'turn/end', data: { reason: { kind: 'completed' } } },
+  ])
+  Object.assign(deps, { readPersistedEvents })
+  await service.finish(run.id, 'completed')
+  expect(readPersistedEvents).toHaveBeenCalledWith('unloaded-child')
+  expect(service.execution(run.id)).toMatchObject({ actual: b, status: 'completed', childStopReason: 'completed' })
+})
+
 it.runIf(process.platform === 'win32')('survives a temporary Windows reader lock without duplicating task reservations', async () => {
   const grant = { authorizationId: 'locked-store', grantedAt: new Date().toISOString(), maxModelTurns: 2 }
   const { root, service } = await fixture(() => grant)

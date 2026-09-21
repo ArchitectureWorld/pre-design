@@ -27,17 +27,18 @@ function fixture(role = 'web', guarded = true, composed = true) {
     execute: async () => { executed.push(name); return name },
   })
   for (const name of [...webTools, ...localTools]) tools.register(definition(name))
+  if (role === 'visual_tool_task') tools.register(definition('comfyui_pic'))
   const parentEvents: { type: string; data: unknown }[] = []
   const parent = { id: 'parent', options: {}, session: { header: { id: 'parent', delegationDepth: 0 }, snapshotEvents: () => parentEvents,
     requestHeader: () => undefined }, ctx: undefined as unknown as Context, cancel: vi.fn() }
   parent.ctx = createScope(ctx, parent).ctx
-  const events = [{ type: 'subagent/descriptor', data: { version: 3, mode: role === 'visual_task' ? 'continuable' : 'one-shot',
+  const events = [{ type: 'subagent/descriptor', data: { version: 3, mode: role.startsWith('visual_') ? 'continuable' : 'one-shot',
     provider: 'spawn', label: `preplanning_${role}:fixture-project` } }]
   const child = { id: 'child', options: { subagentDepth: 1 },
     session: { header: { id: 'child', origin: 'subagent', parentSession: 'parent', delegationDepth: 1 }, snapshotEvents: () => events },
     ctx: undefined as unknown as Context, cancel: vi.fn() }
   child.ctx = createScope(ctx, child, { parent }).ctx
-  if (composed) applyChildComposition(child.ctx, parent as never, { toolFilter: { allow: role === 'web' ? webTools : [] } })
+  if (composed) applyChildComposition(child.ctx, parent as never, { toolFilter: { allow: role === 'web' ? webTools : role === 'visual_tool_task' ? ['comfyui_pic'] : [] } })
   // This is the installed tool-subagent's agent/created behavior: registrations
   // in the child layer remain visible despite the inherited-tool restriction.
   for (const name of localTools) child.ctx.tools.register(definition(name))
@@ -47,6 +48,19 @@ function fixture(role = 'web', guarded = true, composed = true) {
     signal: AbortSignal.timeout(1000), agent: agent as never })
   return { ctx, prompt, tools, parent, parentEvents, child, events, executed, call, definition }
 }
+
+it('permits only the existing ComfyUI tool in a paired image child and masks further calls after submission', async () => {
+  const f = fixture('visual_tool_task')
+  expect((await f.prompt.assemble({ scope: f.child, agent: f.child as never })).tools.map(t => t.name)).toEqual(['comfyui_pic'])
+  expect((await f.call('comfyui_pic')).isError).not.toBe(true)
+  expect((await f.call('subagent')).isError).toBe(true)
+  expect((await f.call('web_fetch')).isError).toBe(true)
+  ;(f.events as { type: string; data: unknown }[]).push({ type: 'turn/start', data: {} },
+    { type: 'tool/call', data: { name: 'comfyui_pic', callId: 'first' } })
+  expect((await f.prompt.assemble({ scope: f.child, agent: f.child as never })).tools).toEqual([])
+  expect((await f.call('comfyui_pic')).isError).toBe(true)
+  expect(f.executed).toEqual(['comfyui_pic'])
+})
 
 it('reproduces native own-scope tool visibility escaping allowlists without making a model request', async () => {
   const f = fixture('web', false)

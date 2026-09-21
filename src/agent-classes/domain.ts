@@ -2,7 +2,8 @@ import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
 import { z } from 'zod'
 import { MAX_CLASS_FALLBACKS } from './types.ts'
 
-export const routeSchema = z.object({ provider: z.string().trim().min(1).max(200), model: z.string().trim().min(1).max(300) }).strict()
+const llmRouteSchema = z.object({ provider: z.string().trim().min(1).max(200), model: z.string().trim().min(1).max(300) }).strict()
+export const routeSchema = llmRouteSchema.extend({ llm: llmRouteSchema.optional() }).strict()
 export const routesSchema = z.object({ image: routeSchema.nullable(), web: routeSchema.nullable(), text: routeSchema.nullable(), review: routeSchema.nullable().optional() }).strict()
 export const fallbacksSchema = z.object({ image: z.array(routeSchema).max(MAX_CLASS_FALLBACKS).readonly().optional(),
   web: z.array(routeSchema).max(MAX_CLASS_FALLBACKS).readonly().optional(), text: z.array(routeSchema).max(MAX_CLASS_FALLBACKS).readonly().optional(),

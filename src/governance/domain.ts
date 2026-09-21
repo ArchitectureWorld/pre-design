@@ -1,6 +1,7 @@
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
 import { z } from 'zod'
 import type { SiteBoundaryRecord, ReportPackageRecord } from './types.ts'
+import { routeSchema } from '../agent-classes/domain.ts'
 
 const actorSchema = z.object({
   actorId: z.string().min(1),
@@ -143,7 +144,7 @@ const visualPolicySchema = z.object({
 }).strict()
 
 const visualTaskSchema = z.object({
-  modelRoute: z.object({ provider: z.string().min(1), model: z.string().min(1) }).strict().optional(),
+  modelRoute: routeSchema.optional(),
   executionId: z.string().min(1).optional(),
   taskId: z.string().min(1),
   projectId: z.string().min(1),

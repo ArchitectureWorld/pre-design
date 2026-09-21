@@ -25,7 +25,7 @@ export function preplanningExecutionStop(events: readonly Event[], boundProject:
   const visualDenial = visualToolDenial(events)
   if (visualDenial && current.some(event => event.type === 'tool/call')) return visualDenial
   const label = object(events.find(event => event.type === 'subagent/descriptor')?.data).label
-  const managedChild = typeof label === 'string' && /^preplanning_(?:workflow|web|visual_task|review):/u.test(label)
+  const managedChild = typeof label === 'string' && /^preplanning_(?:workflow|web|visual_task|visual_tool_task|review):/u.test(label)
   const engaged = boundProject && current.some(event => event.type === 'tool/call' && String(object(event.data).name).startsWith('preplanning_'))
   if (!managedChild && !engaged) return undefined
   if (current.filter(event => event.type === 'step/start').length >= 40) {

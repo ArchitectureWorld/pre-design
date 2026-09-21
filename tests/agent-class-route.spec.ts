@@ -15,6 +15,16 @@ async function fixture() {
   return { classes, post, rebind: () => { projectId = 'other' } }
 }
 const save = { action: 'save', sessionId: 's', revision: 0, routes: { image: null, web: null, text: null } }
+it('round-trips a paired image tool and reports a missing companion as a configuration error', async () => {
+  const h = await fixture()
+  const route = { provider: 'Comfyui-PIC', model: 'Klein', llm: { provider: 'p', model: 'llm' } }
+  expect((await h.post({ ...save, routes: { ...save.routes, image: route }, fallbacks: { image: [] } })).status).toBe(200)
+  expect(h.classes.save).toHaveBeenCalledWith(0, { ...save.routes, image: route }, { image: [] })
+  h.classes.save.mockRejectedValueOnce(new Error('MODEL_COMPANION_REQUIRED: 请同时选择配套 LLM。'))
+  const invalid = await h.post({ ...save, routes: { ...save.routes, image: { provider: 'Comfyui-PIC', model: 'Klein' } } })
+  expect(invalid.status).toBe(400)
+  expect(await invalid.text()).toContain('MODEL_COMPANION_REQUIRED')
+})
 it('rejects cross-origin requests, unknown sessions and caller-supplied project scope', async () => {
   const h = await fixture()
   expect((await h.post(save, 'https://other.example')).status).toBe(403)

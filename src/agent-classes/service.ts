@@ -7,13 +7,16 @@ import { AGENT_CLASSES, type AgentClassId, type AgentClassView, type Availabilit
 import { VISUAL_MODEL_ID, VISUAL_MODEL_PROVIDER } from '../visual/types.ts'
 import { preplanningCancellationReason } from '../runtime/preplanning-execution-guard.ts'
 import { retryDurableWrite } from '../state/durable-write.ts'
+import { executionModelRoute, imageToolForRoute } from './image-tools.ts'
 
 export interface ExecutionSession {
   snapshotEvents(): readonly { readonly type: string; readonly data: unknown }[]
 }
 interface Dependencies {
   readonly llm: Pick<LlmRuntime, 'listProviders' | 'listConfigurableProviders' | 'listModels'>
+  readonly tools?: { schemas(): readonly { readonly name: string }[] }
   readonly sessions: { get(id: string): ExecutionSession | undefined }
+  readonly readPersistedEvents?: (id: string) => Promise<ReturnType<ExecutionSession['snapshotEvents']> | undefined>
   readonly activity?: (id: string) => 'running' | 'idle' | undefined
   readonly modelTurnAuthorization?: (projectId: string, parentId: string) => {
     readonly authorizationId: string
@@ -114,13 +117,24 @@ export class AgentClassService {
       if (!provider.available) return { ...provider, models: [], error: '请先在 DSH 设置中启用此 Provider。' }
       try {
         const models = await this.dependencies.llm.listModels(provider.provider)
-        return { ...provider, models: models.map(({ id, name }) => ({ id, name })) }
+        return { ...provider, models: models.map(({ id, name }) => {
+          const imageTool = imageToolForRoute({ provider: provider.provider, model: id })
+          return { id, name, ...(imageTool ? { imageTool } : {}) }
+        }) }
       } catch {
         return { ...provider, available: false, models: [], error: '模型目录读取失败，请检查 DSH 设置。' }
       }
     }))
   }
-  private async validate(route: ModelRoute): Promise<void> {
+  private async validate(route: ModelRoute, classId: AgentClassId): Promise<void> {
+    const tool = imageToolForRoute(route)
+    if (tool) {
+      if (classId !== 'image') throw new Error('MODEL_TOOL_CLASS_INVALID: ComfyUI 仅可用于生成图像，请为此功能选择 LLM。')
+      if (!route.llm) throw new Error('MODEL_COMPANION_REQUIRED: ComfyUI 是生图工具，请同时选择配套 LLM。')
+      if (imageToolForRoute(route.llm)) throw new Error('MODEL_COMPANION_INVALID: 配套 LLM 不能选择 ComfyUI 工具自身。')
+      await this.validate(route.llm, 'text')
+      if (!this.dependencies.tools?.schemas().some(row => row.name === tool)) throw new Error('MODEL_UNAVAILABLE: ComfyUI 生图工具未加载，请检查 DSH 插件设置。')
+    } else if (route.llm) throw new Error('MODEL_COMPANION_INVALID: 只有工具型生图选项可以配置配套 LLM。')
     const live = this.dependencies.llm.listProviders().some(row => row.id === route.provider)
     const models = live ? await this.dependencies.llm.listModels(route.provider).catch(() => []) : []
     if (!models.some(row => row.id === route.model)) throw new Error(`MODEL_UNAVAILABLE: ${route.provider} / ${route.model} 已不可用，请在 DSH 设置和子 Agent 类配置中检查。`)
@@ -141,10 +155,10 @@ export class AgentClassService {
           throw new Error('MODEL_ROUTE_DUPLICATE: 同一功能类的主模型与备用模型不能重复。')
         }
       }
-      await Promise.all(Object.values(routes).filter((route): route is ModelRoute => route !== null).map(route => this.validate(route)))
+      await Promise.all(AGENT_CLASSES.flatMap(({ id }) => routes[id] ? [this.validate(routes[id]!, id)] : []))
       // Old clients cannot edit backups. Preserve their stored lists even when a
       // provider was removed later; the runtime skips unavailable catalog routes.
-      if (requested) await Promise.all(Object.values(requested).flat().map(route => this.validate(route)))
+      if (requested) await Promise.all(AGENT_CLASSES.flatMap(({ id }) => (requested[id] ?? []).map(route => this.validate(route, id))))
       const settings = { revision: revision + 1, routes, ...(current.fallbacks || requested ? { fallbacks } : {}) }
       await retryDurableWrite(() => this.domain.table('settings').put('global', settings))
       return structuredClone(settings)
@@ -205,7 +219,7 @@ export class AgentClassService {
       await retryDurableWrite(() => table.put(record.id, record))
       return record
     })
-    try { await this.validate(selected); signal?.throwIfAborted() } catch (error) {
+    try { await this.validate(selected, classId); signal?.throwIfAborted() } catch (error) {
       if (signal?.aborted) {
         await this.update(run.id, { status: 'cancelled', error: '模型派发已取消，未启动子会话。' })
         throw signal.reason
@@ -253,24 +267,23 @@ export class AgentClassService {
     if (run?.childId && run.childId !== childId) throw new Error('CHILD_IDENTITY_CHANGED')
     await this.update(id, { childId, status: 'running', childStopReason: undefined })
   }
-  private observed(run: ClassExecution): Partial<ClassExecution> {
-    const events = run.childId ? this.dependencies.sessions.get(run.childId)?.snapshotEvents() ?? [] : []
-    const reason = object(this.terminal(run)?.reason)?.kind
+  private observed(run: ClassExecution, events = run.childId ? this.dependencies.sessions.get(run.childId)?.snapshotEvents() ?? [] : []): Partial<ClassExecution> {
+    const reason = object(this.terminal(run, events)?.reason)?.kind
     const lifecycle = events.length ? { childStopReason: typeof reason === 'string' ? reason : undefined } : {}
     const routes = events.filter(event => event.type === 'request/header')
       .map(event => modelRoute(object(object(event.data)?.header)?.config)).filter((route): route is ModelRoute => !!route)
     const actual = routes.at(-1)
     if (!actual) return lifecycle
-    if (routes.some(route => !sameRoute(route, run.selected))) return { ...lifecycle, actual, status: 'failed', error: 'MODEL_ROUTE_MISMATCH: 子会话实际请求模型与派发配置不一致。' }
+    const expected = imageToolForRoute(run.selected) ? run.selected.llm : executionModelRoute(run.selected)
+    if (!expected || routes.some(route => !sameRoute(route, expected))) return { ...lifecycle, actual, status: 'failed', error: 'MODEL_ROUTE_MISMATCH: 子会话实际请求模型与派发配置不一致。' }
     return { ...lifecycle, actual }
   }
-  private terminal(run: ClassExecution): Record<string, unknown> | undefined {
-    const events = run.childId ? this.dependencies.sessions.get(run.childId)?.snapshotEvents() ?? [] : []
+  private terminal(run: ClassExecution, events = run.childId ? this.dependencies.sessions.get(run.childId)?.snapshotEvents() ?? [] : []): Record<string, unknown> | undefined {
     const latest = events.findLast(event => event.type === 'turn/start' || event.type === 'turn/end')
     return latest?.type === 'turn/end' ? object(latest.data) : undefined
   }
-  private terminalModelFailure(run: ClassExecution): string | undefined {
-    const reason = object(this.terminal(run)?.reason)
+  private terminalModelFailure(run: ClassExecution, events?: ReturnType<ExecutionSession['snapshotEvents']>): string | undefined {
+    const reason = object(this.terminal(run, events)?.reason)
     if (reason?.kind !== 'error') return undefined
     const failure = object(reason.error), code = failure?.code
     // Classify only the native terminal envelope. Never copy raw provider text,
@@ -292,14 +305,19 @@ export class AgentClassService {
   async finish(id: string, status: ExecutionStatus, error?: string): Promise<void> {
     const run = this.execution(id)
     if (!run) throw new Error('EXECUTION_NOT_FOUND')
-    const observed = this.observed(run)
-    const failure = availabilityFailure(object(this.terminal(run)?.reason))
-    const proof = { availabilityFailure: status === 'failed' && !preplanningCancellationReason(run.childId ? this.dependencies.sessions.get(run.childId)?.snapshotEvents() ?? [] : []) ? failure : undefined }
-    if (status !== 'completed' && run.childId) error = preplanningCancellationReason(this.dependencies.sessions.get(run.childId)?.snapshotEvents() ?? [])
-      ?? this.terminalModelFailure(run) ?? error
-    const reason = object(this.terminal(run)?.reason)?.kind
+    // Continuable children can unload immediately after their terminal. Read
+    // their immutable native log before settling, without recreating the child.
+    const cold = run.childId && !this.dependencies.sessions.get(run.childId)
+      ? await this.dependencies.readPersistedEvents?.(run.childId) : undefined
+    const events = run.childId ? this.dependencies.sessions.get(run.childId)?.snapshotEvents() ?? cold ?? [] : []
+    const observed = this.observed(run, events)
+    const failure = availabilityFailure(object(this.terminal(run, events)?.reason))
+    const proof = { availabilityFailure: status === 'failed' && !preplanningCancellationReason(events) ? failure : undefined }
+    if (status !== 'completed' && run.childId) error = preplanningCancellationReason(events)
+      ?? this.terminalModelFailure(run, events) ?? error
+    const reason = object(this.terminal(run, events)?.reason)?.kind
     if (status === 'completed' && typeof reason === 'string' && reason !== 'completed') {
-      const message = this.terminalModelFailure(run) ?? `CHILD_EXECUTION_FAILED: 子会话以 ${reason} 结束，任务不能标为完成。`
+      const message = this.terminalModelFailure(run, events) ?? `CHILD_EXECUTION_FAILED: 子会话以 ${reason} 结束，任务不能标为完成。`
       await this.update(id, { ...observed, status: 'failed', error: message, availabilityFailure: failure })
       throw new Error(message)
     }

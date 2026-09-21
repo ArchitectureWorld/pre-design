@@ -11,6 +11,7 @@ import type { SessionImageCollector } from './session-image-collector.ts'
 import { nextAgentClassAttempt, type AgentClassService } from '../agent-classes/service.ts'
 import type { ClassExecution, ModelRoute } from '../agent-classes/types.ts'
 import { preplanningChildToolFilter } from '../agent-classes/child-tool-boundary.ts'
+import { executionModelRoute, imageToolForRoute } from '../agent-classes/image-tools.ts'
 import {
   VISUAL_MODEL_ID,
   VISUAL_MODEL_PROVIDER,
@@ -23,9 +24,13 @@ const VISUAL_PERSONA = `你是前期策划项目的概念表现图专用视觉�
 只生成建筑、城市设计、空间意向和氛围的 AI 概念图片。图像来源与AI性质信息仅保留在独立资料依据，不写入汇报正文或图片。
 输出完整单幅场景，画面延伸至四边，不留标题区、说明区或白边。不要在像素画面中绘制汉字、字母、数字、图注、标签、引线、图例或水印。
 禁止使用 Shell、网页搜索、文件系统工具，禁止写 Project State、确认 Gate 或替代事实证据。
-禁止调用任何工具（包括 subagent）或继续委派。只能由当前所选模型直接输出栅格图片；如果不能直接生图，说明能力不足并结束，禁止寻找或切换其他模型。
 不得伪造红线、CAD/BIM、现状照片、法定地图、统计数据或已建成效果；资料不足时拒绝并说明缺口。
 每次只处理一项视觉任务，输出图片，不替换调用方指定的模型。`
+const DIRECT_IMAGE_INSTRUCTIONS = '禁止调用任何工具（包括 subagent）或继续委派。只能由当前所选模型直接输出栅格图片；如果不能直接生图，说明能力不足并结束，禁止寻找或切换其他模型。'
+const TOOL_IMAGE_INSTRUCTIONS = `你是配套 LLM，必须调用一次 comfyui_pic 工具完成本任务，由 ComfyUI / Klein 生成图片。不得只描述、返回链接或自行模拟图片。
+只能调用该工具，禁止 subagent、换模型或继续委派。独立场景使用 generate；仅在明确要求编辑已有参考图片时使用 edit。
+完整保留场景要求与风格约束，传入具体图像描述。默认采用 16:9 横幅 1600×896，任务明确要求其它尺寸时按任务设置（16 的倍数）。
+一次工具调用只生成当前一张图片，等待返回后结束；错误或结果未知时说明问题并结束，不得重复提交。`
 
 const DEFAULT_PROJECT_VISUAL_STYLE = `统一项目视觉风格：克制的低饱和自然材料，专业建筑与景观可视化，真实光影、清晰空间层次和适度使用者活动；场景、设施和建筑语言以当前项目依据与任务要求为准，不默认添加水体、滨水设施或大型建筑。画面不含文字、标尺、水印或数据标注。`
 
@@ -112,19 +117,21 @@ export class VisualAgentService {
     finalCheck?.()
     signal.throwIfAborted()
     const childId = reservedTaskChildId(task, attempt)
+    const imageTool = imageToolForRoute(route)
+    const model = executionModelRoute(route)
     try {
       onDispatch?.()
       const started = await this.dependencies.subagents.startContinuable({
         provider: VISUAL_SUBAGENT_PROVIDER,
-        label: `preplanning_visual_task:${task.projectId}:${task.taskId}:${attempt}`,
+        label: `preplanning_${imageTool ? 'visual_tool_task' : 'visual_task'}:${task.projectId}:${task.taskId}:${attempt}`,
         childId: childId as SessionId,
         request: {
           parent,
           prompt: [{ type: 'text', text: taskPrompt(task) }, ...(task.referenceContent ?? [])],
-          agentOptions: { ...route, maxTokens: 8192 },
+          agentOptions: { ...model, maxTokens: 8192 },
           maxDepth: 1,
-          toolFilter: preplanningChildToolFilter('visual_task'),
-          persona: VISUAL_PERSONA,
+          toolFilter: preplanningChildToolFilter(imageTool ? 'visual_tool_task' : 'visual_task'),
+          persona: `${VISUAL_PERSONA}\n${imageTool ? TOOL_IMAGE_INSTRUCTIONS : DIRECT_IMAGE_INSTRUCTIONS}`,
         },
         signal,
       })

@@ -119,7 +119,14 @@ export async function apply(ctx: Context): Promise<void> {
   const governance = await GovernanceRepository.open(ctx.storage.domain)
   const automation = new AutomationService(governance, registry, now)
   const agentClassSessions = { get: (id: string) => ctx.sessions.get(id as never) }
+  const persistedChildEvents = (id: string, signal: AbortSignal = AbortSignal.timeout(5000)) => {
+    const persistence = ctx.get('sessionPersistence')
+    if (!persistence) throw new Error('VISUAL_SESSION_PERSISTENCE_UNAVAILABLE: cannot verify an unloaded child')
+    return readPersistedVisualEvents(persistence, id, signal)
+  }
   const agentClasses = await AgentClassService.open(ctx.storage.domain, {
+    tools: ctx.tools,
+    readPersistedEvents: persistedChildEvents,
     llm: ctx.llm, sessions: agentClassSessions, activity: id => ctx.get('agents')?.get(id as never)?.status,
     modelTurnAuthorization: (projectId, parentId) => {
       if (governance.readProject(projectId).policy?.mode !== 'automatic') return undefined
@@ -161,11 +168,7 @@ export async function apply(ctx: Context): Promise<void> {
   const boundaries = new SiteBoundaryService(governance, siteBoundaryAssets, now, () => `boundary-${randomUUID()}`)
   const visualCollector = new SessionImageCollector({
     sessions: { get: id => ctx.sessions.get(id as never) },
-    readPersistedEvents: (id, signal) => {
-      const persistence = ctx.get('sessionPersistence')
-      if (!persistence) throw new Error('VISUAL_SESSION_PERSISTENCE_UNAVAILABLE: cannot verify an unloaded visual child')
-      return readPersistedVisualEvents(persistence, id, signal)
-    },
+    readPersistedEvents: persistedChildEvents,
     attachments: { readImage: (ref, signal) => ctx.attachments.readImage(ref as never, signal) },
     waitForEvent: (childId, signal) => new Promise<void>((resolveWait, reject) => {
       let dispose: () => unknown = () => undefined

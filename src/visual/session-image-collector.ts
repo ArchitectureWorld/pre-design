@@ -1,6 +1,7 @@
 import type { VisualImageData } from './types.ts'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { completeRaster } from './complete-raster.ts'
+import { COMFYUI_IMAGE_TOOL } from '../agent-classes/image-tools.ts'
 
 export interface SessionEventLike {
   readonly seq: number
@@ -117,9 +118,32 @@ export class SessionImageCollector {
     const current = all.slice(Math.max(0, startIndex))
     const turn = (current[0]?.type === 'turn/start' ? current[0].data as { turn?: number } : undefined)?.turn
     const events = current.filter(event => event.seq >= afterSeq)
-    const image = await this.image(events, signal) ?? this.attemptImage(events, turn)
+    const descriptor = all.find(event => event.type === 'subagent/descriptor')?.data as { version?: number; provider?: string; mode?: string; label?: string } | undefined
+    const toolImage = descriptor?.version === 3 && descriptor.provider === 'spawn' && descriptor.mode === 'continuable'
+      && descriptor.label?.startsWith('preplanning_visual_tool_task:')
+    // Tool-backed children must have a correlated tool result AND finish their
+    // turn. Reference/assistant images are not proof of a ComfyUI generation.
+    const image = toolImage ? (completed(events) ? await this.image(this.toolImages(events), signal) : undefined)
+      : await this.image(events, signal) ?? this.attemptImage(events, turn)
     signal.throwIfAborted()
     return { completed: completed(events), image, ...(typeof turn === 'number' ? { turn } : {}) }
+  }
+
+  private toolImages(events: readonly SessionEventLike[]): SessionEventLike[] {
+    const calls = new Map<string, { turn: unknown; step: unknown }>()
+    const images: SessionEventLike[] = []
+    for (const event of events) {
+      const data = event.data as { name?: string; callId?: string; turn?: unknown; step?: unknown; message?: { content?: unknown[] } } | undefined
+      if (event.type === 'tool/call' && data?.name === COMFYUI_IMAGE_TOOL && typeof data.callId === 'string') calls.set(data.callId, { turn: data.turn, step: data.step })
+      if (event.type !== 'tool/result' || !Array.isArray(data?.message?.content)) continue
+      for (const value of data.message.content) {
+        const block = value as { type?: string; toolCallId?: string; isError?: boolean; content?: unknown[] } | undefined
+        const call = block?.toolCallId ? calls.get(block.toolCallId) : undefined
+        if (block?.type !== 'tool-result' || block.isError || !call || call.turn !== data.turn || call.step !== data.step || !Array.isArray(block.content)) continue
+        images.push({ ...event, type: 'assistant/message', data: { message: { content: block.content.filter(part => part && typeof part === 'object' && (part as { type?: unknown }).type === 'image') } } })
+      }
+    }
+    return images
   }
 
   private attemptImage(events: readonly SessionEventLike[], turn: number | undefined): VisualImageData | undefined {
