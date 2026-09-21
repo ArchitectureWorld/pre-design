@@ -21,7 +21,7 @@ import { verifyLocalizedLegendMaterial } from '../visual/image-legend-localizati
 import { normalizeReportRaster } from '../visual/report-raster.ts'
 import { projectImageSourceContext } from './project-image-provenance.ts'
 import { validateCachedWebImage, type CasePublicationSource } from '../visual/web-image-source.ts'
-import { ImageInspectionAgent, readImageInspection, saveImageInspection, imageSourceContextHash, type ImageInspectionSourceContext } from '../visual/image-inspection.ts'
+import { ImageInspectionAgent, ImageInspectionFailure, readImageInspection, saveImageInspection, imageSourceContextHash, type ImageInspectionSourceContext } from '../visual/image-inspection.ts'
 import { imageBriefHash, imagePlacementHash, permitsInternationalImages, MAX_ORIGINAL_IMAGE_USES, REPORT_IMAGE_POLICY_VERSION, type ImageInspection, type ImageSlotBrief } from '../visual/image-policy.ts'
 
 const sha = (data: Uint8Array | string) => createHash('sha256').update(data).digest('hex')
@@ -220,7 +220,6 @@ export class ReportImagePipeline {
           const claimedParent = asset.imageIdentity?.derivedFromSha256
           const result = await index.identifyAsync({ bytes, mimeType: asset.mimeType as 'image/png' | 'image/jpeg',
             ...(claimedParent ? { derivedFromSha256: preparedHashes.get(claimedParent) ?? claimedParent } : {}) }, signal)
-          if (result.reason === 'index-capacity') throw new Error('REPORT_IMAGE_IDENTITY_CAPACITY: 原图核验容量已满，停止补图以避免产生无法分配的付费素材')
           if (result.status !== 'identified' || !result.identity || Math.min(result.width ?? 0, result.height ?? 0) < 256 || Math.max(result.width ?? 0, result.height ?? 0) < 640) continue
           known = { ...asset, imageIdentity: result.identity, widthPx: result.width, heightPx: result.height, sha256: digest }; decoded.set(digest, known)
         }
@@ -268,7 +267,9 @@ export class ReportImagePipeline {
       } catch (error) {
         const message = error instanceof Error ? error.message : 'failed'
         const notStarted = /^(?:PREPLANNING_MODEL_(?:TURN_LIMIT|BUDGET_INVALID)|MODEL_UNAVAILABLE):/u.test(message)
-        for (const { attempt } of records) await atomicJson(attempt, { status: notStarted ? 'not-started' : 'failed-or-unknown', message })
+        for (const { demand, attempt } of records) await atomicJson(attempt, { status: notStarted ? 'not-started' : 'failed-or-unknown', message,
+          sha256: asset.sha256, requirementHash: imageBriefHash(demand.brief), sourceContextHash: imageSourceContextHash(inspectionSource(asset, input)), route,
+          ...(error instanceof ImageInspectionFailure ? { executionId: error.executionId, childId: error.childId } : {}) })
         throw error
       }
     }

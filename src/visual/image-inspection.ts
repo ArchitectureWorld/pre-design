@@ -81,6 +81,12 @@ export interface InspectImageInput extends ImageInspectionSourceContext {
   readonly slots: readonly { readonly brief: ImageSlotBrief; readonly placementHash: string }[]
   readonly sourceContext?: string
 }
+export class ImageInspectionFailure extends Error {
+  constructor(error: unknown, readonly executionId: string, readonly childId?: string) {
+    super(error instanceof Error ? error.message : 'IMAGE_REVIEW_FAILED', { cause: error })
+    this.name = 'ImageInspectionFailure'
+  }
+}
 /** A real image-input child; only the configured review routes may be attempted. */
 export class ImageInspectionAgent {
   constructor(private readonly dependencies: Dependencies) {}
@@ -90,6 +96,7 @@ export class ImageInspectionAgent {
     if (input.bytes.length > 25 * 1024 * 1024) throw new Error('IMAGE_REVIEW_TOO_LARGE')
     verifiedRasterImageDimensions(input.mimeType, input.bytes)
     const digest = createHash('sha256').update(input.bytes).digest('hex')
+    let protocolCorrections = 0
     let execution = await this.dependencies.classes.begin(input.projectId, 'review', `素材审图：${input.slots.map(s => s.brief.id).join('、')}`, parent, signal)
     for (;;) {
     let run: Awaited<ReturnType<SubagentRuntime['start']>> | undefined
@@ -130,8 +137,20 @@ export class ImageInspectionAgent {
       const next = await nextAgentClassAttempt(this.dependencies.classes, execution, parent, signal)
       if (next) { execution = next; continue }
       const recorded = this.dependencies.classes.execution?.(execution.id)
-      if (!signal.aborted && recorded?.status === 'failed' && recorded.error?.startsWith('MODEL_')) throw new Error(recorded.error)
-      throw error
+      // Correct protocol failures only after the exact child has a proven native
+      // terminal. Pixel capability failures, transport uncertainty and cancellation
+      // never justify another request or an image approval.
+      const correctable = recorded?.childStopReason === 'aborted' && recorded.error?.startsWith('PREPLANNING_VISUAL_NATIVE_IMAGE_ONLY')
+        || recorded?.childStopReason === 'completed' && recorded.error === 'IMAGE_REVIEW_OUTPUT_INVALID'
+      if (!signal.aborted && run && recorded?.status === 'failed' && recorded.childId === String(run.id)
+        && correctable && protocolCorrections < 2) {
+        await run.dispose(); run = undefined
+        protocolCorrections++
+        execution = await this.dependencies.classes.begin(input.projectId, 'review', `素材审图：${input.slots.map(s => s.brief.id).join('、')}`, parent, signal)
+        continue
+      }
+      const failure = !signal.aborted && recorded?.status === 'failed' && recorded.error?.startsWith('MODEL_') ? new Error(recorded.error) : error
+      throw new ImageInspectionFailure(failure, execution.id, run ? String(run.id) : recorded?.childId)
     } finally { await run?.dispose() }
     }
   }

@@ -173,3 +173,35 @@ it('propagates the classified native error to the export caller and disposes the
   expect(start).toHaveBeenCalledOnce()
   expect(dispose).toHaveBeenCalledOnce()
 })
+
+it.each(['corrected', 'always-denied', 'unknown-terminal', 'format-corrected', 'always-invalid'] as const)('recovers only a proven terminal review protocol failure: %s', async mode => {
+  const bytes = PNG.sync.write(new PNG({ width: 64, height: 64 })), route = { provider: 'native', model: 'vision' }
+  const formatFailure = mode === 'format-corrected' || mode === 'always-invalid'
+  const runs = new Map<string, any>(), children: { disposed: boolean }[] = []
+  const classes = {
+    begin: async () => { const run = { id: `review-${runs.size}`, selected: route }; runs.set(run.id, run); return run },
+    attach: async (id: string, childId: string) => { Object.assign(runs.get(id), { childId }) },
+    finish: async (id: string, status: string) => { Object.assign(runs.get(id), { status, actual: route,
+      ...(status === 'failed' ? { error: formatFailure ? 'IMAGE_REVIEW_OUTPUT_INVALID' : 'PREPLANNING_VISUAL_NATIVE_IMAGE_ONLY: disallowed tool',
+        childStopReason: mode === 'unknown-terminal' ? undefined : formatFailure ? 'completed' : 'aborted' } : {}) }) },
+    execution: (id: string) => runs.get(id),
+  }
+  const start = async () => {
+    expect(children.every(child => child.disposed)).toBe(true)
+    const child = { disposed: false }, id = `child-${children.length}`; children.push(child)
+    const corrected = (mode === 'corrected' || mode === 'format-corrected') && children.length === 2
+    return { id, dispose: async () => { child.disposed = true }, result: Promise.resolve(corrected
+      ? { stopReason: 'completed', output: [{ type: 'text', text: outputFor(item) }] }
+      : formatFailure ? { stopReason: 'completed', output: [{ type: 'text', text: '{"broken":true}' }] }
+      : { stopReason: 'aborted', output: [] }) }
+  }
+  const service = new ImageInspectionAgent({ classes, subagents: { start },
+    attachments: { saveImage: async () => ({ attachmentId: 'image' }) },
+    challenge: () => ({ bytes, answer: ['red', 'blue', 'green', 'yellow'] }) } as never)
+  const result = service.inspect({ id: 'parent' } as never, { projectId: 'p', bytes, mimeType: 'image/png',
+    slots: [{ brief, placementHash: 'place' }], ...verifiedSource }, AbortSignal.timeout(1000))
+  if (mode === 'corrected' || mode === 'format-corrected') await expect(result).resolves.toMatchObject([{ decision: 'approved', executionId: 'review-1' }])
+  else await expect(result).rejects.toThrow(formatFailure ? 'IMAGE_REVIEW_OUTPUT_INVALID' : 'IMAGE_REVIEW_FAILED: aborted')
+  expect(runs.size).toBe(mode === 'corrected' || mode === 'format-corrected' ? 2 : mode === 'unknown-terminal' ? 1 : 3)
+  expect(children.every(child => child.disposed)).toBe(true)
+})

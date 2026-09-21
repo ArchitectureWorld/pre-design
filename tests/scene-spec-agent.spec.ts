@@ -76,9 +76,11 @@ it('settles a successful sibling and its receipts before returning an independen
   })
   const work = f.service.resolve(parent, 'project', f.root, items, AbortSignal.timeout(5000)).then(() => { settled = true; return undefined }, error => { settled = true; return error })
   try {
-    await vi.waitFor(() => expect(f.classes.finish).toHaveBeenCalledWith(expect.any(String), 'failed', 'SCENE_SPEC_FAILED: failed'), { timeout: 1000 })
+    await vi.waitFor(() => {
+      expect(f.classes.finish).toHaveBeenCalledWith(expect.any(String), 'failed', 'SCENE_SPEC_FAILED: failed')
+      expect(f.start).toHaveBeenCalledTimes(2)
+    }, { timeout: 1000 })
     expect(settled).toBe(false)
-    expect(f.start).toHaveBeenCalledTimes(2)
   } finally { release(); await work }
   expect((await work).message).toBe('SCENE_SPEC_FAILED: failed')
   expect((await savedEntries(f.root)).filter(row => row.status === 'completed').map(row => row.specification.usageId).sort())

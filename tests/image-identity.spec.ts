@@ -6,6 +6,24 @@ import { ImageIdentityIndex, type ImageIdentityInput } from '../src/visual/image
 import { annotated, crop, jpeg, noise, png, resize, scene, solid } from './support/image-identity/fixtures.ts'
 
 describe('decoded original image identity', () => {
+  it('keeps recognizing new originals and old derivatives after more than 256 retained references', async () => {
+    const index = new ImageIdentityIndex(), bytes = jpeg(scene(7, 128, 96)), signal = AbortSignal.timeout(20000)
+    const original = await index.identifyAsync({ bytes, mimeType: 'image/jpeg' }, signal)
+    for (let variant = 1; variant <= 300; variant++) {
+      const result = await index.identifyAsync({ bytes: Buffer.concat([bytes, Buffer.alloc(variant)]), mimeType: 'image/jpeg' }, signal)
+      expect(result.status, `reference ${variant + 1}: ${result.reason}`).toBe('identified')
+      expect(result.identity?.originalId).toBe(original.identity?.originalId)
+    }
+    const independent = await index.identifyAsync({ bytes: png(scene(81, 128, 96)), mimeType: 'image/png' }, signal)
+    expect(independent.status).toBe('identified')
+    expect(independent.identity?.originalId).not.toBe(original.identity?.originalId)
+    const pixels = decode(bytes, { useTArray: true })
+    const excerpt = crop({ ...pixels, data: Buffer.from(pixels.data) }, 17, 13, 91, 65)
+    const derivative = await index.identifyAsync({ bytes: png(excerpt), mimeType: 'image/png' }, signal)
+    expect(derivative.status).toBe('identified')
+    expect(derivative.identity?.originalId).toBe(original.identity?.originalId)
+  }, 25000)
+
   it('keeps asynchronous results identical for originals, derivatives, ambiguity and rejection', async () => {
     const sync = new ImageIdentityIndex(), asynchronous = new ImageIdentityIndex(), raster = scene()
     const original = png(raster)

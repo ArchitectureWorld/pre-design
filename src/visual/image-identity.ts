@@ -30,14 +30,13 @@ export interface ImageIdentityResult {
   readonly status: 'identified' | 'ambiguous' | 'rejected'
   readonly identity?: OriginalImageIdentity
   readonly candidates: readonly ImageIdentityCandidate[]
-  readonly reason?: 'invalid-image' | 'image-too-large' | 'decoder-required' | 'insufficient-detail' | 'unverified-derivation' | 'similarity-requires-review' | 'conflicting-families' | 'index-capacity'
+  readonly reason?: 'invalid-image' | 'image-too-large' | 'decoder-required' | 'insufficient-detail' | 'unverified-derivation' | 'similarity-requires-review' | 'conflicting-families'
   readonly width?: number
   readonly height?: number
 }
 
 const MAX_BYTES = 32 * 1024 * 1024
 const MAX_PIXELS = 32 * 1024 * 1024
-const MAX_REFERENCES = 256
 const RASTER_EDGE = 128
 const FINE_GRID = 32
 const COARSE_GRID = 8
@@ -301,7 +300,9 @@ function comparison(source: Entry, target: Entry): ImageIdentityCandidate | unde
 /**
  * Register original/high-resolution sources before their derivatives where possible.
  * Ambiguous inputs have no allocatable identity and are not retained as trusted references.
- * The index retains only bounded comparison rasters (under 64 MB for 256 references), never source bytes.
+ * Each reference retains a bounded comparison raster, never source bytes.
+ * Keep all references for the export: a fixed count or eviction would either
+ * reject valid new material or forget earlier originals when detecting reuse.
  */
 export class ImageIdentityIndex {
   private readonly entries: Entry[] = []
@@ -373,7 +374,6 @@ export class ImageIdentityIndex {
   }
 
   private retain(entry: Entry, candidates: readonly ImageIdentityCandidate[]): ImageIdentityResult {
-    if (this.entries.length >= MAX_REFERENCES) return { status: 'rejected', reason: 'index-capacity', candidates, width: entry.width, height: entry.height }
     this.entries.push(entry); this.files.set(entry.identity.fileSha256, entry); this.decoded.set(entry.decodedSha256, entry)
     return { status: 'identified', identity: entry.identity, candidates, width: entry.width, height: entry.height }
   }

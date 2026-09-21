@@ -78,7 +78,8 @@ it.each(['invalid-json', 'bad-pixels', 'rejected'] as const)('does not use confi
     attachments: { saveImage: async () => ({ attachmentId: 'image' }) }, challenge: () => ({ bytes: image, answer: probe }) } as never)
   if (mode === 'rejected') expect((await review.inspect(parent, inspectInput, signal()))[0]?.decision).toBe('rejected')
   else await expect(review.inspect(parent, inspectInput, signal())).rejects.toThrow(/IMAGE_(REVIEW_OUTPUT_INVALID|INPUT_CAPABILITY_UNVERIFIED)/u)
-  expect(f.start).toHaveBeenCalledOnce(); expect(await f.classes.executions('p')).toHaveLength(1)
+  expect(f.start.mock.calls.map(call => call[1].agentOptions.model)).toEqual(mode === 'invalid-json' ? ['a', 'a', 'a'] : ['a'])
+  expect(await f.classes.executions('p')).toHaveLength(mode === 'invalid-json' ? 3 : 1)
 })
 it('retains every scene translation attempt and does not charge an availability switch as a content correction', async () => {
   const sceneBrief = { ...brief, subjects: ['公共服务投入与经营投入的分工'], activities: ['资金分工'], environment: '资金构成对照' }
