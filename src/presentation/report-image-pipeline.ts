@@ -16,6 +16,7 @@ import { regularImageGeometry, REGULAR_LAYOUT_VERSION } from '../report/regular/
 import { caseStudyPhotos } from '../report/case-studies/pages.ts'
 import { allocateReportImages, type ReviewedImageCandidate } from './report-image-allocation.ts'
 import { ImageIdentityIndex } from '../visual/image-identity.ts'
+import { verifyLocalizedLegendMaterial } from '../visual/image-legend-localization.ts'
 import { normalizeReportRaster } from '../visual/report-raster.ts'
 import { projectImageSourceContext } from './project-image-provenance.ts'
 import { validateCachedWebImage, type CasePublicationSource } from '../visual/web-image-source.ts'
@@ -122,6 +123,7 @@ export class ReportImagePipeline {
       if (saved.version !== REPORT_IMAGE_POLICY_VERSION || saved.projectId !== input.projectId || saved.fingerprint !== fingerprint(input)) return undefined
       for (const material of saved.materials) {
         signal.throwIfAborted()
+        if (!await verifyLocalizedLegendMaterial(material)) return undefined
         if (material.imagePreparation && (material.imagePreparation.version !== 'report-raster-v1'
           || sha(await readFile(material.imagePreparation.sourcePath)) !== material.imagePreparation.sourceSha256)) return undefined
         if (sourceKind(material) === 'web' && /web-reference/u.test(material.origin.method)
@@ -180,10 +182,12 @@ export class ReportImagePipeline {
     const preparedHashes = new Map<string, string>()
     const ingest = async (assets: readonly PresentationAdoptedAssetInput[]) => {
       assertCurrent(); signal.throwIfAborted()
-      for (const original of [...assets].sort((a,b) => (b.widthPx ?? 0) * (b.heightPx ?? 0) - (a.widthPx ?? 0) * (a.heightPx ?? 0))) {
+      for (const original of [...assets].sort((a,b) => Number(!!a.imageIdentity?.derivedFromSha256) - Number(!!b.imageIdentity?.derivedFromSha256)
+        || (b.widthPx ?? 0) * (b.heightPx ?? 0) - (a.widthPx ?? 0) * (a.heightPx ?? 0))) {
         assertCurrent(); signal.throwIfAborted()
         try {
         if (!['image/jpeg','image/png'].includes(original.mimeType)) continue
+        if (!await verifyLocalizedLegendMaterial(original)) throw new Error('LEGEND_DERIVATIVE_CHANGED')
         const originalBytes = await readFile(original.sourcePath)
         let prepared: Awaited<ReturnType<typeof normalizeReportRaster>>
         try { prepared = await normalizeReportRaster({ bytes: originalBytes, mimeType: original.mimeType as 'image/png' | 'image/jpeg', signal }) }

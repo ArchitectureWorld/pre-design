@@ -87,6 +87,9 @@ export function validateCatalogCase(row: VerifiedCaseStudy): void {
         || !['image/jpeg', 'image/png'].includes(image.mimeType) || !image.credit?.trim() || !image.description?.trim()
         || !row.evidence.some(item => item.sourceUrl === image.sourcePageUrl)) fail(code, `${row.caseId} requires a photograph from its verified project source`)
     refs(image.locationEvidenceIds ?? [], 'source location')
+    if (image.legendLocalization && (image.legendLocalization.sourceSha256 !== image.sha256
+      || image.legendLocalization.width !== image.width || image.legendLocalization.height !== image.height))
+      fail('CASE_STUDY_LEGEND_SOURCE', `${row.caseId} legend does not match its intact source`)
   }
   if (row.image) validateImage(row.image, 'CASE_STUDY_IMAGE')
   if (!Array.isArray(row.analysis) || row.analysis.length < 2 || row.analysis.length > 3

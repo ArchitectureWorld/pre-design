@@ -10,6 +10,7 @@ import { caseStudyPhotos } from '../report/case-studies/index.ts'
 import { prepareReportSceneVisuals } from './report-scene-visuals.ts'
 import { reportImageDimensions } from '../report/regular/image-dimensions.ts'
 import { createProjectImageProvenance } from './project-image-provenance.ts'
+import { prepareLocalizedLegendMaterial } from '../visual/image-legend-localization.ts'
 
 const escape = (value: string) => value.replace(/[&<>"']/gu, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&apos;' })[c]!)
 function svgLines(value: string, x: number, y: number, width = 22, size = 25): string {
@@ -40,7 +41,7 @@ export async function prepareClientVisuals(input: {
         const image = photograph.image, bytes = await readFile(image.sourcePath!)
         if (createHash('sha256').update(bytes).digest('hex') !== image.sha256) throw new Error('CASE_STUDY_IMAGE_CHANGED')
         const dimensions = reportImageDimensions(image.mimeType, bytes)
-        assets.push({ sourceKey: `client-source:${photograph.sourceKey}`, sourcePath: image.sourcePath!, originalFileName: `${caseStudy.caseId}-${photograph.imageId}.${image.mimeType === 'image/png' ? 'png' : 'jpg'}`,
+        const original: PresentationAdoptedAssetInput = { sourceKey: `client-source:${photograph.sourceKey}`, sourcePath: image.sourcePath!, originalFileName: `${caseStudy.caseId}-${photograph.imageId}.${image.mimeType === 'image/png' ? 'png' : 'jpg'}`,
           displayName: caseStudy.name, imageIdentity: image.imageIdentity, imageQuality: { ...image.imageQuality, sourceLocation: caseStudy.location }, mimeType: image.mimeType, semanticRole: 'source_evidence', widthPx: dimensions.width, heightPx: dimensions.height,
           createdAt: input.frozenProject.caseStudies!.generatedAt, adoptedAt: input.frozenProject.caseStudies!.generatedAt,
           objectIds: [], evidenceIds: caseStudy.evidence.map(e => e.evidenceId), role: 'primary', pageBindingOnly: true,
@@ -48,7 +49,12 @@ export async function prepareClientVisuals(input: {
           pageBindings: [{ findingId: finding.findingId, role: 'primary' }],
           origin: { type: 'human_added', sourceMaterialKeys: [], parentAssetKeys: [], sourceTool: null,
             method: JSON.stringify({ kind: 'case-reference', sourcePageUrl: image.sourcePageUrl, credit: image.credit, sha256: image.sha256, sourceLocation: caseStudy.location, locationEvidence: photograph.locationEvidence, description: caseStudy.summary }) },
-        })
+        }
+        assets.push(original)
+        if (image.legendLocalization) {
+          try { assets.push(await prepareLocalizedLegendMaterial(original, image.legendLocalization, join(input.workspaceRoot, '.pre-design', 'localized-legends'))) }
+          catch (error) { warnings.push(`CASE_LEGEND_UNAVAILABLE: ${page.id}: ${error instanceof Error ? error.message : String(error)}`) }
+        }
         continue
       }
       const key = page.visual.sourceMaterialKey, source = input.sources.find(candidate => candidate.sourceKey === key)

@@ -34,6 +34,21 @@ function physical(assets: ClientVisualAsset[], uses: string[][]) {
 }
 
 describe('image-aware physical composition', () => {
+  it('shares the complete prose across multiple stage pages before adding a text continuation', () => {
+    const labels = ['到达入口', '滨水步行', '茶园漫游', '茶室停留', '观景休憩', '便捷返程']
+    const body = Array.from({ length: 6 }, (_, i) => `游程安排${i + 1}：沿连续步道组织不同的停留体验，让游客在行进与休息之间自然切换。`)
+    const p = { ...stages(labels), body }
+    const parts = planRegularManuscriptPage(p, '游程体验', labels.map((_, i) => photo(`stage-${i}`, [`n${i}`])), 0)
+    expect(parts).toHaveLength(2)
+    expect(parts.every(part => part.layout.media.length === 3 && part.content.body.length > 0)).toBe(true)
+    expect(parts.flatMap(part => part.content.body).join('')).toBe(body.join(''))
+    expect(parts.flatMap(part => part.layout.materialGaps ?? [])).toEqual([])
+    for (const part of parts) for (const media of part.layout.media) {
+      expect(media.box.h).toBeGreaterThanOrEqual(1.5)
+      const bodyBottom = Math.max(...part.layout.texts.filter(t => t.role === 'body').map(t => t.box.y + t.box.h))
+      expect(bodyBottom).toBeLessThan(media.box.y)
+    }
+  })
   it('anchors complete landscape images to a page edge instead of centering them inside empty panels', () => {
     const asset = photo('landscape')
     for (let ordinal = 0; ordinal < 5; ordinal++) {

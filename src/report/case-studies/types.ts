@@ -1,7 +1,8 @@
 import type { ImageAnalysisScale, ImageQualityMetadata, OriginalImageIdentity } from '../../visual/image-policy.ts'
+import type { ImageLegendLocalization } from '../../visual/image-legend-localization.ts'
 
 export const CASE_STUDIES_SCHEMA_VERSION = 'pre-design.report-case-studies.v2' as const
-export const CASE_STUDIES_CATALOG_VERSION = 'verified-built-projects-2026-09-19.3'
+export const CASE_STUDIES_CATALOG_VERSION = 'verified-built-projects-2026-09-21.1'
 
 export type CaseStudyFeatureId = 'tea-landscape' | 'tea-experience' | 'slow-travel' | 'waterfront' | 'viewing' | 'adaptive-reuse' | 'visitor-service'
 export type CaseStudyDimension = 'function' | 'scene' | 'environment' | 'operation'
@@ -32,6 +33,8 @@ export interface CaseStudyFeature {
 }
 
 export interface CaseStudyImage {
+  /** Optional verified transcription; source geometry and original file remain intact. */
+  readonly legendLocalization?: ImageLegendLocalization
   readonly sourceUrl: string
   readonly sourcePageUrl: string
   readonly width: number

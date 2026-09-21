@@ -6,7 +6,7 @@ import { photoStagePresentation, photoStageTopReserve, routePhotoStages } from '
 import { imageBriefHash, imagePlacementHash, MIN_RETAINED_IMAGE_AREA } from '../../visual/image-policy.ts'
 
 export const REGULAR_CANVAS = { width: 13.333333, height: 7.5, unit: 'in' as const }
-export const REGULAR_LAYOUT_VERSION = 'regular-2026-09-21.1'
+export const REGULAR_LAYOUT_VERSION = 'regular-2026-09-21.2'
 export interface Box { readonly x: number; readonly y: number; readonly w: number; readonly h: number }
 export interface RegularText { readonly role: 'eyebrow' | 'title' | 'claim' | 'body' | 'stage'; readonly text: string; readonly box: Box; readonly size: number; readonly leading: number; readonly dark?: boolean; readonly nodeId?: string }
 export interface RegularMedia { readonly assetId: string; readonly box: Box; readonly fit: 'cover' | 'contain'; readonly nodeId?: string }
@@ -303,7 +303,10 @@ function stageStory(page: PlanningManuscriptPage, chapter: string, assets: reado
   const queue = [...page.body], parts: RegularPagePart[] = [], pending = [...assigned]
   while (pending.length) {
     const h = header(page, chapter, box(0.68, 0.35, 11.97, 6.7), true)
-    const body = parts.length ? [] : consume(queue, box(h.body.x, h.body.y, h.body.w, 0.9), h.texts)
+    // Share prose across the stage pages, reserving space for complete scenes,
+    // measured captions and relationships rather than spilling it to text-only pages.
+    const bodyAllowance = Math.min(2.2, Math.max(0, REGULAR_CANVAS.height - h.body.y - 3.3))
+    const body = consume(queue, box(h.body.x, h.body.y, h.body.w, bodyAllowance), h.texts)
     const headerBottom = Math.max(...h.texts.map(t => t.box.y + t.box.h))
     // Three readable scenes are preferable to twelve cropped slivers. A long
     // caption or panoramic source reduces this further before any image is cropped.

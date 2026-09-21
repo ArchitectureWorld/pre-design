@@ -357,11 +357,11 @@ export const VERIFIED_CASE_STUDIES: readonly VerifiedCaseStudy[] = [
       },
       {
         "imageId": "organization",
-        "sourceUrl": "https://oss.gooood.cn/uploads/2015/11/032-Songyang-Damushan-Tea-House%E4%B8%80%E5%B1%82%E5%B9%B3%E9%9D%A2%E5%9B%BE-960x421.jpg",
+        "sourceUrl": "https://oss.gooood.cn/uploads/2015/11/032-Songyang-Damushan-Tea-House%E4%B8%80%E5%B1%82%E5%B9%B3%E9%9D%A2%E5%9B%BE.jpg",
         "sourcePageUrl": "https://www.gooood.cn/church-of-tea-songyang-damushan-tea-house-by-dna_-design-and-architecture.htm",
-        "width": 960,
-        "height": 421,
-        "sha256": "79ae28e6defd778895e17ac4ecda20cf611a2022979393df04a0155296133601",
+        "width": 1700,
+        "height": 746,
+        "sha256": "d8306e0963c04c4cb92090408b395d7a63e6c1c23381e024ab83e54362be4c46",
         "mimeType": "image/jpeg",
         "credit": "DnA 建筑事务所；谷德设计网项目发布页",
         "description": "一层平面中的公共走道、茶厅与庭院",
@@ -377,13 +377,80 @@ export const VERIFIED_CASE_STUDIES: readonly VerifiedCaseStudy[] = [
         "analysisScale": "line",
         "mediaPurpose": "circulation",
         "imageIdentity": {
-          "originalId": "sha256:79ae28e6defd778895e17ac4ecda20cf611a2022979393df04a0155296133601",
-          "fileSha256": "79ae28e6defd778895e17ac4ecda20cf611a2022979393df04a0155296133601",
+          "originalId": "sha256:d8306e0963c04c4cb92090408b395d7a63e6c1c23381e024ab83e54362be4c46",
+          "fileSha256": "d8306e0963c04c4cb92090408b395d7a63e6c1c23381e024ab83e54362be4c46",
           "verification": "file-hash"
         },
         "locationEvidenceIds": [
           "case-evidence:damushan:location"
-        ]
+        ],
+        "legendLocalization": {
+          "version": "source-legend-zh-v1",
+          "sourceSha256": "d8306e0963c04c4cb92090408b395d7a63e6c1c23381e024ab83e54362be4c46",
+          "width": 1700,
+          "height": 746,
+          "regions": [
+            {
+              "x": 310,
+              "y": 630,
+              "width": 620,
+              "height": 110,
+              "columns": 3,
+              "fontSize": 20,
+              "lines": [
+                {
+                  "sourceText": "1 门厅 Lobby",
+                  "chineseText": "1 门厅"
+                },
+                {
+                  "sourceText": "2 茶室 Tea House",
+                  "chineseText": "2 茶室"
+                },
+                {
+                  "sourceText": "3 浅水池 Pool",
+                  "chineseText": "3 浅水池"
+                },
+                {
+                  "sourceText": "4 冥想空间 Meditation Space",
+                  "chineseText": "4 冥想空间"
+                },
+                {
+                  "sourceText": "5 庭院 Courtyard",
+                  "chineseText": "5 庭院"
+                },
+                {
+                  "sourceText": "6 走廊 Corridor",
+                  "chineseText": "6 走廊"
+                },
+                {
+                  "sourceText": "7 备餐间 Kitchen",
+                  "chineseText": "7 备餐间"
+                },
+                {
+                  "sourceText": "8 卫生间 Toilet",
+                  "chineseText": "8 卫生间"
+                },
+                {
+                  "sourceText": "9 室外平台 Outdoor Platform",
+                  "chineseText": "9 室外平台"
+                }
+              ]
+            },
+            {
+              "x": 1285,
+              "y": 630,
+              "width": 245,
+              "height": 72,
+              "fontSize": 22,
+              "lines": [
+                {
+                  "sourceText": "一层平面图 First Floor Plan",
+                  "chineseText": "一层平面图"
+                }
+              ]
+            }
+          ]
+        }
       },
       {
         "sourceUrl": "https://oss.gooood.cn/uploads/2015/11/018-Songyang-Damushan-Tea-House13-960x637.jpg",
@@ -1324,7 +1391,58 @@ export const VERIFIED_CASE_STUDIES: readonly VerifiedCaseStudy[] = [
         },
         "locationEvidenceIds": [
           "case-evidence:tianhu-lodge:location"
-        ]
+        ],
+        "legendLocalization": {
+          "version": "source-legend-zh-v1",
+          "sourceSha256": "503b36e04c4e0f8a212290f33c0d9c2a73b69bdd95cfdd4afd7aca0fe14cf5b6",
+          "width": 960,
+          "height": 568,
+          "regions": [
+            {
+              "x": 0,
+              "y": 468,
+              "width": 635,
+              "height": 37,
+              "fontSize": 16,
+              "lines": [
+                {
+                  "sourceText": "二层平面图 1st Floor Plan",
+                  "chineseText": "二层平面图"
+                }
+              ]
+            },
+            {
+              "x": 0,
+              "y": 505,
+              "width": 635,
+              "height": 63,
+              "columns": 3,
+              "fontSize": 18,
+              "lines": [
+                {
+                  "sourceText": "1 水库值班宿舍 Dormitory",
+                  "chineseText": "1 水库值班宿舍"
+                },
+                {
+                  "sourceText": "2 水库值班室 Duty Room",
+                  "chineseText": "2 水库值班室"
+                },
+                {
+                  "sourceText": "3 走廊 Corridor",
+                  "chineseText": "3 走廊"
+                },
+                {
+                  "sourceText": "4 公共卫生间 Public Toilet",
+                  "chineseText": "4 公共卫生间"
+                },
+                {
+                  "sourceText": "5 管理区分叉楼梯 Managing bifurcated stairs",
+                  "chineseText": "5 管理区分叉楼梯"
+                }
+              ]
+            }
+          ]
+        }
       },
       {
         "sourceUrl": "https://oss.gooood.cn/uploads/2025/12/041-Tianhu-Lake-Lodge-reservoir-management-building-renovation-by-tobe-Architecture-960x720.jpg",
