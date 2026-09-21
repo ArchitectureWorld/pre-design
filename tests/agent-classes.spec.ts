@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { spawn } from 'node:child_process'
 import { Context } from '@deepseek-ai/cordis'
 import Storage from '@deepseek-ai/dsh-storage'
 import * as StorageDomain from '@deepseek-ai/dsh-storage-domain'
@@ -29,11 +30,28 @@ async function fixture(modelTurnAuthorization?: (projectId: string, parentId: st
   const deps = { llm: llm as never, sessions: { get: vi.fn((id: string) => ({ snapshotEvents: () => childEvents.get(id) ?? events })) },
     activity: vi.fn<() => 'running' | 'idle' | undefined>(() => undefined), modelTurnAuthorization }
   const service = await AgentClassService.open(ctx.storage.domain, deps)
-  return { ctx, service, deps, llm, events, childEvents }
+  return { root, ctx, service, deps, llm, events, childEvents }
 }
 const a = { provider: 'test', model: 'a' }
 const b = { provider: 'test', model: 'b' }
 const parent = { id: 'parent', options: a } as never
+
+it.runIf(process.platform === 'win32')('survives a temporary Windows reader lock without duplicating task reservations', async () => {
+  const grant = { authorizationId: 'locked-store', grantedAt: new Date().toISOString(), maxModelTurns: 2 }
+  const { root, service } = await fixture(() => grant)
+  await service.save(0, { image: a, text: a, web: a, review: a })
+  const child = spawn('pwsh.exe', ['-NoProfile', '-NonInteractive', '-Command',
+    "$h=[System.IO.File]::Open($env:PRE_DESIGN_TEST_LOCK_PATH,[System.IO.FileMode]::Open,[System.IO.FileAccess]::Read,[System.IO.FileShare]::ReadWrite); try { [Console]::WriteLine('locked'); Start-Sleep -Milliseconds 500 } finally { $h.Dispose() }"],
+    { windowsHide: true, env: { ...process.env, PRE_DESIGN_TEST_LOCK_PATH: join(root, 'preplanning_agent_classes.json') }, stdio: ['ignore', 'pipe', 'pipe'] })
+  const closed = new Promise<void>((resolve, reject) => { child.once('error', reject); child.once('exit', code => code === 0 ? resolve() : reject(new Error(`lock helper exit ${code}`))) })
+  try {
+    await new Promise<void>((resolve, reject) => { child.once('error', reject); child.stdout.on('data', data => { if (String(data).includes('locked')) resolve() }); child.once('exit', () => reject(new Error('reader exited before readiness'))) })
+    const rows = await Promise.all([service.begin('p', 'text', 'one', parent), service.begin('p', 'review', 'two', parent)])
+    expect(new Set(rows.map(row => row.id)).size).toBe(2)
+    await expect(service.begin('p', 'text', 'third', parent)).rejects.toThrow('PREPLANNING_MODEL_TURN_LIMIT')
+    expect((await service.view('p')).executions).toHaveLength(2)
+  } finally { await closed }
+}, 10_000)
 
 it('persists ordered global backups, keeps them on legacy saves, and rejects duplicates and stale writes', async () => {
   const { service, ctx, deps } = await fixture()

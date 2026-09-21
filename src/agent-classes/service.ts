@@ -6,6 +6,7 @@ import { agentClassDomain, fallbacksSchema, routesSchema } from './domain.ts'
 import { AGENT_CLASSES, type AgentClassId, type AgentClassView, type AvailabilityFailure, type CatalogProvider, type ClassExecution, type ClassFallbacks, type ClassRoutes, type ClassSettings, type ExecutionStatus, type ModelRoute } from './types.ts'
 import { VISUAL_MODEL_ID, VISUAL_MODEL_PROVIDER } from '../visual/types.ts'
 import { preplanningCancellationReason } from '../runtime/preplanning-execution-guard.ts'
+import { retryDurableWrite } from '../state/durable-write.ts'
 
 export interface ExecutionSession {
   snapshotEvents(): readonly { readonly type: string; readonly data: unknown }[]
@@ -95,9 +96,10 @@ export class AgentClassService {
     await this.serialize(async () => {
       if (this.domain.table('settings').get('global')) return
       // Migrate the previous inherited route once. Later projects never change it.
-      await this.domain.table('settings').put('global', { revision: 0, routes: {
+      const settings: ClassSettings = { revision: 0, routes: {
         image: { provider: VISUAL_MODEL_PROVIDER, model: VISUAL_MODEL_ID }, web: route, text: route,
-      } })
+      } }
+      await retryDurableWrite(() => this.domain.table('settings').put('global', settings))
     })
   }
   async catalog(): Promise<CatalogProvider[]> {
@@ -143,7 +145,7 @@ export class AgentClassService {
       // provider was removed later; the runtime skips unavailable catalog routes.
       if (requested) await Promise.all(Object.values(requested).flat().map(route => this.validate(route)))
       const settings = { revision: revision + 1, routes, ...(current.fallbacks || requested ? { fallbacks } : {}) }
-      await this.domain.table('settings').put('global', settings)
+      await retryDurableWrite(() => this.domain.table('settings').put('global', settings))
       return structuredClone(settings)
     })
   }
@@ -198,7 +200,7 @@ export class AgentClassService {
       const record: ClassExecution = { id: randomUUID(), projectId, classId, task: task.slice(0, 300), parentId: String(parent.id),
         ...plan, selected, status: 'starting', startedAt: now, updatedAt: now,
         ...(authorization ? { automationAuthorizationId: authorization.authorizationId } : {}) }
-      await table.put(record.id, record)
+      await retryDurableWrite(() => table.put(record.id, record))
       return record
     })
     try { await this.validate(selected); signal?.throwIfAborted() } catch (error) {
@@ -240,7 +242,7 @@ export class AgentClassService {
       const run = this.execution(id)
       if (!run) throw new Error('EXECUTION_NOT_FOUND')
       const next = { ...run, ...patch, updatedAt: new Date().toISOString() }
-      await this.domain.table('executions').put(id, next)
+      await retryDurableWrite(() => this.domain.table('executions').put(id, next))
       return structuredClone(next)
     })
   }
