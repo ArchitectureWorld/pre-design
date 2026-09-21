@@ -175,7 +175,9 @@ export class ReportContentPlanner {
           const proposal = plan?.proposal as ReportContentPlan
           const prompt = phase === 'plan' ? contentPlanningPrompt(source, checkpoint.attempts.filter(a => a.phase === 'plan' && a.feedback).at(-1)?.feedback)
             : contentReviewPrompt(source, proposal)
-          run = await this.dependencies.subagents.start('spawn', { parent, signal: taskSignal, agentOptions: { ...execution.selected, maxTokens: 32768 },
+          // Explicit undefined clears the parent cap in native delegation, letting
+          // DSH resolve this model's configured budget (including reasoning).
+          run = await this.dependencies.subagents.start('spawn', { parent, signal: taskSignal, agentOptions: { ...execution.selected, maxTokens: undefined },
             prompt: [{ type: 'text', text: prompt }], outputSchema: phase === 'plan' ? CONTENT_PLAN_SCHEMA : REVIEW_SCHEMA, maxDepth: 1, toolFilter: { allow: [] },
             persona: phase === 'plan' ? '你是前期策划汇报的全稿编辑。只输出 JSON。' : '你是独立事实保全审核员。谨慎核验每条命题，只输出 JSON。', label: `preplanning_report_${phase}:${source.projectId}` })
           void run.result.catch(() => {})

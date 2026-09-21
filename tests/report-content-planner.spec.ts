@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile, mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { resolveChildAgentOptions } from '@deepseek-ai/dsh-subagent'
 import { ReportContentPlanner, contentPlanningPrompt, contentReviewPrompt } from '../src/report/manuscript/content-planner.ts'
 import { contentPlanFingerprint, contentUnits, defaultContentPlan } from '../src/report/manuscript/content-plan.ts'
 import type { PlanningManuscript } from '../src/report/manuscript/types.ts'
@@ -36,6 +37,16 @@ async function setup(review: unknown = { accepted: ['a/body[0]'] }, options: { u
   return { root, planner, prepare, requests, executions, checkpoint, dependencies }
 }
 describe('durable independently reviewed report planning', () => {
+  it.each(['configured', 'other'])('uses the selected model output budget rather than planner or %s parent caps', async provider => {
+    const h = await setup()
+    const parent = { id:'parent', options:{ provider, model:'text', maxTokens:2048 }, session:{ requestHeader:() => undefined } } as never
+    await h.planner.prepare(source, h.root, parent, new AbortController().signal, () => {})
+    for (const request of h.requests) {
+      const resolved = resolveChildAgentOptions(parent, request.agentOptions, 1)
+      expect(resolved).toMatchObject({ provider:'configured', model:'text' })
+      expect(resolved.maxTokens).toBeUndefined()
+    }
+  })
   it('serializes every fact once and interns shared provenance instead of repeating it per unit', () => {
     const refs = ['shared-source-' + 'x'.repeat(3000), 'second-source-' + 'y'.repeat(3000)]
     const large = { ...source, chapters: [{ ...source.chapters[0]!, pages: Array.from({ length: 30 }, (_, n) => ({
