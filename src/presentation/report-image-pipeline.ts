@@ -274,9 +274,12 @@ export class ReportImagePipeline {
     }
     const tested = new Set<string>(), cachedPairs = new Set<string>()
     const searched = new Set<string>(), generated = new Set<string>()
+    const decisions = new Map<string, ImageInspection['decision']>()
+    let generationCount = 0
     const pair = (asset: ConditionalReportMaterial, demand: ReportImageDemand) => `${asset.sha256}:${imageBriefHash(demand.brief)}:${imageSourceContextHash(inspectionSource(asset, input))}`
     const remember = (asset: ConditionalReportMaterial, demand: ReportImageDemand, inspection: ImageInspection) => {
       tested.add(pair(asset, demand))
+      decisions.set(pair(asset, demand), inspection.decision)
       if (inspection.decision !== 'approved' || reviewed.some(c => c.usageId === demand.brief.id && c.material.imageIdentity?.fileSha256 === asset.sha256
         && c.material.imageQuality?.inspection?.sourceContextHash === inspection.sourceContextHash)) return
       reviewed.push({ usageId: demand.brief.id, source: sourceKind(asset), material: {
@@ -488,14 +491,19 @@ export class ReportImagePipeline {
       }
       const missing = allocation().gaps.sort((a, b) => localGeneration ? Number(canGenerate(b.id)) - Number(canGenerate(a.id)) : 0)
       const generateWave = async (wave: readonly ReportImageDemand[]) => {
+        let current = wave
+        // Correct known pixel-review failures here, before speculative retrieval.
+        // Unknown generation/review outcomes never enter a correction wave.
+        for (let correction = 0; correction < 3; correction++) {
         const remainingIds = new Set(allocation().gaps.map(brief => brief.id))
-        const generation = wave.filter(demand => remainingIds.has(demand.brief.id)
+        const generation = current.filter(demand => remainingIds.has(demand.brief.id)
           && !demand.caseSource && !demand.sourceMaterialKey
-          && demand.brief.allowedSources.includes('generated') && this.dependencies.generate && !generated.has(demand.brief.id))
-          .slice(0, Math.max(0, maxGenerations - generated.size))
+          && demand.brief.allowedSources.includes('generated') && this.dependencies.generate && (correction > 0 || !generated.has(demand.brief.id)))
+          .slice(0, Math.max(0, maxGenerations - generationCount))
         // Reserve before dispatch; failure remains recorded and cannot submit twice.
         for (const demand of generation) generated.add(demand.brief.id)
         if (!generation.length) return
+        generationCount += generation.length
         const results = await Promise.allSettled(generation.map(async demand => {
           assertCurrent(); signal.throwIfAborted()
           // Approved images may already occupy another node on the same page,
@@ -518,6 +526,11 @@ export class ReportImagePipeline {
         for (const { demand, result } of completed) await ingestGenerated(demand, result)
         await resolveExisting(localGeneration)
         await adoptAssigned(completed.map(row => row.result))
+        current = completed.flatMap(({ demand, result }) => {
+          const asset = candidates.find(candidate => candidate.sourceKey === result.material.sourceKey)
+          return asset && decisions.get(pair(asset, demand)) === 'rejected' ? [demand] : []
+        })
+        }
       }
       // Retrieval, generation and inspection use separate waves. No wave overlaps
       // another, so the five-child limit also holds across capability classes.

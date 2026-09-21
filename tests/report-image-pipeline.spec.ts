@@ -30,6 +30,37 @@ async function material(root: string, name: string, index: number, height = 1200
     semanticRole: 'concept_visual', createdAt: '2026-09-19', adoptedAt: '2026-09-19', objectIds: [], evidenceIds: [], pageBindingOnly: true,
     pageBindings: [{ findingId: `manuscript:scene-${index}` }], origin: { type: 'generated_by_plugin', sourceMaterialKeys: [], parentAssetKeys: [], sourceTool: null, method: JSON.stringify({ prompt: name }) } }
 }
+it.each(['corrected', 'always-rejected', 'review-unknown', 'one-image-limit'] as const)('corrects only confirmed rejected generated images within the same export: %s', async mode => {
+  const root = await mkdtemp(join(tmpdir(), 'image-pipeline-')), route = { provider: 'fixture', model: 'fixture-vision' }
+  try {
+    const originals = await Promise.all(Array.from({ length: 4 }, (_, i) => material(root, i ? '滨水步道漫游' : '林下座椅休憩', i)))
+    const hashes = await Promise.all(originals.map(async asset => createHash('sha256').update(await readFile(asset.sourcePath)).digest('hex')))
+    const inspect = vi.fn(async (_: unknown, request: any) => {
+      const sha = createHash('sha256').update(request.bytes).digest('hex'), generated = sha !== hashes[0]
+      if (generated && mode === 'review-unknown') throw Error('IMAGE_REVIEW_FAILED: transport outcome unknown')
+      const rejected = generated && (mode !== 'corrected' || sha === hashes[1])
+      return request.slots.map((slot: any) => ({ schemaVersion: 'pre-design.image-inspection.v1', imageSha256: sha,
+        requirementHash: imageBriefHash(slot.brief), usageId: slot.brief.id, placementHash: slot.placementHash,
+        inspectedAt: '2026-09-21', actualImageInput: true, actualModel: route, executionId: 'fixture-review', contentKind: 'render',
+        relevant: true, matchedSubjects: slot.brief.subjects, mismatches: [], domesticContext: 'supported', textLanguages: [],
+        textLegible: !rejected, watermark: 'none', quality: 'pass', essentialBounds: [{ x: 0, y: 0, width: 1, height: 1 }],
+        decision: rejected ? 'rejected' : 'approved', sourceContextHash: imageSourceContextHash(request) }))
+    })
+    let calls = 0
+    const generate = vi.fn(async () => ({ material: originals[++calls]!, adopt: async () => {} }))
+    const pipeline = new ReportImagePipeline({ classes: { settings: () => ({ routes: { review: route } }),
+      execution: () => ({ classId: 'review', status: 'completed', actual: route }) } as never,
+      inspection: { inspect } as never, candidates: async () => [originals[0]!], generate })
+    const run = pipeline.prepare(project(), root, {} as never, AbortSignal.timeout(20_000), () => {},
+      mode === 'one-image-limit' ? { maxGenerations: 1 } : {})
+    if (mode === 'corrected') {
+      const result = await run
+      const bundle = createConditionalReportBundle(project(), result)
+      expect(auditRegularVisuals(planConditionalPages(bundle, 'html'), bundle.report).materialGaps).toEqual([])
+    } else await expect(run).rejects.toThrow('REPORT_IMAGE_GAPS')
+    expect(generate).toHaveBeenCalledTimes(mode === 'corrected' ? 2 : mode === 'always-rejected' ? 3 : 1)
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
 it.each([['normal', false, 1200], ['recovered', false, 1200], ['scarce', true, 1200], ['panorama', false, 400], ['large-original', false, 3000], ['large-generated', false, 3000], ['padded-jpeg', false, 1200]] as const)('finishes %s source review, physical placement and cache replay without regeneration', async (_name, scarce, height) => {
   const root = await mkdtemp(join(tmpdir(),'image-pipeline-')), input = project(), route = { provider: 'fixture', model: 'fixture-vision' }
   try {

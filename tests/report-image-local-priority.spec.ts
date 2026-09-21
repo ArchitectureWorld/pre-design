@@ -44,7 +44,8 @@ it.each([true, false])('reviews local generation first; only rejected images req
       generate, search })
     await expect(pipeline.prepare(input, root, {} as never, AbortSignal.timeout(10000), () => {})).rejects.toThrow('REPORT_IMAGE_GAPS')
     expect(order.slice(0, 2)).toEqual(['generate', 'review'])
-    expect(generate).toHaveBeenCalledOnce()
+    expect(generate).toHaveBeenCalledTimes(approved ? 1 : 3)
+    if (!approved) expect(order.indexOf('search:a-scene:main')).toBeGreaterThan(order.lastIndexOf('generate'))
     expect(search).toHaveBeenCalledTimes(approved ? 0 : 1)
     expect(adopt).toHaveBeenCalledTimes(approved ? 1 : 0)
     const gaps = JSON.parse(await readFile(join(root, '.pre-design/report-image-gaps.json'), 'utf8')).gaps
