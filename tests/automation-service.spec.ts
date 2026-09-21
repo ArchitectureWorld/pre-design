@@ -38,6 +38,18 @@ afterEach(async () => {
 })
 
 describe('AutomationService', () => {
+  it('persists an unlimited task authorization without widening its workflow scope or removing revocation', async () => {
+    const { automation, governance } = await harness()
+    const authorization = await automation.authorize('project-1', {
+      baseRevision: 0, workflowIds: ['preplan.wf.01.01'], gateIds: ['G1'], maxImages: 20,
+      maxModelTurns: null, stopOnBlocking: true, reportDepth: 'standard',
+    }, owner)
+    expect(governance.readProject('project-1').authorizations[0]?.scope.maxModelTurns).toBeNull()
+    expect(automation.requireValid('project-1', 12, 'preplan.wf.01.01').authorizationId).toBe(authorization.authorizationId)
+    expect(() => automation.requireValid('project-1', 12, 'preplan.wf.02.01')).toThrow('out of scope')
+    await automation.revoke('project-1', authorization.authorizationId, owner, 'stop')
+    expect(() => automation.requireValid('project-1', 12)).toThrow('no valid automation authorization')
+  })
   it('authorizes explicit workflow and gate scope, remains valid across revisions, then revokes', async () => {
     const { automation, governance, registry } = await harness()
     const workflowIds = registry.workflowIds()

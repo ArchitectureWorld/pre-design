@@ -18,7 +18,8 @@ interface Dependencies {
   readonly modelTurnAuthorization?: (projectId: string, parentId: string) => {
     readonly authorizationId: string
     readonly grantedAt: string
-    readonly maxModelTurns: number
+    /** null explicitly authorizes tasks without a numeric cap; history is retained. */
+    readonly maxModelTurns: number | null
     readonly visualBudgetMode?: 'bounded' | 'on_demand'
     readonly maxVisualGenerations?: number
     readonly projectVisualBudget?: number
@@ -170,7 +171,8 @@ export class AgentClassService {
       }
       if (authorization) {
         const grantedAt = Date.parse(authorization.grantedAt)
-        if (!Number.isFinite(grantedAt) || !Number.isSafeInteger(authorization.maxModelTurns) || authorization.maxModelTurns < 1) {
+        if (!Number.isFinite(grantedAt) || (authorization.maxModelTurns !== null
+          && (!Number.isSafeInteger(authorization.maxModelTurns) || authorization.maxModelTurns < 1))) {
           throw new Error('PREPLANNING_MODEL_BUDGET_INVALID: 自动策划轮数授权无效，已停止派发。')
         }
         // Each class dispatch owns one one-shot child/model turn. Reserve before
@@ -183,7 +185,7 @@ export class AgentClassService {
           && (row.automationAuthorizationId === authorization.authorizationId
             || (row.automationAuthorizationId === undefined
               && (!Number.isFinite(Date.parse(row.startedAt)) || Date.parse(row.startedAt) >= grantedAt)))).length
-        if (!(onDemandImages && classId === 'image') && used >= authorization.maxModelTurns) {
+        if (authorization.maxModelTurns !== null && !(onDemandImages && classId === 'image') && used >= authorization.maxModelTurns) {
           throw new Error(`PREPLANNING_MODEL_TURN_LIMIT: 已使用或预留 ${used}/${authorization.maxModelTurns} 轮自动策划模型任务，已停止新派发；失败重试也计入，原授权上限未改变。`)
         }
         if (classId === 'image' && !onDemandImages) {

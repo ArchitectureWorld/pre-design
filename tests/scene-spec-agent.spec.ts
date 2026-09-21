@@ -39,6 +39,23 @@ const secondBrief = { ...brief, id: 'operation:main' }
 const secondContext = { ...context, usageId: secondBrief.id }
 const secondSpecification = { ...specification, usageId: secondBrief.id }
 const pair = [{ brief, context }, { brief: secondBrief, context: secondContext }]
+it('continues scene translation past a failed cached item and a failed batch, preserving usable later results', async () => {
+  const items = Array.from({ length: 10 }, (_, i) => ({ brief: { ...brief, id: `scene-${i}:main` }, context: { ...context, usageId: `scene-${i}:main` } }))
+  const f = await fixture('unused')
+  const prior = await legacyEntry(f, items[0]!, { status: 'failed', error: 'transport failed' })
+  f.start.mockImplementation(async (_provider: string, request: any) => ({ id: 'child', dispose: f.dispose,
+    result: Promise.resolve(request.prompt[0].text.includes('scene-9:main')
+      ? { stopReason: 'completed', output: [{ type: 'text', text: JSON.stringify({ items: [{ ...specification, usageId: 'scene-9:main' }] }) }] }
+      : { stopReason: 'failed', output: [] }) }))
+  const failures = new Map<string, string>()
+  const result = await f.service.resolve(parent, 'project', f.root, items, AbortSignal.timeout(5000), {
+    onError: (id, error) => { failures.set(id, String(error)) },
+  })
+  expect([...result.keys()]).toEqual(['scene-9:main'])
+  expect([...failures.keys()]).toEqual(items.slice(0, 9).map(item => item.brief.id))
+  expect(await readFile(prior.path, 'utf8')).toBe(prior.content)
+  expect((await savedEntries(f.root)).filter(row => row.status === 'completed')).toHaveLength(1)
+})
 async function savedEntries(root: string) {
   const directory = join(root, '.pre-design', 'scene-specifications')
   return Promise.all((await readdir(directory)).map(async name => JSON.parse(await readFile(join(directory, name), 'utf8'))))
@@ -46,7 +63,8 @@ async function savedEntries(root: string) {
 async function legacyEntry(f: Awaited<ReturnType<typeof fixture>>, item: typeof pair[number], overrides: Record<string, unknown> = {}) {
   const directory = join(f.root, '.pre-design', 'scene-specifications')
   await mkdir(directory, { recursive: true })
-  const key = createHash('sha256').update(JSON.stringify({ version: SCENE_SPEC_VERSION, item })).digest('hex')
+  const key = createHash('sha256').update(JSON.stringify({ version: SCENE_SPEC_VERSION,
+    ...(overrides.dispatchVersion ? { dispatchVersion: overrides.dispatchVersion } : {}), item })).digest('hex')
   const executionId = `legacy-${item.brief.id}`
   const record = { version: SCENE_SPEC_VERSION, key, status: 'completed', executionId, error: undefined as string | undefined,
     specification: { ...specification, usageId: item.brief.id }, attemptExecutionIds: [executionId], ...overrides }
@@ -55,6 +73,43 @@ async function legacyEntry(f: Awaited<ReturnType<typeof fixture>>, item: typeof 
   f.runs.set(executionId, { ...f.run, id: executionId, status: record.status, actual: route })
   return { record, path, content, executionId }
 }
+it.each([undefined, 'scene-spec-dispatch-2026-09-20.1'])('corrects only a newly rejected cached condition while preserving its original receipt and other valid cached scenes (%s)', async dispatchVersion => {
+  const condition = '必要设施以减少地表扰动、避让茶树种植带为原则'
+  const source = `林下步道与遮雨廊亭；${condition}`
+  const item = { brief, context: { ...context, sources: context.sources.map(row => row.path === 'body[0]' ? { ...row, text: source } : row) } }
+  const f = await fixture()
+  const bad = await legacyEntry(f, item, { ...(dispatchVersion ? { dispatchVersion } : {}), specification: {
+    ...specification, subjects: [...specification.subjects, { text: condition, sourcePath: 'body[0]' }],
+  } })
+  const good = await legacyEntry(f, pair[1]!)
+  const result = await f.service.resolve(parent, 'project', f.root, [item, pair[1]!], AbortSignal.timeout(1000))
+  expect(result.get(brief.id)?.subjects).toEqual(['林下步道与遮雨廊亭'])
+  expect(result.get(brief.id)?.sceneGrounding?.sources).toEqual(expect.arrayContaining([{ path: 'body[0]', text: source }]))
+  expect(result.get(secondBrief.id)?.subjects).toEqual(['林下步道与遮雨廊亭'])
+  expect(f.start).toHaveBeenCalledTimes(1)
+  expect(await readFile(bad.path, 'utf8')).toBe(bad.content)
+  expect(await readFile(good.path, 'utf8')).toBe(good.content)
+  expect(f.runs.get(bad.executionId)?.status).toBe('completed')
+  const correction = (await savedEntries(f.root)).find(row => row.executionId === 'run')
+  expect(correction.history).toEqual(expect.arrayContaining([expect.objectContaining({ key: bad.record.key, executionId: bad.executionId })]))
+  await f.service.resolve(parent, 'project', f.root, [item, pair[1]!], AbortSignal.timeout(1000))
+  expect(f.start).toHaveBeenCalledTimes(1)
+})
+
+it('does not automatically retry a failed correction of a formerly completed cached scene', async () => {
+  const condition = '按合作协议分配可分配收益'
+  const item = { brief, context: { ...context, sources: [...context.sources, { path: 'body[3]', text: condition }] } }
+  const f = await fixture(JSON.stringify({ items: [specification] }), 'aborted')
+  const original = await legacyEntry(f, item, { specification: { ...specification,
+    activities: [{ text: condition, sourcePath: 'body[3]' }],
+  } })
+  await expect(f.service.resolve(parent, 'project', f.root, [item], AbortSignal.timeout(1000))).rejects.toThrow('SCENE_SPEC_FAILED')
+  await expect(f.service.resolve(parent, 'project', f.root, [item], AbortSignal.timeout(1000))).rejects.toThrow('SCENE_SPEC_ATTEMPT_REQUIRES_ATTENTION')
+  expect(f.start).toHaveBeenCalledTimes(1)
+  expect(await readFile(original.path, 'utf8')).toBe(original.content)
+  expect(f.runs.get(original.executionId)?.status).toBe('completed')
+})
+
 it('grounds an abstract photo demand in source text, preserves its identity and reuses only a completed native result', async () => {
   const f = await fixture(), input = [{ brief, context }], original = JSON.stringify(input)
   const result = await f.service.resolve(parent, 'project', f.root, input, AbortSignal.timeout(1000))

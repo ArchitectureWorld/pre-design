@@ -62,7 +62,8 @@ export interface AutomationAuthorizationScope {
   /** Explicit on-demand image authorization; image tasks do not consume the text/model budget. */
   readonly visualBudgetMode?: 'bounded' | 'on_demand'
   /** Maximum admitted one-shot class/model tasks; failed dispatches retain their reservation. */
-  readonly maxModelTurns: number
+  /** null means no task-count cap; execution records still accumulate. */
+  readonly maxModelTurns: number | null
   readonly stopOnBlocking: boolean
 }
 

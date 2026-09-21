@@ -17,6 +17,24 @@ const demands = (count: number): ReportImageDemand[] => Array.from({ length: cou
     activities: [], environment: '河岸', scale: 'scene', allowedKinds: ['render'], allowedSources: ['web', 'generated'], locale: 'domestic' } }))
 const classes = { settings: () => ({ routes: { review: { provider: 'fixture', model: 'vision' } } }) } as never
 
+it('skips unresolved scene dependencies, continues recoverable work and reports all item errors once', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'image-continue-report-')), searched: string[] = [], notices: string[] = []
+  try {
+    const pipeline = new ReportImagePipeline({ classes, inspection: {} as never, candidates: async () => [],
+      resolveDemands: async () => demands(7).map((demand, i) => i === 0 ? { ...demand, unavailableReason: 'SCENE_SPEC_UNOBSERVABLE' } : demand),
+      recover: async demand => { if (demand.brief.id === 'scene-1:main') throw new Error('saved image unavailable'); return undefined },
+      search: async demand => { searched.push(demand.brief.id); return [] },
+      reportIssues: async (_parent, _signal, message) => { notices.push(message) },
+    })
+    await expect(pipeline.prepare(input, root, {} as never, AbortSignal.timeout(5000), () => {}, { maxGenerations: 0 })).rejects.toThrow('REPORT_IMAGE_GAPS: 7 ')
+    expect(searched).toEqual(demands(7).slice(1).map(demand => demand.brief.id))
+    const receipt = JSON.parse(await readFile(join(root, '.pre-design', 'report-image-gaps.json'), 'utf8'))
+    expect(receipt.errors.map((error: any) => error.stage)).toEqual(['scene', 'recovery'])
+    expect(notices).toHaveLength(1)
+    expect(notices[0]).toContain('2')
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+
 it('reviews and adopts successful siblings before propagating a generation failure, and records the remaining gaps', async () => {
   const root = await mkdtemp(join(tmpdir(), 'partial-image-wave-')), adopt = vi.fn(async () => {})
   try {
@@ -65,7 +83,7 @@ it('searches independent gaps in waves of five and visits each gap only once', a
   } finally { await rm(root, { recursive: true, force: true }) }
 })
 
-it.each(['search', 'generation'] as const)('drains every started %s in a failed wave without dispatching the next wave', async mode => {
+it.each(['search', 'generation'] as const)('records failed %s tasks and continues through all later waves', async mode => {
   const root = await mkdtemp(join(tmpdir(), 'parallel-image-failure-'))
   let active = 0, peak = 0, settled = 0
   const visited: string[] = [], searched = new Set<string>()
@@ -80,8 +98,10 @@ it.each(['search', 'generation'] as const)('drains every started %s in a failed 
       search: mode === 'search' ? fail : async demand => { searched.add(demand.brief.id); return [] },
       ...(mode === 'generation' ? { generate: fail } : {}) })
     await expect(pipeline.prepare(input, root, {} as never, AbortSignal.timeout(5000), () => {})).rejects.toThrow('failed:scene-0:main')
-    expect(peak).toBe(5); expect(active).toBe(0); expect(settled).toBe(5)
-    expect(visited).toEqual(demands(5).map(demand => demand.brief.id))
+    expect(peak).toBe(5); expect(active).toBe(0); expect(settled).toBe(8)
+    expect(visited).toEqual(demands(8).map(demand => demand.brief.id))
+    const receipt = JSON.parse(await readFile(join(root, '.pre-design', 'report-image-gaps.json'), 'utf8'))
+    expect(receipt.errors.filter((error: any) => error.stage === mode).map((error: any) => error.usageIds[0])).toEqual(visited)
   } finally { await rm(root, { recursive: true, force: true }) }
 })
 

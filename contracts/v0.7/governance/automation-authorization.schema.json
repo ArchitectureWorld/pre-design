@@ -20,7 +20,7 @@
         "gateIds": { "type": "array", "items": { "type": "string", "pattern": "^G[1-8]$" }, "uniqueItems": true },
         "maxVisualGenerations": { "type": "integer", "minimum": 0 },
         "visualBudgetMode": { "enum": ["bounded", "on_demand"] },
-        "maxModelTurns": { "type": "integer", "minimum": 1 },
+        "maxModelTurns": { "type": ["integer", "null"], "minimum": 1, "description": "null means no task-count cap; task history is retained" },
         "stopOnBlocking": { "type": "boolean" }
       }
     },

@@ -211,40 +211,39 @@ export class PlanningManuscriptService {
       writes = pending.catch(() => undefined)
       return pending
     }
+    const failures = new Map<PlanningChapterId, unknown>()
     for (const id of PLANNING_CHAPTER_IDS) {
       const latest = checkpoint.chapters[id]?.attempts.at(-1)
       if (latest && ['reserved', 'running', 'recovery_required'].includes(latest.status)) {
         latest.status = 'recovery_required'; latest.errorCode = 'MANUSCRIPT_RECOVERY_REQUIRED'
         await persist()
-        throw new Error(`MANUSCRIPT_RECOVERY_REQUIRED: ${id}保留了未确认结束的子会话，须先核对该请求，不能自动重复付费。`)
+        failures.set(id, new Error(`MANUSCRIPT_RECOVERY_REQUIRED: ${id}保留了未确认结束的子会话，已跳过该项并继续其它章节。`))
       }
     }
     if (PLANNING_CHAPTER_IDS.some(id => checkpoint.chapters[id]?.chapter === undefined)
       && !this.dependencies.subagents.getProvider('spawn')) throw new Error('MANUSCRIPT_PROVIDER_UNAVAILABLE: DSH文本子会话不可用。')
-    let dispatchFailure: { error: unknown } | undefined
-    const stopDispatch = (error: unknown) => { dispatchFailure ??= { error } }
-    const assertDispatchOpen = () => { if (dispatchFailure) throw dispatchFailure.error }
-    const dispatchGuard = async () => {
-      assertDispatchOpen()
-      await guard()
-      assertDispatchOpen()
-    }
     let next = 0
     const worker = async () => {
-      try {
         while (next < PLANNING_CHAPTER_IDS.length) {
-          await dispatchGuard()
+          await guard()
           if (next >= PLANNING_CHAPTER_IDS.length) return
           const id = PLANNING_CHAPTER_IDS[next++]!
-          if (checkpoint.chapters[id]?.chapter) continue
-          await this.writeChapter(input, id, sources, agent, signal, guard, checkpoint, persist, { guard: dispatchGuard, stop: stopDispatch })
+          if (checkpoint.chapters[id]?.chapter || failures.has(id)) continue
+          try { await this.writeChapter(input, id, sources, agent, signal, guard, checkpoint, persist) }
+          catch (error) { failures.set(id, error); signal.throwIfAborted() }
         }
-      } catch (error) { stopDispatch(error); throw error }
     }
     const results = await Promise.allSettled(Array.from({ length: this.maxConcurrency }, worker))
     await writes
     const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
-    if (failed) throw dispatchFailure?.error ?? failed.reason
+    if (failed) throw failed.reason
+    if (failures.size) {
+      await atomicJson(join(root, '.pre-design', 'report-manuscript-errors', `${randomUUID()}.json`), {
+        projectId: input.projectId, sourceRevision: input.revision, at: this.now(), stage: 'writing',
+        errors: [...failures].map(([chapterId, error]) => ({ chapterId, message: error instanceof Error ? error.message : String(error) })),
+      }, guard)
+      throw failures.values().next().value
+    }
     await guard()
     const sourceDraft: PlanningManuscript = { schemaVersion: PLANNING_MANUSCRIPT_SCHEMA_VERSION,
       policyVersion: PLANNING_MANUSCRIPT_POLICY_VERSION, projectId: input.projectId, sourceRevision: input.revision,
@@ -309,15 +308,14 @@ export class PlanningManuscriptService {
   }
 
   private async writeChapter(input: FrozenProjectInput, id: PlanningChapterId, sources: readonly PlanningManuscriptSource[], parent: Agent,
-    signal: AbortSignal, guard: AssertCurrent, checkpoint: Checkpoint, persist: (guard?: AssertCurrent) => Promise<void>,
-    dispatch: { guard: AssertCurrent; stop: (error: unknown) => void }): Promise<void> {
+    signal: AbortSignal, guard: AssertCurrent, checkpoint: Checkpoint, persist: (guard?: AssertCurrent) => Promise<void>): Promise<void> {
     const row = checkpoint.chapters[id] ??= { attempts: [] }
     let nextExecution: Awaited<ReturnType<AgentClassService['begin']>> | undefined
     for (;;) {
-      await dispatch.guard()
+      await guard()
       const validationCorrection = Boolean(row.attempts.at(-1)?.validationFeedback)
       if (validationCorrection) {
-        if (checkpoint.correctionsUsed >= MAX_CORRECTIONS) throw new Error('MANUSCRIPT_CORRECTION_LIMIT: 本版文案已使用两次纠错，保留原请求及章节记录，停止新派发。')
+        if (checkpoint.correctionsUsed >= MAX_CORRECTIONS) throw new Error('MANUSCRIPT_CORRECTION_LIMIT: 本版文案已使用两次纠错，该章节保留待修正记录。')
         checkpoint.correctionsUsed++
       }
       // An execution retry still needs the last rejected draft, without spending a new content correction.
@@ -330,15 +328,15 @@ export class PlanningManuscriptService {
       let taskSignal = signal
       try {
         await persist(guard)
-        await dispatch.guard()
+        await guard()
         execution = nextExecution ?? await this.dependencies.agentClasses.begin(input.projectId, 'text', `汇报文案：${planningChapterTitle(id)}`, parent, signal)
         nextExecution = undefined
         attempt.executionId = execution.id
         await persist(guard)
-        await dispatch.guard()
+        await guard()
         const deadline = new AbortController()
         const timeoutMs = this.dependencies.timeoutMs ?? (/^ollama(?:[-_]|$)/iu.test(execution.selected.provider) ? 1_200_000 : 300_000)
-        timer = setTimeout(() => deadline.abort(new Error('MANUSCRIPT_CHILD_TIMEOUT: 汇报文案子会话超时，已停止本轮派发。')), timeoutMs)
+        timer = setTimeout(() => deadline.abort(new Error('MANUSCRIPT_CHILD_TIMEOUT: 当前章节子会话超时，已记录该项问题。')), timeoutMs)
         timer.unref?.()
         taskSignal = AbortSignal.any([signal, deadline.signal])
         run = await this.dependencies.subagents.start('spawn', { parent, agentOptions: { ...execution.selected, maxTokens: MAX_OUTPUT_TOKENS },
@@ -375,26 +373,14 @@ export class PlanningManuscriptService {
         return
       } catch (error) {
         const invalidContent = attempt.validationFeedback !== undefined
-        const hasBackup = Boolean(this.dependencies.agentClasses.fallback && execution?.routeChain
-          && (execution.routeIndex ?? 0) + 1 < execution.routeChain.length)
-        if (signal.aborted || taskSignal.aborted || (invalidContent ? checkpoint.correctionsUsed >= MAX_CORRECTIONS : !hasBackup)) {
-          // Fatal content/cancellation must close admission before any awaited
-          // bookkeeping can release a sibling waiting to dispatch.
-          dispatch.stop(signal.aborted ? signal.reason : taskSignal.aborted ? taskSignal.reason : error)
-        }
         delete row.chapter
         attempt.status = signal.aborted ? 'cancelled' : 'failed'
         attempt.errorCode = error instanceof Error ? /^MANUSCRIPT_[A-Z_]+/u.exec(error.message)?.[0] ?? 'MANUSCRIPT_CHILD_FAILED' : 'MANUSCRIPT_CHILD_FAILED'
         if (execution) await this.dependencies.agentClasses.finish(execution.id, signal.aborted ? 'cancelled' : 'failed', attempt.errorCode).catch(() => undefined)
         await persist()
         if (!signal.aborted && !taskSignal.aborted && !invalidContent) {
-          try { nextExecution = await nextAgentClassAttempt(this.dependencies.agentClasses, execution, parent, taskSignal) }
-          catch (failure) { dispatch.stop(failure); throw failure }
+          nextExecution = await nextAgentClassAttempt(this.dependencies.agentClasses, execution, parent, taskSignal)
           if (nextExecution) continue
-        }
-        if (signal.aborted || taskSignal.aborted || !invalidContent || checkpoint.correctionsUsed >= MAX_CORRECTIONS) {
-          // A terminal failure stops new work only after configured backups are exhausted.
-          dispatch.stop(signal.aborted ? signal.reason : taskSignal.aborted ? taskSignal.reason : error)
         }
         if (signal.aborted) throw signal.reason
         if (taskSignal.aborted) throw taskSignal.reason

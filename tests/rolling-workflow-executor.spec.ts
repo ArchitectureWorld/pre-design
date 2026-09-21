@@ -135,31 +135,33 @@ describe('rolling dependency-aware workflow scheduling', () => {
     expect(h.committed).toHaveLength(3)
   })
 
-  it('stops admission after a blocker and drains successful siblings without retry loops', async () => {
-    const h = harness({ a: [], b: [], c: [] }, 2)
+  it('continues independent work after a blocker without dispatching its dependents or retrying it', async () => {
+    const h = harness({ a: [], b: [], c: [], dependent: ['b'] }, 2)
     const run = h.executor.runReadyBatch(h.agent, 'project', { refill: true })
     await vi.waitFor(() => expect(h.started).toEqual(['a', 'b']))
     h.pending.get('b')!.reject(new Error('transport failure'))
     await vi.waitFor(() => expect(h.states.get('b')).toBe('blocked'))
-    expect(h.started).toEqual(['a', 'b'])
-    h.finish('a')
-    expect(await run).toMatchObject({ attempted: 2, completed: 1, blocked: 1 })
-    expect(h.committed).toEqual(['a'])
+    await vi.waitFor(() => expect(h.started).toEqual(['a', 'b', 'c']))
+    h.finish('a'); h.finish('c')
+    expect(await run).toMatchObject({ attempted: 3, completed: 2, blocked: 1 })
+    expect(h.committed.sort()).toEqual(['a', 'c'])
+    expect(h.states.get('dependent')).toBe('ready')
+    expect(h.runtime.transition.mock.calls).toContainEqual(['project', 'b', { to: 'blocked', reason: 'transport failure' }])
   })
 
-  it('drains admitted models before reporting a later admission write failure', async () => {
-    const h = harness({ a: [], b: [] }, 2)
+  it('records an admission write failure and still runs later independent work', async () => {
+    const h = harness({ a: [], b: [], c: [] }, 2)
     const transition = h.runtime.transition.getMockImplementation()!
     h.runtime.transition.mockImplementation(async (...args) => {
       if (args[1] === 'b' && args[2].to === 'running') throw new Error('storage unavailable')
       return transition(...args)
     })
     let settled = false
-    const run = h.executor.runReadyBatch(h.agent, 'project', { refill: true }).catch(error => { settled = true; return error })
-    await vi.waitFor(() => expect(h.started).toEqual(['a']))
+    const run = h.executor.runReadyBatch(h.agent, 'project', { refill: true }).then(result => { settled = true; return result })
+    await vi.waitFor(() => expect(h.started).toEqual(['a', 'c']))
     expect(settled).toBe(false)
-    h.finish('a')
-    expect(await run).toMatchObject({ message: 'storage unavailable' })
-    expect(h.committed).toEqual(['a'])
+    h.finish('a'); h.finish('c')
+    expect(await run).toMatchObject({ errors: [{ stage: 'admission', workflowId: 'b', message: 'storage unavailable' }] })
+    expect(h.committed.sort()).toEqual(['a', 'c'])
   })
 })

@@ -277,7 +277,7 @@ describe('preplanning commands', () => {
       workflowIds: workflows.map(row => row.workflowId),
       gateIds: gates.map(row => row.gateId),
       maxImages: 20,
-      maxModelTurns: 120,
+      maxModelTurns: null,
       stopOnBlocking: true,
       reportDepth: 'extended',
     }, { actorId: 'dsh-user:session-1', name: 'DSH 用户', role: 'decision_owner' })

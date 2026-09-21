@@ -41,7 +41,7 @@ const authorizationSchema = z.object({
     gateIds: z.array(z.string()),
     maxVisualGenerations: z.number().int().nonnegative(),
     visualBudgetMode: z.enum(['bounded', 'on_demand']).optional(),
-    maxModelTurns: z.number().int().positive(),
+    maxModelTurns: z.number().int().positive().nullable(),
     stopOnBlocking: z.boolean(),
   }).strict(),
   status: z.enum(['active', 'revoked', 'expired']),

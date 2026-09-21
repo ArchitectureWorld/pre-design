@@ -44,20 +44,11 @@ it('allows global configuration before selecting or creating any project', async
   await waitFor(() => expect(request.mock.calls.at(-1)?.[0]).toMatchObject({ action: 'save', revision: 0, routes: { text: b } }))
   expect(request.mock.calls.at(-1)?.[0]).not.toHaveProperty('projectId')
 })
-it('distinguishes dispatch model from actual model and exposes a removed selection', async () => {
+it('exposes a removed model selection so it can be corrected', async () => {
   const data = snapshot()
   const request = vi.fn(async () => ({ ...data, catalog: [{ ...data.catalog[0], models: [{ id: 'b', name: 'B' }] }], executions: [{ id: 'r', projectId: 'project', classId: 'text' as const, task: '独立分析', parentId: 's', childId: 'child', configurationRevision: 0, selected: a, status: 'running' as const, startedAt: '2026-09-16T08:00:00Z', updatedAt: '2026-09-16T08:00:00Z' }] }))
   const view = render(<AgentClassPanel sessionId="s" request={request} />)
-  expect(await view.findByText('实际模型：尚无模型请求记录')).toBeTruthy()
-  expect(view.getByText('派发模型：p / a')).toBeTruthy()
-  expect(view.getAllByText('已不可用 · p / a')).toHaveLength(3)
-})
-it('counts active child execution separately from historical and pending task results', async () => {
-  const data = snapshot()
-  const executions = ['running', 'idle', 'unknown'].map((activity, i) => ({ id: String(i), projectId: 'project', classId: 'text' as const, task: 'task', parentId: 's', childId: `child-${i}`, configurationRevision: 0, selected: a, status: 'running' as const, activity: activity as 'running' | 'idle' | 'unknown', startedAt: '2026-09-16T08:00:00Z', updatedAt: '2026-09-16T08:00:00Z' }))
-  const view = render(<AgentClassPanel request={async () => ({ ...data, executions })} />)
-  expect(await view.findByText('子会话运行中 1 · 已空闲 1 · 状态待核实 1')).toBeTruthy()
-  expect(view.getByText('子会话：已空闲')).toBeTruthy()
+  expect(await view.findAllByText('已不可用 · p / a')).toHaveLength(3)
 })
 it('adds, orders and deletes backups from the same directory and saves their explicit order', async () => {
   const c = { provider: 'p', model: 'c' }
@@ -105,7 +96,7 @@ it('keeps an open backup picker across polling and focus refreshes, and closes i
     expect(view.queryByLabelText('网络查询选择备用模型')).toBeNull()
 
     fireEvent.click(view.getByRole('button', { name: '网络查询添加备用模型' }))
-    await act(async () => { fireEvent.click(view.getByRole('button', { name: '刷新配置与状态' })) })
+    await act(async () => { fireEvent.click(view.getByRole('button', { name: '刷新配置' })) })
     expect(view.queryByLabelText('网络查询选择备用模型')).toBeNull()
   } finally { vi.useRealTimers() }
 })

@@ -2,6 +2,24 @@ import { describe, expect, it, vi } from 'vitest'
 import { AutomationCoordinator } from '../src/runtime/coordinator.ts'
 
 describe('AutomationCoordinator parallel Ready Set selection', () => {
+  it('continues later ready work after a failed batch and reports the incomplete tasks without a model followup', async () => {
+    let rounds = 0
+    const notice = vi.fn(async () => {})
+    const runtime = { current: () => undefined, nextReady: () => undefined, isComplete: () => false,
+      snapshot: () => ({ blocked: rounds ? [{ workflowId: 'failed' }] : [] }) }
+    const agent = { followup: vi.fn(), whenIdle: async () => {} }
+    const parallel = { canRun: () => rounds < 2, runReadyBatch: async () => {
+      rounds++
+      return { attempted: 1, completed: rounds === 2 ? 1 : 0, blocked: rounds === 1 ? 1 : 0, needsHuman: 0, revised: 0, approvedGates: 0 }
+    } }
+    const coordinator = new AutomationCoordinator(runtime as never, parallel, undefined, notice)
+    await coordinator.start(agent, 'project')
+    await vi.waitFor(() => expect(coordinator.isRunning('project')).toBe(false))
+    expect(rounds).toBe(2)
+    expect(coordinator.lastError('project')).toContain('1')
+    expect(notice).toHaveBeenCalledOnce()
+    expect(agent.followup).not.toHaveBeenCalled()
+  })
   it('preserves an immediate resume when the superseded batch fails while draining', async () => {
     let rejectOld!: (error: unknown) => void
     const old = new Promise<any>((_resolve, reject) => { rejectOld = reject })

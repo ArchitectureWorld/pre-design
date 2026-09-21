@@ -9,7 +9,7 @@ export interface AutomationAuthorizationInput {
   readonly workflowIds: readonly string[]
   readonly gateIds: readonly string[]
   readonly maxImages: number
-  readonly maxModelTurns: number
+  readonly maxModelTurns: number | null
   readonly stopOnBlocking: boolean
   readonly reportDepth: ReportDepth
   readonly expiresAt?: string

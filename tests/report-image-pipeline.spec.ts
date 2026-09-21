@@ -131,8 +131,8 @@ it.each([
     const asset = await material(root,'林下座椅休憩',0), inspect = vi.fn(async () => { throw new Error(failure) }), generate = vi.fn()
     const pipeline = new ReportImagePipeline({ classes: { settings: () => ({ routes: { review: { provider: 'fixture', model: 'vision' } } }) } as never,
       inspection: { inspect } as never, candidates: async () => [asset], generate })
-    await expect(pipeline.prepare(project(),root,{} as never,AbortSignal.timeout(20_000),()=>{})).rejects.toThrow(failure)
-    await expect(pipeline.prepare(project(),root,{} as never,AbortSignal.timeout(20_000),()=>{})).rejects.toThrow(nextError)
+    await expect(pipeline.prepare(project(),root,{} as never,AbortSignal.timeout(20_000),()=>{}, { maxGenerations: 0 })).rejects.toThrow(failure)
+    await expect(pipeline.prepare(project(),root,{} as never,AbortSignal.timeout(20_000),()=>{}, { maxGenerations: 0 })).rejects.toThrow(nextError)
     expect(inspect).toHaveBeenCalledTimes(expectedCalls); expect(generate).not.toHaveBeenCalled()
   } finally { await rm(root,{recursive:true,force:true}) }
 })
@@ -169,7 +169,8 @@ it.each(['normal','error','cancel'] as const)('bounds real review concurrency at
     const pipeline=new ReportImagePipeline({classes:{settings:()=>({routes:{review:{provider:'fixture',model:'vision'}}}),execution:()=>undefined} as never,inspection:{inspect} as never,candidates:async()=>assets})
     await expect(pipeline.prepare(input,root,{} as never,controller.signal,()=>{})).rejects.toThrow(mode==='normal'?'REPORT_IMAGE_GAPS':mode==='error'?'review fixture failed':'fixture cancellation')
     expect(peak).toBe(5);expect(active).toBe(0);expect(settled).toBe(calls)
-    if(mode!=='normal')expect(calls).toBe(5)
+    if(mode==='cancel')expect(calls).toBe(5)
+    if(mode==='error')expect(calls).toBe(7)
   } finally {await rm(root,{recursive:true,force:true})}
 },30_000)
 it('does not recall an unrelated candidate from prohibited scenery in provenance prose',async()=>{

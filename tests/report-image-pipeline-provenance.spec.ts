@@ -129,7 +129,7 @@ it('reviews a cached original when a later same-case search adds its verified so
     throw reached
   })
 
-  await expect(service.prepare(input, root, {} as never, AbortSignal.timeout(20_000), () => {})).rejects.toBe(reached)
+  await expect(service.prepare(input, root, {} as never, AbortSignal.timeout(20_000), () => {})).rejects.toThrow(reached.message)
   expect(requests).toHaveLength(1)
   expect(requests[0]!.slots.map(slot => slot.brief.id)).toEqual([target.brief.id])
   expect(requests[0]!.sourceLocationVerified).toBe(true)

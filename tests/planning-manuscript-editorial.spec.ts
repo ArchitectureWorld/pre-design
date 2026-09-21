@@ -118,12 +118,12 @@ it('reads the current route capacity for each run without exceeding its concurre
 it('refuses incomplete chapter output without charging a correction and resumes only unfinished chapters', async () => {
   const runtime = host((id, attempt) => id === 'site' && attempt === 1 ? { stopReason: 'max-tokens' } : validResult(id)), directory = await root()
   await expect(edit(editorFor(runtime, 1), directory)).rejects.toThrow('MANUSCRIPT_EDITORIAL_INCOMPLETE')
-  expect(runtime.requests.map(row => row.id)).toEqual(['opportunity', 'site'])
+  expect(runtime.requests.map(row => row.id)).toEqual(['opportunity', 'site', 'positioning', 'products', 'spatial', 'launch', 'operation'])
   expect((await edit(editorFor(runtime, 1), directory, () => {}, 0)).editorial).toBeDefined()
-  expect(runtime.requests.map(row => row.id)).toEqual(['opportunity', 'site', 'site', 'positioning', 'products', 'spatial', 'launch', 'operation'])
+  expect(runtime.requests.map(row => row.id)).toEqual(['opportunity', 'site', 'positioning', 'products', 'spatial', 'launch', 'operation', 'site'])
   expect((await checkpoints(directory)).flatMap(row => row.saved.attempts).every(attempt => !attempt.correction)).toBe(true)
 })
-it('stops new dispatch after a failed chapter but lets in-flight siblings finish and reuses them on recovery', async () => {
+it('continues later chapters after an editorial failure and reuses all successful chapters on recovery', async () => {
   const directory = await root(), started = deferred<void>(), failedDisposed = deferred<void>(), siblings = deferred<void>(), failure = deferred<never>()
   let count = 0
   const runtime = host(async id => {
@@ -143,12 +143,12 @@ it('stops new dispatch after a failed chapter but lets in-flight siblings finish
   const signals = runtime.requests.filter(row => row.id !== 'opportunity').map(row => row.request.signal.aborted)
   siblings.resolve()
   expect(await pending).toMatchObject({ error: expect.objectContaining({ message: 'chapter provider failed' }) })
-  expect(signals).toEqual([false, false])
-  expect(new Set(runtime.requests.map(row => row.id))).toEqual(new Set(['opportunity', 'site', 'positioning']))
+  expect(signals.every(value => value === false)).toBe(true)
+  expect(new Set(runtime.requests.map(row => row.id))).toEqual(new Set(['opportunity', 'site', 'positioning', 'products', 'spatial', 'launch', 'operation']))
   const recovery = host(), result = await edit(editorFor(recovery), directory)
   expect(result.editorial).toBeDefined()
-  expect(new Set(recovery.requests.map(row => row.id))).toEqual(new Set(['opportunity', 'products', 'spatial', 'launch', 'operation']))
-  expect(recovery.requests).toHaveLength(5)
+  expect(new Set(recovery.requests.map(row => row.id))).toEqual(new Set(['opportunity']))
+  expect(recovery.requests).toHaveLength(1)
 })
 it('preserves page/product/source coverage and rejects prose that still describes internal controls', () => {
   const candidate = structuredClone(draft())
@@ -182,7 +182,7 @@ it('retains rejected chapter content and sends it with targeted feedback to the 
 it('shares the correction allowance across chapters and retains that limit after an editor restart', async () => {
   const runtime = host((id, attempt) => ['opportunity', 'site', 'positioning'].includes(id) && attempt === 1 ? invalidResult(id) : validResult(id)), directory = await root()
   await expect(edit(editorFor(runtime, 1), directory)).rejects.toThrow(/MANUSCRIPT_EDITORIAL_AUDIENCE|MANUSCRIPT_CORRECTION_LIMIT/)
-  expect(runtime.requests.map(row => row.id)).toEqual(['opportunity', 'opportunity', 'site', 'site', 'positioning'])
+  expect(runtime.requests.map(row => row.id)).toEqual(['opportunity', 'opportunity', 'site', 'site', 'positioning', 'products', 'spatial', 'launch', 'operation'])
   expect((await checkpoints(directory)).flatMap(row => row.saved.attempts).filter(attempt => attempt.correction)).toHaveLength(2)
   const recovery = host()
   await expect(edit(editorFor(recovery, 1), directory)).rejects.toThrow('MANUSCRIPT_CORRECTION_LIMIT')

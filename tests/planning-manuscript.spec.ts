@@ -257,7 +257,8 @@ describe('planning manuscript production and durable recovery', () => {
     const recovery = host(), resumed = new manuscript.PlanningManuscriptService(recovery.dependencies as never)
     const result = await resumed.prepare(input, root, agent, new AbortController().signal, () => {})
     expect(result.chapters).toHaveLength(7)
-    expect(recovery.dispatched.map(row => row.id)).toEqual(['positioning', 'products', 'spatial', 'launch', 'operation'])
+    expect(runtime.dispatched.map(row => row.id)).toEqual(['opportunity', 'site', 'positioning', 'products', 'spatial', 'launch', 'operation'])
+    expect(recovery.dispatched.map(row => row.id)).toEqual(['positioning'])
   })
   it('diagnoses max-tokens as an output or context limit and keeps the stop reason in its checkpoint', async () => {
     const root = await workspace(), runtime = host()
@@ -268,12 +269,12 @@ describe('planning manuscript production and durable recovery', () => {
     }
     const service = new manuscript.PlanningManuscriptService(runtime.dependencies as never)
     await expect(service.prepare(input, root, agent, new AbortController().signal, () => {})).rejects.toThrow(/MANUSCRIPT_OUTPUT_LIMIT:.*max-tokens.*65536/)
-    expect(runtime.dispatched).toHaveLength(1)
+    expect(runtime.dispatched).toHaveLength(7)
     expect(await service.load(input, root)).toBeUndefined()
     const { checkpoint } = await checkpointAt(root)
     expect(checkpoint.chapters.opportunity.attempts[0]).toMatchObject({ status: 'failed', errorCode: 'MANUSCRIPT_OUTPUT_LIMIT', stopReason: 'max-tokens', outputTokenLimit: 65536 })
   })
-  it.each([false, true])('stops dispatch after a peer fails while preserving in-flight work, including an invalid sibling: %s', async invalidSibling => {
+  it.each([false, true])('continues later chapters after a peer failure and retains bounded correction history: %s', async invalidSibling => {
     const root = await workspace(), allStarted = deferred<void>(), failedDisposed = deferred<void>(), siblings = deferred<void>(), failure = deferred<never>()
     let started = 0
     const runtime = host(async id => {
@@ -298,17 +299,16 @@ describe('planning manuscript production and durable recovery', () => {
     const siblingSignals = runtime.dispatched.filter(row => row.id !== 'opportunity').map(row => row.request.signal.aborted)
     siblings.resolve()
     expect(await finished).toMatchObject({ message: 'opportunity provider failed' })
-    expect(siblingSignals).toEqual([false, false])
-    expect(runtime.dispatched.map(row => row.id)).toEqual(['opportunity', 'site', 'positioning'])
+    expect(siblingSignals.every(value => value === false)).toBe(true)
+    expect(new Set(runtime.dispatched.map(row => row.id))).toEqual(new Set(['opportunity', 'site', 'positioning', 'products', 'spatial', 'launch', 'operation']))
     const { checkpoint } = await checkpointAt(root)
     expect(checkpoint.chapters.positioning.chapter.id).toBe('positioning')
     expect(checkpoint.chapters.site.attempts[0].status).toBe(invalidSibling ? 'failed' : 'completed')
-    expect(checkpoint.correctionsUsed).toBe(0)
+    expect(checkpoint.correctionsUsed).toBe(invalidSibling ? 2 : 0)
     const recovery = host(), resumed = new manuscript.PlanningManuscriptService(recovery.dependencies as never)
-    expect((await resumed.prepare(input, root, agent, new AbortController().signal, () => {})).chapters).toHaveLength(7)
-    expect(recovery.dispatched.map(row => row.id)).toEqual(invalidSibling
-      ? ['opportunity', 'site', 'products', 'spatial', 'launch', 'operation']
-      : ['opportunity', 'products', 'spatial', 'launch', 'operation'])
+    if (invalidSibling) await expect(resumed.prepare(input, root, agent, new AbortController().signal, () => {})).rejects.toThrow('MANUSCRIPT_CORRECTION_LIMIT')
+    else expect((await resumed.prepare(input, root, agent, new AbortController().signal, () => {})).chapters).toHaveLength(7)
+    expect(recovery.dispatched.map(row => row.id)).toEqual(['opportunity'])
   })
   it.each(['failed', 'cancelled'])('resumes repeated terminal %s attempts without spending content corrections, including legacy counts', async status => {
     const root = await workspace(); let controller = new AbortController()
@@ -337,7 +337,7 @@ describe('planning manuscript production and durable recovery', () => {
     expect(runtime.dispatched.filter(row => row.id === 'site')).toHaveLength(4)
     expect((await checkpointAt(root)).checkpoint.correctionsUsed).toBe(0)
   })
-  it('does not dispatch an admitted child or assign its peer content feedback after a fatal validation failure', async () => {
+  it('continues an admitted peer after validation failure without assigning it another chapter feedback', async () => {
     const root = await workspace(), admission = deferred<void>(), runtime = host(async id => ({ ...chapter(id, []), pages: [] }))
     const begin = runtime.dependencies.agentClasses.begin, finish = runtime.dependencies.agentClasses.finish
     let admitted = 0, failed = 0
@@ -352,10 +352,12 @@ describe('planning manuscript production and durable recovery', () => {
     }
     const service = new manuscript.PlanningManuscriptService({ ...runtime.dependencies, maxConcurrency: 2 } as never)
     await expect(service.prepare(input, root, agent, new AbortController().signal, () => {})).rejects.toThrow(/MANUSCRIPT_SHAPE/)
-    expect(runtime.dispatched.map(row => row.id)).toEqual(['opportunity', 'opportunity', 'opportunity'])
+    expect(runtime.dispatched).toHaveLength(9)
+    expect(new Set(runtime.dispatched.map(row => row.id)).size).toBe(7)
     const { checkpoint } = await checkpointAt(root)
     expect(checkpoint.chapters.site.attempts[0]).toMatchObject({ status: 'failed', validationCorrection: false })
-    expect(checkpoint.chapters.site.attempts[0].validationFeedback).toBeUndefined()
+    expect(checkpoint.chapters.site.attempts[0].validationFeedback).toContain('MANUSCRIPT_SHAPE')
+    expect(runtime.dispatched.find(row => row.id === 'site')!.request.prompt[0].text).not.toContain('rejectedDraft')
     expect(checkpoint.correctionsUsed).toBe(2)
   })
   it('retains validation feedback after a failed correction execution without charging that execution retry again', async () => {
@@ -385,14 +387,14 @@ describe('planning manuscript production and durable recovery', () => {
     const runtime = host(async id => ({ ...chapter(id, []), pages: [] }))
     const service = new manuscript.PlanningManuscriptService(runtime.dependencies as never)
     await expect(service.prepare(input, root, agent, new AbortController().signal, () => {})).rejects.toThrow(/MANUSCRIPT/)
-    expect(runtime.dispatched).toHaveLength(3)
+    expect(runtime.dispatched).toHaveLength(9)
     expect(await service.load(input, root)).toBeUndefined()
     const { file, checkpoint } = await checkpointAt(root)
     for (const attempt of checkpoint.chapters.opportunity.attempts) delete attempt.validationCorrection
     await writeFile(file, JSON.stringify(checkpoint))
     const retry = new manuscript.PlanningManuscriptService(runtime.dependencies as never)
     await expect(retry.prepare(input, root, agent, new AbortController().signal, () => {})).rejects.toThrow(/MANUSCRIPT_CORRECTION_LIMIT/)
-    expect(runtime.dispatched).toHaveLength(3)
+    expect(runtime.dispatched).toHaveLength(9)
   })
   it('sends the rejected draft and targeted feedback to the correction child instead of asking it to start blind', async () => {
     const root = await workspace()
@@ -415,13 +417,13 @@ describe('planning manuscript production and durable recovery', () => {
       finish: async (_id: string, status: string) => { if (status === 'completed') throw new Error('MODEL_EXECUTION_UNVERIFIED') },
     } } as never)
     await expect(service.prepare(input, root, agent, new AbortController().signal, () => {})).rejects.toThrow('MODEL_EXECUTION_UNVERIFIED')
-    expect(await service.load(input, root)).toBeUndefined(); expect(runtime.dispatched).toHaveLength(1)
+    expect(await service.load(input, root)).toBeUndefined(); expect(runtime.dispatched).toHaveLength(7)
   })
   it('times out an unresponsive child and preserves failure instead of accepting a partial manuscript', async () => {
     const root = await workspace(), runtime = host(async () => new Promise(() => {}))
     const service = new manuscript.PlanningManuscriptService({ ...runtime.dependencies, timeoutMs: 10 } as never)
     await expect(service.prepare(input, root, agent, new AbortController().signal, () => {})).rejects.toThrow(/MANUSCRIPT_CHILD_TIMEOUT/)
-    expect(await service.load(input, root)).toBeUndefined(); expect(runtime.counts().disposed).toBe(1)
+    expect(await service.load(input, root)).toBeUndefined(); expect(runtime.counts().disposed).toBe(7)
   })
   it('preserves the previous completed manuscript when a newer business revision is published', async () => {
     const root = await workspace(), runtime = host(), service = new manuscript.PlanningManuscriptService(runtime.dependencies as never)

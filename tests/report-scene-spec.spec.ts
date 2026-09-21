@@ -56,6 +56,19 @@ describe('scene specification source context', () => {
 })
 
 describe('abstract scene demand detection', () => {
+  it('does not import an uncited condition from another scene into the selected image requirement', () => {
+    const input = { ...page(), body: [...page().body, '展馆的更新建设以保护工业遗产原貌为前提。'] }
+    const result = resolveSceneSpecification(proposal(), brief(), sceneSpecContext(input, 'delivery:main'))
+    expect(result.sceneGrounding?.sources.some(source => source.path === 'body[3]')).toBe(false)
+  })
+  it.each(['必要设施以减少地表扰动、避让茶树种植带为原则', '更新建设以保护工业遗产原貌为前提',
+    '按合作协议分配可分配收益', '按照运营合同核算各方利润'])('does not treat a design or contractual condition as a visible scene: %s', text => {
+    const input = { ...page(), body: [...page().body, text] }
+    const context = sceneSpecContext(input, 'delivery:main')
+    expect(needsSceneSpecification(brief(text))).toBe(true)
+    expect(() => resolveSceneSpecification({ ...proposal(), subjects: [citation(text, 'body[3]')] }, brief(), context)).toThrow('SCENE_SPEC_UNOBSERVABLE')
+    expect(() => resolveSceneSpecification({ ...proposal(), activities: [citation(text, 'body[3]')] }, brief(), context)).toThrow('SCENE_SPEC_UNOBSERVABLE')
+  })
   it.each([phaseSubject, fundingSubject, '以收入构成表和计算关系说明茶叶销售、茶事体验及配套服务的经营方式',
     '场所与管理条件', '首期游程衔接', '运营职责与管理制度', '项目收益指标和投资测算', '公共服务',
     '第一阶段实施计划', '建设时序安排', '基本公共服务、配套服务与零售经营的价格和费用关系',

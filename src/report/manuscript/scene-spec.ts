@@ -41,7 +41,11 @@ const abstractRequirement = /图表|表格|矩阵|流程图|总平图|平面图|
 const genericRequirement = /^(?:(?:本项目|项目|相关|本地|公共|配套|主要|基本|综合|必要|日常|完善|首期|中期|远期|新增|新建|建设|实施|运营|管理|经营|使用|所需|具体|服务|休闲|核心|的)\s*)*(?:空间|场所|场景|环境|设施|活动|服务|内容|空间载体)$/u
 // Financial relationships need a related service scene; price signs and toll booths remain visible subjects.
 const financialRelationship = /(?:价格|费用|收费|定价|收支|收益)(?:的)?(?:关系|结构|安排|承担|分配|核算|边界|规则|方式)/u
-function unobservable(text: string): boolean { return abstractRequirement.test(text) || financialRelationship.test(text) || genericRequirement.test(text.trim()) }
+// Keep these conditions in the source grounding, not in the list of visible entities.
+const conditionStatement = /以[^。；\n]{1,100}为(?:原则|前提|依据|准则)|按(?:照)?[^。；\n]{0,50}(?:协议|合同|约定)[^。；\n]{0,50}(?:分配|分成|核算)/u
+function unobservable(text: string): boolean {
+  return abstractRequirement.test(text) || financialRelationship.test(text) || conditionStatement.test(text) || genericRequirement.test(text.trim())
+}
 
 export function needsSceneSpecification(brief: ImageSlotBrief, context?: SceneSpecContext): boolean {
   const sceneKinds = brief.allowedKinds.filter(kind => kind === 'photo' || kind === 'render')

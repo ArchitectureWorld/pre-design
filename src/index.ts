@@ -267,7 +267,10 @@ export async function apply(ctx: Context): Promise<void> {
   const reportFormats = (record: import('./governance/types.ts').ReportPackageRecord) => readReportFormats(reportPackageRoot, record)
   const imageInspection = new ImageInspectionAgent({ classes: agentClasses, subagents: ctx.subagents, attachments: ctx.attachments })
   const sceneSpecs = new SceneSpecificationAgent({ classes: agentClasses, subagents: ctx.subagents })
-  const reportImagePipeline = createNativeReportImagePipeline({ classes: agentClasses, inspection: imageInspection, sceneSpecs, web: webQuery, visual, resolveAsset: fileName => visualStore.resolveAsset(fileName) })
+  const reportImagePipeline = createNativeReportImagePipeline({ classes: agentClasses, inspection: imageInspection, sceneSpecs, web: webQuery, visual,
+    resolveAsset: fileName => visualStore.resolveAsset(fileName),
+    reportIssues: (parent, signal, message) => publishReportStatus(parent, signal, message),
+  })
   const clientProfileRoot = join(dshHome, 'preplanning-agent', 'client-profiles')
   const prepareReportMaterials = async (frozenProject: import('./report/types.ts').FrozenProjectInput) => {
     const binding = standardProjects.findByPreDesignProjectId(frozenProject.projectId)
@@ -337,10 +340,11 @@ export async function apply(ctx: Context): Promise<void> {
       if (result.state !== 'synced') throw new Error('VISUAL_SYNC_INCOMPLETE: 图片已保存，页面同步未完成')
     },
   })
+  const publishReportStatus = createReportStatusPublisher({ commands: ctx.commands, repository, reportErrors })
   const coordinator = new AutomationCoordinator(runtime, parallel, createAutomaticReportCompletion({
     reports: conditionalReports, repository, prepareManuscript, prepareVisuals,
-    publishStatus: createReportStatusPublisher({ commands: ctx.commands, repository, reportErrors }),
-  }))
+    publishStatus: publishReportStatus,
+  }), publishReportStatus)
   registerWorkspaceOpenRoute(ctx.webServer, {
     get: id => ctx.sessions.get(id as never),
   })

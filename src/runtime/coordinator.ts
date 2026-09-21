@@ -28,6 +28,7 @@ export class AutomationCoordinator {
     private readonly runtime: WorkflowRuntime,
     private readonly parallel?: ParallelWorkflowBatchPort,
     private readonly onComplete?: (projectId: string, signal: AbortSignal, agent: CoordinatorAgent) => Promise<void>,
+    private readonly publishIssues?: (agent: CoordinatorAgent, signal: AbortSignal, message: string) => Promise<void>,
   ) {}
 
   async start(agent: CoordinatorAgent, projectId: string): Promise<void> {
@@ -71,6 +72,7 @@ export class AutomationCoordinator {
       if (this.running.get(projectId) !== token) return
       if (this.runtime.snapshot(projectId).blocked.length > 0) await this.runtime.retryBlocked(projectId)
       let resumed = this.runtime.current(projectId)
+      const visited = new Set<string>()
       while (this.running.get(projectId) === token) {
         if (this.parallel?.whenIdle !== undefined) {
           await this.drainPrevious(projectId)
@@ -85,7 +87,12 @@ export class AutomationCoordinator {
           if (this.running.get(projectId) !== token) return
           if (batch.attempted > 0) {
             resumed = undefined
-            if (batch.blocked > 0 || batch.needsHuman > 0 || this.runtime.snapshot(projectId).blocked.length > 0) return
+            if (batch.blocked > 0 || batch.needsHuman > 0 || batch.errors?.length) {
+              this.failures.set(projectId, `已继续处理其余可执行工作；${batch.blocked} 项失败、${batch.needsHuman} 项待处理${batch.errors?.length ? `、${batch.errors.length} 项执行异常` : ''}。详见对应工作项记录。`)
+            }
+            // Infrastructure errors may leave an unpersistable item Ready. The
+            // executor has already drained all independent work; do not spin it.
+            if (batch.errors?.length) return
             continue
           }
         }
@@ -95,13 +102,18 @@ export class AutomationCoordinator {
           if (this.onComplete !== undefined && this.runtime.isComplete(projectId)) await this.onComplete(projectId, signal, agent)
           return
         }
+        if (visited.has(next.workflowId)) return
+        visited.add(next.workflowId)
         if (this.parallel?.isEnabled?.(projectId) === true) {
           await this.runtime.transition(projectId, next.workflowId, {
             to: 'blocked',
             reason: '自动工作项分析器当前不可用；请检查 DSH spawn 子代理提供器，恢复后重试。未切换模型或改用主会话工具执行。',
           })
-          return
+          this.failures.set(projectId, '子代理分析器不可用，已逐项记录失败；其余可执行工作继续处理。')
+          resumed = undefined
+          continue
         }
+        try {
         if (resumed === undefined) {
           await this.runtime.transition(projectId, next.workflowId, { to: 'running' })
         }
@@ -123,8 +135,15 @@ export class AutomationCoordinator {
           },
         }))
         await agent.whenIdle()
-        if (this.runtime.snapshot(projectId).blocked.length > 0) return
-        if (this.runtime.current(projectId)?.workflowId === next.workflowId) return
+        if (this.running.get(projectId) !== token) return
+        if (this.runtime.current(projectId)?.workflowId === next.workflowId) throw new Error('工作项未返回可提交结果')
+        if (this.runtime.snapshot(projectId).blocked.length > 0) this.failures.set(projectId, '失败工作项已记录，其余可执行工作已继续；依赖缺失结果的工作项待补做。')
+        } catch (error) {
+          if (this.running.get(projectId) !== token) return
+          await this.runtime.transition(projectId, next.workflowId, { to: 'blocked', reason: error instanceof Error ? error.message : String(error) })
+          this.failures.set(projectId, '失败工作项已记录，其余可执行工作已继续；依赖缺失结果的工作项待补做。')
+          resumed = undefined
+        }
       }
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
@@ -147,6 +166,12 @@ export class AutomationCoordinator {
       }
     } finally {
       if (this.running.get(projectId) === token) {
+        const message = this.failures.get(projectId)
+        if (message && !signal.aborted) {
+          try { await this.publishIssues?.(agent, signal, message) }
+          catch (error) { this.failures.set(projectId, `${message}; notification failed: ${String(error)}`) }
+        }
+        if (this.running.get(projectId) !== token) return
         this.running.delete(projectId)
         this.reportCancellation.delete(projectId)
       }

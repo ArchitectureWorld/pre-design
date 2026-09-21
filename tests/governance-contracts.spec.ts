@@ -44,6 +44,15 @@ const validGate = {
 }
 
 describe('GovernanceContractRegistry', () => {
+  it('accepts an explicit unlimited task cap while rejecting malformed finite allowances', async () => {
+    const registry = await GovernanceContractRegistry.open(contractRoot)
+    expect(registry.validate('automation-authorization', { ...validAuthorization,
+      scope: { ...validAuthorization.scope, maxModelTurns: null } }).valid).toBe(true)
+    for (const maxModelTurns of [0, -1, 1.5, 'unlimited']) {
+      expect(registry.validate('automation-authorization', { ...validAuthorization,
+        scope: { ...validAuthorization.scope, maxModelTurns } }).valid).toBe(false)
+    }
+  })
   it('accepts conditional artifact metadata only when it explicitly remains non-publishable', async () => {
     const registry = await GovernanceContractRegistry.open(contractRoot)
     const manifest = { manifestId: 'manifest-1', packageId: 'conditional-1', projectId: 'project-1', sourceRevision: 103,

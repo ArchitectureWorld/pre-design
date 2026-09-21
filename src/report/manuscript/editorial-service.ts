@@ -62,30 +62,42 @@ export class PlanningManuscriptEditor {
     draft = validatePlanningManuscript(migrateCachedPlanningManuscript(draft, 'MANUSCRIPT_EDITORIAL_CHECKPOINT_INVALID'), input)
     const folder = join(root, '.pre-design', 'report-manuscript-editorial')
     const checkpoints = new Map<PlanningChapterId, Checkpoint>()
-    for (const id of PLANNING_CHAPTER_IDS) checkpoints.set(id, await this.readCheckpoint(join(folder, `${fingerprint}-${id}.json`), fingerprint))
+    const failures = new Map<PlanningChapterId, unknown>()
+    for (const id of PLANNING_CHAPTER_IDS) {
+      try { checkpoints.set(id, await this.readCheckpoint(join(folder, `${fingerprint}-${id}.json`), fingerprint)) }
+      catch (error) { failures.set(id, error) }
+    }
     const used = [...checkpoints.values()].reduce((sum, cp) => sum + cp.attempts.filter(a => a.correction).length, 0)
-    const corrections = { remaining: correctionsAvailable - used }
+    const corrections = { remaining: failures.size ? 0 : correctionsAvailable - used }
     if (corrections.remaining < 0) throw new Error('MANUSCRIPT_CORRECTION_LIMIT: 成稿纠错记录超出本版额度。')
-    let next = 0, failure: { error: unknown } | undefined
+    let next = 0
     const completed = new Map<PlanningChapterId, PlanningManuscriptChapter>()
     const editedAt: string[] = []
-    const assertDispatchOpen = () => { if (failure) throw failure.error }
-    const dispatchGuard = async () => { assertDispatchOpen(); await guard(); assertDispatchOpen() }
     const worker = async () => {
-      try {
         while (next < PLANNING_CHAPTER_IDS.length) {
-          await dispatchGuard()
+          await guard()
           if (next >= PLANNING_CHAPTER_IDS.length) return
           const id = PLANNING_CHAPTER_IDS[next++]!
-          const manuscript = await this.editChapter(id, checkpoints.get(id)!, fingerprint, draft, input, folder, parent, signal, guard, dispatchGuard, corrections)
+          if (failures.has(id)) continue
+          try {
+          const manuscript = await this.editChapter(id, checkpoints.get(id)!, fingerprint, draft, input, folder, parent, signal, guard, guard, corrections)
           completed.set(id, manuscript.chapters.find(c => c.id === id)!)
           if (manuscript.editorial) editedAt.push(manuscript.editorial.editedAt)
+          } catch (error) { failures.set(id, error); signal.throwIfAborted() }
         }
-      } catch (error) { failure ??= { error }; throw error }
     }
     const results = await Promise.allSettled(Array.from({ length: this.maxConcurrency }, worker))
     const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')
-    if (failed) throw failure?.error ?? failed.reason
+    if (failed) throw failed.reason
+    if (failures.size) {
+      const errorDirectory = join(root, '.pre-design', 'report-manuscript-errors')
+      await guard(); await mkdir(errorDirectory, { recursive: true })
+      await writeFile(join(errorDirectory, `${randomUUID()}.json`), JSON.stringify({ projectId: input.projectId, sourceRevision: input.revision,
+        at: this.dependencies.now?.() ?? new Date().toISOString(), stage: 'editing',
+        errors: [...failures].map(([chapterId, error]) => ({ chapterId, message: error instanceof Error ? error.message : String(error) })),
+      }, null, 2) + '\n', { flag: 'wx', signal })
+      throw failures.values().next().value
+    }
     await guard()
     const manuscript = validateEditedManuscript({ chapters: PLANNING_CHAPTER_IDS.map(id => completed.get(id)) }, draft, input)
     return { ...manuscript, editorial: { version: this.version, draftFingerprint: fingerprint,

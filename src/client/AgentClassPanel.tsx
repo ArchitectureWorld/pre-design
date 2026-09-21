@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { AGENT_CLASSES, MAX_CLASS_FALLBACKS, type AgentClassId, type AgentClassView, type ClassFallbacks, type ClassRoutes, type ExecutionStatus, type ModelRoute } from '../agent-classes/types.ts'
+import { AGENT_CLASSES, MAX_CLASS_FALLBACKS, type AgentClassId, type AgentClassView, type ClassFallbacks, type ClassRoutes, type ModelRoute } from '../agent-classes/types.ts'
 
-const statusLabels: Record<ExecutionStatus, string> = { starting: '正在启动', running: '处理中', completed: '已完成', failed: '失败', cancelled: '已取消', recovery_required: '等待恢复' }
-const activityLabels = { running: '运行中', idle: '已空闲', unknown: '状态待核实' }
 const routeLabel = (route: ModelRoute | null | undefined) => route ? `${route.provider} / ${route.model}` : '尚未选择模型'
 const routeValue = (route: ModelRoute | null) => route ? JSON.stringify([route.provider, route.model]) : ''
 export async function agentClassRequest(payload: unknown, signal: AbortSignal): Promise<AgentClassView> {
@@ -141,7 +139,7 @@ function AgentClassPanelBody({ sessionId, request = agentClassRequest, onView }:
           {kind.id === 'image' && <small style={{ opacity: 0.7 }}>请选择可生成图像的模型；DSH 目录目前未提供图像输出能力标识。</small>}
         </div>
       })}
-      <small style={{ opacity: 0.7 }}>主模型连接失败、限流或服务错误且原调用已终止时，按顺序使用备用模型。每次调用分别计入原授权额度；取消、结果未知或内容校验失败时停止。</small>
+      <small style={{ opacity: 0.7 }}>主模型连接失败、限流或服务错误且原调用已终止时，按顺序使用备用模型。失败或结果未知的任务会记录问题，流程继续处理其它可执行任务；主动取消仍然生效。</small>
       {view.catalog.some(provider => provider.error) && <details>
         <summary style={{ fontSize: 12, opacity: 0.7 }}>{view.catalog.filter(provider => provider.error).length} 个 Provider 未启用或暂不可用，可在 DSH 设置中管理</summary>
         {view.catalog.filter(provider => provider.error).map(provider => <small style={{ display: 'block' }} key={provider.provider}>{provider.name}：{provider.error}</small>)}
@@ -149,23 +147,9 @@ function AgentClassPanelBody({ sessionId, request = agentClassRequest, onView }:
       {conflict && <div role="alert">配置已在其他页面更新。请重新载入后编辑。</div>}
       <div style={{ display: 'flex', gap: 10 }}>
         <button type="button" disabled={!dirty || busy || !!conflict} onClick={() => void save()}>保存配置</button>
-        <button type="button" disabled={busy} onClick={() => void load(true)}>{dirty ? '重新载入（放弃修改）' : '刷新配置与状态'}</button>
+        <button type="button" disabled={busy} onClick={() => void load(true)}>{dirty ? '重新载入（放弃修改）' : '刷新配置'}</button>
       </div>
       {message && <div role="status">{message}</div>}
-      <strong>当前项目实际执行记录</strong>
-      <small style={{ opacity: 0.7 }}>显示最近 100 次任务；实际模型依据 DSH 子会话请求记录。</small>
-      {view.executions.length > 0 && <div>子会话运行中 {view.executions.filter(run => run.activity === 'running').length} · 已空闲 {view.executions.filter(run => run.activity === 'idle').length} · 状态待核实 {view.executions.filter(run => !run.activity || run.activity === 'unknown').length}</div>}
-      {!view.executions.length && <span>{view.projectId ? '当前项目还没有通过这些类别派发的新任务。' : '当前会话尚未绑定前期策划项目；全局设置可照常保存。'}</span>}
-      {view.executions.map(run => <article key={run.id} style={{ border: '1px solid color-mix(in srgb, currentColor 18%, transparent)', borderRadius: 8, padding: 12, overflowWrap: 'anywhere' }}>
-        <div><strong>{AGENT_CLASSES.find(kind => kind.id === run.classId)?.title}</strong> · {statusLabels[run.status]}</div>
-        <div>{run.task}</div>
-        <small>子会话：{activityLabels[run.activity ?? 'unknown']}</small>
-        <small style={{ display: 'block' }}>派发模型：{routeLabel(run.selected)}</small>
-        {run.routeChain && run.routeChain.length > 1 && <small style={{ display: 'block' }}>调用顺序：{(run.routeIndex ?? 0) + 1}/{run.routeChain.length} · {run.fallbackFromExecutionId ? `接续失败记录 ${run.fallbackFromExecutionId}` : '主模型'} · 任务组 {run.chainId}</small>}
-        <small style={{ display: 'block' }}>实际模型：{run.actual ? routeLabel(run.actual) : '尚无模型请求记录'}</small>
-        <small style={{ display: 'block' }}>子会话：{run.childId ?? '尚未创建'} · {new Date(run.startedAt).toLocaleString()}</small>
-        {run.error && <div role="alert">{run.error}</div>}
-      </article>)}
     </>}
   </section>
 }

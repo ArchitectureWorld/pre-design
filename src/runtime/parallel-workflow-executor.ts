@@ -23,6 +23,7 @@ export interface ParallelWorkflowBatchResult {
   readonly needsHuman: number
   readonly revised: number
   readonly approvedGates: number
+  readonly errors?: readonly { readonly stage: string; readonly workflowId?: string; readonly message: string }[]
 }
 
 export interface ParallelWorkflowRunOptions {
@@ -289,7 +290,11 @@ export class ParallelWorkflowExecutor {
     let needsHuman = 0
     let revised = 0
     let approvedGates = 0
-    let failure: { error: unknown } | undefined
+    const errors: { stage: string; workflowId?: string; message: string }[] = []
+    let admissionUnavailable = false
+    const report = (stage: string, error: unknown, workflowId?: string) => {
+      errors.push({ stage, ...(workflowId ? { workflowId } : {}), message: failureReason(error) })
+    }
 
     const settle = async (descriptor: WorkflowDescriptor, result: AnalyzedWorkflow) => {
       revised += result.revised
@@ -358,11 +363,11 @@ export class ParallelWorkflowExecutor {
           revision: committed.revision,
           quality: result.quality,
         })
-        this.dependencies.presentationSync.request(projectId, {
+        completed += 1
+        try { this.dependencies.presentationSync.request(projectId, {
           ...(workspaceRoot === undefined ? {} : { workspaceRoot }),
           reason: `workflow:${descriptor.workflowId}:revision:${committed.revision}`,
-        })
-        completed += 1
+        }) } catch (error) { report('presentation', error, descriptor.workflowId) }
       } catch (error) {
         await this.dependencies.runtime.transition(projectId, descriptor.workflowId, {
           to: 'blocked',
@@ -374,7 +379,7 @@ export class ParallelWorkflowExecutor {
     }
 
     const fill = async () => {
-      while (pending.size < this.maxConcurrency && failure === undefined && blocked === 0 && needsHuman === 0
+      while (pending.size < this.maxConcurrency && !admissionUnavailable
         && options.canDispatch?.() !== false && this.isEnabled(projectId) && this.dependencies.analyzer.available()) {
         const candidates = options.refill
           ? [...this.dependencies.runtime.running(projectId), ...this.dependencies.runtime.ready(projectId)]
@@ -384,8 +389,16 @@ export class ParallelWorkflowExecutor {
         admitted.add(descriptor.workflowId)
         const alreadyRunning = this.dependencies.runtime.running(projectId)
           .some(row => row.workflowId === descriptor.workflowId)
-        if (!alreadyRunning) await this.dependencies.runtime.transition(projectId, descriptor.workflowId, { to: 'running' })
         attempted += 1
+        try {
+          if (!alreadyRunning) await this.dependencies.runtime.transition(projectId, descriptor.workflowId, { to: 'running' })
+        } catch (error) {
+          report('admission', error, descriptor.workflowId)
+          blocked += 1
+          try { await this.dependencies.runtime.transition(projectId, descriptor.workflowId, { to: 'blocked', reason: failureReason(error) }) }
+          catch (persistenceError) { report('persistence', persistenceError, descriptor.workflowId) }
+          continue
+        }
         // Each analysis includes its bounded quality/schema retries and owns one
         // slot until settled. A slow sibling cannot hold up a finished result.
         pending.set(descriptor.workflowId, this.analyzeWithResearch(agent, projectId, descriptor)
@@ -394,7 +407,7 @@ export class ParallelWorkflowExecutor {
     }
 
     while (true) {
-      try { await fill() } catch (error) { failure ??= { error } }
+      try { await fill() } catch (error) { report('ready-set', error); admissionUnavailable = true }
       if (pending.size === 0) break
       const { descriptor, result } = await Promise.race(pending.values())
       pending.delete(descriptor.workflowId)
@@ -402,17 +415,22 @@ export class ParallelWorkflowExecutor {
         // Only this loop writes: project Revision/CAS, transitions and gates
         // remain serialized while all other model calls continue concurrently.
         await settle(descriptor, result)
-        if (options.refill) approvedGates += await this.dependencies.gateApprover.approveReady(projectId)
-      } catch (error) { failure ??= { error } }
-      // A pause or infrastructure failure closes admission, but already
-      // admitted healthy analyses drain before whenIdle() resolves/rejects.
+      } catch (error) { report('settlement', error, descriptor.workflowId) }
+      if (options.refill) {
+        try { approvedGates += await this.dependencies.gateApprover.approveReady(projectId) }
+        catch (error) { report('gate', error, descriptor.workflowId) }
+      }
+      // Item errors never close admission for independent Ready work. Explicit
+      // pause still closes admission, and already admitted work always drains.
     }
-    if (failure !== undefined) throw failure.error
-    if (!options.refill) approvedGates = await this.dependencies.gateApprover.approveReady(projectId)
-    await this.dependencies.presentationSync.flush(projectId, {
+    if (!options.refill) {
+      try { approvedGates = await this.dependencies.gateApprover.approveReady(projectId) }
+      catch (error) { report('gate', error) }
+    }
+    try { await this.dependencies.presentationSync.flush(projectId, {
       ...(workspaceRoot === undefined ? {} : { workspaceRoot }),
       reason: options.refill ? 'parallel-ready-drained' : 'parallel-ready-wave',
-    })
+    }) } catch (error) { report('presentation', error) }
     return {
       attempted,
       completed,
@@ -420,6 +438,7 @@ export class ParallelWorkflowExecutor {
       needsHuman,
       revised,
       approvedGates,
+      ...(errors.length ? { errors } : {}),
     }
   }
 }

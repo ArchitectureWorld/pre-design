@@ -19,6 +19,7 @@ import { adoptedPresentationAssets } from './runtime-integration.ts'
 import type { PresentationAdoptedAssetInput } from './standard-project-types.ts'
 
 export function createNativeReportImagePipeline(deps: { classes: AgentClassService; inspection: ImageInspectionAgent; web: WebQueryAgent;
+  reportIssues?: (parent: Agent, signal: AbortSignal, message: string) => Promise<void>;
   sceneSpecs: Pick<SceneSpecificationAgent, 'resolve'>; visual: VisualAgentService; resolveAsset: (fileName: string) => string }) {
   const generatedImage = async (demand: ReportImageDemand, parent: Agent, signal: AbortSignal, project: FrozenProjectInput,
     recoveryOnly: boolean): Promise<GeneratedReportImage | undefined> => {
@@ -43,14 +44,17 @@ export function createNativeReportImagePipeline(deps: { classes: AgentClassServi
       origin: { type: 'generated_by_plugin', parentAssetKeys: [], sourceMaterialKeys: [], sourceTool: { name: 'pre-design', version: REPORT_IMAGE_POLICY_VERSION }, method: JSON.stringify({ kind: 'ai-concept', taskId, prompt }) } }
     return { material, adopt: async () => { if (asset.status !== 'adopted') await deps.visual.adopt(project.projectId, asset.assetId, project.revision) } }
   }
-  return new ReportImagePipeline({ classes: deps.classes, inspection: deps.inspection,
+  return new ReportImagePipeline({ classes: deps.classes, inspection: deps.inspection, reportIssues: deps.reportIssues,
     recover: (demand, parent, signal, project) => generatedImage(demand, parent, signal, project, true),
     resolveDemands: async (demands, parent, signal, project, root) => {
       const scenes = demands.filter(demand => !demand.sourceMaterialKey && !demand.caseSource
         && demand.brief.allowedKinds.every(kind => kind === 'photo' || kind === 'render'))
-      const resolved = await deps.sceneSpecs.resolve(parent, project.projectId, root, scenes.map(demand => ({ brief: demand.brief, context: demand.sceneContext })), signal)
-      if (scenes.some(demand => !resolved.has(demand.brief.id))) throw new Error('SCENE_SPEC_USAGE_MISMATCH')
-      return demands.map(demand => ({ ...demand, brief: resolved.get(demand.brief.id) ?? demand.brief }))
+      const failures = new Map<string, string>()
+      const resolved = await deps.sceneSpecs.resolve(parent, project.projectId, root, scenes.map(demand => ({ brief: demand.brief, context: demand.sceneContext })), signal,
+        { onError: (id, error) => { failures.set(id, error instanceof Error ? error.message : String(error)) } })
+      return demands.map(demand => ({ ...demand, brief: resolved.get(demand.brief.id) ?? demand.brief,
+        ...(scenes.includes(demand) && !resolved.has(demand.brief.id)
+          ? { unavailableReason: failures.get(demand.brief.id) ?? 'SCENE_SPEC_USAGE_MISMATCH' } : {}) }))
     },
     candidates: async (frozenProject, root, signal) => {
       signal.throwIfAborted()

@@ -297,7 +297,7 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
             workflowIds: dependencies.registry.workflows().map(row => row.workflowId),
             gateIds: dependencies.registry.gates().map(row => row.gateId),
             maxImages: visualBudget,
-            maxModelTurns: 120,
+            maxModelTurns: null,
             stopOnBlocking: true,
             reportDepth,
           }, actorOf(invocation))

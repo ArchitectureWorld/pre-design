@@ -12,7 +12,7 @@ import { WebQueryAgent } from '../src/agent-classes/web-query.ts'
 
 const cleanups: (() => Promise<unknown>)[] = []
 afterEach(async () => { for (const close of cleanups.splice(0).reverse()) await close() })
-async function fixture(modelTurnAuthorization?: (projectId: string, parentId: string) => { authorizationId: string; grantedAt: string; maxModelTurns: number } | undefined) {
+async function fixture(modelTurnAuthorization?: (projectId: string, parentId: string) => { authorizationId: string; grantedAt: string; maxModelTurns: number | null } | undefined) {
   const root = await mkdtemp(join(tmpdir(), 'pre-agent-class-'))
   cleanups.push(() => rm(root, { recursive: true, force: true }))
   const ctx = new Context()
@@ -277,6 +277,39 @@ it('preserves consumed reservations after failure and restart instead of resetti
   const reopened = await AgentClassService.open(ctx.storage.domain, deps)
   await expect(reopened.begin('p', 'text', 'retry', parent)).rejects.toThrow('PREPLANNING_MODEL_TURN_LIMIT')
   expect(await reopened.executions('p')).toHaveLength(1)
+})
+
+it('removes an exhausted task cap explicitly without resetting history, grant identity or restart persistence', async () => {
+  let grant: { authorizationId: string; grantedAt: string; maxModelTurns: number | null } = {
+    authorizationId: 'same-grant', grantedAt: '2026-01-01T00:00:00Z', maxModelTurns: 1,
+  }
+  const { service, ctx, deps } = await fixture(() => grant)
+  await service.save(0, { image: a, web: a, text: a, review: a })
+  const prior = await service.begin('p', 'text', 'original failed task', parent)
+  await service.finish(prior.id, 'failed', 'original failure')
+  const preserved = service.execution(prior.id)
+  await expect(service.begin('p', 'web', 'over finite limit', parent)).rejects.toThrow('PREPLANNING_MODEL_TURN_LIMIT')
+  grant = { ...grant, maxModelTurns: null }
+  const continued = await Promise.all((['text', 'web', 'review', 'text', 'web'] as const)
+    .map(classId => service.begin('p', classId, 'continued task', parent)))
+  for (const run of continued) await service.finish(run.id, 'cancelled', 'test completed')
+  expect(new Set(continued.map(run => run.id)).size).toBe(5)
+  expect(continued.every(run => run.automationAuthorizationId === 'same-grant')).toBe(true)
+  await service.close()
+  const reopened = await AgentClassService.open(ctx.storage.domain, deps)
+  await expect(reopened.begin('p', 'review', 'after restart', parent)).resolves.toMatchObject({ automationAuthorizationId: 'same-grant' })
+  expect(await reopened.executions('p')).toHaveLength(7)
+  expect(reopened.execution(prior.id)).toEqual(preserved)
+})
+
+it('keeps a separate bounded image allowance when only the model-task cap is removed', async () => {
+  const grant = { authorizationId: 'no-task-cap', grantedAt: '2026-01-01T00:00:00Z', maxModelTurns: null,
+    maxVisualGenerations: 1, projectVisualBudget: 1 }
+  const { service } = await fixture(() => grant)
+  await service.save(0, { image: a, web: a, text: a })
+  await service.begin('p', 'image', 'first image', parent)
+  await expect(service.begin('p', 'image', 'second image', parent)).rejects.toThrow('PREPLANNING_VISUAL_BUDGET_LIMIT')
+  await expect(service.begin('p', 'text', 'text remains available', parent)).resolves.toMatchObject({ classId: 'text' })
 })
 
 it('counts all legacy dispatches in the active authorization window, including beyond the UI history limit', async () => {
