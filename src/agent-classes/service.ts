@@ -7,7 +7,7 @@ import { AGENT_CLASSES, type AgentClassId, type AgentClassView, type Availabilit
 import { VISUAL_MODEL_ID, VISUAL_MODEL_PROVIDER } from '../visual/types.ts'
 import { preplanningCancellationReason } from '../runtime/preplanning-execution-guard.ts'
 import { retryDurableWrite } from '../state/durable-write.ts'
-import { executionModelRoute, imageToolForRoute } from './image-tools.ts'
+import { imageToolForRoute } from './image-tools.ts'
 
 export interface ExecutionSession {
   snapshotEvents(): readonly { readonly type: string; readonly data: unknown }[]
@@ -274,7 +274,11 @@ export class AgentClassService {
       .map(event => modelRoute(object(object(event.data)?.header)?.config)).filter((route): route is ModelRoute => !!route)
     const actual = routes.at(-1)
     if (!actual) return lifecycle
-    const expected = imageToolForRoute(run.selected) ? run.selected.llm : executionModelRoute(run.selected)
+    // Legacy Klein adapters owned their routing LLM and recorded Klein as the
+    // native request. Verify that immutable snapshot, not today's tool contract.
+    // New dispatches still require an explicit companion during route validation.
+    const expected = imageToolForRoute(run.selected) && run.selected.llm ? run.selected.llm
+      : { provider: run.selected.provider, model: run.selected.model }
     if (!expected || routes.some(route => !sameRoute(route, expected))) return { ...lifecycle, actual, status: 'failed', error: 'MODEL_ROUTE_MISMATCH: 子会话实际请求模型与派发配置不一致。' }
     return { ...lifecycle, actual }
   }

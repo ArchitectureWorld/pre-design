@@ -214,7 +214,7 @@ it.each(['unrelated','augment','same-page','discovery'] as const)('reviews an ac
  const root=await mkdtemp(join(tmpdir(),'image-gap-directed-'))
  try {
   const count=mode==='augment'||mode==='same-page'?4:17
-  const demands=Array.from({length:count},(_,i)=>({findingId:`gap-${i}`,brief:{id:`gap-${i}:main`,pageId:mode==='same-page'&&i<2?'shared-page':`gap-${i}`,version:'gap-fixture',conclusion:'茶园漫行',subjects:['茶园漫行'],activities:[],environment:'茶园',scale:'scene',allowedKinds:['render'],allowedSources:['generated'],locale:'domestic'}}))
+  const demands=Array.from({length:count},(_,i)=>({findingId:`gap-${i}`,brief:{id:`gap-${i}:main`,pageId:mode==='same-page'&&i<2?'shared-page':`gap-${i}`,version:'gap-fixture',conclusion:'茶园漫行',subjects:['茶园漫行'],activities:[],environment:'茶园',scale:'scene',allowedKinds:['render'],allowedSources:['web','generated'],locale:'domestic'}}))
   const oldCount=mode==='unrelated'?8:mode==='discovery'?0:2
   const assets=await Promise.all(Array.from({length:oldCount+1},async(_,i)=>({...await material(root,'茶园漫行',i),pageBindings:[{findingId:`gap-${i*2}`},{findingId:`gap-${i*2+1}`}]})))
   const digests=await Promise.all(assets.map(async a=>createHash('sha256').update(await readFile(a.sourcePath)).digest('hex')))

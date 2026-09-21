@@ -34,7 +34,7 @@ export function createNativeReportImagePipeline(deps: { classes: AgentClassServi
     const saved = deps.visual.findCandidate(project.projectId, taskId)
     if (recoveryOnly && !saved) return undefined
     const locale = demand.brief.locale === 'domestic' ? '中国本土环境、中国人的活动；若必要标识则只用清晰中文。不要外国生活场景、英文招牌或装饰文字。' : '按本页明确的国际定位表现相应空间；不添加无关外文装饰。'
-    const prompt = `前期策划对外汇报场景图。具体需求：${JSON.stringify(demand.brief)}。正文依据：${JSON.stringify(demand.sceneContext ?? null)}。${locale}单一真实空间视角，主体完整，能清楚理解正文设施、活动与环境。正文中的论证、资金和阶段是表达意图；图像主体和活动以具体需求为准，不绘制总图、流程图、分析拼图、表格和说明标签；不要水印或乱码。正文未支持的设施不得添加。`
+    const prompt = `前期策划对外汇报场景图。生成一张 1600×896 横幅图片，完整空间构图铺满画面，不留白边。具体需求：${JSON.stringify(demand.brief)}。正文依据：${JSON.stringify(demand.sceneContext ?? null)}。${locale}单一真实空间视角，主体完整，能清楚理解正文设施、活动与环境。正文中的论证、资金和阶段是表达意图；图像主体和活动以具体需求为准，不绘制总图、流程图、分析拼图、表格和说明标签；不要水印或乱码。正文未支持的设施不得添加。`
     const asset = saved ?? await deps.visual.generate(parent, { taskId, projectId: project.projectId, chapterId: owner.chapterId, workItemId: owner.workItemId,
       kind: 'concept', required: false, prompt }, signal, { preserveUncertain: true })
     const material: PresentationAdoptedAssetInput = { sourceKey: asset.assetId, sourcePath: deps.resolveAsset(asset.fileName), originalFileName: asset.fileName,

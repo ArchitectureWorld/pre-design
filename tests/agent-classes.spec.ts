@@ -46,6 +46,23 @@ async function comfyFixture() {
   return f
 }
 const comfy = { provider: 'Comfyui-PIC', model: 'Klein' }
+it('recovers legacy adapter-owned Klein requests from their original persisted route', async () => {
+  const { service, deps } = await comfyFixture()
+  await service.save(0, { image: { ...comfy, llm: a }, text: a, web: a })
+  const run = await service.begin('p', 'image', 'saved legacy image', parent)
+  await service.attach(run.id, 'legacy-comfy-child')
+  // Old installs recorded Klein itself as the model; their adapter owned the LLM.
+  const stored = service.execution(run.id)!
+  await (service as any).domain.table('executions').put(run.id, { ...stored, selected: comfy, routeChain: [comfy],
+    status: 'failed', error: 'MODEL_EXECUTION_UNVERIFIED: 尚无子会话模型请求记录。' })
+  deps.sessions.get.mockReturnValue(undefined as never)
+  Object.assign(deps, { readPersistedEvents: async () => [
+    { type: 'request/header', data: { header: { config: comfy } } },
+    { type: 'turn/end', data: { reason: { kind: 'completed' } } },
+  ] })
+  await service.finish(run.id, 'completed')
+  expect(service.execution(run.id)).toMatchObject({ status: 'completed', actual: comfy, selected: comfy })
+})
 it('requires an explicit LLM for primary and backup ComfyUI routes and persists it globally', async () => {
   const { service, ctx, deps } = await comfyFixture()
   const routes = { image: comfy, text: a, web: a }

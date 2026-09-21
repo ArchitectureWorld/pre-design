@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile, rename } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { AgentClassService } from '../agent-classes/service.ts'
+import { imageToolForRoute } from '../agent-classes/image-tools.ts'
 import type { FrozenProjectInput } from '../report/types.ts'
 import { manuscriptSourceFingerprint } from '../report/manuscript/source.ts'
 import { sceneRequirements } from '../report/manuscript/visual-scenes.ts'
@@ -109,7 +110,7 @@ interface PipelineDependencies {
 interface SavedPlan { readonly version: string; readonly fingerprint: string; readonly projectId: string; readonly materials: readonly ConditionalReportMaterial[] }
 async function atomicJson(path: string, value: unknown) { const temp = `${path}.${randomUUID()}.tmp`; await writeFile(temp, JSON.stringify(value, null, 2) + '\n'); await rename(temp, path) }
 
-/** Finite source-first replenishment followed by validation of actual physical pages. */
+/** Recover first, then replenish missing positions and validate actual physical pages. */
 export class ReportImagePipeline {
   private readonly running = new Map<string, Promise<readonly ConditionalReportMaterial[]>>()
   constructor(private readonly dependencies: PipelineDependencies) {}
@@ -446,6 +447,28 @@ export class ReportImagePipeline {
       await resolveExisting()
       await adoptAssigned(available)
       const missing = allocation().gaps
+      const generateWave = async (wave: readonly ReportImageDemand[]) => {
+        const remainingIds = new Set(allocation().gaps.map(brief => brief.id))
+        const generation = wave.filter(demand => remainingIds.has(demand.brief.id)
+          && !demand.caseSource && !demand.sourceMaterialKey
+          && demand.brief.allowedSources.includes('generated') && this.dependencies.generate && !generated.has(demand.brief.id))
+          .slice(0, Math.max(0, maxGenerations - generated.size))
+        // Reserve before dispatch; failure remains recorded and cannot submit twice.
+        for (const demand of generation) generated.add(demand.brief.id)
+        if (!generation.length) return
+        const results = await Promise.allSettled(generation.map(async demand => {
+          assertCurrent(); signal.throwIfAborted()
+          const result = await this.dependencies.generate!(demand, parent, signal, input, root)
+          if (!result?.material) throw new Error('REPORT_IMAGE_GENERATION_EMPTY')
+          return { demand, result }
+        }))
+        assertCurrent(); signal.throwIfAborted()
+        for (const [i, result] of results.entries()) if (result.status === 'rejected') await recordError('generation', [generation[i]!.brief.id], result.reason)
+        const completed = results.flatMap(result => result.status === 'fulfilled' ? [result.value] : [])
+        for (const { demand, result } of completed) await ingestGenerated(demand, result)
+        await resolveExisting()
+        await adoptAssigned(completed.map(row => row.result))
+      }
       // Retrieval, generation and inspection use separate waves. No wave overlaps
       // another, so the five-child limit also holds across capability classes.
       // Source ingestion and allocation remain serial to preserve identity/capacity.
@@ -453,7 +476,13 @@ export class ReportImagePipeline {
         const openIds = new Set(allocation().gaps.map(brief => brief.id))
         const wave = missing.slice(offset, offset + 5).filter(brief => openIds.has(brief.id))
           .map(brief => demands.find(demand => demand.brief.id === brief.id)!)
-        const searches = wave.filter(demand => (!demand.sourceMaterialKey || demand.caseSource)
+        // Local image tools fill authored scenes directly, before an optional web
+        // search. Real case/site sources still require originals. Pixel review,
+        // source identity and allocation stay mandatory before any adoption.
+        if (imageToolForRoute(this.dependencies.classes.settings().routes.image)) await generateWave(wave)
+        const stillMissing = new Set(allocation().gaps.map(brief => brief.id))
+        const searches = wave.filter(demand => stillMissing.has(demand.brief.id)
+          && (!demand.sourceMaterialKey || demand.caseSource) && demand.brief.allowedSources.includes('web')
           && this.dependencies.search && !searched.has(demand.brief.id))
         for (const demand of searches) searched.add(demand.brief.id)
         if (searches.length) {
@@ -469,26 +498,7 @@ export class ReportImagePipeline {
           }
           await resolveExisting()
         }
-        const remainingIds = new Set(allocation().gaps.map(brief => brief.id))
-        const generation = wave.filter(demand => remainingIds.has(demand.brief.id)
-          && demand.brief.allowedSources.includes('generated') && this.dependencies.generate && !generated.has(demand.brief.id))
-          .slice(0, Math.max(0, maxGenerations - generated.size))
-        // Reserve the whole wave before starting asynchronous calls.
-        for (const demand of generation) generated.add(demand.brief.id)
-        if (generation.length) {
-          const results = await Promise.allSettled(generation.map(async demand => {
-            assertCurrent(); signal.throwIfAborted()
-            const result = await this.dependencies.generate!(demand, parent, signal, input, root)
-            if (!result?.material) throw new Error('REPORT_IMAGE_GENERATION_EMPTY')
-            return { demand, result }
-          }))
-          assertCurrent(); signal.throwIfAborted()
-          for (const [i, result] of results.entries()) if (result.status === 'rejected') await recordError('generation', [generation[i]!.brief.id], result.reason)
-          const completed = results.flatMap(result => result.status === 'fulfilled' ? [result.value] : [])
-          for (const { demand, result } of completed) await ingestGenerated(demand, result)
-          await resolveExisting()
-          await adoptAssigned(completed.map(row => row.result))
-        }
+        await generateWave(wave)
       }
       for (const brief of allocation().gaps) gaps.push({ id: brief.id, reason: '无满足内容、质量、来源和原图使用次数要求的素材' })
     }
