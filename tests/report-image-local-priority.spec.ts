@@ -75,3 +75,71 @@ it('continues local failures in waves of five, keeps case sources factual, and r
     } finally { await rm(root, { recursive: true, force: true }) }
   }
 })
+
+it.each([true, false])('defers speculative old-image matching and case retrieval until local scenes are attempted (approved=%s)', async approved => {
+  const root = await mkdtemp(join(tmpdir(), 'local-priority-old-pool-')), order: string[] = []
+  try {
+    const oldPath = join(root, 'old.png'), newPath = join(root, 'new.png')
+    await writeFile(oldPath, png(resize(scene(17), 1600, 1000)))
+    await writeFile(newPath, png(resize(scene(48), 1600, 1000)))
+    const material = (sourceKey: string, sourcePath: string) => ({ sourceKey, sourcePath, originalFileName: `${sourceKey}.png`,
+      displayName: '林下座椅', mimeType: 'image/png', semanticRole: 'concept_visual' as const, createdAt: 'fixture', adoptedAt: 'fixture',
+      objectIds: [], evidenceIds: [], origin: { type: 'generated_by_plugin' as const, parentAssetKeys: [], sourceMaterialKeys: [],
+        sourceTool: null, method: JSON.stringify({ kind: 'ai-concept', sourceKey }) } })
+    const target = demand('z-scene'), factual = { ...demand('a-case'), sourceMaterialKey: 'case-original',
+      caseSource: { caseId: 'real', name: '真实公园', location: '中国', mediaPurpose: '整体' } }
+    const inspect = vi.fn(async (_parent: unknown, request: any) => {
+      const isOld = JSON.parse(request.sourceContext).sourceKey === 'old'
+      order.push(isOld ? 'review-old' : 'review-new')
+      const accepted = isOld || approved
+      return request.slots.map((slot: any) => ({ schemaVersion: 'pre-design.image-inspection.v1',
+        imageSha256: createHash('sha256').update(request.bytes).digest('hex'), requirementHash: imageBriefHash(slot.brief),
+        usageId: slot.brief.id, placementHash: slot.placementHash, inspectedAt: 'fixture', actualImageInput: true,
+        actualModel: { provider: 'fixture', model: 'vision' }, executionId: 'fixture-run', contentKind: 'render', relevant: accepted,
+        matchedSubjects: accepted ? slot.brief.subjects : [], mismatches: accepted ? [] : ['missing-subject'], domesticContext: 'supported',
+        textLanguages: [], textLegible: true, watermark: 'none', quality: 'pass', essentialBounds: [{ x: 0, y: 0, width: 1, height: 1 }],
+        decision: accepted ? 'approved' : 'rejected', sourceContextHash: imageSourceContextHash(request) }))
+    })
+    const pipeline = new ReportImagePipeline({ classes, candidates: async () => [material('old', oldPath)], inspection: { inspect } as never,
+      resolveDemands: async () => [factual, target], search: async d => { order.push(`search:${d.brief.id}`); return [] },
+      generate: async d => { expect(d.caseSource).toBeUndefined(); order.push('generate'); return { material: material('new', newPath), adopt: async () => {} } } })
+    await expect(pipeline.prepare(input, root, {} as never, AbortSignal.timeout(10000), () => {})).rejects.toThrow('REPORT_IMAGE_GAPS')
+    expect(order.slice(0, 2)).toEqual(['generate', 'review-new'])
+    expect(order.indexOf('search:a-case:main')).toBeGreaterThan(1)
+    if (approved) expect(order).not.toContain('review-old')
+    else expect(order.indexOf('review-old')).toBeGreaterThan(order.indexOf('search:a-case:main'))
+    const gaps = JSON.parse(await readFile(join(root, '.pre-design/report-image-gaps.json'), 'utf8')).gaps
+    expect(gaps.map((gap: any) => gap.id)).toEqual(['a-case:main'])
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+
+it('adopts generated images first assigned to another usage during the final broad matching pass', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'local-cross-adoption-')), adopted: string[] = []
+  try {
+    const targets = [demand('a'), demand('b')], files: string[] = []
+    for (const seed of [23, 67]) {
+      const path = join(root, `${seed}.png`); await writeFile(path, png(resize(scene(seed), 1600, 1000))); files.push(path)
+    }
+    const inspect = async (_parent: unknown, request: any) => request.slots.map((slot: any) => {
+      const accepted = JSON.parse(request.sourceContext).target !== slot.brief.id
+      return { schemaVersion: 'pre-design.image-inspection.v1', imageSha256: createHash('sha256').update(request.bytes).digest('hex'),
+        requirementHash: imageBriefHash(slot.brief), usageId: slot.brief.id, placementHash: slot.placementHash, inspectedAt: 'fixture',
+        actualImageInput: true, actualModel: { provider: 'fixture', model: 'vision' }, executionId: 'fixture-run', contentKind: 'render',
+        relevant: accepted, matchedSubjects: accepted ? slot.brief.subjects : [], mismatches: accepted ? [] : ['target-mismatch'],
+        domesticContext: 'supported', textLanguages: [], textLegible: true, watermark: 'none', quality: 'pass',
+        essentialBounds: [{ x: 0, y: 0, width: 1, height: 1 }], decision: accepted ? 'approved' : 'rejected',
+        sourceContextHash: imageSourceContextHash(request) }
+    })
+    const pipeline = new ReportImagePipeline({ classes, candidates: async () => [], inspection: { inspect } as never,
+      resolveDemands: async () => [...targets, { ...demand('source'), sourceMaterialKey: 'original', brief: { ...demand('source').brief, allowedSources: ['project'] } }],
+      generate: async d => ({ adopt: async () => { adopted.push(d.brief.id) }, material: {
+        sourceKey: d.brief.id, sourcePath: files[targets.indexOf(d)]!, originalFileName: 'scene.png', displayName: '林下座椅', mimeType: 'image/png',
+        semanticRole: 'concept_visual', createdAt: 'fixture', adoptedAt: 'fixture', objectIds: [], evidenceIds: [],
+        origin: { type: 'generated_by_plugin', parentAssetKeys: [], sourceMaterialKeys: [], sourceTool: null, method: JSON.stringify({ target: d.brief.id }) },
+      } }) })
+    await expect(pipeline.prepare(input, root, {} as never, AbortSignal.timeout(10000), () => {})).rejects.toThrow('REPORT_IMAGE_GAPS')
+    expect(adopted.sort()).toEqual(['a:main', 'b:main'])
+    const gaps = JSON.parse(await readFile(join(root, '.pre-design/report-image-gaps.json'), 'utf8')).gaps
+    expect(gaps.map((gap: any) => gap.id)).toEqual(['source:main'])
+  } finally { await rm(root, { recursive: true, force: true }) }
+})

@@ -69,7 +69,7 @@ function sourceKind(asset: PresentationAdoptedAssetInput): 'project' | 'web' | '
   if (asset.semanticRole === 'concept_visual') return 'generated'
   return /web-reference|case-reference/u.test(asset.origin.method) ? 'web' : 'project'
 }
-function inspectionSource(asset: PresentationAdoptedAssetInput & { readonly sha256?: string }, project: FrozenProjectInput): ImageInspectionSourceContext {
+export function reportImageInspectionSource(asset: PresentationAdoptedAssetInput & { readonly sha256?: string }, project: FrozenProjectInput): ImageInspectionSourceContext {
   let method: Record<string, any> = {}
   try { method = JSON.parse(asset.origin.method) } catch { /* old provenance is not location proof */ }
   const location = asset.imageQuality?.sourceLocation
@@ -80,6 +80,7 @@ function inspectionSource(asset: PresentationAdoptedAssetInput & { readonly sha2
     sourceLocationVerified: projectSource?.sourceLocationVerified ?? verified,
     sourceEvidenceHash: sha(asset.imagePreparation ? JSON.stringify([asset.origin.method, asset.imagePreparation]) : asset.origin.method) }
 }
+const inspectionSource = reportImageInspectionSource
 function explicitlyBound(asset: PresentationAdoptedAssetInput, demand: ReportImageDemand): boolean {
   return asset.pageBindings?.some(b => b.findingId === demand.findingId && (!demand.brief.nodeId || b.nodeIds?.includes(demand.brief.nodeId))) === true
 }
@@ -315,7 +316,7 @@ export class ReportImagePipeline {
       }
       return alternatives
     }
-    const resolveExisting = async () => {
+    const resolveExisting = async (targetedOnly = false) => {
       await restoreReviews()
       let progressed = true
       while (progressed && allocation().gaps.length) {
@@ -326,7 +327,8 @@ export class ReportImagePipeline {
           const pending = frontiers.get(source) ?? new Map<ConditionalReportMaterial, ReportImageDemand[]>()
           frontiers.set(source, pending)
           for (const demand of demands) {
-            const fresh = pool(demand).filter(asset => sourceKind(asset) === source && !considered.has(pair(asset, demand)))
+            const fresh = pool(demand).filter(asset => sourceKind(asset) === source && !considered.has(pair(asset, demand))
+              && (!targetedOnly || requestedFor(asset, demand) || explicitlyBound(asset, demand)))
             for (const asset of fresh) considered.add(pair(asset, demand))
             const selected = fresh.filter((asset, index) => index < 6 || requestedFor(asset, demand) || explicitlyBound(asset, demand) || !!demand.sourceMaterialKey)
             for (const asset of selected) {
@@ -340,7 +342,7 @@ export class ReportImagePipeline {
           for (const [asset, remaining] of pending) {
             const target = acquisitionTargets.get(asset.sourceKey)
             const key = `${asset.sha256}:${imageSourceContextHash(inspectionSource(asset, input))}`
-            if (!target || acquisitionWindows.has(key)) continue
+            if (!target || acquisitionWindows.has(key) || targetedOnly) continue
             const missing = new Set(allocation().gaps.map(brief => brief.id))
             const relevant = remaining.filter(demand => missing.has(demand.brief.id))
               .sort((a, b) => Number(target.has(b.brief.id)) - Number(target.has(a.brief.id))
@@ -444,9 +446,17 @@ export class ReportImagePipeline {
           if (result) { await ingestGenerated(demand, result); available.push(result) }
         } catch (error) { await recordError('recovery', [demand.brief.id], error) }
       }
-      await resolveExisting()
+      const localGeneration = !!imageToolForRoute(this.dependencies.classes.settings().routes.image)
+        && !!this.dependencies.generate && maxGenerations > 0
+      // Reuse every verified cached edge, but defer speculative model reviews of
+      // old, loosely related images until local missing-scene generation finishes.
+      await resolveExisting(localGeneration)
       await adoptAssigned(available)
-      const missing = allocation().gaps
+      const canGenerate = (id: string) => {
+        const demand = demands.find(demand => demand.brief.id === id)!
+        return !demand.caseSource && !demand.sourceMaterialKey && demand.brief.allowedSources.includes('generated')
+      }
+      const missing = allocation().gaps.sort((a, b) => localGeneration ? Number(canGenerate(b.id)) - Number(canGenerate(a.id)) : 0)
       const generateWave = async (wave: readonly ReportImageDemand[]) => {
         const remainingIds = new Set(allocation().gaps.map(brief => brief.id))
         const generation = wave.filter(demand => remainingIds.has(demand.brief.id)
@@ -465,8 +475,9 @@ export class ReportImagePipeline {
         assertCurrent(); signal.throwIfAborted()
         for (const [i, result] of results.entries()) if (result.status === 'rejected') await recordError('generation', [generation[i]!.brief.id], result.reason)
         const completed = results.flatMap(result => result.status === 'fulfilled' ? [result.value] : [])
+        available.push(...completed.map(row => row.result))
         for (const { demand, result } of completed) await ingestGenerated(demand, result)
-        await resolveExisting()
+        await resolveExisting(localGeneration)
         await adoptAssigned(completed.map(row => row.result))
       }
       // Retrieval, generation and inspection use separate waves. No wave overlaps
@@ -479,7 +490,7 @@ export class ReportImagePipeline {
         // Local image tools fill authored scenes directly, before an optional web
         // search. Real case/site sources still require originals. Pixel review,
         // source identity and allocation stay mandatory before any adoption.
-        if (imageToolForRoute(this.dependencies.classes.settings().routes.image)) await generateWave(wave)
+        if (localGeneration) await generateWave(wave)
         const stillMissing = new Set(allocation().gaps.map(brief => brief.id))
         const searches = wave.filter(demand => stillMissing.has(demand.brief.id)
           && (!demand.sourceMaterialKey || demand.caseSource) && demand.brief.allowedSources.includes('web')
@@ -496,9 +507,13 @@ export class ReportImagePipeline {
             for (const asset of result.value.assets) targetAcquisition(asset, result.value.demand.brief.id)
             await ingest(result.value.assets)
           }
-          await resolveExisting()
+          await resolveExisting(localGeneration)
         }
         await generateWave(wave)
+      }
+      if (localGeneration) {
+        await resolveExisting()
+        await adoptAssigned(available)
       }
       for (const brief of allocation().gaps) gaps.push({ id: brief.id, reason: '无满足内容、质量、来源和原图使用次数要求的素材' })
     }
