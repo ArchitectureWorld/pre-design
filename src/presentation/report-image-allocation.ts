@@ -5,7 +5,11 @@ export interface ReviewedImageCandidate {
   readonly source: 'project' | 'web' | 'generated'
   readonly material: PresentationAdoptedAssetInput
 }
-export function allocateReportImages(briefs: readonly ImageSlotBrief[], candidates: readonly ReviewedImageCandidate[], options: { readonly placementHashes?: Readonly<Record<string, string>> } = {}) {
+export function allocateReportImages(briefs: readonly ImageSlotBrief[], candidates: readonly ReviewedImageCandidate[], options: {
+  readonly placementHashes?: Readonly<Record<string, string>>
+  /** Source-page identity stays in the brief; capacity belongs to actual physical pages. */
+  readonly physicalPageIds?: Readonly<Record<string, string>>
+} = {}) {
   const rank = { project: 0, web: 1, generated: 2 }
   const aliases = new Map<string, string>()
   const root = (value: string): string => {
@@ -48,7 +52,7 @@ export function allocateReportImages(briefs: readonly ImageSlotBrief[], candidat
   for (const brief of [...briefs].sort((a,b) => a.id.localeCompare(b.id))) {
     const position = node(`demand:${brief.id}`); add(source, position, 1)
     for (const candidate of eligible(brief)) {
-      const original = familyId(candidate), family = node(`family:${original}`), pageKey = JSON.stringify([brief.pageId, original]), page = node(`page:${pageKey}`)
+      const original = familyId(candidate), family = node(`family:${original}`), pageKey = JSON.stringify([options.physicalPageIds?.[brief.id] ?? brief.pageId, original]), page = node(`page:${pageKey}`)
       if (!families.has(original)) { add(family, sink, MAX_ORIGINAL_IMAGE_USES); families.add(original) }
       if (!pageFamilies.has(pageKey)) { add(page, family, 1); pageFamilies.add(pageKey) }
       add(position, page, 1, rank[candidate.source], candidate)

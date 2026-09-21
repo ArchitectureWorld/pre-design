@@ -42,3 +42,15 @@ it('does not multiply original budgets through conflicting aliases for identical
   })
   expect(allocateReportImages(briefs, aliases).assigned).toHaveLength(2)
 })
+it('allows two separately approved physical continuations of one source page while retaining both uniqueness limits', () => {
+  const briefs = [brief('story:main', 'story'), brief('story:continuation:1', 'story'), brief('story:continuation:2', 'story')]
+  const candidates = briefs.map(b => candidate(b, 'one-original'))
+  const options = { physicalPageIds: { 'story:main': 'physical-0', 'story:continuation:1': 'physical-1', 'story:continuation:2': 'physical-2' } }
+  expect(allocateReportImages(briefs.slice(0,2), candidates, options).gaps).toEqual([])
+  expect(allocateReportImages(briefs, candidates, options).assigned).toHaveLength(2)
+  expect(allocateReportImages(briefs.slice(0,2), candidates, { physicalPageIds: { 'story:main': 'same-page', 'story:continuation:1': 'same-page' } }).assigned).toHaveLength(1)
+  expect(allocateReportImages(briefs.slice(0,2), candidates.slice(0,1), options).assigned).toHaveLength(1)
+  const derivative = candidate(briefs[1]!, 'different-bytes')
+  derivative.material.imageIdentity = { ...derivative.material.imageIdentity, derivedFromSha256: 'one-original', verification: 'verified-derivative' }
+  expect(allocateReportImages(briefs, [candidates[0]!, derivative, candidates[2]!], options).assigned).toHaveLength(2)
+})

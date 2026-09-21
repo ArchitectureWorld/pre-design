@@ -62,6 +62,8 @@ it('fills independent physical continuations despite a missing factual source an
     const contexts = resolved.filter(d => continuations.includes(d.brief.id))
     expect(contexts.length).toBe(continuations.length)
     expect(contexts.every(d => d.sceneContext?.usageId === d.brief.id && d.sceneContext.nodeLabel === undefined)).toBe(true)
+    expect(contexts.every(d => d.sceneContext?.scope === 'physical-continuation'
+      && d.sceneContext.sources.every(source => /^(?:body\[|table\.)/u.test(source.path)))).toBe(true)
     expect(contexts.every(d => d.sceneContext!.sources.some(s => s.path.startsWith('body[') && s.text.includes('林下座椅')))).toBe(true)
     const gaps = JSON.parse(await readFile(join(root, '.pre-design/report-image-gaps.json'), 'utf8')).gaps
     expect(gaps.map((gap: any) => gap.id)).toEqual(['missing-case:main'])

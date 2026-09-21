@@ -76,7 +76,7 @@ it('continues local failures in waves of five, keeps case sources factual, and r
   }
 })
 
-it.each([true, false])('defers speculative old-image matching and case retrieval until local scenes are attempted (approved=%s)', async approved => {
+it.each([true, false].flatMap(approved => [false, true].map(continuation => ({ approved, continuation }))))('defers speculative old-image matching until local scenes are attempted (approved=$approved, continuation=$continuation)', async ({ approved, continuation }) => {
   const root = await mkdtemp(join(tmpdir(), 'local-priority-old-pool-')), order: string[] = []
   try {
     const oldPath = join(root, 'old.png'), newPath = join(root, 'new.png')
@@ -88,6 +88,7 @@ it.each([true, false])('defers speculative old-image matching and case retrieval
         sourceTool: null, method: JSON.stringify({ kind: 'ai-concept', sourceKey }) } })
     const target = demand('z-scene'), factual = { ...demand('a-case'), sourceMaterialKey: 'case-original',
       caseSource: { caseId: 'real', name: '真实公园', location: '中国', mediaPurpose: '整体' } }
+    if (continuation) (target as any).brief = { ...target.brief, id: 'z-scene:continuation:1' }
     const inspect = vi.fn(async (_parent: unknown, request: any) => {
       const isOld = JSON.parse(request.sourceContext).sourceKey === 'old'
       order.push(isOld ? 'review-old' : 'review-new')
@@ -100,7 +101,8 @@ it.each([true, false])('defers speculative old-image matching and case retrieval
         textLanguages: [], textLegible: true, watermark: 'none', quality: 'pass', essentialBounds: [{ x: 0, y: 0, width: 1, height: 1 }],
         decision: accepted ? 'approved' : 'rejected', sourceContextHash: imageSourceContextHash(request) }))
     })
-    const pipeline = new ReportImagePipeline({ classes, candidates: async () => [material('old', oldPath)], inspection: { inspect } as never,
+    const pipeline = new ReportImagePipeline({ classes, candidates: async () => [{ ...material('old', oldPath),
+      ...(continuation ? { pageBindings: [{ findingId: target.findingId }] } : {}) }], inspection: { inspect } as never,
       resolveDemands: async () => [factual, target], search: async d => { order.push(`search:${d.brief.id}`); return [] },
       generate: async d => { expect(d.caseSource).toBeUndefined(); order.push('generate'); return { material: material('new', newPath), adopt: async () => {} } } })
     await expect(pipeline.prepare(input, root, {} as never, AbortSignal.timeout(10000), () => {})).rejects.toThrow('REPORT_IMAGE_GAPS')

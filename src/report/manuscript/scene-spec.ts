@@ -6,6 +6,7 @@ export const SCENE_SPEC_VERSION = 'report-scene-spec-2026-09-20.4'
 export interface SceneSpecSource { readonly path: string; readonly text: string }
 export interface SceneSpecContext {
   readonly usageId: string
+  readonly scope?: 'physical-continuation'
   readonly pageTitle: string
   readonly intent: string
   readonly nodeLabel?: string
@@ -13,26 +14,29 @@ export interface SceneSpecContext {
 }
 
 /** Keep original strings and stable paths; selecting a related scene is not a graph traversal. */
-export function sceneSpecContext(page: PlanningManuscriptPage, usageId: string, nodeId?: string): SceneSpecContext {
+export function sceneSpecContext(page: PlanningManuscriptPage, usageId: string, nodeId?: string, scope?: SceneSpecContext['scope']): SceneSpecContext {
   const sources: SceneSpecSource[] = []
   const add = (path: string, text: string) => { if (text.trim()) sources.push({ path, text }) }
-  add('title', page.title)
-  add('claim', page.claim)
+  // A continuation inherits its chapter heading, but its picture illustrates
+  // only the prose/rows actually shown there, not the entire source-page brief.
+  if (!scope) { add('title', page.title); add('claim', page.claim) }
   page.body.forEach((text, index) => add(`body[${index}]`, text))
-  if (page.product) for (const key of ['name', 'audience', 'experience', 'location', 'scale', 'operations'] as const) add(`product.${key}`, page.product[key])
+  if (!scope && page.product) for (const key of ['name', 'audience', 'experience', 'location', 'scale', 'operations'] as const) add(`product.${key}`, page.product[key])
   page.table?.columns.forEach((text, index) => add(`table.columns[${index}]`, text))
   page.table?.rows.forEach((row, rowIndex) => row.forEach((text, columnIndex) => add(`table.rows[${rowIndex}][${columnIndex}]`, text)))
-  add('visual.subject', page.visual.subject)
-  add('visual.purpose', page.visual.purpose)
-  add('visual.caption', page.visual.caption)
+  if (!scope) {
+    add('visual.subject', page.visual.subject)
+    add('visual.purpose', page.visual.purpose)
+    add('visual.caption', page.visual.caption)
+  }
   let nodeLabel: string | undefined
-  if (nodeId !== undefined) {
+  if (nodeId !== undefined && !scope) {
     const nodes = page.visual.diagram?.nodes ?? [], index = nodes.findIndex(node => node.id === nodeId)
     if (index < 0) throw new Error('SCENE_SPEC_NODE_NOT_FOUND: nodeId: 场景位置未对应原稿节点')
     nodeLabel = nodes[index]!.label
     add(`visual.diagram.nodes[${index}].label`, nodeLabel)
   }
-  return { usageId, pageTitle: page.title, intent: page.claim, ...(nodeLabel !== undefined ? { nodeLabel } : {}), sources }
+  return { usageId, ...(scope ? { scope } : {}), pageTitle: page.title, intent: page.claim, ...(nodeLabel !== undefined ? { nodeLabel } : {}), sources }
 }
 
 // These describe presentation or administrative propositions, not visible facilities.
@@ -52,6 +56,7 @@ export function needsSceneSpecification(brief: ImageSlotBrief, context?: SceneSp
   if (!sceneKinds.length) return false
   // A source-only analysis slot must keep its original media contract, even if photos are also allowed.
   if (!brief.allowedSources.includes('generated') && sceneKinds.length !== brief.allowedKinds.length) return false
+  if (context?.scope === 'physical-continuation') return true
   // Node roles and the cover can carry decisions/conditions regardless of their wording.
   if (brief.nodeId !== undefined || brief.id === 'cover:main' && brief.pageId === 'cover') return true
   return [...brief.subjects, ...brief.activities, brief.environment].some(unobservable)

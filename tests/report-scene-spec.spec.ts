@@ -28,6 +28,25 @@ function rejectionMessage(action: () => unknown): string {
 }
 
 describe('scene specification source context', () => {
+  it.each([
+    ['五段到访过程与三条动线的衔接关系', '游客在茶园品饮后沿步道前往选购区，再返回集散点。', '茶园'],
+    ['外围集散点至库区慢行节点的完整关系', '预约小组在林下候车区集中，乘车返回外围停车场。', '林下候车区'],
+    ['旧茶厂真实现状照片或记录', '旧茶厂完成检测后可设置茶事体验空间，旁侧草地用于日间休息。', '茶事体验空间'],
+  ])('grounds a physical continuation in its own prose instead of inherited %s', (subject, body, visible) => {
+    const input = { ...page(subject), body: [body], table: { columns: ['服务'], rows: [['沿线树荫座椅']] } }
+    const before = JSON.stringify(input), id = 'delivery:continuation:2'
+    const context = sceneSpecContext(input, id, undefined, 'physical-continuation')
+    expect(context).toMatchObject({ usageId: id, scope: 'physical-continuation', pageTitle: input.title, intent: input.claim })
+    expect(context.sources.map(source => source.path)).toEqual(['body[0]', 'table.columns[0]', 'table.rows[0][0]'])
+    const original = { ...brief(visible), id, environment: '公园' }
+    expect(needsSceneSpecification(original, context)).toBe(true)
+    const value = { usageId: id, subjects: [citation(visible, 'body[0]')], activities: [], environment: citation(visible, 'body[0]') }
+    expect(resolveSceneSpecification(value, original, context).subjects).toEqual([visible])
+    expect(() => resolveSceneSpecification({ ...value, subjects: [citation(subject, 'visual.subject')] }, original, context)).toThrow('SCENE_SPEC_CITATION_INVALID')
+    expect(JSON.stringify(input)).toBe(before)
+    expect(sceneSpecContext(input, 'delivery:main').sources.some(source => source.path === 'visual.subject')).toBe(true)
+    expect(needsSceneSpecification({ ...original, allowedKinds: ['photo', 'plan'], allowedSources: ['project'] }, context)).toBe(false)
+  })
   it('provides full original source fields with stable paths and only the selected node label', () => {
     const input: PlanningManuscriptPage = { ...page(),
       product: { name: '旧厂房参观', audience: '家庭', experience: '沿生产线参观', location: '保留厂房内部', scale: '小组参观', operations: '预约开放' },

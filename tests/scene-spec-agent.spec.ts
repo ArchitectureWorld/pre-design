@@ -39,6 +39,51 @@ const secondBrief = { ...brief, id: 'operation:main' }
 const secondContext = { ...context, usageId: secondBrief.id }
 const secondSpecification = { ...specification, usageId: secondBrief.id }
 const pair = [{ brief, context }, { brief: secondBrief, context: secondContext }]
+it('translates independent batches with five real children in flight and reuses all completed receipts', async () => {
+  const items = Array.from({ length: 48 }, (_, i) => ({ brief: { ...brief, id: `parallel-${i}:main` }, context: { ...context, usageId: `parallel-${i}:main` } }))
+  const f = await fixture('unused')
+  let release!: () => void, active = 0, peak = 0
+  const gate = new Promise<void>(resolve => { release = resolve })
+  f.start.mockImplementation(async (_provider: string, request: any) => {
+    const requested = JSON.parse(request.prompt[0].text.match(/资料：(.*)。只输出JSON/u)![1])
+    active++; peak = Math.max(peak, active)
+    const result = gate.then(() => { active--; return { stopReason: 'completed', output: [{ type: 'text',
+      text: JSON.stringify({ items: requested.map((item: any) => ({ ...specification, usageId: item.brief.id })) }) }] } })
+    return { id: `child-${requested[0].brief.id}`, dispose: f.dispose, result }
+  })
+  const work = f.service.resolve(parent, 'project', f.root, items, AbortSignal.timeout(5000))
+  try { await vi.waitFor(() => expect(peak).toBe(5), { timeout: 1000, interval: 10 }) }
+  finally { release(); await work }
+  const result = await work
+  expect(peak).toBe(5)
+  expect(active).toBe(0)
+  expect(result.size).toBe(48)
+  expect(f.start).toHaveBeenCalledTimes(6)
+  expect((await savedEntries(f.root)).every(row => row.status === 'completed')).toBe(true)
+  await f.service.resolve(parent, 'project', f.root, items, AbortSignal.timeout(5000))
+  expect(f.start).toHaveBeenCalledTimes(6)
+})
+it('settles a successful sibling and its receipts before returning an independent batch failure', async () => {
+  const items = Array.from({ length: 16 }, (_, i) => ({ brief: { ...brief, id: `drain-${i}:main` }, context: { ...context, usageId: `drain-${i}:main` } }))
+  const f = await fixture('unused')
+  let release!: () => void, settled = false
+  const gate = new Promise<void>(resolve => { release = resolve })
+  f.start.mockImplementation(async (_provider: string, request: any) => {
+    const requested = JSON.parse(request.prompt[0].text.match(/资料：(.*)。只输出JSON/u)![1])
+    const result = requested[0].brief.id === 'drain-0:main' ? Promise.resolve({ stopReason: 'failed', output: [] })
+      : gate.then(() => ({ stopReason: 'completed', output: [{ type: 'text', text: JSON.stringify({ items: requested.map((item: any) => ({ ...specification, usageId: item.brief.id })) }) }] }))
+    return { id: `child-${requested[0].brief.id}`, dispose: f.dispose, result }
+  })
+  const work = f.service.resolve(parent, 'project', f.root, items, AbortSignal.timeout(5000)).then(() => { settled = true; return undefined }, error => { settled = true; return error })
+  try {
+    await vi.waitFor(() => expect(f.classes.finish).toHaveBeenCalledWith(expect.any(String), 'failed', 'SCENE_SPEC_FAILED: failed'), { timeout: 1000 })
+    expect(settled).toBe(false)
+    expect(f.start).toHaveBeenCalledTimes(2)
+  } finally { release(); await work }
+  expect((await work).message).toBe('SCENE_SPEC_FAILED: failed')
+  expect((await savedEntries(f.root)).filter(row => row.status === 'completed').map(row => row.specification.usageId).sort())
+    .toEqual(items.slice(8).map(item => item.brief.id).sort())
+})
 it('continues scene translation past a failed cached item and a failed batch, preserving usable later results', async () => {
   const items = Array.from({ length: 10 }, (_, i) => ({ brief: { ...brief, id: `scene-${i}:main` }, context: { ...context, usageId: `scene-${i}:main` } }))
   const f = await fixture('unused')

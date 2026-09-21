@@ -6,7 +6,7 @@ import { photoStagePresentation, photoStageTopReserve, routePhotoStages } from '
 import { imageBriefHash, imagePlacementHash, MIN_RETAINED_IMAGE_AREA } from '../../visual/image-policy.ts'
 
 export const REGULAR_CANVAS = { width: 13.333333, height: 7.5, unit: 'in' as const }
-export const REGULAR_LAYOUT_VERSION = 'regular-2026-09-21.2'
+export const REGULAR_LAYOUT_VERSION = 'regular-2026-09-21.3'
 export interface Box { readonly x: number; readonly y: number; readonly w: number; readonly h: number }
 export interface RegularText { readonly role: 'eyebrow' | 'title' | 'claim' | 'body' | 'stage'; readonly text: string; readonly box: Box; readonly size: number; readonly leading: number; readonly dark?: boolean; readonly nodeId?: string }
 export interface RegularMedia { readonly assetId: string; readonly box: Box; readonly fit: 'cover' | 'contain'; readonly nodeId?: string }
@@ -134,6 +134,15 @@ function uniqueImages(assets: readonly ClientVisualAsset[]): ClientVisualAsset[]
   })
 }
 const continuationImage = (asset: ClientVisualAsset, pageId: string) => asset.imageQuality?.requirement?.id.startsWith(`${pageId}:continuation:`) === true
+function storyImages(assets: readonly ClientVisualAsset[], pageId: string): ClientVisualAsset[] {
+  const photos = assets.filter(storyVisual)
+  // Each separately reviewed continuation owns another physical page. Collapse
+  // duplicate records of that usage, not legitimate second uses of its original.
+  const continued = [...new Map(photos.filter(asset => continuationImage(asset, pageId))
+    .map(asset => [asset.imageQuality!.requirement!.id, asset])).values()]
+    .sort((a, b) => Number(a.imageQuality!.requirement!.id.split(':').at(-1)) - Number(b.imageQuality!.requirement!.id.split(':').at(-1)))
+  return [...uniqueImages(photos.filter(asset => !continuationImage(asset, pageId))), ...continued]
+}
 /** The slot follows the source ratio. Its bottom edge remains on the array boundary. */
 function compositionBox(asset: ClientVisualAsset, cell: Box): Box {
   if (!validDimensions(asset)) return cell
@@ -355,7 +364,7 @@ function stageStory(page: PlanningManuscriptPage, chapter: string, assets: reado
   }
   if (queue.length || page.table) {
     const continuation = { ...page, body: queue, visual: { ...page.visual, kind: 'concept' as const, diagram: undefined } }
-    const unused = assets.filter(asset => !originals.has(regularOriginalImageId(asset)) && !hashes.has(asset.sha256))
+    const unused = assets.filter(asset => continuationImage(asset, page.id) || !originals.has(regularOriginalImageId(asset)) && !hashes.has(asset.sha256))
     const continued = planVisualStory(continuation, chapter, unused, 0)
     parts.push(...continued.map(part => part.layout.media.length ? part : { ...part, layout: { ...part.layout,
       materialGaps: [{ pageId: page.id, reason: 'continuation-image-required' as const }] } }))
@@ -364,8 +373,7 @@ function stageStory(page: PlanningManuscriptPage, chapter: string, assets: reado
 }
 
 function tableStory(page: PlanningManuscriptPage, chapter: string, assets: readonly ClientVisualAsset[]): RegularPagePart[] {
-  const table = page.table!, photos = uniqueImages(assets.filter(storyVisual))
-    .sort((a, b) => Number(continuationImage(a, page.id)) - Number(continuationImage(b, page.id)))
+  const table = page.table!, photos = storyImages(assets, page.id)
   const queue = [...page.body], pendingRows = table.rows.map(row => [...row])
   const parts: RegularPagePart[] = []
   do {
@@ -416,7 +424,7 @@ function planVisualStory(page: PlanningManuscriptPage, chapter: string, assets: 
   const stages = stageStory(page, chapter, assets)
   if (stages) return stages
   if (page.table) return tableStory(page, chapter, assets)
-  const photos = uniqueImages(assets.filter(storyVisual))
+  const photos = storyImages(assets, page.id)
   const pendingPhotos = photos.filter(asset => !continuationImage(asset, page.id)), continuationPhotos = photos.filter(asset => continuationImage(asset, page.id))
   if (!photos.length) return planRegularManuscriptPage({ ...page, editorialSummary: undefined, product: undefined }, chapter, assets, ordinal)
   const queue = [...page.body], parts: RegularPagePart[] = []

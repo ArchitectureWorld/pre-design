@@ -210,6 +210,16 @@ describe('image-aware physical composition', () => {
     expect(parts.every(p => p.layout.media.length <= 1)).toBe(true)
     expect(parts.flatMap(p => p.content.body).join('')).toBe(body.join(''))
   })
+  it('retains an independently bound second use of one original on a different physical story page', () => {
+    const first = photo('first'), second = { ...first, assetId: 'second-usage', imageQuality: { requirement: brief('walk:continuation:1') } }
+    const body = Array.from({ length: 12 }, (_, i) => `游园段落${i + 1}：保留可达的林下休憩场所，与公众步行路径连续衔接。`)
+    for (const p of [{ ...page, body }, { ...page, body: [], table: { columns: ['场所', '体验'], rows: body.map(text => ['林下休憩', text]) } }]) {
+      const parts = planRegularManuscriptPage(p, '游园体验', [first, second], 0)
+      expect(parts[0]!.layout.media.map(media => media.assetId)).toEqual(['first'])
+      expect(parts[1]!.layout.media.map(media => media.assetId)).toEqual(['second-usage'])
+      expect(parts.every(part => part.layout.media.length <= 1)).toBe(true)
+    }
+  })
   it('allows only a current reviewed cover crop retaining at least 80 percent and all essential subjects', () => {
     const placement = { box: { x: 0, y: 0, w: 13.333333, h: 7.5 }, fit: 'cover' as const }
     const asset = inspected({ ...photo('crop'), width: 1600, height: 1000 }, brief(), placement)

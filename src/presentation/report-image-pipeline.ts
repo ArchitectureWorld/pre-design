@@ -83,6 +83,10 @@ export function reportImageInspectionSource(asset: PresentationAdoptedAssetInput
 }
 const inspectionSource = reportImageInspectionSource
 function explicitlyBound(asset: PresentationAdoptedAssetInput, demand: ReportImageDemand): boolean {
+  // A source-page binding is not an explicit binding to every physical overflow.
+  // Cached approvals and newly acquired targets are restored separately.
+  if (demand.brief.id.startsWith(`${demand.brief.pageId}:continuation:`)
+    && asset.imageQuality?.requirement?.id !== demand.brief.id) return false
   return asset.pageBindings?.some(b => b.findingId === demand.findingId && (!demand.brief.nodeId || b.nodeIds?.includes(demand.brief.nodeId))) === true
 }
 function score(asset: PresentationAdoptedAssetInput, demand: ReportImageDemand): number {
@@ -155,7 +159,7 @@ export class ReportImagePipeline {
     const directory = join(root, '.pre-design'), attempts = join(directory, 'image-review-attempts')
     await mkdir(attempts, { recursive: true })
     const continuationPath = join(directory, 'report-image-continuations.json')
-    const continuationFingerprint = sha(JSON.stringify([fingerprint(input), REGULAR_LAYOUT_VERSION, 'physical-continuations-v1']))
+    const continuationFingerprint = sha(JSON.stringify([fingerprint(input), REGULAR_LAYOUT_VERSION, 'physical-continuations-v2-body-scoped']))
     const continuationInputs: ReportImageDemand[] = []
     try {
       const saved = JSON.parse(await readFile(continuationPath, 'utf8'))
@@ -164,6 +168,8 @@ export class ReportImagePipeline {
           && !continuationInputs.some(previous => previous.brief.id === demand.brief.id)) continuationInputs.push(demand)
       }
     } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error }
+    const continuationIds = new Set(continuationInputs.map(demand => demand.brief.id))
+    const capacityPage = (brief: ImageSlotBrief) => continuationIds.has(brief.id) ? JSON.stringify(['continuation', brief.pageId, brief.id]) : brief.pageId
     const resolvedDemands = [...(await this.dependencies.resolveDemands?.([...initialDemands, ...continuationInputs], parent, signal, input, root) ?? [...initialDemands, ...continuationInputs])]
       .sort((a,b) => Number(!!b.sourceMaterialKey) - Number(!!a.sourceMaterialKey) || a.brief.id.localeCompare(b.brief.id))
     const demands = resolvedDemands.filter(demand => !demand.unavailableReason)
@@ -275,7 +281,8 @@ export class ReportImagePipeline {
         imageQuality: { ...asset.imageQuality, contentKind: inspection.contentKind, essentialBounds: inspection.essentialBounds, requirement: demand.brief, inspection },
       } })
     }
-    const allocation = () => allocateReportImages(demands.map(d => d.brief), reviewed)
+    const allocation = () => allocateReportImages(demands.map(d => d.brief), reviewed,
+      { physicalPageIds: Object.fromEntries(demands.map(demand => [demand.brief.id, capacityPage(demand.brief)])) })
     const acquisitionTargets = new Map<string, Set<string>>(), acquisitionWindows = new Map<string, Set<string>>()
     const requestedFor = (asset: ConditionalReportMaterial, demand: ReportImageDemand) => acquisitionTargets.get(asset.sourceKey)?.has(demand.brief.id) === true
     const recallScore = (asset: ConditionalReportMaterial, demand: ReportImageDemand) => {
@@ -321,7 +328,7 @@ export class ReportImagePipeline {
         if (identity.derivedFromSha256 && ['verified-derivative', 'declared-derivative'].includes(identity.verification)) union(`sha:${identity.fileSha256}`, `sha:${identity.derivedFromSha256}`)
       }
       const family = (candidate: ReviewedImageCandidate) => rootOf(`sha:${candidate.material.imageIdentity!.fileSha256}`)
-      const page = new Map(demands.map(demand => [demand.brief.id, demand.brief.pageId]))
+      const page = new Map(demands.map(demand => [demand.brief.id, capacityPage(demand.brief)]))
       const reachable = new Set(state.gaps.map(brief => brief.id)), queue = [...reachable], alternatives = new Set<string>()
       for (let cursor = 0; cursor < queue.length; cursor++) {
         const usageId = queue[cursor]!
@@ -573,14 +580,20 @@ export class ReportImagePipeline {
         if (!base) continue
         const content = physical.planningContent
         const { nodeId: _node, sceneGrounding: _grounding, ...brief } = base.brief
-        discovered.push({ ...base, sceneContext: sceneSpecContext(content, id), brief: { ...brief, id,
-          conclusion: content.claim, subjects: [content.visual.subject], activities: [content.visual.purpose], environment: content.title,
+        const authoredScene = !base.caseSource && !base.sourceMaterialKey && brief.allowedSources.includes('generated')
+          && brief.allowedKinds.every(kind => kind === 'photo' || kind === 'render')
+        const sceneContext = sceneSpecContext(content, id, undefined, authoredScene ? 'physical-continuation' : undefined)
+        discovered.push({ ...base, sceneContext, brief: { ...brief, id,
+          conclusion: content.claim, subjects: authoredScene ? sceneContext.sources.filter(source => source.path.startsWith('body[')
+            || source.path.startsWith('table.rows[')).slice(0, 6).map(source => source.text) : [content.visual.subject],
+          activities: authoredScene ? [] : [content.visual.purpose], environment: content.title,
         } })
       }
       if (!discovered.length) break
       // Freeze the actual continuation prose before images change pagination.
       // A resumed export recovers the same request rather than a new scene.
       continuationInputs.push(...discovered)
+      for (const demand of discovered) continuationIds.add(demand.brief.id)
       await atomicJson(continuationPath, { fingerprint: continuationFingerprint, demands: continuationInputs })
       const resolved = await this.dependencies.resolveDemands?.(discovered, parent, signal, input, root) ?? discovered
       for (const demand of resolved) {
