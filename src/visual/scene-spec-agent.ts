@@ -22,6 +22,7 @@ interface SavedSpecification extends SpecificationAttempt {
 interface PendingSpecification {
   readonly item: SceneSpecificationRequest & { context: SceneSpecContext }; readonly key: string; readonly path: string
   readonly attemptExecutionIds: string[]; readonly history: SpecificationAttempt[]
+  readonly isolatedTruncationRecovery?: boolean
 }
 // Dispatch semantics can evolve without invalidating source-grounded briefs or
 // changing the scene output contract. Legacy receipts remain immutable.
@@ -29,6 +30,8 @@ const DISPATCH_VERSION = 'scene-spec-dispatch-2026-09-20.1'
 const response = z.object({ items: z.array(z.object({ usageId: z.string().min(1) }).passthrough()).min(1).max(8) }).strict()
 const keyOf = (item: SceneSpecificationRequest, dispatchVersion?: string) => createHash('sha256')
   .update(JSON.stringify({ version: SCENE_SPEC_VERSION, ...(dispatchVersion ? { dispatchVersion } : {}), item })).digest('hex')
+const truncationRecoveryKey = (key: string) => createHash('sha256')
+  .update(JSON.stringify({ key, correction: 'isolated-truncation-2026-09-21.1' })).digest('hex')
 async function readSaved(path: string, signal: AbortSignal): Promise<SavedSpecification | undefined> {
   try {
     const value: unknown = JSON.parse(await readFile(path, { encoding: 'utf8', signal }))
@@ -71,6 +74,13 @@ export class SceneSpecificationAgent {
     }
     const directory = join(root, '.pre-design', 'scene-specifications')
     await mkdir(directory, { recursive: true })
+    const verifiedTruncation = (executionId: string | undefined, childId?: string) => {
+      const execution = executionId && this.dependencies.classes.execution(executionId)
+      return !!execution && execution.classId === 'text' && execution.status === 'failed'
+        && !!execution.childId && (childId === undefined || execution.childId === childId)
+        && execution.childStopReason === 'max-tokens' && !!execution.actual
+        && execution.actual.provider === execution.selected.provider && execution.actual.model === execution.selected.model
+    }
     const pending: PendingSpecification[] = []
     for (const item of required) {
       signal.throwIfAborted()
@@ -81,6 +91,7 @@ export class SceneSpecificationAgent {
       const legacyKey = keyOf(item)
       let cached = current ?? await readSaved(join(directory, `${legacyKey}.json`), signal)
       let superseded: SavedSpecification | undefined
+      let isolatedTruncationRecovery = false
       const validateCache = (record: SavedSpecification) => {
         if (record.version !== SCENE_SPEC_VERSION || record.key !== (current ? key : legacyKey)
           || record.dispatchVersion !== (current ? DISPATCH_VERSION : undefined)) throw new Error('SCENE_SPEC_CACHE_UNVERIFIED')
@@ -105,6 +116,15 @@ export class SceneSpecificationAgent {
           path = join(directory, `${key}.json`)
           cached = current = await readSaved(path, signal)
         }
+      }
+      if (cached?.status === 'failed' && cached.error === 'SCENE_SPEC_FAILED: max-tokens'
+        && verifiedTruncation(cached.executionId)) {
+        validateCache(cached)
+        superseded = cached
+        key = truncationRecoveryKey(key)
+        path = join(directory, `${key}.json`)
+        cached = current = await readSaved(path, signal)
+        isolatedTruncationRecovery = true
       }
       if (cached) {
         validateCache(cached)
@@ -135,9 +155,16 @@ export class SceneSpecificationAgent {
         history.push(legacy)
       }
       pending.push({ item: item as SceneSpecificationRequest & { context: SceneSpecContext }, key, path,
+        ...(isolatedTruncationRecovery ? { isolatedTruncationRecovery: true } : {}),
         attemptExecutionIds: [...new Set([...(superseded?.attemptExecutionIds ?? []), ...(superseded?.executionId ? [superseded.executionId] : []),
           ...(cached?.attemptExecutionIds ?? []), ...(cached?.executionId ? [cached.executionId] : [])])], history })
       } catch (error) { report(item.brief.id, error) }
+    }
+    const jobs: PendingSpecification[][] = []
+    for (const row of pending) {
+      const previous = jobs.at(-1)
+      if (row.isolatedTruncationRecovery || !previous || previous[0]?.isolatedTruncationRecovery || previous.length === 8) jobs.push([row])
+      else previous.push(row)
     }
     const translateBatch = async (initial: PendingSpecification[]) => {
       signal.throwIfAborted()
@@ -153,6 +180,7 @@ export class SceneSpecificationAgent {
         let executionId: string | undefined, run: Awaited<ReturnType<SubagentRuntime['start']>> | undefined
         let execution: Awaited<ReturnType<AgentClassService['begin']>> | undefined
         let completedExecution = false
+        let endedByTruncation = false
         let correctable: string[] | undefined
         const validationErrors = new Map<string, string>()
         try {
@@ -173,6 +201,7 @@ export class SceneSpecificationAgent {
           await this.dependencies.classes.attach(executionId, String(run.id))
           const result = await run.result
           signal.throwIfAborted()
+          endedByTruncation = result.stopReason === 'max-tokens'
           if (result.stopReason !== 'completed') throw new Error(`SCENE_SPEC_FAILED: ${result.stopReason}`)
           const text = result.output.filter(block => block.type === 'text').map(block => block.type === 'text' ? block.text : '').join('\n').trim()
           let parsed: z.infer<typeof response>
@@ -214,6 +243,19 @@ export class SceneSpecificationAgent {
           const notStarted = !executionId && /^(?:PREPLANNING_MODEL_(?:TURN_LIMIT|BUDGET_INVALID)):/u.test(message)
           for (const row of remaining) await record(row, notStarted ? 'not-started' : signal.aborted ? 'cancelled' : 'failed',
             executionId, correctable ? validationErrors.get(row.item.brief.id) ?? message : message)
+          // A known terminal truncation has no usable JSON. Preserve its receipt
+          // and isolate each item once so one difficult scene cannot discard a
+          // whole batch. The scheduler drains/disposes this child before the
+          // five-wide recovery wave; unknown requests are never repeated.
+          if (endedByTruncation && !signal.aborted && !remaining.some(row => row.isolatedTruncationRecovery)
+            && run && verifiedTruncation(executionId, String(run.id))) {
+            for (const row of remaining) {
+              const key = truncationRecoveryKey(row.key), path = join(directory, `${key}.json`)
+              if (await readSaved(path, signal)) throw requiresAttention()
+              jobs.push([{ ...row, key, path, attemptExecutionIds: [...row.attemptExecutionIds], history: [...row.history], isolatedTruncationRecovery: true }])
+            }
+            return
+          }
           if (!correctable && !completedExecution) {
             nextExecution = await nextAgentClassAttempt(this.dependencies.classes, execution, parent, signal)
             if (nextExecution) continue
@@ -226,11 +268,9 @@ export class SceneSpecificationAgent {
     }
     // Independent source-grounded requests do not depend on earlier batches.
     // Drain every active child before advancing or propagating a sibling failure.
-    for (let offset = 0; offset < pending.length; offset += 40) {
+    while (jobs.length) {
       signal.throwIfAborted()
-      const batchCount = Math.min(5, Math.ceil((pending.length - offset) / 8))
-      const outcomes = await Promise.allSettled(Array.from({ length: batchCount }, (_, index) =>
-        translateBatch(pending.slice(offset + index * 8, offset + (index + 1) * 8))))
+      const outcomes = await Promise.allSettled(jobs.splice(0, 5).map(translateBatch))
       const failure = outcomes.find(result => result.status === 'rejected')
       if (failure?.status === 'rejected') throw failure.reason
     }

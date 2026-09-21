@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { planRegularManuscriptPage, regularCover } from '../src/report/regular/layout.ts'
 import { summarizeReportPage } from '../src/report/manuscript/report-story.ts'
+import { allowsAnalyticalTableText, allowsAnalyticalSourceText } from '../src/report/regular/analytical-table.ts'
 import type { PlanningManuscriptPage } from '../src/report/manuscript/types.ts'
 import type { ClientVisualAsset } from '../src/report/client-types.ts'
 
@@ -33,6 +34,47 @@ describe('analytical table continuations', () => {
     const spatial = { ...financial, table: { ...financial.table!, rows: financial.table!.rows.map(row => ['滨水步道', ...row.slice(1)]) } }
     const parts = planRegularManuscriptPage(spatial, '空间布局', assets(1), 0)
     expect(parts.slice(1).every(part => part.layout.materialGaps?.length === 1)).toBe(true)
+  })
+})
+
+describe('financial narrative continuations', () => {
+  it('keeps purely financial prose and estimates with their table instead of demanding an invented scene', () => {
+    const analytical: PlanningManuscriptPage = { ...page, id: 'investment-analysis', kind: 'financial', editorialSummary: true,
+      title: '投资估算', claim: '按各项费用核算总投资。',
+      body: Array.from({ length: 8 }, () => '工程部分按工程量与单价估算，设备部分结合规格和询价，总投资由各项费用汇总。'),
+      table: { columns: ['项目', '计算关系', '用途'], rows: Array.from({ length: 10 }, (_, index) => index % 2
+        ? ['外围新增活动', '按价格和成本独立测算；条件明确后实施。', '不纳入首期收入预测。']
+        : ['工程建设其他费用与预备费用', '按适用编制依据分别计列。', '建设投资合计按各项费用汇总。']) },
+    }
+    const parts = planRegularManuscriptPage(analytical, '投资运营', assets(1), 0)
+    expect(parts[0]!.layout.media).toHaveLength(1)
+    expect(parts.slice(1).some(part => part.content.body.length > 0)).toBe(true)
+    expect(parts.slice(1).flatMap(part => part.layout.materialGaps ?? [])).toEqual([])
+    expect(parts.slice(1).every(part => part.layout.intentionalTextOnly === 'financial-table')).toBe(true)
+    expect(parts.flatMap(part => part.content.body).join('')).toBe(analytical.body.join(''))
+    expect(parts.flatMap(part => part.content.table?.rows ?? [])).toEqual(analytical.table!.rows)
+  })
+
+  it('does not exempt a financial row that describes an actual activity or a facility', () => {
+    for (const subject of ['采摘体验', '零售商店', '滨水步道', '餐饮空间', '茶园漫游', '品茶', '旧茶厂新增体验']) {
+      const related: PlanningManuscriptPage = { ...page, id: 'revenue-analysis', kind: 'financial', editorialSummary: true,
+        title: '收入测算', claim: '按产品价格与参与人次测算收入。', body: [],
+        table: { columns: ['核算项目', '计算关系', '用途'], rows: Array.from({ length: 12 }, () => [
+          '经营收入', `${subject}按参与人次和价格测算收入，分别核算经营成本。`, '形成年度资金计划，测算固定成本、变动成本和周转资金。',
+        ]) } }
+      const parts = planRegularManuscriptPage(related, '产品经营', assets(1), 0)
+      expect(parts.slice(1).every(part => part.layout.materialGaps?.length === 1)).toBe(true)
+    }
+  })
+  it('does not treat an operating phase or a responsibilities row as financial analysis just because one cell mentions money', () => {
+    expect(allowsAnalyticalTableText([], [['首期运营', '服务内容同步成组，核算资金需求。']])).toBe(false)
+    expect(allowsAnalyticalTableText([], [['主体分工', '各方按协议分配收益。']])).toBe(false)
+  })
+  it('uses complete cached table rows in column order and preserves concrete scene requirements on resume', () => {
+    const sources = [{ path: 'table.rows[0][1]', text: '按成本与价格核算。' }, { path: 'table.rows[0][0]', text: '经营收入' }]
+    expect(allowsAnalyticalSourceText(sources)).toBe(true)
+    expect(allowsAnalyticalSourceText([...sources, { path: 'table.rows[0][2]', text: '茶园漫游、品茶和采购形成完整游程。' }])).toBe(false)
+    expect(allowsAnalyticalSourceText([{ path: 'table.rows[0][1]', text: '按成本核算。' }])).toBe(false)
   })
 })
 

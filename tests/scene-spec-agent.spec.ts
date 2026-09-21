@@ -39,6 +39,52 @@ const secondBrief = { ...brief, id: 'operation:main' }
 const secondContext = { ...context, usageId: secondBrief.id }
 const secondSpecification = { ...specification, usageId: secondBrief.id }
 const pair = [{ brief, context }, { brief: secondBrief, context: secondContext }]
+it('splits a verified truncated batch into isolated requests, preserving the failed receipt and reusing the successful recovery', async () => {
+  const items = Array.from({ length: 8 }, (_, i) => ({ brief: { ...brief, id: `truncated-${i}:main` }, context: { ...context, usageId: `truncated-${i}:main` } }))
+  const f = await fixture('unused')
+  const terminal = new Map<string, string>()
+  f.classes.attach.mockImplementation(async (id: string, childId: string) => { Object.assign(f.runs.get(id)!, { childId, childStopReason: terminal.get(childId) }) })
+  f.start.mockImplementation(async (_provider: string, request: any) => {
+    const requested = JSON.parse(request.prompt[0].text.match(/资料：(.*)。只输出JSON/u)![1])
+    const id = `child-${f.start.mock.calls.length}`, stopReason = requested.length > 1 ? 'max-tokens' : 'completed'
+    terminal.set(id, stopReason)
+    return { id, dispose: f.dispose, result: Promise.resolve({ stopReason, output: [{ type: 'text', text: stopReason === 'max-tokens' ? '{"items":['
+      : JSON.stringify({ items: requested.map((item: any) => ({ ...specification, usageId: item.brief.id })) }) }] }) }
+  })
+  const result = await f.service.resolve(parent, 'project', f.root, items, AbortSignal.timeout(5000))
+  expect(result.size).toBe(8)
+  expect(f.start).toHaveBeenCalledTimes(9)
+  const saved = await savedEntries(f.root)
+  expect(saved.filter(row => row.status === 'failed')).toHaveLength(8)
+  expect(saved.filter(row => row.status === 'completed')).toHaveLength(8)
+  expect(saved.filter(row => row.status === 'completed').every(row => row.history.some((attempt: any) => attempt.executionId === 'run' && attempt.error === 'SCENE_SPEC_FAILED: max-tokens'))).toBe(true)
+  expect(f.runs.get('run')?.status).toBe('failed')
+  await f.service.resolve(parent, 'project', f.root, items, AbortSignal.timeout(5000))
+  expect(f.start).toHaveBeenCalledTimes(9)
+})
+it('resumes only a verified terminal truncation once, with the original receipt and execution unchanged', async () => {
+  const f = await fixture()
+  const prior = await legacyEntry(f, pair[0]!, { dispatchVersion: 'scene-spec-dispatch-2026-09-20.1', status: 'failed', error: 'SCENE_SPEC_FAILED: max-tokens' })
+  Object.assign(f.runs.get(prior.executionId)!, { childId: 'prior-child', childStopReason: 'max-tokens' })
+  const result = await f.service.resolve(parent, 'project', f.root, [pair[0]!], AbortSignal.timeout(1000))
+  expect(result.get(brief.id)?.subjects).toEqual(['林下步道与遮雨廊亭'])
+  expect(await readFile(prior.path, 'utf8')).toBe(prior.content)
+  expect(f.runs.get(prior.executionId)?.status).toBe('failed')
+  await f.service.resolve(parent, 'project', f.root, [pair[0]!], AbortSignal.timeout(1000))
+  expect(f.start).toHaveBeenCalledOnce()
+})
+it('does not repeat a truncated isolated recovery or start it without a verified native terminal', async () => {
+  for (const reason of ['max-tokens', undefined, 'aborted']) {
+    const f = await fixture('truncated output', 'max-tokens')
+    const prior = await legacyEntry(f, pair[0]!, { dispatchVersion: 'scene-spec-dispatch-2026-09-20.1', status: 'failed', error: 'SCENE_SPEC_FAILED: max-tokens' })
+    Object.assign(f.runs.get(prior.executionId)!, { childId: 'prior-child', childStopReason: reason })
+    f.classes.attach.mockImplementation(async (id: string, childId: string) => { Object.assign(f.runs.get(id)!, { childId, childStopReason: 'max-tokens' }) })
+    await expect(f.service.resolve(parent, 'project', f.root, [pair[0]!], AbortSignal.timeout(1000))).rejects.toThrow(/SCENE_SPEC_/u)
+    await expect(f.service.resolve(parent, 'project', f.root, [pair[0]!], AbortSignal.timeout(1000))).rejects.toThrow('SCENE_SPEC_ATTEMPT_REQUIRES_ATTENTION')
+    expect(f.start).toHaveBeenCalledTimes(reason === 'max-tokens' ? 1 : 0)
+    expect(await readFile(prior.path, 'utf8')).toBe(prior.content)
+  }
+})
 it('translates independent batches with five real children in flight and reuses all completed receipts', async () => {
   const items = Array.from({ length: 48 }, (_, i) => ({ brief: { ...brief, id: `parallel-${i}:main` }, context: { ...context, usageId: `parallel-${i}:main` } }))
   const f = await fixture('unused')
