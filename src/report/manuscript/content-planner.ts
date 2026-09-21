@@ -77,7 +77,8 @@ export function contentReviewPrompt(source: PlanningManuscript, proposal: Report
     JSON.stringify({ units, pages, equivalents: proposal.equivalents })].join('\n')
 }
 interface Attempt { phase: 'plan' | 'review'; protocol?: string; status: 'reserved' | 'running' | 'completed' | 'failed' | 'cancelled'; executionId?: string; childId?: string; stopReason?: string; feedback?: string; proposal?: unknown }
-interface Checkpoint { version: string; fingerprint: string; attempts: Attempt[] }
+interface ConservativePlanning { mode: 'source-preserving'; reason: 'model-routes-exhausted' | 'model-output-unavailable'; failedExecutionIds: string[] }
+interface Checkpoint { version: string; fingerprint: string; attempts: Attempt[]; fallback?: ConservativePlanning }
 const REVIEW_SCHEMA: ObjectJsonSchema = { type: 'object', additionalProperties: false, required: ['accepted'], properties: { accepted: { type: 'array', items: { type: 'string' } } } }
 type Guard = () => void | Promise<void>
 export class ReportContentPlanner {
@@ -105,8 +106,23 @@ export class ReportContentPlanner {
       || output.accepted.some(id => typeof id !== 'string' || plan.equivalents.filter(e => e.duplicateId === id).length !== 1)) throw new Error('CONTENT_PLAN_REVIEW_INVALID')
     return [...new Set(output.accepted as string[])]
   }
+  private conservativePlan(source: PlanningManuscript, checkpoint: Checkpoint) {
+    const attempts = checkpoint.attempts.filter(a => a.phase === 'plan'), fallback = checkpoint.fallback
+    if (!fallback || fallback.mode !== 'source-preserving'
+      || !['model-routes-exhausted', 'model-output-unavailable'].includes(fallback.reason)
+      || !attempts.length || attempts.some(a => a.status !== 'failed' || !this.verified(a, source, false)
+        || this.dependencies.agentClasses.execution(a.executionId!)?.status !== 'failed')
+      || JSON.stringify(fallback.failedExecutionIds) !== JSON.stringify(attempts.map(a => a.executionId))) {
+      throw new Error('CONTENT_PLAN_EXECUTION_UNVERIFIED')
+    }
+    // Editorial optimization is optional. Failed models cannot delete facts or
+    // prevent the independent layout and image pipeline from completing.
+    // This is explicitly a source-preserving compiler result, never model success.
+    return { ...compileContentPlan(source, defaultContentPlan(source)), planning: fallback }
+  }
   async load(source: PlanningManuscript, root: string): Promise<PlanningManuscript | undefined> {
     const checkpoint = await this.read(root, source)
+    if (checkpoint.fallback) return this.conservativePlan(source, checkpoint).manuscript
     const plan = checkpoint.attempts.findLast(a => a.phase === 'plan' && a.status === 'completed')
     const review = checkpoint.attempts.findLast(a => a.phase === 'review' && a.status === 'completed')
     if (!plan) return undefined
@@ -134,6 +150,15 @@ export class ReportContentPlanner {
       const temporary = `${path}.${randomUUID()}.tmp`
       await writeFile(temporary, JSON.stringify(checkpoint, null, 2) + '\n', { flag: 'wx' }); await rename(temporary, path)
     }
+    const preserveSource = async (reason: ConservativePlanning['reason']) => {
+      await guard()
+      checkpoint.fallback ??= { mode: 'source-preserving', reason,
+        failedExecutionIds: checkpoint.attempts.filter(a => a.phase === 'plan').map(a => a.executionId!) }
+      const compiled = this.conservativePlan(source, checkpoint)
+      await persist(); await guard()
+      await writeFile(join(root, '.pre-design', 'report-content-plan.json'), JSON.stringify(compiled, null, 2) + '\n')
+      await guard(); return compiled.manuscript
+    }
     // Never infer native termination from our failed/cancelled checkpoint status.
     for (const attempt of checkpoint.attempts) {
       if (attempt.executionId && attempt.childId && attempt.status !== 'completed') {
@@ -155,6 +180,7 @@ export class ReportContentPlanner {
         attempt.status = 'completed'; await persist()
       }
     }
+    if (checkpoint.fallback) return preserveSource(checkpoint.fallback.reason)
     let plan = checkpoint.attempts.findLast(a => a.phase === 'plan' && a.status === 'completed')
     for (const phase of ['plan', 'review'] as const) {
       if (checkpoint.attempts.some(a => a.phase === phase && a.status === 'completed')) continue
@@ -166,7 +192,7 @@ export class ReportContentPlanner {
       if (last?.executionId && !last.feedback) nextExecution = await nextAgentClassAttempt(this.dependencies.agentClasses,
         this.dependencies.agentClasses.execution(last.executionId), parent, signal)
       const advancingRoute = !!nextExecution
-      if (previous.length >= 3 && !advancingRoute) throw new Error('CONTENT_PLAN_ATTEMPTS_EXHAUSTED')
+      if (previous.length >= 3 && !advancingRoute) return preserveSource('model-routes-exhausted')
       if (last?.executionId && last.feedback && this.dependencies.agentClasses.execution(last.executionId)?.routeChain) {
         nextExecution = await this.dependencies.agentClasses.retryContent?.(last.executionId, parent, signal)
         if (!nextExecution) throw new Error('CONTENT_PLAN_RECOVERY_REQUIRED: 原路由的内容校正无法核验，不重置主模型。')
@@ -226,7 +252,7 @@ export class ReportContentPlanner {
             if (nextExecution) continue
           }
           if (phase === 'review') break
-          if (!attempt.feedback || number === attemptLimit - 1) throw error
+          if (!attempt.feedback || number === attemptLimit - 1) return preserveSource('model-output-unavailable')
           const failed = attempt.executionId ? this.dependencies.agentClasses.execution(attempt.executionId) : undefined
           if (failed?.routeChain) {
             nextExecution = await this.dependencies.agentClasses.retryContent?.(failed.id, parent, signal)

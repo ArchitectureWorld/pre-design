@@ -37,6 +37,50 @@ async function setup(review: unknown = { accepted: ['a/body[0]'] }, options: { u
   return { root, planner, prepare, requests, executions, checkpoint, dependencies }
 }
 describe('durable independently reviewed report planning', () => {
+  it('continues from exhausted terminal planning routes without losing facts or reporting model success', async () => {
+    const h = await setup(), file = join(h.root, '.pre-design', 'report-content-plans', `${contentPlanFingerprint(source)}.json`)
+    const attempts = ['max-tokens', 'max-tokens', 'max-tokens', 'aborted'].map((stopReason, index) => ({
+      phase: 'plan', status: 'failed', executionId: `failed${index}`, childId: `native${index}`, stopReason,
+    }))
+    for (const a of attempts) h.executions.set(a.executionId, { id: a.executionId, projectId: 'p', classId: 'text', status: 'failed',
+      childId: a.childId, childStopReason: a.stopReason, selected: { provider: 'backup', model: 'text' } })
+    h.dependencies.agentClasses.finish = async () => {}
+    await mkdir(join(h.root, '.pre-design', 'report-content-plans'), { recursive: true })
+    await writeFile(file, JSON.stringify({ version: 'report-content-plan-2026-09-21.1', fingerprint: contentPlanFingerprint(source), attempts }))
+    const output = await h.prepare()
+    expect(output.chapters[0]!.pages[0]!.body).toEqual(['在老厂房内参观保留的生产设备。', '沿老厂房保留的生产设备参观。'])
+    expect(h.requests).toHaveLength(0)
+    const saved = (await h.checkpoint()).value
+    expect(saved.attempts).toEqual(attempts)
+    expect(saved.fallback.mode).toBe('source-preserving')
+    const artifact = JSON.parse(await readFile(join(h.root, '.pre-design', 'report-content-plan.json'), 'utf8'))
+    expect(artifact.coverage.map((u: any) => u.unitId)).toEqual(['a/title', 'a/claim', 'a/body[0]', 'a/body[1]'])
+    expect(artifact.planning.failedExecutionIds).toEqual(['failed0', 'failed1', 'failed2', 'failed3'])
+    expect(await h.planner.load(source, h.root)).toEqual(output)
+    expect(await h.prepare()).toEqual(output)
+    expect(h.requests).toHaveLength(0)
+    h.executions.get('failed3').childStopReason = undefined
+    await expect(h.planner.load(source, h.root)).rejects.toThrow('CONTENT_PLAN_EXECUTION_UNVERIFIED')
+  })
+  it('drains a terminal model failure and records conservative compilation while respecting cancellation', async () => {
+    const h = await setup(), finish = h.dependencies.agentClasses.finish
+    let disposed = false
+    h.dependencies.subagents.start = async (_: string, request: any) => {
+      h.requests.push(request)
+      return { id: 'failed-child', result: Promise.resolve({ stopReason: 'error' }), dispose: async () => { disposed = true } }
+    }
+    h.dependencies.agentClasses.finish = async (id: string, status: string) => {
+      expect(disposed).toBe(true)
+      await finish(id, status); h.executions.get(id).childStopReason = 'error'
+    }
+    const output = await h.prepare()
+    expect(output.chapters[0]!.pages[0]!.body).toHaveLength(2)
+    expect((await h.checkpoint()).value.attempts.map((a: any) => a.status)).toEqual(['failed'])
+    expect(await h.planner.load(source, h.root)).toEqual(output)
+    const aborted = new AbortController(); aborted.abort()
+    await expect(h.planner.prepare(source, h.root, {} as never, aborted.signal, () => {})).rejects.toThrow()
+    expect(h.requests).toHaveLength(1)
+  })
   it.each(['configured', 'other'])('uses the selected model output budget rather than planner or %s parent caps', async provider => {
     const h = await setup()
     const parent = { id:'parent', options:{ provider, model:'text', maxTokens:2048 }, session:{ requestHeader:() => undefined } } as never
