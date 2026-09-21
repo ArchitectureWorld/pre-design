@@ -87,6 +87,12 @@ export class VisualAgentService {
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
   }
 
+  hasLegacyDimensionRejection(projectId: string, taskId: string): boolean {
+    return this.dependencies.governance.readProject(projectId).visualAssets.some(asset => asset.taskId === taskId
+      && asset.status === 'rejected' && asset.quality?.accepted === false && asset.quality.issues.length > 0
+      && asset.quality.issues.every(issue => issue === '图片宽度低于 1024px' || issue === '图片高度低于 768px'))
+  }
+
   async probeModel(): Promise<{
     provider: typeof VISUAL_MODEL_PROVIDER
     model: typeof VISUAL_MODEL_ID

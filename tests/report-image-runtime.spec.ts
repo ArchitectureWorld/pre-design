@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os'
 import { createHash } from 'node:crypto'
 import { PNG } from 'pngjs'
 import { afterEach, expect, it, vi } from 'vitest'
-import { createNativeReportImagePipeline } from '../src/presentation/report-image-runtime.ts'
+import { createNativeReportImagePipeline, reportImageDimensions } from '../src/presentation/report-image-runtime.ts'
+import { checkVisualQuality } from '../src/visual/quality.ts'
 import { ReportImagePipeline, type ReportImageDemand } from '../src/presentation/report-image-pipeline.ts'
 import { acquireWebImage } from '../src/visual/web-image-source.ts'
 import { imageBriefHash } from '../src/visual/image-policy.ts'
@@ -17,6 +18,55 @@ import { VisualAgentService } from '../src/visual/agent.ts'
 // pixel validation and filesystem are the real production implementations.
 vi.mock('node:dns/promises', () => ({ lookup: async () => [{ address: '203.0.113.10', family: 4 }] }))
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
+it.each([0.2, 0.5333333333, 0.8888888667, 1.7777777778, 2.2222221667, 3.3869601185, 5])('generates quality-qualified dimensions for a %f slot while retaining at least 80 percent', ratio => {
+  const dimensions = reportImageDimensions(ratio)
+  expect(checkVisualQuality({ ...dimensions, mimeType: 'image/png', bytes: 400_000 }).accepted).toBe(true)
+  expect(dimensions.width % 16).toBe(0); expect(dimensions.height % 16).toBe(0)
+  expect(Math.max(dimensions.width, dimensions.height)).toBeLessThanOrEqual(2048)
+  const relative = dimensions.width / dimensions.height / ratio
+  expect(Math.min(relative, 1 / relative)).toBeGreaterThanOrEqual(0.8)
+})
+it('never forwards a technically rejected generated image for pixel review or adoption', async () => {
+  const rejected = { assetId: 'rejected-image', status: 'rejected', quality: { accepted: false, issues: ['图片文件为空'] } }
+  const generate = vi.fn(async () => rejected), adopt = vi.fn()
+  const runtime = callbacks(undefined, { generate: generate as never, adopt })
+  const requested = { ...demand, brief: { ...demand.brief, allowedSources: ['generated' as const] } }
+  const project = { ...input, stateObjects: [{ objectId: 'o', chapterId: 'spatial', workItemId: 's', title: '公园', summary: '公园', facts: [] }] }
+  await expect(runtime.generate!(requested, {} as never, AbortSignal.timeout(1000), project, 'unused')).rejects.toThrow('VISUAL_IMAGE_QUALITY_REJECTED')
+  expect(adopt).not.toHaveBeenCalled()
+})
+it.each([0.5333333333, 1.7777777778, 2.2222221667])('keeps pending and successful task identities regardless of the requested ratio %f', async ratio => {
+  const project = { ...input, stateObjects: [{ objectId: 'o', chapterId: 'spatial', workItemId: 's', title: '公园', summary: '公园', facts: [] }] }
+  const requested = { ...demand, brief: { ...demand.brief, allowedSources: ['generated' as const] },
+    slot: { image: { targetAspectRatio: ratio } } } as unknown as ReportImageDemand
+  const dimensions = reportImageDimensions(ratio)
+  const previous = `report-image-${createHash('sha256').update(JSON.stringify([project.projectId, project.revision, imageBriefHash(requested.brief), 'stable-slot-v1', dimensions])).digest('hex')}`
+  const asset = { assetId: 'new-qualified-image', status: 'candidate', quality: { accepted: true }, fileName: 'new.png' }
+  const generate = vi.fn(async () => asset), findCandidate = vi.fn<VisualAgentService['findCandidate']>(() => undefined)
+  const runtime = callbacks(undefined, { generate: generate as never, findCandidate })
+  await runtime.generate!(requested, {} as never, AbortSignal.timeout(1000), project, 'unused')
+  const taskId = findCandidate.mock.calls[0]![1]
+  expect(taskId).toBe(previous)
+  // Restarting uses the identical new identity; failed native history is never overwritten.
+  await runtime.generate!(requested, {} as never, AbortSignal.timeout(1000), project, 'unused')
+  expect(findCandidate.mock.calls[1]![1]).toBe(taskId)
+})
+it.each(['图片宽度低于 1024px', '图像语义不符'])('revises only an actual legacy dimension rejection: %s', async issue => {
+  const project = { ...input, stateObjects: [{ objectId: 'o', chapterId: 'spatial', workItemId: 's', title: '公园', summary: '公园', facts: [] }] }
+  const requested = { ...demand, brief: { ...demand.brief, allowedSources: ['generated' as const] } }
+  const previous = `report-image-${createHash('sha256').update(JSON.stringify([project.projectId, project.revision, imageBriefHash(requested.brief)])).digest('hex')}`
+  const old = { taskId: previous, status: 'rejected', quality: { accepted: false, issues: [issue] } }
+  const visual = new VisualAgentService({ governance: { readProject: () => ({ visualAssets: [old] }) } } as never)
+  const findCandidate = vi.fn<VisualAgentService['findCandidate']>(() => undefined), generate = vi.fn(async () => ({ status: 'candidate', quality: { accepted: true }, fileName: 'new.png' }))
+  const runtime = callbacks(undefined, { findCandidate, generate: generate as never, hasLegacyDimensionRejection: visual.hasLegacyDimensionRejection.bind(visual) })
+  await runtime.generate!(requested, {} as never, AbortSignal.timeout(1000), project, 'unused')
+  const id = findCandidate.mock.calls[0]![1]
+  if (issue.startsWith('图片宽度')) expect(id).not.toBe(previous)
+  else expect(id).toBe(previous)
+  await runtime.generate!(requested, {} as never, AbortSignal.timeout(1000), project, 'unused')
+  expect(findCandidate.mock.calls[1]![1]).toBe(id)
+  expect(old).toEqual({ taskId: previous, status: 'rejected', quality: { accepted: false, issues: [issue] } })
+})
 it.each(['candidate', 'adopted', 'rejected', 'missing'] as const)('recovers only the matching saved %s without launching or adopting a model task', async status => {
   const requested: ReportImageDemand = { findingId: 'scene', brief: { id: 'scene:main', pageId: 'scene', version: 'fixture',
     conclusion: '日间游憩', subjects: ['林下步道'], activities: ['散步'], environment: '公园', scale: 'scene',
@@ -55,7 +105,7 @@ type Callbacks = Omit<ConstructorParameters<typeof ReportImagePipeline>[0], 'can
   candidates: (input: FrozenProjectInput, root: string, signal: AbortSignal) => Promise<readonly PresentationAdoptedAssetInput[]>
 }
 function callbacks(query: WebQueryAgent['query'] = vi.fn(async () => { throw new Error('UNEXPECTED_MODEL_CALL') }),
-  visual: Partial<Pick<VisualAgentService, 'generate' | 'adopt' | 'findCandidate'>> = {}) {
+  visual: Partial<Pick<VisualAgentService, 'generate' | 'adopt' | 'findCandidate' | 'hasLegacyDimensionRejection'>> = {}) {
   const pipeline = createNativeReportImagePipeline({ classes: {} as never, inspection: {} as never, web: { query } as never,
     sceneSpecs: { resolve: vi.fn(async () => { throw new Error('UNEXPECTED_SCENE_PLANNING') }) }, visual: { findCandidate: () => undefined, ...visual } as never, resolveAsset: name => name })
   // Exercise the registered native callbacks without invoking orchestration,

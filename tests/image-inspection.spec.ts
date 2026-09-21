@@ -7,6 +7,7 @@ import { PNG } from 'pngjs'
 import { resolveChildAgentOptions } from '@deepseek-ai/dsh-subagent'
 import { ImageInspectionAgent, parseImageAssessment, inspectionCacheKey, readImageInspection, saveImageInspection, imageSourceContextHash } from '../src/visual/image-inspection.ts'
 import { imageBriefHash, type ImageSlotBrief } from '../src/visual/image-policy.ts'
+import { reportImageInspectionSource } from '../src/presentation/report-image-pipeline.ts'
 
 const brief: ImageSlotBrief = { id: 'a:one', pageId: 'a', version: 'test', conclusion: '林下步行', subjects: ['树荫步道'], activities: ['步行'], environment: '国内公园', scale: 'scene', allowedKinds: ['photo'], allowedSources: ['web'], locale: 'domestic' }
 const item = { usageId: brief.id, contentKind: 'photo', relevant: true, matchedSubjects: ['树荫步道'], mismatches: [], domesticContext: 'supported', textLanguages: [], textLegible: true, watermark: 'none', quality: 'pass', essentialBounds: [{ x: 0.1, y: 0.1, width: 0.8, height: 0.8 }] }
@@ -24,6 +25,41 @@ function inspector(output: string, stopReason = 'completed') {
     slots: [{ brief, placementHash: 'place' }], ...verifiedSource } }
 }
 const outputFor = (assessment: unknown) => JSON.stringify({ probe: ['red', 'blue', 'green', 'yellow'], items: [assessment] })
+it('requires a fresh native map review after clarifying road identifiers without accepting English labels', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'map-language-'))
+  try {
+    const { service, classes, input, start } = inspector(outputFor({ ...item, contentKind: 'map', textLanguages: ['zh', 'en'] }))
+    const mapBrief = { ...brief, allowedKinds: ['map'] as const }
+    const mapInput = { ...input, slots: [{ brief: mapBrief, placementHash: 'place' }] }
+    const [old] = await service.inspect({ id: 'parent' } as never, mapInput, AbortSignal.timeout(1000))
+    await saveImageInspection(root, mapBrief, old!)
+    const updated = { ...verifiedSource, textPolicy: 'cartographic-language-v1' as const }
+    expect(await readImageInspection(root, old!.imageSha256, mapBrief, 'place', classes as never, verifiedSource)).toMatchObject({ decision: 'rejected' })
+    expect(await readImageInspection(root, old!.imageSha256, mapBrief, 'place', classes as never, updated)).toBeUndefined()
+    const [stillEnglish] = await service.inspect({ id: 'parent' } as never, { ...mapInput, ...updated }, AbortSignal.timeout(1000))
+    expect(stillEnglish!.decision).toBe('rejected')
+    const request = start.mock.calls.at(-1)![1]
+    expect(request.prompt[0].text).toContain('G318')
+    expect(request.prompt[0].text).toContain('S118')
+    expect(request.prompt[0].text).toContain('N/E/S/W')
+    expect(request.prompt[0].text).toContain('英文地名')
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+it('scopes the new language review to verified cartographic material and preserves other source cache keys', () => {
+  const asset = { semanticRole: 'source', imageQuality: { sourceLocation: '中国浙江', contentKind: 'map' },
+    origin: { method: JSON.stringify({ kind: 'verified-geographic-analysis', sourceClaims: { sourceLocation: { status: 'supported', value: '中国浙江' } } }) } }
+  const project = { projectId: 'p', stateObjects: [], visualAssets: [] }
+  const context = reportImageInspectionSource(asset as never, project as never)
+  expect(context).toMatchObject({ textPolicy: 'cartographic-language-v1', sourceLocationVerified: true })
+  const casePlan = { ...asset, imageQuality: { sourceLocation: '中国浙江', contentKind: 'plan' },
+    origin: { method: JSON.stringify({ kind: 'case-reference', locationEvidence: [{ excerpt: '项目地点：中国浙江' }] }) } }
+  expect(reportImageInspectionSource(casePlan as never, project as never)).toMatchObject({ textPolicy: 'cartographic-language-v1' })
+  expect(reportImageInspectionSource({ ...casePlan, imageQuality: { ...casePlan.imageQuality, contentKind: 'photo' } } as never, project as never)).not.toHaveProperty('textPolicy')
+  const plain = reportImageInspectionSource({ ...asset, origin: { method: 'ordinary-photo' } } as never, project as never)
+  expect(plain).not.toHaveProperty('textPolicy')
+  const originalKey = createHash('sha256').update(JSON.stringify({ sourceType: 'web', sourceLocation: '中国浙江', sourceLocationVerified: true, sourceEvidenceHash: null })).digest('hex')
+  expect(imageSourceContextHash(verifiedSource)).toBe(originalKey)
+})
 it.each(['vision', 'parent-text'])('lets the selected review model resolve its output budget instead of inheriting the %s parent cap', async parentModel => {
   const { service, start, input } = inspector(outputFor(item))
   const parent = { id: 'parent', options: { provider: 'native', model: parentModel, maxTokens: 2048 },

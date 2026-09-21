@@ -19,14 +19,16 @@ import { prepareWorkspacePresentationMaterials } from './workspace-materials.ts'
 import { adoptedPresentationAssets } from './runtime-integration.ts'
 import type { PresentationAdoptedAssetInput } from './standard-project-types.ts'
 import { prepareReportCartography } from './report-cartography.ts'
+import { checkVisualQuality, VISUAL_RASTER_QUALITY_VERSION } from '../visual/quality.ts'
 
 export function reportImageDimensions(ratio: number): { width: number; height: number } {
   if (!Number.isFinite(ratio) || ratio < 0.2 || ratio > 5) throw new Error('REPORT_IMAGE_ASPECT_RATIO_INVALID')
   // Prefer exact, integer 16-pixel multiples before considering small crops.
   let chosen = { width: 1536, height: 864 }, error = Infinity
-  for (let width = 640; width <= 2048; width += 16) {
+  for (let width = 384; width <= 2048; width += 16) {
     const height = Math.round(width / ratio / 16) * 16
     if (height < 384 || height > 2048 || Math.max(width, height) < 1280) continue
+    if (!checkVisualQuality({ width, height, bytes: 1, mimeType: 'image/png' }).accepted) continue
     const next = Math.abs(Math.log(width / height / ratio)) * 1000 + Math.abs(width * height - 1536 * 864) / 1e9
     if (next < error) { chosen = { width, height }; error = next }
   }
@@ -47,7 +49,12 @@ export function createNativeReportImagePipeline(deps: { classes: AgentClassServi
     if (!owner?.workItemId) { if (recoveryOnly) return undefined; throw new Error('REPORT_IMAGE_SOURCE_REQUIRED') }
     const ratio = demand.slot?.image.targetAspectRatio
     const dimensions = ratio ? reportImageDimensions(ratio) : undefined
-    let taskId = `report-image-${createHash('sha256').update(JSON.stringify([project.projectId, project.revision, imageBriefHash(demand.brief), ...(dimensions ? ['stable-slot-v1', dimensions] : [])])).digest('hex')}`
+    // Only an actual rejection by the former fixed-axis rule needs a fresh task.
+    // Requested dimensions need not equal returned dimensions: retain every
+    // successful candidate and recover pending original tasks under their IDs.
+    const revisedTaskId = (id: string) => deps.visual.hasLegacyDimensionRejection?.(project.projectId, id)
+      ? `report-image-${createHash('sha256').update(JSON.stringify([VISUAL_RASTER_QUALITY_VERSION, id])).digest('hex')}` : id
+    let taskId = revisedTaskId(`report-image-${createHash('sha256').update(JSON.stringify([project.projectId, project.revision, imageBriefHash(demand.brief), ...(dimensions ? ['stable-slot-v1', dimensions] : [])])).digest('hex')}`)
     const locale = demand.brief.locale === 'domestic' ? '中国本土环境、中国人的活动；若必要标识则只用清晰中文。不要外国生活场景、英文招牌或装饰文字。' : '按本页明确的国际定位表现相应空间；不添加无关外文装饰。'
     // Keep this provenance text stable for existing task IDs and image reviews.
     // The visual tool persona owns output dimensions; changing metadata on a
@@ -64,6 +71,9 @@ export function createNativeReportImagePipeline(deps: { classes: AgentClassServi
         + (independentOriginal ? '\n已有合格图已用于其他位置，本位置需要独立原图。按当前需求另行构图，使用新的空间视角和活动组织；不得对旧图裁剪、缩放或重复输出。' : '')
       const asset = saved ?? await deps.visual.generate(parent, { taskId, projectId: project.projectId, chapterId: owner.chapterId, workItemId: owner.workItemId,
         kind: 'concept', required: false, prompt }, signal, { preserveUncertain: true })
+      if (asset.quality?.accepted !== true || !['candidate', 'adopted'].includes(asset.status)) {
+        throw new Error(`VISUAL_IMAGE_QUALITY_REJECTED: ${asset.quality?.issues.join('；') || '图片未通过技术质量检查'}`)
+      }
       const material: PresentationAdoptedAssetInput = { sourceKey: asset.assetId, sourcePath: deps.resolveAsset(asset.fileName), originalFileName: asset.fileName,
         displayName: demand.brief.subjects.join('；'), mimeType: asset.mimeType, semanticRole: 'concept_visual', widthPx: asset.width, heightPx: asset.height,
         createdAt: asset.createdAt, adoptedAt: asset.createdAt, objectIds: [], evidenceIds: [], pageBindingOnly: true,
@@ -82,7 +92,7 @@ export function createNativeReportImagePipeline(deps: { classes: AgentClassServi
             sourcePath: material.sourcePath, sourceSha256: prepared.sourceSha256 } } : material
           const digest = createHash('sha256').update(prepared.bytes).digest('hex')
           if (options?.excludeImages?.some(excluded => excluded.taskId === taskId && excluded.sha256 === digest)) {
-            taskId = `report-image-${createHash('sha256').update(JSON.stringify(['capacity-alternative-v1', taskId, digest, imageBriefHash(demand.brief)])).digest('hex')}`
+            taskId = revisedTaskId(`report-image-${createHash('sha256').update(JSON.stringify(['capacity-alternative-v1', taskId, digest, imageBriefHash(demand.brief)])).digest('hex')}`)
             independentOriginal = true
             continue
           }
@@ -92,8 +102,8 @@ export function createNativeReportImagePipeline(deps: { classes: AgentClassServi
             corrections.push({ mismatches: review.mismatches, missingSubjects: demand.brief.subjects.filter(subject => !review.matchedSubjects.includes(subject)),
               contentKind: review.contentKind, textLegible: review.textLegible, textLanguages: review.textLanguages,
               domesticContext: review.domesticContext, quality: review.quality, watermark: review.watermark })
-            taskId = `report-image-${createHash('sha256').update(JSON.stringify(['correction-v1', taskId, digest,
-              review.requirementHash, review.sourceContextHash, corrections.at(-1)])).digest('hex')}`
+            taskId = revisedTaskId(`report-image-${createHash('sha256').update(JSON.stringify(['correction-v1', taskId, digest,
+              review.requirementHash, review.sourceContextHash, corrections.at(-1)])).digest('hex')}`)
             continue
           }
         }

@@ -116,6 +116,9 @@ export function reportImageInspectionSource(asset: PresentationAdoptedAssetInput
   const projectSource = projectImageSourceContext(asset, project)
   return { sourceType: sourceKind(asset), sourceLocation: projectSource?.sourceLocation ?? location,
     sourceLocationVerified: projectSource?.sourceLocationVerified ?? verified,
+    ...(verified && ['verified-geographic-analysis', 'case-reference'].includes(method.kind)
+      && ['map', 'plan'].includes(asset.imageQuality?.contentKind ?? '')
+      ? { textPolicy: 'cartographic-language-v1' as const } : {}),
     sourceEvidenceHash: sha(asset.imagePreparation ? JSON.stringify([asset.origin.method, asset.imagePreparation]) : asset.origin.method) }
 }
 const inspectionSource = reportImageInspectionSource
