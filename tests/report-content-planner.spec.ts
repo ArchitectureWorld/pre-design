@@ -2,8 +2,8 @@ import { mkdtemp, readFile, rm, writeFile, mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { ReportContentPlanner } from '../src/report/manuscript/content-planner.ts'
-import { contentPlanFingerprint, defaultContentPlan } from '../src/report/manuscript/content-plan.ts'
+import { ReportContentPlanner, contentPlanningPrompt, contentReviewPrompt } from '../src/report/manuscript/content-planner.ts'
+import { contentPlanFingerprint, contentUnits, defaultContentPlan } from '../src/report/manuscript/content-plan.ts'
 import type { PlanningManuscript } from '../src/report/manuscript/types.ts'
 const roots: string[] = []
 afterEach(async () => { await Promise.all(roots.splice(0).map(p => rm(p, { recursive: true, force: true }))) })
@@ -36,6 +36,66 @@ async function setup(review: unknown = { accepted: ['a/body[0]'] }, options: { u
   return { root, planner, prepare, requests, executions, checkpoint, dependencies }
 }
 describe('durable independently reviewed report planning', () => {
+  it('serializes every fact once and interns shared provenance instead of repeating it per unit', () => {
+    const refs = ['shared-source-' + 'x'.repeat(3000), 'second-source-' + 'y'.repeat(3000)]
+    const large = { ...source, chapters: [{ ...source.chapters[0]!, pages: Array.from({ length: 30 }, (_, n) => ({
+      ...source.chapters[0]!.pages[0]!, id: `page-${n}`, sourceRefs: refs,
+      body: Array.from({ length: 20 }, (_, i) => `事实${n}-${i}：雨天仅容纳20人，晴天40人。`),
+    })) }] }
+    const prompt = contentPlanningPrompt(large)
+    expect(prompt.length).toBeLessThan(JSON.stringify(contentUnits(large)).length / 10)
+    for (const ref of refs) expect(prompt.split(ref)).toHaveLength(2)
+    const data = JSON.parse(prompt.split('\n\n').at(-1)!)
+    const recovered = data.chapters.flatMap((c: any) => c.pages.flatMap((p: any) => p.units.map(([path, text]: string[]) => ({
+      id: `${p.id}/${path}`, text, refs: p.refs.map((id: string) => data.sources[id]),
+    }))))
+    expect(recovered).toEqual(contentUnits(large).map(u => ({ id: u.id, text: u.text, refs: u.sourceRefs })))
+  })
+  it('independent review receives only the exact proposed pairs with full source context', () => {
+    const prompt = contentReviewPrompt(source, proposal)
+    const data = JSON.parse(prompt.split('\n').at(-1)!)
+    expect(data.units.map((u: any) => u.id).sort()).toEqual(['a/body[0]', 'a/body[1]'])
+    expect(data.units.every((u: any) => u.sourceRefs[0] === 's')).toBe(true)
+    expect(data.pages).toEqual([{ id: 'a', chapterId: 'products', title: '页', claim: '主张', subject: '展览' }])
+  })
+  it('retains the subject context when equivalent wording belongs to different experiences', () => {
+    const contextual = { ...source, chapters: [{ ...source.chapters[0]!, pages: [
+      { ...source.chapters[0]!.pages[0]!, id:'boat', title:'游船体验', claim:'水上游览', body:['由专人带领参观。'] },
+      { ...source.chapters[0]!.pages[0]!, id:'tea', title:'茶园体验', claim:'茶园游览', body:['参观采用专人带领。'] },
+    ] }] }
+    const data = JSON.parse(contentReviewPrompt(contextual, { ...defaultContentPlan(contextual), equivalents:[{
+      duplicateId:'boat/body[0]', keepId:'tea/body[0]', reason:'专人引导',
+    }] }).split('\n').at(-1)!)
+    expect(data.pages.map((p: any) => [p.id, p.title, p.claim])).toEqual([
+      ['boat', '游船体验', '水上游览'], ['tea', '茶园体验', '茶园游览'],
+    ])
+  })
+  it('expands omitted tasks from the source defaults before validating or persisting the plan', async () => {
+    const h = await setup(), start = h.dependencies.subagents.start
+    h.dependencies.subagents.start = async (...args: unknown[]) => {
+      const run = await start(...args)
+      if (h.requests.length === 1) run.result = Promise.resolve({ stopReason: 'completed', structured: {
+        groups: [{ pageIds: ['a'] }], equivalents: proposal.equivalents,
+      } })
+      return run
+    }
+    const output = await h.prepare()
+    expect(output.chapters[0]!.pages[0]!.task).toEqual(defaultContentPlan(source).groups[0]!.task)
+    expect(await h.planner.load(source, h.root)).toEqual(output)
+  })
+  it('resumes a verified old max-token terminal with a changed compact protocol, retaining history', async () => {
+    const h = await setup(), file = join(h.root, '.pre-design', 'report-content-plans', `${contentPlanFingerprint(source)}.json`)
+    await mkdir(join(h.root, '.pre-design', 'report-content-plans'), { recursive: true })
+    h.executions.set('old', { projectId:'p', classId:'text', childId:'old-child', childStopReason:'max-tokens', status:'failed' })
+    await writeFile(file, JSON.stringify({ version:'report-content-plan-2026-09-21.1', fingerprint:contentPlanFingerprint(source), attempts:[{
+      phase:'plan', status:'failed', executionId:'old', childId:'old-child', stopReason:'max-tokens',
+    }] }))
+    await h.prepare()
+    const attempts = (await h.checkpoint()).value.attempts
+    expect(attempts[0].stopReason).toBe('max-tokens')
+    expect(attempts[1].protocol).toBe('shared-provenance-v2')
+    expect(h.requests).toHaveLength(2)
+  })
   it('uses two independent text children and only deletes independently accepted equivalents', async () => {
     const h = await setup(); const output = await h.prepare()
     expect(h.requests).toHaveLength(2)
