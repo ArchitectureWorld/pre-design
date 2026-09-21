@@ -8,6 +8,7 @@ import type { FrozenProjectInput } from '../report/types.ts'
 import { manuscriptSourceFingerprint } from '../report/manuscript/source.ts'
 import { sceneRequirements } from '../report/manuscript/visual-scenes.ts'
 import { SCENE_SPEC_VERSION, sceneSpecContext, type SceneSpecContext } from '../report/manuscript/scene-spec.ts'
+import { allowsAnalyticalTableText } from '../report/regular/analytical-table.ts'
 import { compileClientReportOutline } from './projector/client-outline.ts'
 import type { PresentationAdoptedAssetInput } from './standard-project-types.ts'
 import { createConditionalReportBundle, planConditionalPages, type ConditionalReportMaterial } from '../report/conditional-report.ts'
@@ -165,6 +166,9 @@ export class ReportImagePipeline {
       const saved = JSON.parse(await readFile(continuationPath, 'utf8'))
       if (saved.fingerprint === continuationFingerprint && Array.isArray(saved.demands)) {
         for (const demand of saved.demands as ReportImageDemand[]) if (demand.brief.id.startsWith(`${demand.brief.pageId}:continuation:`)
+          && !(demand.sceneContext?.scope === 'physical-continuation' && !demand.caseSource && !demand.sourceMaterialKey
+            && allowsAnalyticalTableText(demand.sceneContext.sources.filter(source => source.path.startsWith('body[')).map(source => source.text),
+              demand.sceneContext.sources.filter(source => /^table\.rows\[\d+\]\[0\]$/u.test(source.path)).map(source => source.text)))
           && !continuationInputs.some(previous => previous.brief.id === demand.brief.id)) continuationInputs.push(demand)
       }
     } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error }

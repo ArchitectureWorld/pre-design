@@ -11,6 +11,28 @@ import { BUNDLED_CASE_STUDY_IMAGES } from '../src/report/case-studies/catalog-im
 import { ImageIdentityIndex } from '../src/visual/image-identity.ts'
 
 const sha = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex')
+
+it('distinguishes independent published line drawings in one index before identifying their localized legends', async () => {
+  const drawings = VERIFIED_CASE_STUDIES.flatMap(row => row.gallery ?? []).filter(row => row.legendLocalization)
+  expect(drawings).toHaveLength(2)
+  const index = new ImageIdentityIndex()
+  const originals = drawings.map(row => ({ row, bytes: Buffer.from(BUNDLED_CASE_STUDY_IMAGES[row.sha256]!, 'base64') }))
+    .sort((a, b) => b.row.width * b.row.height - a.row.width * a.row.height)
+  const families = new Map<string, string>()
+  for (const { row, bytes } of originals) {
+    const result = index.identify({ bytes, mimeType: 'image/jpeg' })
+    expect(result.status, `${row.imageId}: ${result.reason}`).toBe('identified')
+    families.set(row.sha256, result.identity!.originalId)
+  }
+  expect(new Set(families.values()).size).toBe(2)
+  for (const { row, bytes } of originals) {
+    const localized = await localizeImageLegend(bytes, row.legendLocalization!)
+    const result = index.identify({ bytes: localized.bytes, mimeType: 'image/png', derivedFromSha256: row.sha256 })
+    expect(result.status, `${row.imageId}: ${result.reason}`).toBe('identified')
+    expect(result.identity!.originalId).toBe(families.get(row.sha256))
+    expect(result.identity!.verification).toBe('verified-derivative')
+  }
+})
 async function source() {
   const pixels = Buffer.alloc(800 * 600 * 3, 255)
   for (let y = 100; y < 400; y++) for (let x = 100; x < 700; x++) {

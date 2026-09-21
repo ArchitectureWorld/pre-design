@@ -8,6 +8,34 @@ const page: PlanningManuscriptPage = { id: 'tea-walk', kind: 'argument', title: 
 const assets = (count: number): ClientVisualAsset[] => Array.from({ length: count }, (_, i) => ({ assetId: `a${i}`, role: 'product-scene', chapterId: 'c', caption: '茶园', sourceKind: 'ai-concept', sourcePath: 'test.png', sha256: String(i + 1).padStart(64, '0'), width: 1600, height: 900, disclosure: '概念示意' }))
 const concisePage: PlanningManuscriptPage = { ...page, body: ['游客在窗边的桌椅旁休息，沿湖游线继续游览。'] }
 
+describe('analytical table continuations', () => {
+  const financial: PlanningManuscriptPage = { ...page, id: 'funding-analysis', kind: 'financial', editorialSummary: true,
+    title: '持续运营与资金安排', claim: '按年度核算投入与经营现金流。', body: [],
+    visual: { kind: 'none', subject: '财务核算', purpose: '核算资金', caption: '资金安排' },
+    table: { columns: ['核算项目', '计算关系', '用途'], rows: Array.from({ length: 12 }, (_, index) => [
+      ['持续运营支出', '税费与融资', '年度现金流', '投资回收'][index % 4]!,
+      '按实际业务收入、支出和有效资金安排分年核算，比较正常经营与暂停营业的资金需求。',
+      '形成年度资金计划，测算固定成本、变动成本和周转资金。',
+    ]) } }
+
+  it('keeps photo-free financial table continuations intentional without inventing a scene', () => {
+    const parts = planRegularManuscriptPage(financial, '实施运营', assets(1), 0)
+    expect(parts.length).toBeGreaterThan(1)
+    expect(parts[0]!.layout.media).toHaveLength(1)
+    expect(parts.slice(1).every(part => part.layout.media.length === 0)).toBe(true)
+    expect(parts.slice(1).flatMap(part => part.layout.materialGaps ?? [])).toEqual([])
+    expect(parts.flatMap(part => part.content.table?.rows ?? [])).toEqual(financial.table!.rows)
+  })
+
+  it('still requires the first image and spatial/table scene continuations', () => {
+    const first = planRegularManuscriptPage(financial, '实施运营', [], 0)[0]!
+    expect(first.layout.materialGaps).toHaveLength(1)
+    const spatial = { ...financial, table: { ...financial.table!, rows: financial.table!.rows.map(row => ['滨水步道', ...row.slice(1)]) } }
+    const parts = planRegularManuscriptPage(spatial, '空间布局', assets(1), 0)
+    expect(parts.slice(1).every(part => part.layout.materialGaps?.length === 1)).toBe(true)
+  })
+})
+
 describe('regular client physical pages', () => {
   it('retains every body character and shows each planned image once before wide continuations', () => {
     const parts = planRegularManuscriptPage(page, '产品体系', assets(1), 0)

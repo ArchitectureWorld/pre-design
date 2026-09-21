@@ -260,6 +260,15 @@ function findCrop(source: Entry, target: Entry): CropMatch | undefined {
     const measurement = measure(samples(source.raster, candidate.bounds, grid),
       grid === FINE_GRID ? target.samples : samples(target.raster, fullBounds, grid), grid)
     if (!measurement.candidate) continue
+    // Coarse cells can average unrelated thin lines into the same white field.
+    // Before retaining a weak crop, use the detail still present in the source
+    // raster; never upsample beyond it or promote this refinement to confirmation.
+    if (!measurement.confirmed) {
+      const detailGrid = Math.min(FINE_GRID, Math.floor(Math.min(
+        candidate.bounds.width * source.raster.width, candidate.bounds.height * source.raster.height)))
+      if (detailGrid > grid && !measure(samples(source.raster, candidate.bounds, detailGrid),
+        samples(target.raster, fullBounds, detailGrid), detailGrid).candidate) continue
+    }
     // Very small or low-resolution excerpts require human/pixel review even when the template agrees.
     const confirmed = measurement.confirmed && candidate.bounds.width * candidate.bounds.height >= 0.12
       && Math.min(target.width, target.height, source.width * candidate.bounds.width, source.height * candidate.bounds.height) >= 32

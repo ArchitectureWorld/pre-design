@@ -3,10 +3,11 @@ import type { PlanningManuscriptPage } from '../manuscript/types.ts'
 import { wrapClientText } from '../client-typography.ts'
 import { planningProductRows } from '../render-planning-page.ts'
 import { photoStagePresentation, photoStageTopReserve, routePhotoStages } from './stage-connections.ts'
+import { allowsAnalyticalTableText } from './analytical-table.ts'
 import { imageBriefHash, imagePlacementHash, MIN_RETAINED_IMAGE_AREA } from '../../visual/image-policy.ts'
 
 export const REGULAR_CANVAS = { width: 13.333333, height: 7.5, unit: 'in' as const }
-export const REGULAR_LAYOUT_VERSION = 'regular-2026-09-21.3'
+export const REGULAR_LAYOUT_VERSION = 'regular-2026-09-21.4'
 export interface Box { readonly x: number; readonly y: number; readonly w: number; readonly h: number }
 export interface RegularText { readonly role: 'eyebrow' | 'title' | 'claim' | 'body' | 'stage'; readonly text: string; readonly box: Box; readonly size: number; readonly leading: number; readonly dark?: boolean; readonly nodeId?: string }
 export interface RegularMedia { readonly assetId: string; readonly box: Box; readonly fit: 'cover' | 'contain'; readonly nodeId?: string }
@@ -18,6 +19,7 @@ export interface RegularLayout {
   readonly media: readonly RegularMedia[]
   readonly shade?: Box
   readonly materialGaps?: readonly RegularMaterialGap[]
+  readonly intentionalTextOnly?: 'financial-table'
   readonly stageFlow?: 'sequence' | 'parallel' | 'network'
   /** Relations whose endpoint is shown on another physical page. */
   readonly relationReferences?: readonly { readonly from: string; readonly to: string; readonly label?: string }[]
@@ -408,10 +410,13 @@ function tableStory(page: PlanningManuscriptPage, chapter: string, assets: reado
       break
     }
     if (!body.length && !rows.length && (queue.length || pendingRows.length)) throw new Error(`REGULAR_TABLE_CELL_OVERFLOW: ${page.id}`)
+    const analyticalText = !currentPhoto && parts.length > 0 && !page.visual.sourceMaterialKey
+      && !page.visual.diagram?.nodes.length && allowsAnalyticalTableText(body, rows.map(row => row[0] ?? ''))
     parts.push({ content: { ...empty(page), body, ...(rows.length ? { table: { columns: table.columns, rows } } : {}) },
       layout: { mode: currentPhoto ? 'right' : 'table', chapterTitle: chapter, texts,
         media: currentPhoto ? [media(currentPhoto, box(imageX, 0, REGULAR_CANVAS.width - imageX, 7.5))] : [],
-        ...(!currentPhoto ? { materialGaps: [{ pageId: page.id, reason: 'continuation-image-required' as const }] } : {}),
+        ...(analyticalText ? { intentionalTextOnly: 'financial-table' as const }
+          : !currentPhoto ? { materialGaps: [{ pageId: page.id, reason: 'continuation-image-required' as const }] } : {}),
         ...(rows.length ? { table: { box: box(0.65, top, width, used), columns: table.columns.map((v, i) => regularWrap(v, widths[i]! - 0.24, 14)),
           rows: rows.map(row => row.map((v, i) => regularWrap(v, widths[i]! - 0.24, 14))), rowHeights: heights, columnWidths: widths } } : {}),
       } })
