@@ -57,6 +57,11 @@ export interface PresentationAssetOriginInput {
 }
 
 export interface PresentationAdoptedAssetInput {
+  readonly analysisKind?: import('../report/client-types.ts').ClientSiteAnalysisKind
+  readonly cartography?: import('../report/client-types.ts').ClientCartography
+  readonly provenance?: import('../report/client-types.ts').ClientVisualProvenance
+  readonly analysisEvidence?: readonly import('../report/client-types.ts').ClientEvidence[]
+  readonly analysisEvidencePath?: string
   readonly imagePreparation?: { readonly version: 'report-raster-v1'; readonly sourcePath: string; readonly sourceSha256: string }
   readonly physicalPlacement?: { readonly pageId: string; readonly mediaIndex: number }
   readonly imageIdentity?: import('../visual/image-policy.ts').OriginalImageIdentity

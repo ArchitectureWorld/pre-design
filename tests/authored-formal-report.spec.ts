@@ -24,7 +24,7 @@ const chartTopics = ['existing-condition', 'audience-demand', 'accessibility', '
 
 function material(key: string, pageId: string, hash = sha(key)): ConditionalReportMaterial {
   return { sourceKey: key, sourcePath: `C:/fixtures/${key.replace(/:/g, '-')}.png`, displayName: key, originalFileName: 'scene.png',
-    mimeType: 'image/png', semanticRole: 'concept_visual', widthPx: 1200, heightPx: 800,
+    mimeType: 'image/png', semanticRole: 'concept_visual', widthPx: 1600, heightPx: 900,
     createdAt: REPORT_INPUT.generatedAt, adoptedAt: REPORT_INPUT.generatedAt, objectIds: [], evidenceIds: [], role: 'primary',
     pageBindingOnly: true, pageBindings: [{ findingId: `manuscript:${pageId}`, role: 'primary' }],
     origin: { type: 'generated_by_tool', sourceMaterialKeys: [], parentAssetKeys: [], method: 'concept', sourceTool: null }, sha256: hash }
@@ -62,6 +62,7 @@ function fixture(architectural = true) {
       chapters: [{ id: 'products', title: '日间休闲产品', thesis: '以茶园与水岸串联日间游线', pages: [{ id: 'tea-route', kind: 'product', title: '茶湖慢游',
         claim: '以茶饮、漫步和临水停留形成完整的日间游线。', body: ['从茶室出发，串联茶园步道与临水平台，形成可停留、可体验的半日游程。'], sourceRefs: [sourceId],
         product: { name: '茶湖慢游', audience: '家庭及城市访客', experience: '品茶与临水漫步', location: '既有建筑与现状步道', scale: '结合既有路径组织小组游览', operations: '统一预约与日间服务' },
+        task: { kind: 'scene', question: '如何组织半日游程', scale: 'scene', requiredEvidence: [], preferredTemplate: 'full-background' },
         visual: { kind: 'concept', subject: '茶园漫步', purpose: '组织慢游体验', caption: '茶园漫步' }, notes: ['Gate G1 · C:/private/source.png'] }] }] } }
   const materials: ConditionalReportMaterial[] = [material('concept-1', 'tea-route', 'a'.repeat(64)), ...caseStudyPhotos(caseStudies).map(photo => ({
     ...material(photo.sourceKey, photo.pageIds[0]!, photo.image.sha256), sourcePath: photo.image.sourcePath!,
@@ -114,7 +115,7 @@ describe('authored formal reports', () => {
     }
     expect(validateClientPagePlan({ ...plans[0]!, visualContractVersion: undefined }, report)).toContainEqual(expect.objectContaining({ code: 'VISUAL_CONTRACT_MISMATCH' }))
     const noVisuals = { ...plans[0]!, pages: plans[0]!.pages.map(page => ({ ...page, assetIds: [], regularLayout: { ...page.regularLayout!, media: [] } })) }
-    expect(validateClientPagePlan(noVisuals, report)).toContainEqual(expect.objectContaining({ code: 'REGULAR_ASSET_UNPLACED' }))
+    expect(validateClientPagePlan(noVisuals, report)).toContainEqual(expect.objectContaining({ code: 'REGULAR_IMAGE_SLOT_UNFILLED' }))
     const noCopy = { ...plans[0]!, pages: plans[0]!.pages.map(page => ({ ...page, regularLayout: { ...page.regularLayout!, texts: page.regularLayout!.texts.filter(text => text.role !== 'body') } })) }
     expect(validateClientPagePlan(noCopy, report)).toContainEqual(expect.objectContaining({ code: 'REGULAR_COPY_INCOMPLETE' }))
   })

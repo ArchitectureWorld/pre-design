@@ -3,6 +3,7 @@ import type { PlanningManuscriptPage } from './types.ts'
 import { makeSourceIndex, manuscriptSourceFingerprint } from './source.ts'
 import { sha256CanonicalJson } from '../../presentation/canonical-json.ts'
 import { REPORT_IMAGE_POLICY_VERSION, permitsInternationalImages, type ImageSlotBrief } from '../../visual/image-policy.ts'
+import { inferPlanningPageTask, isGeographicTask } from './content-plan.ts'
 
 export const REPORT_SCENE_POLICY_VERSION = 'report-scenes-2026-09-19.3'
 export const REPORT_SCENE_PREFIX = 'report-scene:'
@@ -109,6 +110,7 @@ export function sceneRequirements(input: FrozenProjectInput): readonly ReportSce
   const international = permitsInternationalImages(input)
   const requirements: ReportSceneRequirement[] = []
   for (const chapter of manuscript.chapters) for (const page of chapter.pages) {
+    if (isGeographicTask(inferPlanningPageTask(page))) continue
     if (page.visual.kind === 'source' || /^case[-:]/u.test(page.id) || page.sourceRefs.some(ref => /^case[-:]/u.test(ref))) continue
     const nodes = page.visual.diagram?.nodes ?? []
     const slots = nodes.length ? nodes : requiresSourceSceneImage(page) ? [] : [undefined]

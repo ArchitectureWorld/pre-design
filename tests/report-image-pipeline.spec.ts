@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto'
 import { ImageIdentityIndex } from '../src/visual/image-identity.ts'
 import { jpeg, png, resize, scene } from './support/image-identity/fixtures.ts'
 import { expect, it, vi } from 'vitest'
-import { ReportImagePipeline } from '../src/presentation/report-image-pipeline.ts'
+import { ReportImagePipeline, reportImageDemands } from '../src/presentation/report-image-pipeline.ts'
 import { imageSourceContextHash } from '../src/visual/image-inspection.ts'
 import { imageBriefHash } from '../src/visual/image-policy.ts'
 import { manuscriptSourceFingerprint } from '../src/report/manuscript/source.ts'
@@ -24,9 +24,9 @@ function project(): FrozenProjectInput {
       pages: ['林下座椅休憩', '滨水步道漫游'].map((subject,i) => ({ id: `scene-${i}`, kind: 'argument', title: subject, claim: `${subject}构成公园日间游览体验`, body: ['保留完整空间关系与活动场景。'], sourceRefs: [], notes: [], editorialSummary: true,
         visual: { kind: 'concept', subject, purpose: subject, caption: subject } })) }] } }
 }
-async function material(root: string, name: string, index: number, height = 1200): Promise<PresentationAdoptedAssetInput> {
-  const path = join(root, `${index}.png`); await writeFile(path, png(resize(scene(7 + index * 137), 1600, height)))
-  return { sourceKey: `asset-${index}`, sourcePath: path, originalFileName: `${index}.png`, displayName: name, mimeType: 'image/png', widthPx: 1600, heightPx: height,
+async function material(root: string, name: string, index: number, height = 900, width = 1600): Promise<PresentationAdoptedAssetInput> {
+  const path = join(root, `${index}.png`); await writeFile(path, png(resize(scene(7 + index * 137), width, height)))
+  return { sourceKey: `asset-${index}`, sourcePath: path, originalFileName: `${index}.png`, displayName: name, mimeType: 'image/png', widthPx: width, heightPx: height,
     semanticRole: 'concept_visual', createdAt: '2026-09-19', adoptedAt: '2026-09-19', objectIds: [], evidenceIds: [], pageBindingOnly: true,
     pageBindings: [{ findingId: `manuscript:scene-${index}` }], origin: { type: 'generated_by_plugin', sourceMaterialKeys: [], parentAssetKeys: [], sourceTool: null, method: JSON.stringify({ prompt: name }) } }
 }
@@ -46,26 +46,43 @@ it.each(['corrected', 'always-rejected', 'review-unknown', 'one-image-limit'] as
         textLegible: !rejected, watermark: 'none', quality: 'pass', essentialBounds: [{ x: 0, y: 0, width: 1, height: 1 }],
         decision: rejected ? 'rejected' : 'approved', sourceContextHash: imageSourceContextHash(request) }))
     })
+    const fixedDemands = reportImageDemands(project()), fixedSlots = fixedDemands.map(d => ({ id: d.brief.id, slot: d.slot }))
+    const resolveDemands = vi.fn(async (demands: Readonly<typeof fixedDemands>) => {
+      expect(demands.map(d => ({ id: d.brief.id, slot: d.slot }))).toEqual(fixedSlots)
+      expect(inspect).not.toHaveBeenCalled()
+      return demands
+    })
     let calls = 0
-    const generate = vi.fn(async () => ({ material: originals[++calls]!, adopt: async () => {} }))
+    const generate = vi.fn(async (demand: any) => {
+      expect(resolveDemands).toHaveBeenCalledOnce()
+      expect({ id: demand.brief.id, slot: demand.slot }).toEqual(fixedSlots.find(d => d.id === demand.brief.id))
+      return { material: originals[++calls]!, adopt: async () => {} }
+    })
     const pipeline = new ReportImagePipeline({ classes: { settings: () => ({ routes: { review: route } }),
       execution: () => ({ classId: 'review', status: 'completed', actual: route }) } as never,
-      inspection: { inspect } as never, candidates: async () => [originals[0]!], generate })
+      inspection: { inspect } as never, candidates: async () => [originals[0]!], generate, resolveDemands })
     const run = pipeline.prepare(project(), root, {} as never, AbortSignal.timeout(20_000), () => {},
       mode === 'one-image-limit' ? { maxGenerations: 1 } : {})
     if (mode === 'corrected') {
       const result = await run
       const bundle = createConditionalReportBundle(project(), result)
-      expect(auditRegularVisuals(planConditionalPages(bundle, 'html'), bundle.report).materialGaps).toEqual([])
+      const physical = planConditionalPages(bundle, 'html')
+      expect(auditRegularVisuals(physical, bundle.report).materialGaps).toEqual([])
+      expect(physical.pages.flatMap(p => p.regularLayout?.imageSlots?.map(slot => slot.usageId) ?? [])).toEqual(fixedDemands.map(d => d.brief.id))
     } else await expect(run).rejects.toThrow('REPORT_IMAGE_GAPS')
+    expect(resolveDemands).toHaveBeenCalledOnce()
     expect(generate).toHaveBeenCalledTimes(mode === 'corrected' ? 2 : mode === 'always-rejected' ? 3 : 1)
   } finally { await rm(root, { recursive: true, force: true }) }
 })
-it.each([['normal', false, 1200], ['recovered', false, 1200], ['scarce', true, 1200], ['panorama', false, 400], ['large-original', false, 3000], ['large-generated', false, 3000], ['padded-jpeg', false, 1200]] as const)('finishes %s source review, physical placement and cache replay without regeneration', async (_name, scarce, height) => {
+it.each([['normal', false, 900], ['recovered', false, 900], ['scarce', true, 900], ['panorama', false, 450], ['large-original', false, 1800], ['large-generated', false, 1800], ['padded-jpeg', false, 900]] as const)('finishes %s source review, physical placement and cache replay without regeneration', async (_name, scarce, height) => {
   const root = await mkdtemp(join(tmpdir(),'image-pipeline-')), input = project(), route = { provider: 'fixture', model: 'fixture-vision' }
   try {
     const names = scarce ? ['林下座椅休憩；滨水步道漫游', '林下座椅休憩'] : ['林下座椅休憩','滨水步道漫游']
-    const assets = await Promise.all(names.map((name,i) => material(root,name,i,height)))
+    const assets = await Promise.all(names.map((name,i) => material(root,name,i,height,height === 1800 ? 3200 : 1600)))
+    if (_name === 'panorama') {
+      for (const page of input.manuscript!.chapters[0]!.pages) Object.assign(page, { task: { kind: 'scene', question: page.claim, scale: 'scene', requiredEvidence: [], preferredTemplate: 'split-top' } })
+      assets.push({ ...await material(root, '滨河公园封面', 2), pageBindings: [{ findingId: 'report:cover' }] })
+    }
     if (_name === 'padded-jpeg') for (let i = 0; i < assets.length; i++) {
       const sourcePath = join(root, `${i}.jpg`)
       await writeFile(sourcePath, Buffer.concat([jpeg(resize(scene(7 + i * 137), 1600, height)), Buffer.alloc(16)]))
@@ -98,7 +115,7 @@ it.each([['normal', false, 1200], ['recovered', false, 1200], ['scarce', true, 1
     const calls = inspect.mock.calls.length
     expect(await pipeline.prepare(input,root,{} as never,AbortSignal.timeout(20_000),()=>{})).toEqual(result)
     expect(inspect).toHaveBeenCalledTimes(calls)
-    if (height === 3000) {
+    if (height === 1800) {
       expect(result.every(asset => asset.widthPx! * asset.heightPx! <= 4 * 1024 * 1024)).toBe(true)
       expect(result.every(asset => asset.imagePreparation?.version === 'report-raster-v1')).toBe(true)
       expect(new Set(result.map(asset => asset.imagePreparation?.sourcePath))).toEqual(new Set(assets.map(asset => asset.sourcePath)))
@@ -245,20 +262,26 @@ it.each(['unrelated','augment','same-page','discovery'] as const)('reviews an ac
  const root=await mkdtemp(join(tmpdir(),'image-gap-directed-'))
  try {
   const count=mode==='augment'||mode==='same-page'?4:17
-  const demands=Array.from({length:count},(_,i)=>({findingId:`gap-${i}`,brief:{id:`gap-${i}:main`,pageId:mode==='same-page'&&i<2?'shared-page':`gap-${i}`,version:'gap-fixture',conclusion:'茶园漫行',subjects:['茶园漫行'],activities:[],environment:'茶园',scale:'scene',allowedKinds:['render'],allowedSources:['web','generated'],locale:'domestic'}}))
+  const base=project(), pageCount=mode==='same-page'?2:count-1
+  const pages=Array.from({length:pageCount},(_,i)=>({...base.manuscript!.chapters[0]!.pages[0]!,id:`gap-${i}`,title:'茶园漫行',claim:'茶园漫行',
+    visual:{kind:'concept' as const,subject:'茶园漫行',purpose:'茶园漫行',caption:'茶园漫行'},
+    ...(mode==='same-page'&&i===0?{task:{kind:'scene' as const,question:'茶园漫行',scale:'scene' as const,requiredEvidence:[],preferredTemplate:'array-horizontal' as const,imageCount:2}}:{})}))
+  const input={...base,manuscript:{...base.manuscript!,chapters:[{...base.manuscript!.chapters[0]!,pages}]}}
+  const demands=reportImageDemands(input).sort((a,b)=>Number(a.brief.pageId==='cover')-Number(b.brief.pageId==='cover') || a.brief.id.localeCompare(b.brief.id))
+  expect(demands).toHaveLength(count)
   const oldCount=mode==='unrelated'?8:mode==='discovery'?0:2
-  const assets=await Promise.all(Array.from({length:oldCount+1},async(_,i)=>({...await material(root,'茶园漫行',i),pageBindings:[{findingId:`gap-${i*2}`},{findingId:`gap-${i*2+1}`}]})))
+  const assets=await Promise.all(Array.from({length:oldCount+1},async(_,i)=>({...await material(root,'茶园漫行',i),pageBindings:demands.slice(i*2,i*2+2).map(d=>({findingId:d.findingId}))})))
   const digests=await Promise.all(assets.map(async a=>createHash('sha256').update(await readFile(a.sourcePath)).digest('hex')))
   const calls:{asset:number,ids:string[]}[]=[];let searches=0
   const inspect=vi.fn(async(_:unknown,request:any)=>{const digest=createHash('sha256').update(request.bytes).digest('hex'),asset=digests.indexOf(digest);calls.push({asset,ids:request.slots.map((s:any)=>s.brief.id)})
-   return request.slots.map((s:any)=>{const id=Number(s.brief.id.split('-')[1].split(':')[0]);const approved=mode==='discovery'?false:mode==='same-page'?(asset===0&&id<2||asset===1&&id>=2||asset===2&&id===0):mode==='unrelated'?(asset<oldCount&&[asset*2,asset*2+1].includes(id)):(asset===0&&id<3||asset===1&&id===3||asset===2&&id===0)
+   return request.slots.map((s:any)=>{const id=demands.findIndex(d=>d.brief.id===s.brief.id);const approved=mode==='discovery'?false:mode==='same-page'?(asset===0&&id<2||asset===1&&id>=2||asset===2&&id===0):mode==='unrelated'?(asset<oldCount&&[asset*2,asset*2+1].includes(id)):(asset===0&&id<3||asset===1&&id===3||asset===2&&id===0)
     return {schemaVersion:'pre-design.image-inspection.v1',imageSha256:digest,requirementHash:imageBriefHash(s.brief),usageId:s.brief.id,placementHash:s.placementHash,inspectedAt:'fixture',actualImageInput:true,actualModel:{provider:'fixture',model:'vision'},executionId:'fixture-run',contentKind:'render',relevant:approved,matchedSubjects:approved?s.brief.subjects:[],mismatches:approved?[]:['fixture'],domesticContext:'supported',textLanguages:[],textLegible:true,watermark:'none',quality:'pass',essentialBounds:approved?[{x:0,y:0,width:1,height:1}]:[],decision:approved?'approved':'rejected',sourceContextHash:imageSourceContextHash(request)}})})
   const pipeline=new ReportImagePipeline({classes:{settings:()=>({routes:{review:{provider:'fixture',model:'vision'}}}),execution:()=>({classId:'review',status:'completed',actual:{provider:'fixture',model:'vision'}})} as never,inspection:{inspect} as never,resolveDemands:async()=>demands as never,candidates:async()=>assets.slice(0,oldCount),search:async()=>++searches===1?[assets[oldCount]!]:[]})
-  // Synthetic demand IDs intentionally stop at physical-report validation if all become allocated.
-  let error='';try{await pipeline.prepare(project(),root,{} as never,AbortSignal.timeout(20_000),()=>{})}catch(e){error=(e as Error).message}
+  // Real stable slots exercise capacity relocation through final physical-report validation.
+  let error='';try{await pipeline.prepare(input,root,{} as never,AbortSignal.timeout(20_000),()=>{})}catch(e){error=(e as Error).message}
   const acquired=calls.filter(c=>c.asset===oldCount)
-  if(mode==='unrelated'){expect(error).toContain('REPORT_IMAGE_GAPS: 1 ');expect(acquired).toEqual([{asset:8,ids:['gap-16:main']}])}
-  else if(mode==='discovery'){expect(error).toContain('REPORT_IMAGE_GAPS: 17 ');expect(acquired).toHaveLength(1);expect(acquired[0]!.ids).toHaveLength(8);expect(acquired[0]!.ids[0]).toBe('gap-0:main')}
-  else {expect(error).not.toContain('REPORT_IMAGE_GAPS');expect(acquired[0]?.ids).toEqual([mode==='same-page'?'gap-1:main':'gap-2:main']);expect(acquired.flatMap(c=>c.ids)).toContain('gap-0:main');expect(acquired.flatMap(c=>c.ids)).not.toContain('gap-3:main')}
+  if(mode==='unrelated'){expect(error).toContain('REPORT_IMAGE_GAPS: 1 ');expect(acquired).toEqual([{asset:8,ids:[demands[16]!.brief.id]}])}
+  else if(mode==='discovery'){expect(error).toContain('REPORT_IMAGE_GAPS: 17 ');expect(acquired).toHaveLength(1);expect(acquired[0]!.ids).toHaveLength(8);expect(acquired[0]!.ids[0]).toBe([...demands.map(d=>d.brief.id)].sort()[0])}
+  else {expect(error).toBe('');expect(acquired[0]?.ids).toEqual([demands[mode==='same-page'?1:2]!.brief.id]);expect(acquired.flatMap(c=>c.ids)).toContain(demands[0]!.brief.id);expect(acquired.flatMap(c=>c.ids)).not.toContain(demands[3]!.brief.id)}
  } finally {await rm(root,{recursive:true,force:true})}
 },30_000)

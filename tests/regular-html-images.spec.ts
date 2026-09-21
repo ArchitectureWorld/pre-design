@@ -37,7 +37,7 @@ it('renders a centered, 65-percent-transparent stage caption with opaque readabl
     const sha256 = createHash('sha256').update(bytes).digest('hex'), sourcePath = join(root, 'scene.jpg')
     await writeFile(sourcePath, bytes)
     const asset = { assetId: 'photo', sourcePath, sha256, caption: '公共空间', role: 'product-scene' as const, chapterId: 'c', sourceKind: 'ai-concept' as const,
-      width: 1000, height: 1000, stageNodeIds: ['entry'], imageIdentity: { originalId: 'source-family', fileSha256: sha256, verification: 'decoded-pixels' as const } }
+      width: 4000, height: 900, stageNodeIds: ['entry'], imageIdentity: { originalId: 'source-family', fileSha256: sha256, verification: 'decoded-pixels' as const } }
     const [part] = planRegularManuscriptPage({ id: 'walk', kind: 'argument', editorialSummary: true, title: '公众体验', claim: '连接入口与停留空间。', body: [], notes: [], sourceRefs: [],
       visual: { kind: 'diagram', subject: '步行', purpose: '公众体验', caption: '公共空间', diagram: { nodes: [{ id: 'entry', label: '在公共入口保留连续步行并组织清晰可达的服务设施', column: 0, row: 0 }], edges: [] } } }, '活动组织', [asset], 0)
     const context = { report: { identity: { reportTitle: '项目汇报' }, chapters: [], assets: [asset] }, identity: { projectId: 'project', sourceRevision: 1, recommendationId: 'choice', adoptedAssetIds: ['photo'] },

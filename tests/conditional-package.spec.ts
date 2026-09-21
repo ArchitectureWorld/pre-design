@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import sharp from 'sharp'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ConditionalReportPackageService } from '../src/report/conditional-package-service.ts'
 import { renderConditionalHtml } from '../src/report/conditional-render-html.ts'
@@ -10,6 +10,7 @@ import { renderPptx } from '../src/report/render-pptx.ts'
 import { renderPrintHtml } from '../src/report/render-print-html.ts'
 import { readHtmlArtifactIdentity } from '../src/report/validate-artifacts.ts'
 import { reportImageDimensions } from '../src/report/regular/image-dimensions.ts'
+import { createConditionalReportBundle, planConditionalPages, type ConditionalReportMaterial } from '../src/report/conditional-report.ts'
 import type { ArtifactRecord, ReportPackageRecord } from '../src/governance/types.ts'
 import type { FrozenProjectInput } from '../src/report/types.ts'
 
@@ -160,17 +161,28 @@ describe('conditional report packaging', () => {
         body: ['在平缓地段布置休息节点，让游览与农业生产有序衔接。'], sourceRefs: [],
         visual: { kind: 'none', subject: '', purpose: '', caption: '' }, notes: [],
       }] }] } })
-    const imagePath = fileURLToPath(new URL('./fixtures/golden-project/assets/concept-01.jpg', import.meta.url))
-    const imageBytes = await readFile(imagePath)
-    const dimensions = reportImageDimensions('image/jpeg', imageBytes)
-    const service = new ConditionalReportPackageService({ ...h.options, materials: async () => [{
-      sourceKey: 'scene-fixture', sourcePath: imagePath, displayName: '概念场景测试配图', originalFileName: 'concept-01.jpg',
-      mimeType: 'image/jpeg', semanticRole: 'concept_visual', widthPx: dimensions.width, heightPx: dimensions.height,
-      createdAt: h.source.generatedAt, adoptedAt: h.source.generatedAt, objectIds: [], evidenceIds: [], role: 'primary',
-      pageBindingOnly: true, pageBindings: [{ findingId: 'manuscript:products-trail', role: 'primary' }],
-      origin: { type: 'generated_by_tool', sourceMaterialKeys: [], parentAssetKeys: [], method: 'concept', sourceTool: null },
-      sha256: createHash('sha256').update(imageBytes).digest('hex'),
-    }] } as never)
+    const needs = planConditionalPages(createConditionalReportBundle(h.source, []), 'html').pages.flatMap(physical =>
+      (physical.regularLayout?.imageSlots ?? []).map(slot => ({ slot, pageId: physical.pagination?.sourcePageId ?? 'cover' })))
+    const materials: ConditionalReportMaterial[] = []
+    for (const [index, { slot, pageId }] of needs.entries()) {
+      // Match actual raster pixels to the already planned cover/body slots.
+      const imageBytes = await sharp({ create: { width: Math.round(slot.targetAspectRatio * 900), height: 900, channels: 3,
+        background: { r: 70 + index * 31, g: 90 + index * 23, b: 80 + index * 17 } } }).png().toBuffer()
+      const imagePath = join(h.root, `scene-fixture-${index}.png`)
+      await writeFile(imagePath, imageBytes)
+      const dimensions = reportImageDimensions('image/png', imageBytes)
+      materials.push({
+        sourceKey: `scene-fixture-${index}`, sourcePath: imagePath, displayName: '场景测试配图', originalFileName: `scene-fixture-${index}.png`,
+        mimeType: 'image/png', semanticRole: 'concept_visual', widthPx: dimensions.width, heightPx: dimensions.height,
+        imageQuality: { requirement: { id: slot.usageId, version: 'fixture', pageId, conclusion: '茶园漫游步道',
+          subjects: ['茶园'], activities: [], environment: '', scale: 'scene', allowedKinds: ['render'], allowedSources: ['generated'], locale: 'domestic' } },
+        createdAt: h.source.generatedAt, adoptedAt: h.source.generatedAt, objectIds: [], evidenceIds: [], role: 'primary',
+        pageBindingOnly: true, pageBindings: [{ findingId: pageId === 'cover' ? 'report:cover' : `manuscript:${pageId}`, role: 'primary' }],
+        origin: { type: 'generated_by_tool', sourceMaterialKeys: [], parentAssetKeys: [], method: 'renderer test fixture', sourceTool: null },
+        sha256: createHash('sha256').update(imageBytes).digest('hex'),
+      })
+    }
+    const service = new ConditionalReportPackageService({ ...h.options, materials: async () => materials } as never)
     const manifest = await service.generate('project', 103)
     const directory = join(h.root, manifest.packageId)
     const html = await readFile(join(directory, 'html/index.html'), 'utf8')

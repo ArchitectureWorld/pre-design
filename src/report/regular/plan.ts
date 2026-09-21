@@ -26,10 +26,11 @@ export function assertRegularPagePlan(plan: ClientPagePlan, report: ClientReport
 
 export function planRegularPages(report: ClientReport, medium: ClientMedium): ClientPagePlan {
     const coverAsset = report.assets.find(asset => asset.role === 'hero' && !asset.physicalPlacement) ?? report.assets.find(asset => asset.sourceKind === 'ai-concept' && !asset.physicalPlacement) ?? report.assets[0]
+    const coverLayout = regularCover(report.identity.reportTitle, report.proposition.coreValue, coverAsset)
     const pages: ClientPage[] = [{ pageId: 'cover', kind: 'cover', layoutVariant: 'full-bleed', chapterId: 'opening',
       headline: report.identity.reportTitle, primaryFocus: { type: 'claim', statement: report.proposition.coreValue },
-      blockIndexes: [], assetIds: coverAsset ? [coverAsset.assetId] : [], evidenceIds: [],
-      regularLayout: regularCover(report.identity.reportTitle, report.proposition.coreValue, coverAsset) }]
+      blockIndexes: [], assetIds: coverLayout.media.map(media => media.assetId), evidenceIds: [],
+      regularLayout: coverLayout }]
     let ordinal = 0
     for (const chapter of report.chapters) chapter.blocks.forEach((block, index) => {
       if (block.type !== 'planning-page') throw new Error('REGULAR_PLANNING_BLOCK_REQUIRED')

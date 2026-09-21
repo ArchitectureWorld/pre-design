@@ -59,6 +59,7 @@ interface Measurement {
   readonly confirmed: boolean
   readonly candidate: boolean
   readonly annotation: boolean
+  readonly uniform: boolean
 }
 interface CropMatch { readonly bounds: ImageBounds; readonly measurement: Measurement }
 interface SampleBuffer { readonly values: Float32Array; readonly corners: Float64Array }
@@ -160,12 +161,12 @@ function coarseScore(a: Float32Array, b: Float32Array, errors: Float64Array, cei
 /** Averaging unrelated fine textures can produce almost identical grey thumbnails.
  * Confirmation needs correlated spatial deviations from each channel's own mean,
  * with enough retained contrast to make that correlation informative. */
-function hasMatchingStructure(a: Float32Array, b: Float32Array): boolean {
+function hasMatchingStructure(a: Float32Array, b: Float32Array, correlation = 0.97, variance = 8 ** 2, matchedOnly = true): boolean {
   const sumA = [0, 0, 0], sumB = [0, 0, 0], squareA = [0, 0, 0], squareB = [0, 0, 0], products = [0, 0, 0]
   let retained = 0
   for (let p = 0; p < a.length; p += 3) {
     const error = (Math.abs(a[p]! - b[p]!) + Math.abs(a[p + 1]! - b[p + 1]!) + Math.abs(a[p + 2]! - b[p + 2]!)) / 3
-    if (error > 8) continue // The existing coverage/bounds checks separately constrain annotation outliers.
+    if (matchedOnly && error > 8) continue // The existing coverage/bounds checks separately constrain annotation outliers.
     retained++
     for (let c = 0; c < 3; c++) {
       const x = a[p + c]!, y = b[p + c]!
@@ -181,8 +182,17 @@ function hasMatchingStructure(a: Float32Array, b: Float32Array): boolean {
     varianceB += squareB[c]! - sumB[c]! * sumB[c]! / retained
     covariance += products[c]! - sumA[c]! * sumB[c]! / retained
   }
-  return Math.min(varianceA, varianceB) >= retained * 3 * 8 ** 2
-    && covariance / Math.sqrt(varianceA * varianceB) >= 0.97
+  return Math.min(varianceA, varianceB) >= retained * 3 * variance
+    && covariance / Math.sqrt(varianceA * varianceB) >= correlation
+}
+
+function isUniform(samples: Float32Array): boolean {
+  for (let channel = 0; channel < 3; channel++) {
+    let min = Infinity, max = -Infinity
+    for (let p = channel; p < samples.length; p += 3) { min = Math.min(min, samples[p]!); max = Math.max(max, samples[p]!) }
+    if (max - min > 4) return false
+  }
+  return true
 }
 
 function measure(a: Float32Array, b: Float32Array, grid: number): Measurement {
@@ -211,10 +221,16 @@ function measure(a: Float32Array, b: Float32Array, grid: number): Measurement {
   const confirmed = distinctive && trimmed <= 2.7
     && ((fraction >= 0.965 && detailedFraction >= 0.91 && mean <= 3.4) || annotation)
     && hasMatchingStructure(a, b)
+  const uniform = isUniform(a) && isUniform(b)
   return {
-    mean, fraction, confirmed, annotation,
+    mean, fraction, confirmed, annotation, uniform,
     score: trimmed + (1 - fraction) * 10,
-    candidate: confirmed || (trimmed <= 7 && fraction >= 0.68 && (!distinctive || detailedFraction >= 0.50)),
+    // Similar paper/sky colours alone are not weak evidence of the same drawing.
+    // Use all cells here: looking only at matching cells would discard the very
+    // strokes that distinguish independent plans. Entire uniform placeholders
+    // remain ambiguous, but cannot lend their blankness to a crop search.
+    candidate: confirmed || (trimmed <= 7 && fraction >= 0.68 && (!distinctive || detailedFraction >= 0.50)
+      && (uniform || hasMatchingStructure(a, b, 0.5, 2 ** 2, false))),
   }
 }
 
@@ -258,7 +274,7 @@ function findCrop(source: Entry, target: Entry): CropMatch | undefined {
       candidate.bounds.width * source.raster.width, candidate.bounds.height * source.raster.height) / 3)))
     const measurement = measure(samples(source.raster, candidate.bounds, grid),
       grid === FINE_GRID ? target.samples : samples(target.raster, fullBounds, grid), grid)
-    if (!measurement.candidate) continue
+    if (!measurement.candidate || measurement.uniform) continue
     // Coarse cells can average unrelated thin lines into the same white field.
     // Before retaining a weak crop, use the detail still present in the source
     // raster; never upsample beyond it or promote this refinement to confirmation.

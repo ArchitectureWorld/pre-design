@@ -1,6 +1,7 @@
 import { afterEach, expect, it } from 'vitest'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
+import sharp from 'sharp'
 import { BUNDLED_CASE_STUDY_IMAGES } from '../src/report/case-studies/catalog-images.ts'
 import { VERIFIED_CASE_STUDIES } from '../src/report/case-studies/catalog.ts'
 import { tmpdir } from 'node:os'
@@ -74,15 +75,20 @@ it('leads the cover with the authored proposition and uses its caption without l
 it('renders authored paragraphs and editable comparison cells in HTML, print and PPTX', async () => {
   const root = await mkdtemp(join(tmpdir(), 'manuscript-projection-')); roots.push(root)
   const materials: ConditionalReportMaterial[] = []
-  for (const [index, page] of authoredInput.manuscript.chapters[0].pages.entries()) {
-    const bytes = await readFile(new URL(`./fixtures/golden-project/assets/concept-0${index + 1}.jpg`, import.meta.url))
-    const image = reportImageDimensions('image/jpeg', bytes), sourcePath = join(root, `fixture-${index}.jpg`)
+  const needs = planConditionalPages(createConditionalReportBundle(authoredInput, []), 'html').pages.flatMap(physical =>
+    (physical.regularLayout?.imageSlots ?? []).map(slot => ({ slot, pageId: physical.pagination?.sourcePageId ?? 'cover' })))
+  for (const [index, { slot, pageId }] of needs.entries()) {
+    const bytes = await sharp({ create: { width: Math.round(slot.targetAspectRatio * 900), height: 900, channels: 3,
+      background: { r: 60 + index * 37, g: 90 + index * 29, b: 75 + index * 19 } } }).png().toBuffer()
+    const image = reportImageDimensions('image/png', bytes), sourcePath = join(root, `fixture-${index}.png`)
     await writeFile(sourcePath, bytes)
     materials.push({
-    sourceKey: `fixture:${page.id}`, sourcePath, originalFileName: 'fixture.jpg', displayName: 'Renderer image fixture',
-    mimeType: 'image/jpeg', semanticRole: 'concept_visual', widthPx: image.width, heightPx: image.height,
+    sourceKey: `fixture:${slot.usageId}`, sourcePath, originalFileName: `fixture-${index}.png`, displayName: 'Renderer image fixture',
+    mimeType: 'image/png', semanticRole: 'concept_visual', widthPx: image.width, heightPx: image.height,
+    imageQuality: { requirement: { id: slot.usageId, version: 'fixture', pageId, conclusion: '共享校园',
+      subjects: ['校园'], activities: [], environment: '', scale: 'scene', allowedKinds: ['render'], allowedSources: ['generated'], locale: 'domestic' } },
     createdAt: input.generatedAt, adoptedAt: input.generatedAt, objectIds: [], evidenceIds: [], role: 'primary', pageBindingOnly: true,
-    pageBindings: [{ findingId: `manuscript:${page.id}`, role: 'primary' }],
+    pageBindings: [{ findingId: pageId === 'cover' ? 'report:cover' : `manuscript:${pageId}`, role: 'primary' }],
     origin: { type: 'generated_by_tool', sourceMaterialKeys: [], parentAssetKeys: [], method: 'renderer test fixture', sourceTool: null },
     sha256: createHash('sha256').update(bytes).digest('hex'),
     })

@@ -18,7 +18,7 @@ import { png, resize, scene } from './support/image-identity/fixtures.ts'
 const roots: string[] = []
 const route = { provider: 'fixture', model: 'fixture-vision' }
 const digest = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex')
-const imageBytes = png(resize(scene(7), 1600, 1200))
+const imageBytes = png(resize(scene(7), 1600, 900))
 const fullImage = `${REPORT_IMAGE_POLICY_VERSION}:full-original`
 
 afterEach(async () => {

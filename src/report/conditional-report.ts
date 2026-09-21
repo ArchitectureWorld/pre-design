@@ -1,4 +1,4 @@
-import type { ArtifactIdentity, ClientChapter, ClientChapterRole, ClientMedium, ClientPage, ClientPagePlan, ClientProduct, ClientReport, ClientVisualAsset } from './client-types.ts'
+import type { ArtifactIdentity, ClientChapter, ClientChapterRole, ClientEvidence, ClientMedium, ClientPage, ClientPagePlan, ClientProduct, ClientReport, ClientVisualAsset } from './client-types.ts'
 import { makeSourceIndex } from './manuscript/source.ts'
 import { paginatePlanningPage } from './planning-page-layout.ts'
 import { planRegularPages, assertRegularPagePlan } from './regular/plan.ts'
@@ -106,13 +106,14 @@ export function createConditionalReportBundle(input: FrozenProjectInput, materia
     for (const material of matched) {
       const ai = material.semanticRole === 'concept_visual'
       assets.push({ assetId: `a-${createHash('sha256').update(`${id}:${material.sourceKey}`).digest('hex').slice(0, 20)}`,
-        role: ai ? 'product-scene' : material.semanticRole === 'deterministic_visual' ? 'diagram' : 'site-photo', chapterId: id,
-        caption: page?.visual.caption ?? material.displayName, sourceKind: ai ? 'ai-concept' : material.semanticRole === 'source_evidence' || material.origin.type === 'source_material' ? 'project-source' : 'deterministic',
+        role: ai ? 'product-scene' : material.cartography ? 'map' : material.semanticRole === 'deterministic_visual' ? 'diagram' : 'site-photo', chapterId: id,
+        caption: page?.visual.caption ?? material.displayName, sourceKind: ai ? 'ai-concept' : material.semanticRole === 'source_evidence' || material.origin.type === 'source_material' || material.cartography && material.provenance ? 'project-source' : 'deterministic',
         sourcePath: material.sourcePath, sha256: material.sha256, width: material.widthPx ?? 1, height: material.heightPx ?? 1,
         ...(material.imageIdentity ? { imageIdentity: material.imageIdentity } : {}),
         ...(material.imageQuality ? { imageQuality: material.imageQuality } : {}),
+        ...(material.cartography ? { cartography: material.cartography, analysisKind: material.analysisKind, provenance: material.provenance } : {}),
         ...(material.physicalPlacement ? { physicalPlacement: material.physicalPlacement } : {}),
-        ...(material.semanticRole === 'source_evidence' ? { provenance: { sourceLabel: material.displayName, sourceDate: material.createdAt.slice(0, 10), locator: material.origin.method, sourceFileSha256: material.sha256, evidenceIds: material.evidenceIds } } : {}),
+        ...(material.semanticRole === 'source_evidence' && !material.provenance ? { provenance: { sourceLabel: material.displayName, sourceDate: material.createdAt.slice(0, 10), locator: material.origin.method, sourceFileSha256: material.sha256, evidenceIds: material.evidenceIds } } : {}),
         ...(material.pageBindings?.find(binding => binding.findingId === finding.findingId)?.nodeIds?.length
           ? { stageNodeIds: material.pageBindings.find(binding => binding.findingId === finding.findingId)!.nodeIds } : {}),
         ...(ai ? { disclosure: '概念示意' as const } : {}),
@@ -129,6 +130,11 @@ export function createConditionalReportBundle(input: FrozenProjectInput, materia
   if (scope) fullDetails.unshift({ title: scope.headline, entries: [CONDITIONAL_REPORT_NOTICE, boundary] })
   if (input.caseStudies) fullDetails.push({ title: '真实项目案例资料依据', entries: [caseStudyEvidenceMarkdown(input.caseStudies)] })
   const usedSources = new Set(findings.flatMap(finding => finding.manuscriptPage?.sourceRefs ?? []))
+  const manuscriptEvidence: ClientEvidence[] = [...makeSourceIndex(input), ...input.caseStudies ? caseStudySources(input.caseStudies) : []].filter(source => usedSources.has(source.id)).map(source => ({ evidenceId: source.id,
+    kind: 'assumption', statement: source.text, sourceLabel: source.basis || '项目策划资料', sourceDate: input.generatedAt.slice(0, 10),
+    locator: `${source.objectId}/${source.fieldPath}`, assumption: source.basis }))
+  const analysisEvidence = [...new Map(materials.flatMap(material => material.analysisEvidence ?? []).map(evidence => [evidence.evidenceId, evidence])).values()]
+  if (analysisEvidence.length) fullDetails.push({ title: '地域分析资料依据', entries: analysisEvidence.map(evidence => `${evidence.statement}\n${evidence.sourceLabel}｜${evidence.sourceDate}｜${evidence.locator}`) })
   const coreValue = findings.find(f => f.sectionKey === 'manuscript:positioning' || f.sectionKey === 'recommended-path')?.keyMessage ?? findings[0]?.keyMessage ?? CONDITIONAL_REPORT_NOTICE
   const report: ClientReport = {
     schemaVersion: 'preplan.client-report.v1',
@@ -137,9 +143,7 @@ export function createConditionalReportBundle(input: FrozenProjectInput, materia
     proposition: { projectDefinition: input.manuscript ? coreValue : `${display(input.projectName)}前期策划`, urgency: '项目价值 · 产品场景 · 实施路径',
       coreValue,
       positioning: '开发判断 · 业态定位 · 实施路径', keywords: ['项目价值', '产品场景', '实施路径'] },
-    chapters, products, evidence: [...makeSourceIndex(input), ...input.caseStudies ? caseStudySources(input.caseStudies) : []].filter(source => usedSources.has(source.id)).map(source => ({ evidenceId: source.id,
-      kind: 'assumption', statement: source.text, sourceLabel: source.basis || '项目策划资料', sourceDate: input.generatedAt.slice(0, 10),
-      locator: `${source.objectId}/${source.fieldPath}`, assumption: source.basis })), assets, theme: createClientTheme({}),
+    chapters, products, evidence: [...manuscriptEvidence, ...analysisEvidence], assets, theme: createClientTheme({}),
   }
   const bundle = freeze({ kind: 'conditional', publishable: false, [conditionalBrand]: true, report,
     identity: { projectId: input.projectId, sourceRevision: input.revision,

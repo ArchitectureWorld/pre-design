@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { expect, it } from 'vitest'
-import { ReportImagePipeline, type ReportImageDemand, type GeneratedReportImage } from '../src/presentation/report-image-pipeline.ts'
+import { ReportImagePipeline, reportImageDemands, type ReportImageDemand, type GeneratedReportImage } from '../src/presentation/report-image-pipeline.ts'
 import { imageBriefHash } from '../src/visual/image-policy.ts'
 import { imageSourceContextHash } from '../src/visual/image-inspection.ts'
 import { manuscriptSourceFingerprint } from '../src/report/manuscript/source.ts'
@@ -24,13 +24,24 @@ it('fills independent physical continuations despite a missing factual source an
       projectId: base.projectId, sourceRevision: 1, sourceFingerprint: manuscriptSourceFingerprint(base), generatedAt: 'fixture', title: '林间公园',
       chapters: [{ id: 'spatial', title: '游园体验', thesis: '林下休憩', pages: [{ id: 'walk', kind: 'argument', editorialSummary: true,
         title: '沿线服务与游园体验', claim: '让步行与休息构成连续的公共活动。',
-        body: Array.from({ length: 6 }, (_, i) => `第${i + 1}处林下座椅为游人提供休息空间，步道衔接各个活动场所，保持树荫覆盖的慢行环境。`),
-        notes: [], sourceRefs: [], visual: { kind: 'concept', subject: '林下座椅', purpose: '步行与休息', caption: '公共活动' } }] }] } }
+        task: { kind: 'scene', question: '沿线服务与游园体验', scale: 'scene', requiredEvidence: [], preferredTemplate: 'full-background' },
+        body: Array.from({ length: 24 }, (_, i) => `第${i + 1}处林下座椅为游人提供休息空间，步道衔接各个活动场所，保持树荫覆盖的慢行环境。`),
+        notes: [], sourceRefs: [], visual: { kind: 'concept', subject: '林下座椅', purpose: '步行与休息', caption: '公共活动' } }, {
+        id: 'missing-case', kind: 'evidence', title: '待补充的真实案例', claim: '需要原始案例图证明空间组织。', body: ['案例素材仍待补充。'], notes: [], sourceRefs: [],
+        visual: { kind: 'source', subject: '真实案例', purpose: '案例核验', caption: '真实案例', sourceMaterialKey: 'real-case-original' },
+      }] }] } }
     const saved = new Map<string, GeneratedReportImage>(), resolved: ReportImageDemand[] = [], generated: string[] = []
+    const fixedDemands = reportImageDemands(input)
+    const plannedContinuations = fixedDemands.filter(d => d.brief.id.startsWith('walk:continuation:'))
+    expect(plannedContinuations.length).toBeGreaterThan(0)
+    expect(generated).toEqual([])
     const make = async (demand: ReportImageDemand) => {
+      expect(fixedDemands.find(d => d.brief.id === demand.brief.id)?.slot).toEqual(demand.slot)
       generated.push(demand.brief.id)
-      const sourcePath = join(root, `image-${saved.size}.png`)
-      await writeFile(sourcePath, png(resize(scene(7 + saved.size * 137), 1600, 900)))
+      const index = generated.length - 1 // Reserve before concurrent mock writes complete.
+      const sourcePath = join(root, `image-${index}.png`)
+      const width = 1600, height = Math.round(width / demand.slot!.image.targetAspectRatio)
+      await writeFile(sourcePath, png(resize(scene(7 + index * 137), width, height)))
       const result: GeneratedReportImage = { material: { sourceKey: demand.brief.id, sourcePath, originalFileName: 'image.png',
         displayName: demand.brief.subjects.join('；'), mimeType: 'image/png', semanticRole: 'concept_visual', createdAt: 'fixture', adoptedAt: 'fixture',
         objectIds: [], evidenceIds: [], origin: { type: 'generated_by_plugin', parentAssetKeys: [], sourceMaterialKeys: [], sourceTool: null,
@@ -40,10 +51,8 @@ it('fills independent physical continuations despite a missing factual source an
     const pipeline = new ReportImagePipeline({ classes, candidates: async () => [],
       resolveDemands: async demands => {
         resolved.push(...demands)
-        if (!demands.some(d => d.brief.id === 'cover:main')) return demands
-        const original = demands.find(d => d.brief.pageId === 'walk')!
-        return [...demands, { ...original, findingId: 'missing-case', sourceMaterialKey: 'real-case-original',
-          brief: { ...original.brief, id: 'missing-case:main', pageId: 'missing-case', allowedSources: ['project'] } }]
+        expect(demands.map(d => d.brief.id)).toEqual(fixedDemands.map(d => d.brief.id))
+        return demands
       }, recover: async demand => saved.get(demand.brief.id), generate: make,
       inspection: { inspect: async (_parent: unknown, request: any) => request.slots.map((slot: any) => {
         const accepted = JSON.parse(request.sourceContext).usageId === slot.brief.id
@@ -57,7 +66,7 @@ it('fills independent physical continuations despite a missing factual source an
       }) } as never })
     await expect(pipeline.prepare(input, root, {} as never, AbortSignal.timeout(60000), () => {})).rejects.toThrow('REPORT_IMAGE_GAPS')
     const continuations = generated.filter(id => id.startsWith('walk:continuation:'))
-    expect(continuations.length).toBeGreaterThan(0)
+    expect([...continuations].sort()).toEqual(plannedContinuations.map(d => d.brief.id).sort())
     expect(new Set(generated).size).toBe(generated.length)
     const contexts = resolved.filter(d => continuations.includes(d.brief.id))
     expect(contexts.length).toBe(continuations.length)

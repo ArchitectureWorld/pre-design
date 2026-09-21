@@ -8,12 +8,13 @@ import type { FrozenProjectInput } from '../report/types.ts'
 import { manuscriptSourceFingerprint } from '../report/manuscript/source.ts'
 import { sceneRequirements } from '../report/manuscript/visual-scenes.ts'
 import { SCENE_SPEC_VERSION, sceneSpecContext, type SceneSpecContext } from '../report/manuscript/scene-spec.ts'
-import { allowsAnalyticalSourceText } from '../report/regular/analytical-table.ts'
+import { inferPlanningPageTask, isGeographicTask } from '../report/manuscript/content-plan.ts'
 import { compileClientReportOutline } from './projector/client-outline.ts'
 import type { PresentationAdoptedAssetInput } from './standard-project-types.ts'
 import { createConditionalReportBundle, planConditionalPages, type ConditionalReportMaterial } from '../report/conditional-report.ts'
 import { auditRegularVisuals, assertRegularVisuals } from '../report/regular/visual-audit.ts'
-import { regularImageGeometry, REGULAR_LAYOUT_VERSION } from '../report/regular/layout.ts'
+import { canBindRegularImage, regularImageGeometry, REGULAR_LAYOUT_VERSION, type RegularImageSlot, type RegularLayout } from '../report/regular/layout.ts'
+import type { PlanningAnalysisKind } from '../report/cartography/types.ts'
 import { caseStudyPhotos } from '../report/case-studies/pages.ts'
 import { allocateReportImages, type ReviewedImageCandidate } from './report-image-allocation.ts'
 import { ImageIdentityIndex } from '../visual/image-identity.ts'
@@ -30,15 +31,25 @@ export interface ReportImageDemand {
   readonly brief: ImageSlotBrief; readonly findingId: string; readonly sceneKey?: string; readonly sourceMaterialKey?: string
   readonly unavailableReason?: string
   readonly sceneContext?: SceneSpecContext
+  readonly analysis?: { readonly kind: PlanningAnalysisKind; readonly title: string; readonly scale?: 'regional' | 'city' | 'site' | 'node' | 'scene'; readonly requiredEvidence: readonly string[] }
+  readonly slot?: { readonly physicalPageId: string; readonly layout: RegularLayout; readonly image: RegularImageSlot }
   readonly caseSource?: { readonly caseId: string; readonly name: string; readonly location: string; readonly mediaPurpose: string; readonly publicationSources?: readonly CasePublicationSource[] }
 }
-export function reportImageDemands(input: FrozenProjectInput): ReportImageDemand[] {
+function reportBaseImageDemands(input: FrozenProjectInput): ReportImageDemand[] {
   const scenes = sceneRequirements(input), locale = permitsInternationalImages(input) ? 'international' : 'domestic'
   const demands: ReportImageDemand[] = [], casePhotos = input.caseStudies ? caseStudyPhotos(input.caseStudies) : []
   for (const finding of compileClientReportOutline(input)) {
     const page = finding.manuscriptPage
     if (!page) continue
     const sourcePage = input.manuscript?.chapters.flatMap(chapter => chapter.pages).find(original => original.id === page.id) ?? page
+    const task = inferPlanningPageTask(page)
+    if (isGeographicTask(task)) {
+      demands.push({ findingId: finding.findingId, analysis: { kind: task.kind as PlanningAnalysisKind, title: page.title, scale: task.scale, requiredEvidence: task.requiredEvidence },
+        brief: { id: `${page.id}:main`, pageId: page.id, version: REPORT_IMAGE_POLICY_VERSION, conclusion: page.claim,
+          subjects: ['项目位置', '周边城镇与道路'], activities: ['真实区位与空间关系'], environment: page.title, scale: 'area',
+          allowedKinds: ['map', 'plan'], allowedSources: ['project'], locale } })
+      continue
+    }
     const matches = scenes.filter(scene => scene.brief.pageId === page.id)
     if (matches.length) { demands.push(...matches.map(scene => ({ brief: scene.brief, findingId: finding.findingId, sceneKey: scene.sceneKey,
       sceneContext: sceneSpecContext(sourcePage, scene.brief.id, scene.brief.nodeId) }))); continue }
@@ -64,6 +75,31 @@ export function reportImageDemands(input: FrozenProjectInput): ReportImageDemand
     subjects: [coverScene], activities: [input.recommendation], environment: input.projectName, scale: 'area',
     allowedKinds: ['photo','render'], allowedSources: ['project','web','generated'], locale } })
   return demands
+}
+/** All physical slots are fixed from text/tasks before the first model or image request. */
+export function reportImageDemands(input: FrozenProjectInput): ReportImageDemand[] {
+  const base = reportBaseImageDemands(input)
+  if (!input.manuscript) return base
+  const plan = planConditionalPages(createConditionalReportBundle(input, []), 'html'), result: ReportImageDemand[] = []
+  for (const page of plan.pages) for (const slot of page.regularLayout?.imageSlots ?? []) {
+    const pageId = page.pagination?.sourcePageId ?? 'cover'
+    const original = base.find(demand => demand.brief.id === slot.usageId)
+      ?? base.find(demand => demand.brief.pageId === pageId && !demand.brief.nodeId)
+      ?? base.find(demand => demand.brief.pageId === pageId)
+    if (!original) throw new Error(`REPORT_IMAGE_SLOT_WITHOUT_TASK: ${slot.usageId}`)
+    const geometry = { physicalPageId: page.pageId, layout: page.regularLayout!, image: slot }
+    if (original.brief.id === slot.usageId) { result.push({ ...original, slot: geometry }); continue }
+    const { nodeId: _node, sceneGrounding: _grounding, ...brief } = original.brief
+    const content = page.planningContent!
+    const scene = !original.analysis && !original.caseSource && !original.sourceMaterialKey && brief.allowedSources.includes('generated')
+    const scope = scene && (page.pagination?.partIndex ?? 0) > 0 ? 'physical-continuation' : undefined
+    const context = scene ? sceneSpecContext(content, slot.usageId, slot.nodeId, scope) : undefined
+    result.push({ ...original, slot: geometry, sceneContext: context, brief: { ...brief, id: slot.usageId,
+      ...(slot.nodeId ? { nodeId: slot.nodeId } : {}), conclusion: content.claim,
+      subjects: scope ? context!.sources.filter(source => source.path.startsWith('body[') || source.path.startsWith('table.rows[')).slice(0, 6).map(source => source.text) : brief.subjects,
+      activities: scope ? [] : brief.activities, environment: content.title } })
+  }
+  return result
 }
 function fingerprint(input: FrozenProjectInput) { return sha(JSON.stringify({ policy: REPORT_IMAGE_POLICY_VERSION, scenePolicy: SCENE_SPEC_VERSION, source: manuscriptSourceFingerprint(input),
   caseStudies: input.caseStudies?.caseStudiesFingerprint, demands: reportImageDemands(input) })) }
@@ -111,6 +147,7 @@ interface PipelineDependencies {
   readonly reportIssues?: (parent: Agent, signal: AbortSignal, message: string) => Promise<void>
   readonly resolveDemands?: (demands: readonly ReportImageDemand[], parent: Agent, signal: AbortSignal, input: FrozenProjectInput, root: string) => Promise<readonly ReportImageDemand[]>
   readonly candidates: (input: FrozenProjectInput, root: string, signal: AbortSignal) => Promise<readonly PresentationAdoptedAssetInput[]>
+  readonly analysis?: (demand: ReportImageDemand, input: FrozenProjectInput, root: string, signal: AbortSignal) => Promise<readonly PresentationAdoptedAssetInput[]>
   readonly search?: (demand: ReportImageDemand, parent: Agent, signal: AbortSignal, input: FrozenProjectInput, root: string) => Promise<readonly PresentationAdoptedAssetInput[]>
   readonly recover?: (demand: ReportImageDemand, parent: Agent, signal: AbortSignal, input: FrozenProjectInput, root: string) => Promise<GeneratedReportImage | undefined>
   readonly generate?: (demand: ReportImageDemand, parent: Agent, signal: AbortSignal, input: FrozenProjectInput, root: string, options?: ReportImageGenerationOptions) => Promise<GeneratedReportImage>
@@ -159,21 +196,10 @@ export class ReportImagePipeline {
     const initialDemands = reportImageDemands(input)
     const directory = join(root, '.pre-design'), attempts = join(directory, 'image-review-attempts')
     await mkdir(attempts, { recursive: true })
-    const continuationPath = join(directory, 'report-image-continuations.json')
-    const continuationFingerprint = sha(JSON.stringify([fingerprint(input), REGULAR_LAYOUT_VERSION, 'physical-continuations-v2-body-scoped']))
-    const continuationInputs: ReportImageDemand[] = []
-    try {
-      const saved = JSON.parse(await readFile(continuationPath, 'utf8'))
-      if (saved.fingerprint === continuationFingerprint && Array.isArray(saved.demands)) {
-        for (const demand of saved.demands as ReportImageDemand[]) if (demand.brief.id.startsWith(`${demand.brief.pageId}:continuation:`)
-          && !(demand.sceneContext?.scope === 'physical-continuation' && !demand.caseSource && !demand.sourceMaterialKey
-            && allowsAnalyticalSourceText(demand.sceneContext.sources))
-          && !continuationInputs.some(previous => previous.brief.id === demand.brief.id)) continuationInputs.push(demand)
-      }
-    } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error }
-    const continuationIds = new Set(continuationInputs.map(demand => demand.brief.id))
-    const capacityPage = (brief: ImageSlotBrief) => continuationIds.has(brief.id) ? JSON.stringify(['continuation', brief.pageId, brief.id]) : brief.pageId
-    const resolvedDemands = [...(await this.dependencies.resolveDemands?.([...initialDemands, ...continuationInputs], parent, signal, input, root) ?? [...initialDemands, ...continuationInputs])]
+    const capacityPage = (brief: ImageSlotBrief) => initialDemands.find(demand => demand.brief.id === brief.id)?.slot?.physicalPageId ?? brief.pageId
+    await atomicJson(join(directory, 'report-page-plan.json'), { version: REGULAR_LAYOUT_VERSION, fingerprint: fingerprint(input),
+      slots: initialDemands.map(demand => ({ usageId: demand.brief.id, pageId: capacityPage(demand.brief), slot: demand.slot?.image, analysis: demand.analysis })) })
+    const resolvedDemands = [...(await this.dependencies.resolveDemands?.(initialDemands, parent, signal, input, root) ?? initialDemands)]
       .sort((a,b) => Number(!!b.sourceMaterialKey) - Number(!!a.sourceMaterialKey) || a.brief.id.localeCompare(b.brief.id))
     const demands = resolvedDemands.filter(demand => !demand.unavailableReason)
     assertCurrent(); signal.throwIfAborted()
@@ -237,6 +263,12 @@ export class ReportImagePipeline {
     }
     try { await ingest(await this.dependencies.candidates(input, root, signal)) }
     catch (error) { await recordError('candidates', [], error) }
+    for (const demand of demands.filter(demand => demand.analysis)) {
+      try {
+        if (!this.dependencies.analysis) throw new Error('REPORT_ANALYSIS_PROVIDER_REQUIRED')
+        await ingest(await this.dependencies.analysis(demand, input, root, signal))
+      } catch (error) { await recordError('analysis', [demand.brief.id], error) }
+    }
     const unavailable = resolvedDemands.filter(demand => demand.unavailableReason)
       .map(demand => ({ id: demand.brief.id, reason: demand.unavailableReason! }))
     const gaps: { id: string; reason: string }[] = [...unavailable]
@@ -288,7 +320,13 @@ export class ReportImagePipeline {
         imageQuality: { ...asset.imageQuality, contentKind: inspection.contentKind, essentialBounds: inspection.essentialBounds, requirement: demand.brief, inspection },
       } })
     }
-    const allocation = () => allocateReportImages(demands.map(d => d.brief), reviewed,
+    const allocation = () => allocateReportImages(demands.map(d => d.brief), reviewed.filter(candidate => {
+      const demand = demands.find(demand => demand.brief.id === candidate.usageId), slot = demand?.slot, material = candidate.material
+      if (!slot) return true
+      return canBindRegularImage(slot.layout, slot.image, { assetId: material.sourceKey, role: material.semanticRole === 'concept_visual' ? 'product-scene' : 'site-photo',
+        sourceKind: material.semanticRole === 'concept_visual' ? 'ai-concept' : 'project-source', chapterId: '', caption: '', sourcePath: material.sourcePath,
+        sha256: material.imageIdentity!.fileSha256, width: material.widthPx!, height: material.heightPx!, imageQuality: material.imageQuality, imageIdentity: material.imageIdentity })
+    }),
       { physicalPageIds: Object.fromEntries(demands.map(demand => [demand.brief.id, capacityPage(demand.brief)])) })
     const acquisitionTargets = new Map<string, Set<string>>(), acquisitionWindows = new Map<string, Set<string>>()
     const requestedFor = (asset: ConditionalReportMaterial, demand: ReportImageDemand) => acquisitionTargets.get(asset.sourceKey)?.has(demand.brief.id) === true
@@ -579,46 +617,7 @@ export class ReportImagePipeline {
     }
     const selectedMaterials = () => allocation().assigned.map(c => ({ ...c.material, sha256: c.material.imageIdentity!.fileSha256 }))
     await replenish()
-    let materials: ConditionalReportMaterial[] = selectedMaterials()
-    // Page overflow is resolved through actual layout, never by duplicating a background.
-    for (; input.manuscript && input.stateObjects.length > 0;) {
-      const bundle = createConditionalReportBundle(input, materials), plan = planConditionalPages(bundle, 'html')
-      const missing = auditRegularVisuals(plan, bundle.report).materialGaps
-      const discovered: ReportImageDemand[] = []
-      for (const gap of missing) {
-        if (gap.reason !== 'continuation-image-required') continue
-        const physical = plan.pages.find(page => page.pageId === gap.physicalPageId)
-        // A missing original table/scene is already an initial demand. Only
-        // actual later pages may create an independent continuation request.
-        if (!physical?.planningContent || !physical.pagination || physical.pagination.partIndex < 1) continue
-        const pageId = physical.pagination.sourcePageId, id = `${pageId}:continuation:${physical.pagination.partIndex}`
-        if ([...continuationInputs, ...discovered].some(demand => demand.brief.id === id)) continue
-        const base = initialDemands.find(d => d.brief.pageId === pageId && !d.brief.nodeId) ?? initialDemands.find(d => d.brief.pageId === pageId)
-        if (!base) continue
-        const content = physical.planningContent
-        const { nodeId: _node, sceneGrounding: _grounding, ...brief } = base.brief
-        const authoredScene = !base.caseSource && !base.sourceMaterialKey && brief.allowedSources.includes('generated')
-          && brief.allowedKinds.every(kind => kind === 'photo' || kind === 'render')
-        const sceneContext = sceneSpecContext(content, id, undefined, authoredScene ? 'physical-continuation' : undefined)
-        discovered.push({ ...base, sceneContext, brief: { ...brief, id,
-          conclusion: content.claim, subjects: authoredScene ? sceneContext.sources.filter(source => source.path.startsWith('body[')
-            || source.path.startsWith('table.rows[')).slice(0, 6).map(source => source.text) : [content.visual.subject],
-          activities: authoredScene ? [] : [content.visual.purpose], environment: content.title,
-        } })
-      }
-      if (!discovered.length) break
-      // Freeze the actual continuation prose before images change pagination.
-      // A resumed export recovers the same request rather than a new scene.
-      continuationInputs.push(...discovered)
-      for (const demand of discovered) continuationIds.add(demand.brief.id)
-      await atomicJson(continuationPath, { fingerprint: continuationFingerprint, demands: continuationInputs })
-      const resolved = await this.dependencies.resolveDemands?.(discovered, parent, signal, input, root) ?? discovered
-      for (const demand of resolved) {
-        if (demand.unavailableReason) { unavailable.push({ id: demand.brief.id, reason: demand.unavailableReason }); await recordError('scene', [demand.brief.id], demand.unavailableReason) }
-        else demands.push(demand)
-      }
-      await replenish(); materials = selectedMaterials()
-    }
+    const materials: ConditionalReportMaterial[] = selectedMaterials()
     refreshGaps()
     if (gaps.length) { await saveGaps(); throw new Error(`REPORT_IMAGE_GAPS: ${gaps.length} 个位置待补充合格素材；已处理其余可执行任务，详见资料缺口记录。${errors.length ? ` ${errors.length} 项错误：${[...new Set(errors.map(error => error.message))].slice(0, 3).join('；')}` : ''}`) }
     const bundle = createConditionalReportBundle(input, materials), plan = planConditionalPages(bundle, 'html'), placed: ConditionalReportMaterial[] = []

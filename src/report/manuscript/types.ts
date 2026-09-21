@@ -5,6 +5,16 @@ export const PLANNING_CHAPTER_IDS = ['opportunity', 'site', 'positioning', 'prod
 export type PlanningChapterId = typeof PLANNING_CHAPTER_IDS[number]
 export type PlanningManuscriptPageKind = 'argument' | 'evidence' | 'comparison' | 'product' | 'spatial' | 'delivery' | 'financial'
 
+/** The question a presentation page must answer, before choosing its imagery. */
+export interface PlanningPageTask {
+  readonly kind: 'scene' | 'regional-context' | 'accessibility' | 'audience-catchment' | 'competitor-distribution' | 'site-analysis' | 'process' | 'comparison' | 'financial' | 'divider'
+  readonly question: string
+  readonly scale: 'regional' | 'city' | 'site' | 'node' | 'scene'
+  readonly requiredEvidence: readonly string[]
+  readonly imageCount?: number
+  readonly preferredTemplate?: 'full-background' | 'split-left' | 'split-right' | 'split-top' | 'split-bottom' | 'array-horizontal' | 'array-vertical' | 'map-analysis' | 'data'
+}
+
 export interface PlanningManuscriptSource {
   readonly id: string
   readonly objectId: string
@@ -28,6 +38,7 @@ export interface PlanningManuscriptDiagram {
 export interface PlanningManuscriptPage {
   /** A derived client summary; complete authored content remains in source notes. */
   readonly editorialSummary?: true
+  readonly task?: PlanningPageTask
   readonly id: string
   readonly kind: PlanningManuscriptPageKind
   readonly title: string

@@ -845,9 +845,16 @@ function validateRegularPageContent(plan: ClientPagePlan, report: ClientReport):
   const comparable = (value: string) => value.replace(/\s+/gu, '')
   const used = new Set(plan.pages.flatMap(page => page.assetIds))
   for (const asset of report.assets) {
-    if (!used.has(asset.assetId)) violations.push(violation('REGULAR_ASSET_UNPLACED', 'assets', `unplaced image ${asset.assetId}`))
+    // The inventory may contain alternatives and the original before a verified
+    // physical override. Only explicitly committed physical assignments must be used.
+    if (asset.physicalPlacement && !used.has(asset.assetId)) violations.push(violation('REGULAR_ASSET_UNPLACED', 'assets', `unplaced image ${asset.assetId}`))
   }
   for (const page of plan.pages) {
+    for (const slot of page.regularLayout?.imageSlots ?? []) {
+      if (!page.regularLayout?.media.some(media => media.usageId === slot.usageId && page.assetIds.includes(media.assetId))) {
+        violations.push(violation('REGULAR_IMAGE_SLOT_UNFILLED', page.pageId, `unfilled image slot ${slot.usageId}`))
+      }
+    }
     for (const text of page.regularLayout?.texts ?? []) {
       if ((text.role === 'title' && text.size < 24) || ((text.role === 'body' || text.role === 'claim') && text.size < 14)) {
         violations.push(violation('LAYOUT_CONTRACT_INVALID', page.pageId, 'regular page type is below the client minimum'))
@@ -868,10 +875,8 @@ function validateRegularPageContent(plan: ClientPagePlan, report: ClientReport):
         || comparable(page.regularLayout?.texts.find(text => text.role === 'claim')?.text ?? '') !== comparable(source.claim))) {
       violations.push(violation('REGULAR_COPY_INCOMPLETE', chapter.id, 'page copy must be preserved across continuation pages'))
     }
-    const bound = report.assets.filter(asset => asset.chapterId === chapter.id)
-    if (bound.some(asset => !pages.some(page => page.assetIds.includes(asset.assetId)))) {
-      violations.push(violation('REGULAR_ASSET_UNPLACED', chapter.id, 'each bound image must be placed on its authored page'))
-    }
+    // Image coverage is checked against fixed slots by the visual audit. Extra
+    // inventory images cannot force new pages or silently change the page plan.
     const tables = pages.flatMap(page => page.regularLayout?.table ? [page.regularLayout.table] : [])
     if (source.table) {
       const original = source.table

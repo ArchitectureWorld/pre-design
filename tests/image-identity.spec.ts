@@ -6,6 +6,43 @@ import { ImageIdentityIndex, type ImageIdentityInput } from '../src/visual/image
 import { annotated, crop, jpeg, noise, png, resize, scene, solid } from './support/image-identity/fixtures.ts'
 
 describe('decoded original image identity', () => {
+  it('does not mistake shared white paper in different drawings for a crop or a resized original', () => {
+    const drawing = (kind: number) => {
+      const width = 512, height = 384, data = Buffer.alloc(width * height * 4, 255)
+      const line = (x: number, y: number, value = 160) => {
+        if (x < 0 || y < 0 || x >= width || y >= height) return
+        const p = (Math.floor(y) * width + Math.floor(x)) * 4
+        data[p] = data[p + 1] = data[p + 2] = value
+      }
+      if (kind === 0) {
+        // Sparse site contours on white paper, with generous margins.
+        for (let band = 0; band < 7; band++) for (let x = 24; x < 460; x++)
+          line(x, 80 + band * 22 + 32 * Math.sin(x / 74 + band / 3))
+      } else {
+        // Independent room arrangements with the same white background.
+        for (let room = 0; room < 4; room++) {
+          const left = 35 + room * 92, top = 40 + (room % 2) * 30 + kind * 21
+          for (let x = left; x < left + 73; x++) for (let d = 0; d < 3; d++) {
+            line(x, top + d, 70); line(x, top + 145 + d, 70)
+          }
+          for (let y = top; y < top + 145; y++) for (let d = 0; d < 3; d++) {
+            line(left + d, y, 70); line(left + 73 + d, y, 70)
+          }
+        }
+      }
+      return { width, height, data }
+    }
+    const index = new ImageIdentityIndex(), site = drawing(0), plan = drawing(1)
+    const first = index.identify({ bytes: png(site), mimeType: 'image/png' })
+    const second = index.identify({ bytes: png(plan), mimeType: 'image/png' })
+    expect(first.status).toBe('identified')
+    expect(second.status).toBe('identified')
+    expect(second.identity?.originalId).not.toBe(first.identity?.originalId)
+    const resized = index.identify({ bytes: jpeg(resize(plan, 768, 576), 92), mimeType: 'image/jpeg' })
+    expect(resized.status).toBe('identified')
+    expect(resized.identity?.originalId).toBe(second.identity?.originalId)
+  })
+
   it('keeps recognizing new originals and old derivatives after more than 256 retained references', async () => {
     const index = new ImageIdentityIndex(), bytes = jpeg(scene(7, 128, 96)), signal = AbortSignal.timeout(20000)
     const original = await index.identifyAsync({ bytes, mimeType: 'image/jpeg' }, signal)
@@ -193,6 +230,16 @@ describe('decoded original image identity', () => {
     expect(candidate.identity).toBeUndefined()
     expect(candidate.candidates).toHaveLength(1)
     expect(candidate.candidates[0]?.confirmed).toBe(false)
+  })
+
+  it('still holds a structurally matching but unconfirmed tonal change for review', () => {
+    const index = new ImageIdentityIndex(), raster = scene(), changed = { ...raster, data: Buffer.from(raster.data) }
+    for (let p = 0; p < changed.data.length; p++) if (p % 4 !== 3) changed.data[p] = Math.min(255, changed.data[p]! + 5)
+    index.identify({ bytes: png(raster), mimeType: 'image/png' })
+    const candidate = index.identify({ bytes: png(changed), mimeType: 'image/png' })
+    expect(candidate.status).toBe('ambiguous')
+    expect(candidate.reason).toBe('similarity-requires-review')
+    expect(candidate.candidates.some(match => !match.confirmed)).toBe(true)
   })
 
   it.each([[1024, 768], [768, 1024]])('never confirms independent %i by %i noise images from their near-identical area averages', (width, height) => {

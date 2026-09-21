@@ -58,6 +58,7 @@ import { registerPreplanningExecutionGuard } from './runtime/preplanning-executi
 import { registerAgentClassRoute, type AgentClassRegistrar } from './agent-classes/route.ts'
 import { registerWorkspaceOpenRoute, type WorkspaceOpenRegistrar } from './workspace/open-workspace-route.ts'
 import { PlanningManuscriptService, PlanningManuscriptEditor } from './report/manuscript/index.ts'
+import { ReportContentPlanner } from './report/manuscript/content-planner.ts'
 import { prepareCaseStudies } from './report/case-studies/index.ts'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 
@@ -203,12 +204,13 @@ export async function apply(ctx: Context): Promise<void> {
   const manuscriptConcurrency = () => agentClasses.settings().routes.text?.provider === 'workdubbyAI' ? 2 : 5
   const manuscriptEditor = new PlanningManuscriptEditor({ subagents: ctx.subagents, agentClasses, now, maxConcurrency: manuscriptConcurrency })
   const manuscripts = new PlanningManuscriptService({ subagents: ctx.subagents, agentClasses, now, maxConcurrency: manuscriptConcurrency, editor: manuscriptEditor })
+  const reportContentPlanner = new ReportContentPlanner({ subagents: ctx.subagents, agentClasses })
   const frozenProjectSource = async (projectId: string, revision: number) => {
     const input = createFrozenProjectInput(projectId, revision, { repository, governance, registry, visualStore })
     const binding = standardProjects.findByPreDesignProjectId(projectId)
     const root = binding?.workspaceRoot ?? binding?.directoryRoot
     const manuscript = root ? await manuscripts.load(input, root) : undefined
-    return manuscript ? { ...input, manuscript, caseStudies: await prepareCaseStudies(input, root) } : input
+    return manuscript ? { ...input, manuscript: await reportContentPlanner.load(manuscript, root!) ?? manuscript, caseStudies: await prepareCaseStudies(input, root) } : input
   }
   const prepareManuscript = async (projectId: string, revision: number, agent: Agent, signal: AbortSignal) => {
     const binding = standardProjects.findByPreDesignProjectId(projectId)
@@ -220,7 +222,8 @@ export async function apply(ctx: Context): Promise<void> {
       if (governance.readProject(projectId).policy?.mode === 'automatic') automation.requireValid(projectId, revision)
     }
     assertCurrent()
-    await manuscripts.prepare(await frozenProjectSource(projectId, revision), root, agent, signal, assertCurrent)
+    const manuscript = await manuscripts.prepare(await frozenProjectSource(projectId, revision), root, agent, signal, assertCurrent)
+    await reportContentPlanner.prepare(manuscript, root, agent, signal, assertCurrent)
   }
   const presentationSync = new PresentationAutoSyncService({
     repository,

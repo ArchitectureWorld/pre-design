@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { inflateRawSync } from 'node:zlib'
+import sharp from 'sharp'
 import { createStandardFrozenProject } from './presentation-standard-fixture.ts'
 import { createConditionalReportBundle, planConditionalPages, type ConditionalReportMaterial } from '../src/report/conditional-report.ts'
 import { paginatePlanningPage } from '../src/report/planning-page-layout.ts'
@@ -53,26 +54,32 @@ function geometry(xml: string) {
 }
 async function exportPage(page: PlanningManuscriptPage, withImage = true) {
   const root = await mkdtemp(join(tmpdir(), 'planning-page-layout-')); roots.push(root)
+  const snapshot = { ...input, manuscript: { schemaVersion: 'pre-design.planning-manuscript.v1' as const, policyVersion: 'test',
+    projectId: input.projectId, sourceRevision: input.revision, sourceFingerprint: 'test', generatedAt: input.generatedAt, title: '项目汇报',
+    chapters: [{ id: 'products' as const, title: '产品策划', thesis: '组织游览', pages: [page] }] } }
+  const needs = planConditionalPages(createConditionalReportBundle(snapshot, []), 'pptx').pages.flatMap(physical =>
+    (physical.regularLayout?.imageSlots ?? []).map(slot => ({ slot, pageId: physical.pagination?.sourcePageId ?? 'cover' })))
   const materials: ConditionalReportMaterial[] = []
-  if (withImage) for (let index = 0; index < 8; index++) {
-    const imagePath = join(root, `concept-${index}.jpg`)
-    const bytes = await readFile(new URL(`./fixtures/golden-project/assets/concept-0${index + 1}.jpg`, import.meta.url))
-    const dimensions = reportImageDimensions('image/jpeg', bytes)
+  if (withImage) for (const [index, { slot, pageId }] of needs.entries()) {
+    const imagePath = join(root, `concept-${index}.png`)
+    // Supplying a slot-compatible raster is part of the fixture. Arbitrary
+    // gallery counts and ratios must no longer control physical pagination.
+    const bytes = await sharp({ create: { width: Math.round(slot.targetAspectRatio * 900), height: 900, channels: 3,
+      background: { r: 60 + index * 13 % 180, g: 90 + index * 17 % 160, b: 75 + index * 23 % 160 } } }).png().toBuffer()
+    const dimensions = reportImageDimensions('image/png', bytes)
     await writeFile(imagePath, bytes)
     materials.push({
-      sourceKey: `planning-test-concept-${index}`, sourcePath: imagePath, originalFileName: `concept-${index}.jpg`, displayName: '场景测试图', mimeType: 'image/jpeg',
-      ...(index ? { imageQuality: { requirement: { id: `${page.id}:continuation:${index}`, version: 'fixture', pageId: page.id, conclusion: page.claim,
-        subjects: [page.visual.subject], activities: [], environment: '', scale: 'scene' as const, allowedKinds: ['render' as const], allowedSources: ['generated' as const], locale: 'domestic' as const } } } : {}),
+      sourceKey: `planning-test-concept-${index}`, sourcePath: imagePath, originalFileName: `concept-${index}.png`, displayName: '场景测试图', mimeType: 'image/png',
+      imageQuality: { requirement: { id: slot.usageId, version: 'fixture', pageId, conclusion: page.claim,
+        subjects: [page.visual.subject], activities: [], environment: '', scale: 'scene' as const, allowedKinds: ['render' as const], allowedSources: ['generated' as const], locale: 'domestic' as const } },
       semanticRole: 'concept_visual', widthPx: dimensions.width, heightPx: dimensions.height, createdAt: input.generatedAt, adoptedAt: input.generatedAt,
       objectIds: [], evidenceIds: [], role: 'primary', pageBindingOnly: true,
-      pageBindings: [{ findingId: `manuscript:${page.id}`, role: 'primary' }],
+      pageBindings: [{ findingId: pageId === 'cover' ? 'report:cover' : `manuscript:${pageId}`, role: 'primary' }],
       origin: { type: 'generated_by_tool', sourceMaterialKeys: [], parentAssetKeys: [], method: 'concept', sourceTool: null },
       sha256: createHash('sha256').update(bytes).digest('hex'),
     })
   }
-  const bundle = createConditionalReportBundle({ ...input, manuscript: { schemaVersion: 'pre-design.planning-manuscript.v1', policyVersion: 'test',
-    projectId: input.projectId, sourceRevision: input.revision, sourceFingerprint: 'test', generatedAt: input.generatedAt, title: '项目汇报',
-    chapters: [{ id: 'products', title: '产品策划', thesis: '组织游览', pages: [page] }] } }, materials)
+  const bundle = createConditionalReportBundle(snapshot, materials)
   const plan = planConditionalPages(bundle, 'pptx'), path = join(root, 'report.pptx')
   await renderPptx({ report: bundle.report, identity: bundle.identity, plan }, path)
   return { plan, slides: slideXml(await readFile(path)) }

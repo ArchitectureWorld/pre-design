@@ -27,10 +27,10 @@ describe('general visual report layout', () => {
   })
   it('keeps tables with imagery and does not insert a repeating prose page', () => {
     const p = summarizeReportPage({ ...page, table: { columns: ['场景', '做法'], rows: [['展厅', '保留构架'], ['户外', '连接公共空间']] } })
-    const parts = planRegularManuscriptPage(p, '展陈组织', [photo('p')], 0)
+    const parts = planRegularManuscriptPage(p, '展陈组织', [{ ...photo('p'), width: 960, height: 1800 }], 0)
     expect(parts).toHaveLength(1)
     expect(parts[0]!.layout.table?.rows).toHaveLength(2)
-    expect(parts[0]!.layout.media[0]!.box.w).toBeGreaterThan(4)
+    expect(parts[0]!.layout.media[0]!.box.w * parts[0]!.layout.media[0]!.box.h).toBeGreaterThanOrEqual(20)
     expect(parts[0]!.content.body).toContain('开放路线与检修区域分开组织。')
   })
   it('matches photos to individual stages and lays the array against a canvas edge', () => {
@@ -72,7 +72,7 @@ describe('general visual report layout', () => {
     const body = Array.from({ length: 12 }, (_, i) => `潮汐条件${i + 1}：涨潮时关闭临水步道，平台开放范围根据当日水位调整。`)
     const rows = Array.from({ length: 9 }, (_, i) => [`场所${i + 1}`, `潮位达到${i + 1}.5米时切换为高位路线。`])
     const p = summarizeReportPage({ ...page, title: '滨海游览的开放组织', body, table: { columns: ['场所', '开放条件'], rows } })
-    const parts = planRegularManuscriptPage(p, '滨海公共空间', [photo('shore')], 0)
+    const parts = planRegularManuscriptPage(p, '滨海公共空间', [{ ...photo('shore'), width: 960, height: 1800 }], 0)
     expect(parts.length).toBeGreaterThan(1)
     expect(parts.flatMap(part => part.layout.media).map(media => media.assetId)).toEqual(['shore'])
     expect(parts.slice(1).every(part => part.layout.materialGaps?.some(gap => gap.reason === 'continuation-image-required'))).toBe(true)

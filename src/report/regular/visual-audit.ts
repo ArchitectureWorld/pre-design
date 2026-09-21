@@ -93,6 +93,7 @@ export function auditRegularVisuals(plan: ClientPagePlan, report: ClientReport, 
   const missingStages: { pageId: string; nodeId: string }[] = []
   for (const chapter of report.chapters) for (const block of chapter.blocks) {
     if (block.type !== 'planning-page' || !block.page.visual.diagram) continue
+    if (block.page.task && ['regional-context', 'accessibility', 'audience-catchment', 'competitor-distribution', 'site-analysis'].includes(block.page.task.kind)) continue
     for (const node of block.page.visual.diagram.nodes) {
       // Node IDs are local to the authored page, including its physical continuations.
       const shown = plan.pages.filter(page => page.chapterId === chapter.id

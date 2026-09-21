@@ -2,9 +2,9 @@ import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import type { ClientPagePlan, ClientReport, ClientVisualAsset } from '../src/report/client-types.ts'
 import type { PlanningManuscriptPage } from '../src/report/manuscript/types.ts'
-import { planRegularManuscriptPage, regularImageGeometry, REGULAR_CANVAS } from '../src/report/regular/layout.ts'
+import { planRegularManuscriptPage, regularImageGeometry, regularInspectionProblem, REGULAR_CANVAS } from '../src/report/regular/layout.ts'
 import { auditRegularVisuals, assertRegularVisuals } from '../src/report/regular/visual-audit.ts'
-import { imageBriefHash, imagePlacementHash, type ImageInspection, type ImageSlotBrief } from '../src/visual/image-policy.ts'
+import { imageBriefHash, imagePlacementHash, REPORT_IMAGE_POLICY_VERSION, type ImageInspection, type ImageSlotBrief } from '../src/visual/image-policy.ts'
 
 const photo = (id: string, nodes?: string[]): ClientVisualAsset => ({ assetId: id, chapterId: 'c', role: 'product-scene',
   sourceKind: 'ai-concept', sourcePath: `${id}.png`, sha256: createHash('sha256').update(id).digest('hex'), width: 1600, height: 900,
@@ -34,6 +34,27 @@ function physical(assets: ClientVisualAsset[], uses: string[][]) {
 }
 
 describe('image-aware physical composition', () => {
+  it('can safely bind a reviewed full original with slight aspect mismatch while still requiring final placement evidence', () => {
+    const placement = { box: { x: 0, y: 0, w: 13.333333, h: 7.5 }, fit: 'cover' as const }
+    const asset = inspected({ ...photo('native-sized'), width: 1600, height: 896 }, brief(), placement,
+      { placementHash: `${REPORT_IMAGE_POLICY_VERSION}:full-original` })
+    const [part] = planRegularManuscriptPage(page, '公共空间', [asset], 0)
+    expect(part!.layout.media).toHaveLength(1)
+    expect(part!.layout.media[0]!.fit).toBe('cover')
+    expect(regularImageGeometry(asset, part!.layout.media[0]!).retainedArea).toBeGreaterThan(0.99)
+    expect(regularInspectionProblem(asset, part!.layout.media[0]!)).toBe('stale-placement')
+  })
+  it('tolerates one source pixel of raster rounding without allowing a material subject crop', () => {
+    const placement = { box: { x: 0, y: 0, w: 13.333333, h: 7.5 }, fit: 'cover' as const }
+    const rounded = inspected({ ...photo('normalized'), width: 2730, height: 1535 }, brief(), placement, {
+      placementHash: `${REPORT_IMAGE_POLICY_VERSION}:full-original`, essentialBounds: [{ x: 0, y: 0, width: 1, height: 1 }],
+    })
+    const layout = planRegularManuscriptPage(page, '公共空间', [rounded], 0)[0]!.layout
+    expect(layout.media[0]?.fit).toBe('cover')
+    expect(regularImageGeometry(rounded, layout.media[0]!).retainedArea).toBeGreaterThan(0.999)
+    const substantive = { ...rounded, width: 2740 }
+    expect(planRegularManuscriptPage(page, '公共空间', [substantive], 0)[0]!.layout.media).toEqual([])
+  })
   it('shares the complete prose across multiple stage pages before adding a text continuation', () => {
     const labels = ['到达入口', '滨水步行', '茶园漫游', '茶室停留', '观景休憩', '便捷返程']
     const body = Array.from({ length: 6 }, (_, i) => `游程安排${i + 1}：沿连续步道组织不同的停留体验，让游客在行进与休息之间自然切换。`)
@@ -120,33 +141,35 @@ describe('image-aware physical composition', () => {
       }
     }
   })
-  it('preserves an unreviewed square and a composite analytical image instead of clipping either into a narrow strip', () => {
+  it('preserves a square in the array while leaving an analytical image out of scene slots', () => {
     const assets = [{ ...photo('square'), width: 1000, height: 1000 }, { ...photo('analysis'), imageQuality: { contentKind: 'composite' as const } }]
-    const parts = planRegularManuscriptPage(page, '沿湖空间', assets, 1)
-    expect(parts.flatMap(p => p.layout.media).map(m => m.fit)).toEqual(['contain', 'contain'])
-    for (const m of parts.flatMap(p => p.layout.media)) {
-      const asset = assets.find(a => a.assetId === m.assetId)!
-      expect(m.box.w / m.box.h).toBeCloseTo(asset.width / asset.height, 5)
-    }
+    const input: PlanningManuscriptPage = { ...page, task: { kind: 'scene', question: '如何活动？', scale: 'scene', requiredEvidence: ['场景'], preferredTemplate: 'array-horizontal', imageCount: 2 } }
+    const parts = planRegularManuscriptPage(input, '沿湖空间', assets, 1)
+    expect(parts).toHaveLength(1)
+    expect(parts.flatMap(p => p.layout.media).map(media => media.assetId)).toEqual(['square'])
+    expect(regularImageGeometry(assets[0]!, parts[0]!.layout.media[0]!).retainedArea).toBe(1)
+    expect(parts[0]!.layout.imageSlots).toHaveLength(2)
+    expect(parts[0]!.layout.materialGaps?.map(gap => gap.reason)).toEqual(['incompatible-image-slot'])
   })
   it('keeps a sourced analysis and its concise explanation on the same page without obscuring the drawing', () => {
     const asset = { ...photo('source-plan'), role: 'diagram' as const, sourceKind: 'project-source' as const, imageQuality: { contentKind: 'plan' as const } }
-    const parts = planRegularManuscriptPage(page, '案例整体布局', [asset], 4)
+    const parts = planRegularManuscriptPage({ ...page, visual: { ...page.visual, kind: 'source' } }, '案例整体布局', [asset], 4)
     expect(parts).toHaveLength(1)
     expect(parts[0]!.layout.media[0]!.fit).toBe('contain')
     expect(parts[0]!.layout.shade).toBeUndefined()
     expect(parts[0]!.content.body).toEqual(page.body)
   })
-  it('gives a landscape table illustration a substantive visible area after contain fitting', () => {
-    const asset = photo('table-picture'), [part] = planRegularManuscriptPage({ ...page, table: { columns: ['场所', '活动'], rows: [['入口', '步行'], ['平台', '休息']] } }, '活动配置', [asset], 0)
+  it('gives a compatible table illustration a substantive visible area after contain fitting', () => {
+    const asset = { ...photo('table-picture'), width: 900, height: 1800 }, [part] = planRegularManuscriptPage({ ...page, table: { columns: ['场所', '活动'], rows: [['入口', '步行'], ['平台', '休息']] } }, '活动配置', [asset], 0)
     const visible = regularImageGeometry(asset, part!.layout.media[0]!).visible
     expect(visible.w * visible.h / 100).toBeGreaterThanOrEqual(0.2)
     expect(part!.content.table?.rows).toEqual([['入口', '步行'], ['平台', '休息']])
   })
-  it('splits a column of portrait scenes before intact images become tiny decorative strips', () => {
-    const assets = ['portrait-a', 'portrait-b', 'portrait-c'].map(id => ({ ...photo(id), width: 960, height: 1440 }))
-    const parts = planRegularManuscriptPage(page, '日常活动', assets, 1)
-    expect(parts.length).toBeGreaterThan(1)
+  it('keeps three explicitly planned scenes large and continuous without adding pages when images arrive', () => {
+    const assets = ['portrait-a', 'portrait-b', 'portrait-c'].map(id => ({ ...photo(id), width: 1600, height: 1350 }))
+    const input: PlanningManuscriptPage = { ...page, task: { kind: 'scene', question: '如何活动？', scale: 'scene', requiredEvidence: ['场景'], preferredTemplate: 'array-horizontal', imageCount: 3 } }
+    const parts = planRegularManuscriptPage(input, '日常活动', assets, 1)
+    expect(parts).toHaveLength(1)
     expect(parts.flatMap(p => p.layout.media).map(m => m.assetId)).toEqual(assets.map(a => a.assetId))
     for (const part of parts) {
       const visibleArea = part.layout.media.reduce((sum, media) => { const b = regularImageGeometry(assets.find(a => a.assetId === media.assetId)!, media).visible; return sum + b.w * b.h }, 0)
@@ -175,15 +198,15 @@ describe('image-aware physical composition', () => {
     }
   })
   it('reports a material gap when two stage assets refer to the same original', () => {
-    const a = photo('a', ['n0']), b = { ...photo('b', ['n1']), imageIdentity: { originalId: 'original-a', fileSha256: photo('b').sha256, derivedFromSha256: a.sha256, verification: 'verified-derivative' as const } }
+    const a = { ...photo('a', ['n0']), width: 2000, height: 900 }, b = { ...photo('b', ['n1']), width: 2000, height: 900, imageIdentity: { originalId: 'original-a', fileSha256: photo('b').sha256, derivedFromSha256: a.sha256, verification: 'verified-derivative' as const } }
     const p = stages(['入口', '停留'])
     const parts = planRegularManuscriptPage(p, '公共空间', [{ ...a, imageIdentity: { originalId: 'original-a', fileSha256: a.sha256, verification: 'decoded-pixels' } }, b], 0)
     expect(parts.flatMap(part => part.layout.media)).toHaveLength(1)
     expect(parts.flatMap(part => part.layout.materialGaps ?? [])).toContainEqual({ pageId: 'walk', nodeId: 'n1', reason: 'duplicate-original' })
   })
-  it('measures a long caption against the visible portrait width and keeps all lines outside image pixels', () => {
+  it('measures a long caption against the fixed scene width and keeps all lines outside image pixels', () => {
     const p = stages(['在公共入口保留连续步行并组织清晰可达的服务设施以及滨水休息空间'])
-    const [part] = planRegularManuscriptPage(p, '公共空间', [{ ...photo('portrait', ['n0']), width: 900, height: 1500 }], 0)
+    const [part] = planRegularManuscriptPage(p, '公共空间', [{ ...photo('wide-stage', ['n0']), width: 4000, height: 900 }], 0)
     const caption = part!.layout.texts.find(t => t.role === 'stage')!, image = part!.layout.media[0]!
     expect(caption.text.split('\n').length * caption.leading / 72 + 0.14).toBeLessThanOrEqual(caption.box.h + 0.00001)
     expect(caption.box.x + caption.box.w / 2).toBeCloseTo(image.box.x + image.box.w / 2, 5)
@@ -193,7 +216,7 @@ describe('image-aware physical composition', () => {
     const body = Array.from({ length: 20 }, (_, i) => `开放条件${i + 1}：公众参观和日常维护使用分开的路线，并保持应急通行能力。`)
     const rows = Array.from({ length: 12 }, (_, i) => [`空间${i + 1}`, `达到水位${i + 1}时调整开放范围。`])
     for (const p of [{ ...page, body }, { ...page, body, table: { columns: ['空间', '条件'], rows } }]) {
-      const parts = planRegularManuscriptPage(p, '公共空间', [photo('only')], 4)
+      const parts = planRegularManuscriptPage(p, '公共空间', [{ ...photo('only'), width: 900, height: 1800 }], 4)
       expect(parts.length).toBeGreaterThan(1)
       expect(parts.flatMap(part => part.layout.media).map(m => m.assetId)).toEqual(['only'])
       expect(parts.flatMap(part => part.content.body).join('')).toBe(body.join(''))
@@ -203,7 +226,7 @@ describe('image-aware physical composition', () => {
   })
   it('reserves explicitly supplied continuation images for later physical pages', () => {
     const body = Array.from({ length: 20 }, (_, i) => `开放条件${i + 1}：公众参观和日常维护使用分开的路线，并保持应急通行能力。`)
-    const assets = [photo('first'), ...[1, 2, 3].map(n => ({ ...photo(`extra-${n}`), imageQuality: { requirement: brief(`walk:continuation:${n}`) } }))]
+    const assets = [photo('first'), ...[1, 2, 3].map(n => ({ ...photo(`extra-${n}`), imageQuality: { requirement: brief(`walk:continuation:${n}`) } }))].map(asset => ({ ...asset, width: 900, height: 1800 }))
     const parts = planRegularManuscriptPage({ ...page, body }, '公共空间', assets, 0)
     expect(parts[0]!.layout.media.map(m => m.assetId)).toEqual(['first'])
     expect(parts.slice(1).flatMap(p => p.layout.media).map(m => m.assetId)).toEqual(['extra-1', 'extra-2', 'extra-3'].slice(0, parts.length - 1))
@@ -211,7 +234,7 @@ describe('image-aware physical composition', () => {
     expect(parts.flatMap(p => p.content.body).join('')).toBe(body.join(''))
   })
   it('retains an independently bound second use of one original on a different physical story page', () => {
-    const first = photo('first'), second = { ...first, assetId: 'second-usage', imageQuality: { requirement: brief('walk:continuation:1') } }
+    const first = { ...photo('first'), width: 900, height: 1800 }, second = { ...first, assetId: 'second-usage', imageQuality: { requirement: brief('walk:continuation:1') } }
     const body = Array.from({ length: 12 }, (_, i) => `游园段落${i + 1}：保留可达的林下休憩场所，与公众步行路径连续衔接。`)
     for (const p of [{ ...page, body }, { ...page, body: [], table: { columns: ['场所', '体验'], rows: body.map(text => ['林下休憩', text]) } }]) {
       const parts = planRegularManuscriptPage(p, '游园体验', [first, second], 0)
@@ -229,13 +252,17 @@ describe('image-aware physical composition', () => {
       inspected(asset, brief(), placement, { imageSha256: 'f'.repeat(64) }),
       inspected(asset, brief(), placement, { placementHash: 'old-placement' }),
       inspected(asset, brief(), placement, { contentKind: 'composite' }),
-    ]) expect(planRegularManuscriptPage(page, '公众空间', [invalid], 4)[0]!.layout.media[0]!.fit).toBe('contain')
+    ]) {
+      const layout = planRegularManuscriptPage(page, '公众空间', [invalid], 4)[0]!.layout
+      expect(layout.media).toEqual([])
+      expect(layout.materialGaps?.[0]?.reason).toBe('incompatible-image-slot')
+    }
   })
   it('treats actual composite-image inspection as analytical even when import metadata called it a photograph', () => {
     const placement = { box: { x: 0, y: 0, w: 13.333333, h: 7.5 }, fit: 'cover' as const }
     const reviewed = inspected({ ...photo('composite'), width: 1600, height: 1000 }, brief(), placement, { contentKind: 'composite' })
     const asset = { ...reviewed, imageQuality: { ...reviewed.imageQuality, contentKind: 'photo' as const } }
-    const [part] = planRegularManuscriptPage(page, '整体关系', [asset], 4)
+    const [part] = planRegularManuscriptPage({ ...page, visual: { ...page.visual, kind: 'source' } }, '整体关系', [asset], 4)
     expect(part!.layout.media[0]!.fit).toBe('contain')
     expect(part!.layout.shade).toBeUndefined()
   })

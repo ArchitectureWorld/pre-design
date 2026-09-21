@@ -18,6 +18,20 @@ import { preparePresentationMaterials } from './material-registry.ts'
 import { prepareWorkspacePresentationMaterials } from './workspace-materials.ts'
 import { adoptedPresentationAssets } from './runtime-integration.ts'
 import type { PresentationAdoptedAssetInput } from './standard-project-types.ts'
+import { prepareReportCartography } from './report-cartography.ts'
+
+export function reportImageDimensions(ratio: number): { width: number; height: number } {
+  if (!Number.isFinite(ratio) || ratio < 0.2 || ratio > 5) throw new Error('REPORT_IMAGE_ASPECT_RATIO_INVALID')
+  // Prefer exact, integer 16-pixel multiples before considering small crops.
+  let chosen = { width: 1536, height: 864 }, error = Infinity
+  for (let width = 640; width <= 2048; width += 16) {
+    const height = Math.round(width / ratio / 16) * 16
+    if (height < 384 || height > 2048 || Math.max(width, height) < 1280) continue
+    const next = Math.abs(Math.log(width / height / ratio)) * 1000 + Math.abs(width * height - 1536 * 864) / 1e9
+    if (next < error) { chosen = { width, height }; error = next }
+  }
+  return chosen
+}
 
 export function createNativeReportImagePipeline(deps: { classes: AgentClassService; inspection: ImageInspectionAgent; web: WebQueryAgent;
   reportIssues?: (parent: Agent, signal: AbortSignal, message: string) => Promise<void>;
@@ -31,12 +45,15 @@ export function createNativeReportImagePipeline(deps: { classes: AgentClassServi
     }
     const owner = project.stateObjects.find(object => object.workItemId)
     if (!owner?.workItemId) { if (recoveryOnly) return undefined; throw new Error('REPORT_IMAGE_SOURCE_REQUIRED') }
-    let taskId = `report-image-${createHash('sha256').update(JSON.stringify([project.projectId, project.revision, imageBriefHash(demand.brief)])).digest('hex')}`
+    const ratio = demand.slot?.image.targetAspectRatio
+    const dimensions = ratio ? reportImageDimensions(ratio) : undefined
+    let taskId = `report-image-${createHash('sha256').update(JSON.stringify([project.projectId, project.revision, imageBriefHash(demand.brief), ...(dimensions ? ['stable-slot-v1', dimensions] : [])])).digest('hex')}`
     const locale = demand.brief.locale === 'domestic' ? '中国本土环境、中国人的活动；若必要标识则只用清晰中文。不要外国生活场景、英文招牌或装饰文字。' : '按本页明确的国际定位表现相应空间；不添加无关外文装饰。'
     // Keep this provenance text stable for existing task IDs and image reviews.
     // The visual tool persona owns output dimensions; changing metadata on a
     // recovered image would invalidate a review of the very same source pixels.
     const basePrompt = `前期策划对外汇报场景图。具体需求：${JSON.stringify(demand.brief)}。正文依据：${JSON.stringify(demand.sceneContext ?? null)}。${locale}单一真实空间视角，主体完整，能清楚理解正文设施、活动与环境。正文中的论证、资金和阶段是表达意图；图像主体和活动以具体需求为准，不绘制总图、流程图、分析拼图、表格和说明标签；不要水印或乱码。正文未支持的设施不得添加。`
+      + (dimensions ? `\n图片用于已确定的版面，必须按宽 ${dimensions.width} × 高 ${dimensions.height} 像素输出（目标宽高比 ${ratio!.toFixed(5)}）。给工具传入此 width 和 height，不用默认横幅。主要设施与人物四周保留完整环境，主体不要紧贴边缘。` : '')
     const corrections: unknown[] = []
     let independentOriginal = false
     for (;;) {
@@ -85,6 +102,7 @@ export function createNativeReportImagePipeline(deps: { classes: AgentClassServi
     }
   }
   return new ReportImagePipeline({ classes: deps.classes, inspection: deps.inspection, reportIssues: deps.reportIssues,
+    analysis: prepareReportCartography,
     recover: (demand, parent, signal, project, root) => generatedImage(demand, parent, signal, project, true, root),
     resolveDemands: async (demands, parent, signal, project, root) => {
       const scenes = demands.filter(demand => !demand.sourceMaterialKey && !demand.caseSource
