@@ -44,7 +44,8 @@ async function fixture(normalized = false) {
     sceneSpecs: {} as never, visual: { findCandidate: (_project: string, taskId: string) => assets.get(taskId), generate, adopt } as never,
     resolveAsset: file => file })
   const api = (pipeline as unknown as { dependencies: Callbacks }).dependencies
-  const call = (mode: 'recover' | 'generate', requested = demand) => api[mode]!(requested, {} as never, AbortSignal.timeout(5000), project, root)
+  const call = (mode: 'recover' | 'generate', requested = demand, options?: { excludeImages: readonly { taskId: string; sha256: string }[] }) =>
+    (api[mode] as Function)(requested, {} as never, AbortSignal.timeout(5000), project, root, options) as Promise<GeneratedReportImage | undefined>
   const initial = (await call('recover'))!
   const review = async (result: GeneratedReportImage, decision: 'approved' | 'rejected', requested = demand) => {
     const material = result.material
@@ -125,4 +126,21 @@ it('never applies a corrective generation to a real case source', async () => {
   expect(await f.call('recover', factual)).toBeUndefined()
   await expect(f.call('generate', factual)).rejects.toThrow('REPORT_IMAGE_SOURCE_REQUIRED')
   expect(f.generate).not.toHaveBeenCalled()
+})
+
+it('creates a recoverable alternative when an approved image has no remaining placement capacity', async () => {
+  const f = await fixture()
+  await f.review(f.initial, 'approved')
+  const options = { excludeImages: [{ taskId: f.original.taskId, sha256: f.original.sha256 }] }
+  const alternative = (await f.call('generate', demand, options))!
+  expect(f.generate).toHaveBeenCalledOnce()
+  expect(f.generate.mock.calls[0]![1].taskId).not.toBe(f.original.taskId)
+  expect(f.generate.mock.calls[0]![1].prompt).toContain('独立原图')
+  expect(f.generate.mock.calls[0]![1].prompt).not.toContain('旧图已被实际像素审查拒绝')
+  expect(f.original.status).toBe('adopted')
+  // The new request keeps a separate task even when a provider happens to return
+  // identical bytes; allocation, not this request builder, rejects that duplicate.
+  expect(alternative.material.sourceKey).not.toBe(f.initial.material.sourceKey)
+  expect((await f.call('generate', demand, options))?.material).toEqual(alternative.material)
+  expect(f.generate).toHaveBeenCalledOnce()
 })

@@ -12,7 +12,7 @@ import { compileClientReportOutline } from './projector/client-outline.ts'
 import type { PresentationAdoptedAssetInput } from './standard-project-types.ts'
 import { createConditionalReportBundle, planConditionalPages, type ConditionalReportMaterial } from '../report/conditional-report.ts'
 import { auditRegularVisuals, assertRegularVisuals } from '../report/regular/visual-audit.ts'
-import { regularImageGeometry } from '../report/regular/layout.ts'
+import { regularImageGeometry, REGULAR_LAYOUT_VERSION } from '../report/regular/layout.ts'
 import { caseStudyPhotos } from '../report/case-studies/pages.ts'
 import { allocateReportImages, type ReviewedImageCandidate } from './report-image-allocation.ts'
 import { ImageIdentityIndex } from '../visual/image-identity.ts'
@@ -98,6 +98,7 @@ function score(asset: PresentationAdoptedAssetInput, demand: ReportImageDemand):
   return (explicit ? 1000 : 0) + match
 }
 export interface GeneratedReportImage { readonly material: PresentationAdoptedAssetInput; readonly adopt: () => Promise<void> }
+export interface ReportImageGenerationOptions { readonly excludeImages?: readonly { readonly taskId: string; readonly sha256: string }[] }
 interface PipelineDependencies {
   readonly classes: AgentClassService
   readonly inspection: ImageInspectionAgent
@@ -106,7 +107,7 @@ interface PipelineDependencies {
   readonly candidates: (input: FrozenProjectInput, root: string, signal: AbortSignal) => Promise<readonly PresentationAdoptedAssetInput[]>
   readonly search?: (demand: ReportImageDemand, parent: Agent, signal: AbortSignal, input: FrozenProjectInput, root: string) => Promise<readonly PresentationAdoptedAssetInput[]>
   readonly recover?: (demand: ReportImageDemand, parent: Agent, signal: AbortSignal, input: FrozenProjectInput, root: string) => Promise<GeneratedReportImage | undefined>
-  readonly generate?: (demand: ReportImageDemand, parent: Agent, signal: AbortSignal, input: FrozenProjectInput, root: string) => Promise<GeneratedReportImage>
+  readonly generate?: (demand: ReportImageDemand, parent: Agent, signal: AbortSignal, input: FrozenProjectInput, root: string, options?: ReportImageGenerationOptions) => Promise<GeneratedReportImage>
 }
 interface SavedPlan { readonly version: string; readonly fingerprint: string; readonly projectId: string; readonly materials: readonly ConditionalReportMaterial[] }
 async function atomicJson(path: string, value: unknown) { const temp = `${path}.${randomUUID()}.tmp`; await writeFile(temp, JSON.stringify(value, null, 2) + '\n'); await rename(temp, path) }
@@ -149,12 +150,22 @@ export class ReportImagePipeline {
     const cached = await this.load(input, root, signal); if (cached) return cached
     if (!this.dependencies.classes.settings().routes.review) throw new Error('IMAGE_REVIEW_MODEL_REQUIRED: 请在全局子Agent设置选择支持图片输入的素材审图模型；未启动补图或新模型任务。')
     const initialDemands = reportImageDemands(input)
-    const resolvedDemands = [...(await this.dependencies.resolveDemands?.(initialDemands, parent, signal, input, root) ?? initialDemands)]
+    const directory = join(root, '.pre-design'), attempts = join(directory, 'image-review-attempts')
+    await mkdir(attempts, { recursive: true })
+    const continuationPath = join(directory, 'report-image-continuations.json')
+    const continuationFingerprint = sha(JSON.stringify([fingerprint(input), REGULAR_LAYOUT_VERSION, 'physical-continuations-v1']))
+    const continuationInputs: ReportImageDemand[] = []
+    try {
+      const saved = JSON.parse(await readFile(continuationPath, 'utf8'))
+      if (saved.fingerprint === continuationFingerprint && Array.isArray(saved.demands)) {
+        for (const demand of saved.demands as ReportImageDemand[]) if (demand.brief.id.startsWith(`${demand.brief.pageId}:continuation:`)
+          && !continuationInputs.some(previous => previous.brief.id === demand.brief.id)) continuationInputs.push(demand)
+      }
+    } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error }
+    const resolvedDemands = [...(await this.dependencies.resolveDemands?.([...initialDemands, ...continuationInputs], parent, signal, input, root) ?? [...initialDemands, ...continuationInputs])]
       .sort((a,b) => Number(!!b.sourceMaterialKey) - Number(!!a.sourceMaterialKey) || a.brief.id.localeCompare(b.brief.id))
     const demands = resolvedDemands.filter(demand => !demand.unavailableReason)
     assertCurrent(); signal.throwIfAborted()
-    const directory = join(root, '.pre-design'), attempts = join(directory, 'image-review-attempts')
-    await mkdir(attempts, { recursive: true })
     const runId = randomUUID(), startedAt = new Date().toISOString()
     const errors: { stage: string; usageIds: readonly string[]; message: string; at: string }[] = []
     const recordError = async (stage: string, usageIds: readonly string[], error: unknown) => {
@@ -214,8 +225,12 @@ export class ReportImagePipeline {
     }
     try { await ingest(await this.dependencies.candidates(input, root, signal)) }
     catch (error) { await recordError('candidates', [], error) }
-    const gaps: { id: string; reason: string }[] = resolvedDemands.filter(demand => demand.unavailableReason)
+    const unavailable = resolvedDemands.filter(demand => demand.unavailableReason)
       .map(demand => ({ id: demand.brief.id, reason: demand.unavailableReason! }))
+    const gaps: { id: string; reason: string }[] = [...unavailable]
+    const refreshGaps = () => gaps.splice(0, gaps.length, ...unavailable, ...allocation().gaps.map(brief => ({
+      id: brief.id, reason: '无满足内容、质量、来源和原图使用次数要求的素材',
+    })))
     const review = async (asset: ConditionalReportMaterial, requested: readonly ReportImageDemand[]) => {
       const route = this.dependencies.classes.settings().routes.review
       const records = requested.map(demand => ({ demand, attempt: join(attempts, `${sha(JSON.stringify([asset.sha256, imageBriefHash(demand.brief), imageSourceContextHash(inspectionSource(asset, input)), route]))}.json`) }))
@@ -468,7 +483,16 @@ export class ReportImagePipeline {
         if (!generation.length) return
         const results = await Promise.allSettled(generation.map(async demand => {
           assertCurrent(); signal.throwIfAborted()
-          const result = await this.dependencies.generate!(demand, parent, signal, input, root)
+          // Approved images may already occupy another node on the same page,
+          // or have exhausted their global capacity. Ask for an independent
+          // original instead of repeatedly returning that approved candidate.
+          const excludeImages = reviewed.filter(candidate => candidate.usageId === demand.brief.id).flatMap(candidate => {
+            try {
+              const provenance = JSON.parse(candidate.material.origin.method)
+              return typeof provenance.taskId === 'string' ? [{ taskId: provenance.taskId, sha256: candidate.material.imageIdentity!.fileSha256 }] : []
+            } catch { return [] }
+          })
+          const result = await this.dependencies.generate!(demand, parent, signal, input, root, { excludeImages })
           if (!result?.material) throw new Error('REPORT_IMAGE_GENERATION_EMPTY')
           return { demand, result }
         }))
@@ -515,7 +539,7 @@ export class ReportImagePipeline {
         await resolveExisting()
         await adoptAssigned(available)
       }
-      for (const brief of allocation().gaps) gaps.push({ id: brief.id, reason: '无满足内容、质量、来源和原图使用次数要求的素材' })
+      refreshGaps()
     }
     const replenish = async () => {
       try { await replenishOnce() }
@@ -528,25 +552,41 @@ export class ReportImagePipeline {
     const selectedMaterials = () => allocation().assigned.map(c => ({ ...c.material, sha256: c.material.imageIdentity!.fileSha256 }))
     await replenish()
     let materials: ConditionalReportMaterial[] = selectedMaterials()
-    if (gaps.length) { await saveGaps(); throw new Error(`REPORT_IMAGE_GAPS: ${gaps.length} 个位置待补充合格素材；已处理其余可执行任务，详见资料缺口记录。${errors.length ? ` ${errors.length} 项错误：${[...new Set(errors.map(error => error.message))].slice(0, 3).join('；')}` : ''}`) }
     // Page overflow is resolved through actual layout, never by duplicating a background.
-    for (let round = 0; round < 3; round++) {
+    for (; input.manuscript && input.stateObjects.length > 0;) {
       const bundle = createConditionalReportBundle(input, materials), plan = planConditionalPages(bundle, 'html')
       const missing = auditRegularVisuals(plan, bundle.report).materialGaps
-      if (!missing.length) break
+      const discovered: ReportImageDemand[] = []
       for (const gap of missing) {
-        const base = demands.find(d => d.brief.pageId === gap.pageId && !d.brief.nodeId) ?? demands.find(d => d.brief.pageId === gap.pageId)
-        if (!base) { gaps.push({ id: gap.pageId, reason: gap.reason }); continue }
-        if (gap.reason !== 'continuation-image-required') { gaps.push({ id: gap.pageId, reason: gap.reason }); continue }
-        const number = demands.filter(d => d.brief.id.startsWith(`${gap.pageId}:continuation:`)).length + 1
-        const { nodeId: _node, ...brief } = base.brief
-        const demand = { ...base, brief: { ...brief, id: `${gap.pageId}:continuation:${number}` } }
-        demands.push(demand)
+        if (gap.reason !== 'continuation-image-required') continue
+        const physical = plan.pages.find(page => page.pageId === gap.physicalPageId)
+        // A missing original table/scene is already an initial demand. Only
+        // actual later pages may create an independent continuation request.
+        if (!physical?.planningContent || !physical.pagination || physical.pagination.partIndex < 1) continue
+        const pageId = physical.pagination.sourcePageId, id = `${pageId}:continuation:${physical.pagination.partIndex}`
+        if ([...continuationInputs, ...discovered].some(demand => demand.brief.id === id)) continue
+        const base = initialDemands.find(d => d.brief.pageId === pageId && !d.brief.nodeId) ?? initialDemands.find(d => d.brief.pageId === pageId)
+        if (!base) continue
+        const content = physical.planningContent
+        const { nodeId: _node, sceneGrounding: _grounding, ...brief } = base.brief
+        discovered.push({ ...base, sceneContext: sceneSpecContext(content, id), brief: { ...brief, id,
+          conclusion: content.claim, subjects: [content.visual.subject], activities: [content.visual.purpose], environment: content.title,
+        } })
       }
-      if (gaps.length) break
+      if (!discovered.length) break
+      // Freeze the actual continuation prose before images change pagination.
+      // A resumed export recovers the same request rather than a new scene.
+      continuationInputs.push(...discovered)
+      await atomicJson(continuationPath, { fingerprint: continuationFingerprint, demands: continuationInputs })
+      const resolved = await this.dependencies.resolveDemands?.(discovered, parent, signal, input, root) ?? discovered
+      for (const demand of resolved) {
+        if (demand.unavailableReason) { unavailable.push({ id: demand.brief.id, reason: demand.unavailableReason }); await recordError('scene', [demand.brief.id], demand.unavailableReason) }
+        else demands.push(demand)
+      }
       await replenish(); materials = selectedMaterials()
     }
-    if (gaps.length) { await saveGaps(); throw new Error(`REPORT_IMAGE_GAPS: ${gaps.length} 个续页缺少合格素材`) }
+    refreshGaps()
+    if (gaps.length) { await saveGaps(); throw new Error(`REPORT_IMAGE_GAPS: ${gaps.length} 个位置待补充合格素材；已处理其余可执行任务，详见资料缺口记录。${errors.length ? ` ${errors.length} 项错误：${[...new Set(errors.map(error => error.message))].slice(0, 3).join('；')}` : ''}`) }
     const bundle = createConditionalReportBundle(input, materials), plan = planConditionalPages(bundle, 'html'), placed: ConditionalReportMaterial[] = []
     const pending = auditRegularVisuals(plan, bundle.report).materialGaps
     if (pending.length) {

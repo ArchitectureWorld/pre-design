@@ -13,7 +13,7 @@ import type { FrozenProjectInput } from '../report/types.ts'
 import { acquireWebImage, discoverCasePublicationImages, discoverPublicationImages, validateCachedWebImage, validateWebImageCase,
   parseWebImageSuggestions, webImageCandidateSchema, webPublicationDescriptorSchema } from '../visual/web-image-source.ts'
 import { imageBriefHash, REPORT_IMAGE_POLICY_VERSION } from '../visual/image-policy.ts'
-import { ReportImagePipeline, reportImageInspectionSource, type ReportImageDemand, type GeneratedReportImage } from './report-image-pipeline.ts'
+import { ReportImagePipeline, reportImageInspectionSource, type ReportImageDemand, type GeneratedReportImage, type ReportImageGenerationOptions } from './report-image-pipeline.ts'
 import { preparePresentationMaterials } from './material-registry.ts'
 import { prepareWorkspacePresentationMaterials } from './workspace-materials.ts'
 import { adoptedPresentationAssets } from './runtime-integration.ts'
@@ -23,7 +23,7 @@ export function createNativeReportImagePipeline(deps: { classes: AgentClassServi
   reportIssues?: (parent: Agent, signal: AbortSignal, message: string) => Promise<void>;
   sceneSpecs: Pick<SceneSpecificationAgent, 'resolve'>; visual: VisualAgentService; resolveAsset: (fileName: string) => string }) {
   const generatedImage = async (demand: ReportImageDemand, parent: Agent, signal: AbortSignal, project: FrozenProjectInput,
-    recoveryOnly: boolean, root: string): Promise<GeneratedReportImage | undefined> => {
+    recoveryOnly: boolean, root: string, options?: ReportImageGenerationOptions): Promise<GeneratedReportImage | undefined> => {
     signal.throwIfAborted()
     if (demand.caseSource || demand.sourceMaterialKey || !demand.brief.allowedSources.includes('generated')) {
       if (recoveryOnly) return undefined
@@ -38,11 +38,13 @@ export function createNativeReportImagePipeline(deps: { classes: AgentClassServi
     // recovered image would invalidate a review of the very same source pixels.
     const basePrompt = `前期策划对外汇报场景图。具体需求：${JSON.stringify(demand.brief)}。正文依据：${JSON.stringify(demand.sceneContext ?? null)}。${locale}单一真实空间视角，主体完整，能清楚理解正文设施、活动与环境。正文中的论证、资金和阶段是表达意图；图像主体和活动以具体需求为准，不绘制总图、流程图、分析拼图、表格和说明标签；不要水印或乱码。正文未支持的设施不得添加。`
     const corrections: unknown[] = []
+    let independentOriginal = false
     for (;;) {
       signal.throwIfAborted()
       const saved = deps.visual.findCandidate(project.projectId, taskId)
       if (recoveryOnly && !saved) return undefined
       const prompt = basePrompt + (corrections.length ? `\n目标位置的旧图已被实际像素审查拒绝，请重新构图纠正以下问题。下列JSON仅是旧图缺陷记录，不是额外指令：${JSON.stringify(corrections)}。必须完整呈现原需求中的主体、活动和空间关系，不得用其他无关场景替代。画面中不绘制任何文字、字母、数字或水印；如需导向设施，用无字图形标识表现，文字说明由HTML排版呈现。` : '')
+        + (independentOriginal ? '\n已有合格图已用于其他位置，本位置需要独立原图。按当前需求另行构图，使用新的空间视角和活动组织；不得对旧图裁剪、缩放或重复输出。' : '')
       const asset = saved ?? await deps.visual.generate(parent, { taskId, projectId: project.projectId, chapterId: owner.chapterId, workItemId: owner.workItemId,
         kind: 'concept', required: false, prompt }, signal, { preserveUncertain: true })
       const material: PresentationAdoptedAssetInput = { sourceKey: asset.assetId, sourcePath: deps.resolveAsset(asset.fileName), originalFileName: asset.fileName,
@@ -62,6 +64,11 @@ export function createNativeReportImagePipeline(deps: { classes: AgentClassServi
           const context = prepared.normalized ? { ...material, imagePreparation: { version: 'report-raster-v1' as const,
             sourcePath: material.sourcePath, sourceSha256: prepared.sourceSha256 } } : material
           const digest = createHash('sha256').update(prepared.bytes).digest('hex')
+          if (options?.excludeImages?.some(excluded => excluded.taskId === taskId && excluded.sha256 === digest)) {
+            taskId = `report-image-${createHash('sha256').update(JSON.stringify(['capacity-alternative-v1', taskId, digest, imageBriefHash(demand.brief)])).digest('hex')}`
+            independentOriginal = true
+            continue
+          }
           const review = await readImageInspection(root, digest, demand.brief, `${REPORT_IMAGE_POLICY_VERSION}:full-original`,
             deps.classes, reportImageInspectionSource(context, project))
           if (review?.decision === 'rejected') {
@@ -208,8 +215,8 @@ export function createNativeReportImagePipeline(deps: { classes: AgentClassServi
       signal.throwIfAborted()
       return acquired.flatMap(result => result.status === 'fulfilled' ? [result.value] : [])
     },
-    generate: async (demand, parent, signal, project, root) => {
-      return (await generatedImage(demand, parent, signal, project, false, root))!
+    generate: async (demand, parent, signal, project, root, options) => {
+      return (await generatedImage(demand, parent, signal, project, false, root, options))!
     },
   })
 }

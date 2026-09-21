@@ -34,6 +34,19 @@ function physical(assets: ClientVisualAsset[], uses: string[][]) {
 }
 
 describe('image-aware physical composition', () => {
+  it('anchors complete landscape images to a page edge instead of centering them inside empty panels', () => {
+    const asset = photo('landscape')
+    for (let ordinal = 0; ordinal < 5; ordinal++) {
+      const parts = planRegularManuscriptPage(page, '游园体验', [asset], ordinal)
+      for (const placement of parts.flatMap(part => part.layout.media)) {
+        const geometry = regularImageGeometry(asset, placement), b = geometry.visible
+        expect(geometry.retainedArea).toBe(1)
+        expect(b.x < 1e-6 || b.y < 1e-6 || Math.abs(b.x + b.w - REGULAR_CANVAS.width) < 1e-6
+          || Math.abs(b.y + b.h - REGULAR_CANVAS.height) < 1e-6).toBe(true)
+        expect(b.y < 1e-6 || Math.abs(b.y + b.h - REGULAR_CANVAS.height) < 1e-6).toBe(true)
+      }
+    }
+  })
   it.each([
     { width: 960, height: 375, kind: 'plan' as const },
     { width: 1600, height: 400, kind: 'photo' as const },

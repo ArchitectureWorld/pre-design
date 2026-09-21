@@ -6,7 +6,7 @@ import { photoStagePresentation, photoStageTopReserve, routePhotoStages } from '
 import { imageBriefHash, imagePlacementHash, MIN_RETAINED_IMAGE_AREA } from '../../visual/image-policy.ts'
 
 export const REGULAR_CANVAS = { width: 13.333333, height: 7.5, unit: 'in' as const }
-export const REGULAR_LAYOUT_VERSION = 'regular-2026-09-19.2'
+export const REGULAR_LAYOUT_VERSION = 'regular-2026-09-21.1'
 export interface Box { readonly x: number; readonly y: number; readonly w: number; readonly h: number }
 export interface RegularText { readonly role: 'eyebrow' | 'title' | 'claim' | 'body' | 'stage'; readonly text: string; readonly box: Box; readonly size: number; readonly leading: number; readonly dark?: boolean; readonly nodeId?: string }
 export interface RegularMedia { readonly assetId: string; readonly box: Box; readonly fit: 'cover' | 'contain'; readonly nodeId?: string }
@@ -114,7 +114,16 @@ function media(asset: ClientVisualAsset, bounds: Box, preserveComposition = fals
   const geometry = regularImageGeometry(asset, candidate)
   const fit = !preserveComposition && !geometry.analytical && geometry.validDimensions
     && geometry.retainedArea + 1e-6 >= MIN_RETAINED_IMAGE_AREA && geometry.safeSubjects && !regularInspectionProblem(asset, candidate) ? 'cover' : 'contain'
-  return { ...candidate, fit }
+  if (fit === 'cover' || !geometry.validDimensions || geometry.analytical) return { ...candidate, fit }
+  // Contain is a composition decision, not a centered image in an oversized
+  // empty panel. Keep source proportions and align the visible image to the
+  // panel's full-bleed edges; inner array cells retain their existing geometry.
+  const w = Math.min(bounds.w, bounds.h * asset.width / asset.height), h = w * asset.height / asset.width
+  const x = bounds.x < 1e-6 ? bounds.x : Math.abs(bounds.x + bounds.w - REGULAR_CANVAS.width) < 1e-6
+    ? bounds.x + bounds.w - w : bounds.x + (bounds.w - w) / 2
+  const y = bounds.y < 1e-6 ? bounds.y : Math.abs(bounds.y + bounds.h - REGULAR_CANVAS.height) < 1e-6
+    ? bounds.y + bounds.h - h : bounds.y + (bounds.h - h) / 2
+  return { ...candidate, fit, box: box(x, y, w, h) }
 }
 function uniqueImages(assets: readonly ClientVisualAsset[]): ClientVisualAsset[] {
   const originals = new Set<string>(), hashes = new Set<string>()
