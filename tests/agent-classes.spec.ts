@@ -36,6 +36,36 @@ const a = { provider: 'test', model: 'a' }
 const b = { provider: 'test', model: 'b' }
 const parent = { id: 'parent', options: a } as never
 
+it('corrects invalid backup content on that same route and cannot reserve the correction twice', async () => {
+  const { service, childEvents } = await fixture()
+  await service.save(0,{ image:a,web:a,text:a },{ text:[b] })
+  const first = await service.begin('p','text','task',parent)
+  await service.attach(first.id,'primary')
+  childEvents.set('primary',[{ type:'request/header',data:{ header:{ config:a } } },{ type:'turn/end',data:{ reason:{ kind:'max-tokens' } } }])
+  await service.finish(first.id,'failed')
+  const second = (await service.fallback(first.id,parent))!
+  await service.attach(second.id,'backup')
+  childEvents.set('backup',[{ type:'request/header',data:{ header:{ config:b } } },{ type:'turn/end',data:{ reason:{ kind:'completed' } } }])
+  await service.finish(second.id,'failed','CONTENT_PLAN_INVALID')
+  const correction = await service.retryContent(second.id,parent)
+  expect(correction).toMatchObject({ selected:b,routeIndex:1,chainId:first.chainId,correctionFromExecutionId:second.id })
+  await expect(service.retryContent(second.id,parent)).rejects.toThrow('MODEL_CORRECTION_ALREADY_STARTED')
+})
+
+it.each([false, true])('switches configured backups after native output exhaustion, with disposed=%s', async disposed => {
+  const { service, events, deps } = await fixture()
+  await service.save(0, { image:a, web:a, text:a }, { text:[b] })
+  const first = await service.begin('p', 'text', 'whole-report planning', parent)
+  await service.attach(first.id, 'length-child')
+  events.push({ type:'request/header', data:{ header:{ config:a } } }, { type:'turn/end', data:{ reason:{ kind:'max-tokens' } } })
+  await service.finish(first.id, 'failed', 'CONTENT_PLAN_INCOMPLETE: max-tokens')
+  expect(service.execution(first.id)).toMatchObject({ status:'failed', childStopReason:'max-tokens', availabilityFailure:'output-limit' })
+  if (disposed) deps.sessions.get.mockReturnValue(undefined as never)
+  const second = await service.fallback(first.id, parent)
+  expect(second).toMatchObject({ selected:b, routeIndex:1, fallbackFromExecutionId:first.id })
+  expect(service.settings().routes.text).toEqual(a)
+})
+
 async function comfyFixture() {
   const f = await fixture()
   f.llm.listProviders = () => [{ id: 'test', name: 'Test' }, { id: 'Comfyui-PIC', name: 'ComfyUI' }]

@@ -82,7 +82,7 @@ const REVIEW_SCHEMA: ObjectJsonSchema = { type: 'object', additionalProperties: 
 type Guard = () => void | Promise<void>
 export class ReportContentPlanner {
   private readonly running = new Map<string, Promise<PlanningManuscript>>()
-  constructor(private readonly dependencies: Pick<PlanningManuscriptServiceOptions, 'subagents' | 'timeoutMs'> & { agentClasses: PlanningManuscriptServiceOptions['agentClasses'] & Pick<AgentClassService, 'execution'> }) {}
+  constructor(private readonly dependencies: Pick<PlanningManuscriptServiceOptions, 'subagents' | 'timeoutMs'> & { agentClasses: PlanningManuscriptServiceOptions['agentClasses'] & Pick<AgentClassService, 'execution'> & Partial<Pick<AgentClassService, 'retryContent'>> }) {}
   private path(root: string, source: PlanningManuscript) { return join(root, '.pre-design', 'report-content-plans', `${contentPlanFingerprint(source)}.json`) }
   private async read(root: string, source: PlanningManuscript): Promise<Checkpoint> {
     try {
@@ -161,9 +161,20 @@ export class ReportContentPlanner {
       // Failed review conservatively preserves all prose; unknown native state still locks above.
       const previous = checkpoint.attempts.filter(a => a.phase === phase)
       if (phase === 'review' && previous.length) break
-      if (previous.length >= 3) throw new Error('CONTENT_PLAN_ATTEMPTS_EXHAUSTED')
       let nextExecution: Awaited<ReturnType<PlanningManuscriptServiceOptions['agentClasses']['begin']>> | undefined
-      for (let number = previous.length; number < 3; number++) {
+      const last = previous.at(-1)
+      if (last?.executionId && !last.feedback) nextExecution = await nextAgentClassAttempt(this.dependencies.agentClasses,
+        this.dependencies.agentClasses.execution(last.executionId), parent, signal)
+      const advancingRoute = !!nextExecution
+      if (previous.length >= 3 && !advancingRoute) throw new Error('CONTENT_PLAN_ATTEMPTS_EXHAUSTED')
+      if (last?.executionId && last.feedback && this.dependencies.agentClasses.execution(last.executionId)?.routeChain) {
+        nextExecution = await this.dependencies.agentClasses.retryContent?.(last.executionId, parent, signal)
+        if (!nextExecution) throw new Error('CONTENT_PLAN_RECOVERY_REQUIRED: 原路由的内容校正无法核验，不重置主模型。')
+      }
+      // Content corrections remain bounded. Verified service/capacity failures
+      // may advance through the finite configured chain, also after a restart.
+      const attemptLimit = advancingRoute ? previous.length + 3 : 3
+      for (let number = previous.length; number < attemptLimit; number++) {
         await guard()
         const attempt: Attempt = { phase, protocol: PLANNING_PROTOCOL, status: 'reserved' }; checkpoint.attempts.push(attempt); await persist()
         let run: Awaited<ReturnType<PlanningManuscriptServiceOptions['subagents']['start']>> | undefined
@@ -209,13 +220,20 @@ export class ReportContentPlanner {
             // deletion. Preserve prose without retrying its failed settlement.
             attempt.feedback = 'CONTENT_PLAN_REVIEW_UNVERIFIED'; await persist()
           }
-          if (!attempt.feedback && number < 2) {
+          if (!attempt.feedback && number < attemptLimit - 1) {
             nextExecution = await nextAgentClassAttempt(this.dependencies.agentClasses,
               attempt.executionId ? this.dependencies.agentClasses.execution(attempt.executionId) : undefined, parent, signal)
             if (nextExecution) continue
           }
           if (phase === 'review') break
-          if (!attempt.feedback || number === 2) throw error
+          if (!attempt.feedback || number === attemptLimit - 1) throw error
+          const failed = attempt.executionId ? this.dependencies.agentClasses.execution(attempt.executionId) : undefined
+          if (failed?.routeChain) {
+            nextExecution = await this.dependencies.agentClasses.retryContent?.(failed.id, parent, signal)
+            // Legacy mocks may lack route metadata; real configured routes must
+            // never silently reset to primary after a backup validation failure.
+            if (!nextExecution) throw error
+          }
         } finally { await run?.dispose() }
       }
     }

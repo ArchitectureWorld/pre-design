@@ -126,6 +126,29 @@ describe('durable independently reviewed report planning', () => {
     expect(await h.planner.load(source, h.root)).toEqual(output)
     await h.prepare(); expect(h.requests).toHaveLength(2)
   })
+  it('resumes through the configured backup after three verified primary truncations without clearing history', async () => {
+    const h = await setup(), file = join(h.root, '.pre-design', 'report-content-plans', `${contentPlanFingerprint(source)}.json`)
+    const primary = { provider:'configured', model:'text' }, backup = { provider:'backup', model:'text' }
+    const attempts = Array.from({ length:3 }, (_, index) => ({ phase:'plan', status:'failed', executionId:`old${index}`, childId:`old-child${index}`, stopReason:'max-tokens' }))
+    for (const a of attempts) h.executions.set(a.executionId, { id:a.executionId, projectId:'p', classId:'text', status:'failed', selected:primary,
+      childId:a.childId, childStopReason:'max-tokens', routeChain:[primary,backup], routeIndex:0 })
+    const finish = h.dependencies.agentClasses.finish, begin = h.dependencies.agentClasses.begin
+    h.dependencies.agentClasses.finish = async (id: string, status: string) => {
+      if (id.startsWith('old')) return
+      await finish(id,status); h.executions.get(id).actual = h.executions.get(id).selected
+    }
+    h.dependencies.agentClasses.fallback = async (id: string) => {
+      expect(id).toBe('old2')
+      return Object.assign(await begin('p','text'), { selected:backup, routeChain:[primary,backup], routeIndex:1 })
+    }
+    await mkdir(join(h.root,'.pre-design','report-content-plans'),{ recursive:true })
+    await writeFile(file,JSON.stringify({ version:'report-content-plan-2026-09-21.1', fingerprint:contentPlanFingerprint(source), attempts }))
+    const output = await h.prepare()
+    expect(h.requests.map(r=>r.agentOptions.provider)).toEqual(['backup','configured'])
+    expect((await h.checkpoint()).value.attempts.slice(0,3)).toEqual(attempts)
+    expect(await h.planner.load(source,h.root)).toEqual(output)
+    await h.prepare(); expect(h.requests).toHaveLength(2)
+  })
   it('does not retry rejected native review settlement after a terminal model route mismatch', async () => {
     const h = await setup(), finish = h.dependencies.agentClasses.finish
     h.dependencies.agentClasses.finish = async (id: string, status: string) => {
@@ -140,6 +163,29 @@ describe('durable independently reviewed report planning', () => {
     expect(await h.prepare()).toEqual(output)
     expect(await h.planner.load(source, h.root)).toEqual(output)
     expect(h.requests).toHaveLength(2)
+  })
+  it.each([false,true])('keeps a backup correction on that route instead of returning to the exhausted primary (resume=%s)', async resume => {
+    const h = await setup(), begin = h.dependencies.agentClasses.begin, finish = h.dependencies.agentClasses.finish
+    const primary = { provider:'configured',model:'text' }, backup = { provider:'backup',model:'text' }
+    h.dependencies.agentClasses.begin = async (...args: unknown[]) => Object.assign(await begin(...args),{ routeChain:[primary,backup],routeIndex:0 })
+    h.dependencies.agentClasses.finish = async (id: string,status: string) => {
+      await finish(id,status); Object.assign(h.executions.get(id),{ actual:h.executions.get(id).selected,childStopReason:id==='e0'?'max-tokens':'completed' })
+    }
+    h.dependencies.agentClasses.fallback = async () => Object.assign(await begin('p','text'),{ selected:backup,routeChain:[primary,backup],routeIndex:1 })
+    let interrupted = false
+    h.dependencies.agentClasses.retryContent = async (id: string) => {
+      expect(h.executions.get(id).selected).toEqual(backup)
+      if (resume && !interrupted) { interrupted = true; throw new Error('interrupted before correction reservation') }
+      return Object.assign(await begin('p','text'),{ selected:backup,routeChain:[primary,backup],routeIndex:1 })
+    }
+    h.dependencies.subagents.start = async (_:string,request:any) => {
+      h.requests.push(request); const n = h.requests.length
+      return { id:`child${n}`,result:Promise.resolve({ stopReason:n===1?'max-tokens':'completed',
+        structured:n===2?{}:n===3?proposal:{ accepted:[] } }),dispose:async()=>{} }
+    }
+    if (resume) await expect(h.prepare()).rejects.toThrow('interrupted before correction reservation')
+    await h.prepare()
+    expect(h.requests.map(r=>r.agentOptions.provider)).toEqual(['configured','backup','backup','configured'])
   })
   it('blocks unknown failed native execution on every resume, including disposal failure', async () => {
     const h = await setup(undefined, { unknown: true, disposeFails: true })

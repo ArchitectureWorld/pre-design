@@ -46,9 +46,13 @@ interface RouteAttempt {
   readonly routeIndex: number
   readonly chainId: string
   readonly fallbackFromExecutionId?: string
+  readonly correctionFromExecutionId?: string
 }
 /** No message matching: a model can emit provider-looking prose or fail JSON validation. */
 function availabilityFailure(reason: Record<string, unknown> | undefined): AvailabilityFailure | undefined {
+  // A native capacity terminal is a model failure, never a prose/JSON guess.
+  // Keep the failed execution and move only along the configured backup chain.
+  if (reason?.kind === 'max-tokens') return 'output-limit'
   if (reason?.kind !== 'error') return undefined
   const failure = object(reason.error), code = failure?.code
   if (typeof code !== 'string') return undefined
@@ -183,6 +187,9 @@ export class AgentClassService {
       if (plan.fallbackFromExecutionId && [...table.entries()].some(([, row]) => row.fallbackFromExecutionId === plan.fallbackFromExecutionId)) {
         throw new Error('MODEL_FALLBACK_ALREADY_STARTED: 此次备用调用已预留，不能重复派发。')
       }
+      if (plan.correctionFromExecutionId && [...table.entries()].some(([, row]) => row.correctionFromExecutionId === plan.correctionFromExecutionId)) {
+        throw new Error('MODEL_CORRECTION_ALREADY_STARTED: 此次内容校正已预留，不能重复派发。')
+      }
       if (authorization) {
         const grantedAt = Date.parse(authorization.grantedAt)
         if (!Number.isFinite(grantedAt) || (authorization.maxModelTurns !== null
@@ -237,11 +244,12 @@ export class AgentClassService {
     if (!previous || previous.parentId !== String(parent.id) || previous.status !== 'failed'
       || !previous.availabilityFailure || !previous.routeChain || !previous.chainId
       || previous.error?.startsWith('MODEL_ROUTE_MISMATCH') || this.dependencies.activity?.(previous.childId ?? '') === 'running') return undefined
-    if (previous.availabilityFailure !== 'catalog' && previous.childStopReason !== 'error') return undefined
+    const terminalKind = previous.availabilityFailure === 'output-limit' ? 'max-tokens' : 'error'
+    if (previous.availabilityFailure !== 'catalog' && previous.childStopReason !== terminalKind) return undefined
     // Persisted evidence survives disposal, but cannot authorize a switch once a
     // still-visible child has started another turn or changed its actual route.
     const events = previous.childId ? this.dependencies.sessions.get(previous.childId)?.snapshotEvents() : undefined
-    if (events?.length && (object(this.terminal(previous)?.reason)?.kind !== 'error' || this.observed(previous).status === 'failed')) return undefined
+    if (events?.length && (object(this.terminal(previous)?.reason)?.kind !== terminalKind || this.observed(previous).status === 'failed')) return undefined
     const index = (previous.routeIndex ?? 0) + 1
     if (index >= previous.routeChain.length) return undefined
     return this.beginRoute(previous.projectId, previous.classId, previous.task, parent, {
@@ -252,6 +260,22 @@ export class AgentClassService {
   execution(id: string): ClassExecution | undefined {
     const run = this.domain.table('executions').get(id)
     return run ? structuredClone(run) : undefined
+  }
+  /** A schema correction stays on the same snapshotted route. Restarting the
+   * primary here could cycle through the backup chain on every report resume. */
+  async retryContent(id: string, parent: Agent, signal?: AbortSignal): Promise<ClassExecution | undefined> {
+    signal?.throwIfAborted()
+    const previous = this.execution(id)
+    if (!previous || previous.parentId !== String(parent.id) || previous.status !== 'failed' || previous.childStopReason !== 'completed'
+      || !previous.actual || !previous.routeChain || !previous.chainId || previous.availabilityFailure
+      || previous.error?.startsWith('MODEL_ROUTE_MISMATCH') || this.dependencies.activity?.(previous.childId ?? '') === 'running') return undefined
+    const events = previous.childId ? this.dependencies.sessions.get(previous.childId)?.snapshotEvents() : undefined
+    if (events?.length && (object(this.terminal(previous)?.reason)?.kind !== 'completed' || this.observed(previous).status === 'failed'
+      || preplanningCancellationReason(events))) return undefined
+    return this.beginRoute(previous.projectId, previous.classId, previous.task, parent, {
+      configurationRevision: previous.configurationRevision, routeChain: previous.routeChain, routeIndex: previous.routeIndex ?? 0,
+      chainId: previous.chainId, correctionFromExecutionId: previous.id,
+    }, signal)
   }
   private update(id: string, patch: Partial<ClassExecution>): Promise<ClassExecution> {
     return this.serialize(async () => {
@@ -288,6 +312,7 @@ export class AgentClassService {
   }
   private terminalModelFailure(run: ClassExecution, events?: ReturnType<ExecutionSession['snapshotEvents']>): string | undefined {
     const reason = object(this.terminal(run, events)?.reason)
+    if (reason?.kind === 'max-tokens') return 'MODEL_OUTPUT_LIMIT: 模型输出被截断，未生成完整结果。'
     if (reason?.kind !== 'error') return undefined
     const failure = object(reason.error), code = failure?.code
     // Classify only the native terminal envelope. Never copy raw provider text,

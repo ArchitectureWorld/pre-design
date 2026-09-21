@@ -13,7 +13,7 @@ export interface ModelRoute extends LlmRoute {
 export type ClassRoutes = Record<Exclude<AgentClassId, 'review'>, ModelRoute | null> & { readonly review?: ModelRoute | null }
 export const MAX_CLASS_FALLBACKS = 16
 export type ClassFallbacks = Partial<Record<AgentClassId, readonly ModelRoute[]>>
-export type AvailabilityFailure = 'catalog' | 'provider' | 'transport' | 'rate-limit' | 'server'
+export type AvailabilityFailure = 'catalog' | 'provider' | 'transport' | 'rate-limit' | 'server' | 'output-limit'
 export interface ClassSettings {
   readonly revision: number
   readonly routes: ClassRoutes
@@ -42,6 +42,7 @@ export interface ClassExecution {
   readonly routeChain?: readonly ModelRoute[]
   readonly routeIndex?: number
   readonly fallbackFromExecutionId?: string
+  readonly correctionFromExecutionId?: string
   /** Derived only from a failed catalog validation or the native terminal envelope. */
   readonly availabilityFailure?: AvailabilityFailure
   readonly actual?: ModelRoute
