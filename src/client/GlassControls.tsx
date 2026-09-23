@@ -22,7 +22,7 @@ export function GlassHelp({ label, children }: { readonly label: string; readonl
   const place = () => {
     const rect = trigger.current?.getBoundingClientRect()
     if (!rect) return
-    const boundary = root.current?.closest('.appearance-panel,.pre-glass')?.getBoundingClientRect()
+    const boundary = root.current?.closest('.pre-dialog,.appearance-panel,.pre-glass')?.getBoundingClientRect()
     const above = Math.max(0, rect.top - Math.max(0, boundary?.top ?? 0) - 16)
     const below = Math.max(0, Math.min(window.innerHeight, boundary?.bottom ?? window.innerHeight) - rect.bottom - 16)
     setPlacement({above:below < 360 && above > below, maxHeight:Math.max(80, Math.min(380, below < 360 && above > below ? above : below))})

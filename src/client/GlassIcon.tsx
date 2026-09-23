@@ -14,6 +14,7 @@ export function GlassIcon({ name }: { readonly name: string }) {
     trash: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7M14 10v7',
     clock: 'M12 8v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',
     branch: 'M6 4v8a4 4 0 0 0 4 4h9m-4-4 4 4-4 4',
+    expand: 'M14 4h6v6M20 4l-8 8M10 4H4v16h16v-6',
     close: 'm6 6 12 12M18 6 6 18',
     info: 'M12 11v6M12 7h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',
     link: 'm10 13 4-4M8 15l-1 1a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0m2 3 1-1a4 4 0 0 1 6 6l-4 4a4 4 0 0 1-6 0',

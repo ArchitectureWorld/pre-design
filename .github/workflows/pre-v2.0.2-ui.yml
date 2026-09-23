@@ -54,6 +54,10 @@ jobs:
         run: pnpm test
       - name: Built package regression
         run: pnpm test:built
+      - name: Real browser UI regressions
+        run: |
+          node scripts/build-ui-review-v202.mjs
+          node scripts/verify-ui-browser-v202.mjs
       - name: Diff hygiene
         run: git diff --check
       - name: Pack tested candidate (no publish)
@@ -62,6 +66,10 @@ jobs:
           npm pack --ignore-scripts --pack-destination /tmp/pre-v202-candidate
           git rev-parse HEAD > /tmp/pre-v202-candidate/COMMIT.txt
           cp docs/pre-v2.0.2-ui-handoff.md /tmp/pre-v202-candidate/HANDOFF.md
+          cp work/ui-review-r4/pre-V2.0.2-R4-preview.html /tmp/pre-v202-candidate/
+          cp work/ui-review-r4/browser/result.json /tmp/pre-v202-candidate/browser-result.json
+          mkdir -p /tmp/pre-v202-candidate/screenshots
+          cp work/ui-review-r4/browser/*.png /tmp/pre-v202-candidate/screenshots/
           cd /tmp/pre-v202-candidate
           sha256sum *.tgz > SHA256SUMS.txt
       - uses: actions/upload-artifact@v4

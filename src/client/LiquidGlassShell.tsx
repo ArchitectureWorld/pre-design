@@ -4,13 +4,17 @@ import { APPEARANCE_KEY, GLASS_THEMES, isDarkGlass, isStrongGlass, restoreAppear
 import { installGlassOptics } from './glass-optics.ts'
 import { GLASS_STYLES } from './glass-styles.ts'
 import { INLINE_GLASS_STYLES } from './glass-inline-styles.ts'
+import { SESSION_GLASS_STYLES } from './glass-session-styles.ts'
 import { GlassAction, GlassHelp } from './GlassControls.tsx'
+import { BACKGROUND_TYPES, useGlassBackground } from './glass-background.ts'
 import { GlassIcon } from './GlassIcon.tsx'
 
 export function LiquidGlassShell({ children }: { readonly children: ReactNode }) {
   const [appearance, setAppearance] = useState<GlassAppearance>(() => {
     try { return restoreAppearance(localStorage.getItem(APPEARANCE_KEY)) } catch { return themeAppearance() }
   })
+  const background = useGlassBackground()
+  const backgroundInput = useRef<HTMLInputElement>(null)
   const [open, setOpen] = useState(false), [grid, setGrid] = useState(false)
   const [persisted, setPersisted] = useState(true)
   const root = useRef<HTMLDivElement>(null), toggle = useRef<HTMLButtonElement>(null), close = useRef<HTMLButtonElement>(null)
@@ -40,9 +44,9 @@ export function LiquidGlassShell({ children }: { readonly children: ReactNode })
   }
   const strong = isStrongGlass(appearance.theme)
   const style = { '--blur': `${appearance.blur}px`, '--gloss': appearance.gloss / 100, '--lift': `${(strong ? 9 : 6) + appearance.lift * .17}px`, '--hover': `${-(strong ? 8 : 4) * appearance.lift / 100}px` } as CSSProperties
-  return <div className="pre-glass" ref={root} onMouseMove={highlight} style={style} data-theme={isDarkGlass(appearance.theme) ? 'dark' : 'light'} data-depth={strong ? 'strong' : 'restrained'} data-treatment={appearance.theme} data-motion={appearance.motion ? 'on' : 'off'} data-grid={grid ? 'on' : 'off'}>
-    <style>{GLASS_STYLES}{INLINE_GLASS_STYLES}</style>
-    <div className="pre-stage"><div className="pre-ambient" aria-hidden="true" />
+  return <div className="pre-glass" ref={root} onMouseMove={highlight} style={style} data-theme={isDarkGlass(appearance.theme) ? 'dark' : 'light'} data-depth={strong ? 'strong' : 'restrained'} data-treatment={appearance.theme} data-motion={appearance.motion ? 'on' : 'off'} data-grid={grid ? 'on' : 'off'} data-background={background.image ? 'custom' : 'default'}>
+    <style>{GLASS_STYLES + INLINE_GLASS_STYLES + SESSION_GLASS_STYLES}</style>
+    <div className="pre-stage">{background.image && <img className="pre-background" src={background.image.url} alt="" aria-hidden="true" draggable={false} />}<div className="pre-ambient" aria-hidden="true" />
       <div className="workspace">
         <header className="titlebar">
           <div className="brand"><span className="brand-mark" aria-hidden="true" /><strong>Pre-Design DSH</strong></div>
@@ -56,6 +60,16 @@ export function LiquidGlassShell({ children }: { readonly children: ReactNode })
           <header className="appearance-heading"><strong>外观</strong><button className="pre-button icon-action" type="button" ref={close} aria-label="关闭外观设置" title="关闭外观设置" onClick={dismiss}><GlassIcon name="close" /></button></header>
           <div className="appearance-context"><span>液态玻璃</span><GlassHelp label="外观说明"><p>只调整本界面，不改变模型配置或正在执行的任务。C 与 A、D 与 B 使用相同面板参数。</p><p>折射为屏幕空间视觉模拟，不是物理折射率；不支持时保留磨砂与厚度效果，文字不参与扭曲。</p></GlassHelp></div>
           {([{ key: 'refraction', label: '折射强度', max: 100 }, { key: 'blur', label: '磨砂程度', max: 36 }, { key: 'gloss', label: '亮面高光', max: 100 }, { key: 'lift', label: '悬浮层次', max: 100 }] as const).map(({ key, label, max }) => <div key={key} className="appearance-row"><span><label htmlFor={`${unique}-${key}`}>{label}</label><output htmlFor={`${unique}-${key}`}>{appearance[key]}{key === 'blur' ? ' px' : '%'}</output></span><input id={`${unique}-${key}`} aria-label={label} type="range" min="0" max={max} value={appearance[key]} onChange={event => setAppearance(previous => ({ ...previous, [key]: Number(event.target.value) }))} /></div>)}
+          <div className="background-control">
+            <span className="background-thumb" aria-hidden="true">{background.image ? <img src={background.image.url} alt="" /> : <GlassIcon name="image" />}</span>
+            <div className="background-label"><span>背景图片</span><small title={background.image?.name}>{background.busy ? '正在处理…' : background.image?.name ?? '默认背景'}</small></div>
+            <input ref={backgroundInput} className="visually-hidden" tabIndex={-1} type="file" aria-label="背景图片文件" accept={BACKGROUND_TYPES.join(',')} onChange={event => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void background.choose(file) }} />
+            <GlassAction icon="image" label={background.image ? '更换背景图片' : '选择背景图片'} onClick={() => backgroundInput.current?.click()} />
+            {(background.image || background.busy) && <GlassAction icon="refresh" label="恢复默认背景" onClick={background.reset} />}
+          </div>
+          <p className="background-note">JPG / PNG / WebP · ≤20 MB · 仅保存在当前浏览器</p>
+          {background.error && <p className="pre-warning" role="alert">{background.error}</p>}
+          {background.notice && <p className="pre-warning" role="status">{background.notice}</p>}
           <label className="appearance-motion">动态光影<input type="checkbox" checked={appearance.motion} onChange={event => setAppearance(previous => ({ ...previous, motion: event.target.checked }))} /></label>
           <div className="appearance-footer"><button className="pre-button" type="button" aria-pressed={grid} onClick={() => setGrid(!grid)}>折射观察网格</button><GlassAction icon="refresh" label="还原外观" onClick={() => setAppearance(themeAppearance(appearance.theme))} /></div>
           {!persisted && <p className="pre-warning" role="status">浏览器未允许保存外观，本次调整仍然有效。</p>}

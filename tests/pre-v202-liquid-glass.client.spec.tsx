@@ -54,6 +54,7 @@ it('displays actual execution outcomes separately from live child activity', asy
   }] }))
   const view = render(<AgentClassPanel sessionId="s1" request={request} />)
   expect(await view.findByRole('region', { name: '当前项目执行记录' })).toBeTruthy()
+  fireEvent.click(view.getByRole('button', { name: /执行记录/u }))
   expect(view.getByText('现场概念图')).toBeTruthy()
   expect(view.getByText('子会话空闲')).toBeTruthy()
   expect(view.queryByText('已完成')).toBeNull()

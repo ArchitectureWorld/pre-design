@@ -18,14 +18,20 @@ function fixture(mode:string):AgentClassView {
       {id:llm.model,name:'Gemini 3.8 Flash'},{id:direct.model,name:'Gemini 3.1 Flash Image'},
       {id:'tool-llm-b',name:'备用 LLM · 示例 B'}
     ]},{provider:klein.provider,name:'ComfyUI',available:true,models:[{id:klein.model,name:'Klein',imageTool:'comfyui_pic'}]}],
-    executions:mode==='history' ? [{id:'preview-execution',projectId:'preview-project',parentId:'preview-session',classId:'image',task:'节点鸟瞰图',configurationRevision:7,selected:{...klein,llm},actual:{...klein,llm},routeChain:[{...klein,llm},direct],status:'running',activity:'idle',startedAt:'2026-09-23T00:00:00Z',updatedAt:'2026-09-23T00:01:00Z'}] : [],
+    executions:mode==='history' ? Array.from({length:45},(_,i)=>({
+      id:`preview-execution-${i}`,projectId:'preview-project',parentId:'preview-session',classId:'image' as const,
+      task:`节点效果图 · ${String(i+1).padStart(2,'0')}`,configurationRevision:7,selected:{...klein,llm},actual:{...klein,llm},
+      routeChain:[{...klein,llm},direct],status:i%4===0?'running' as const:'completed' as const,activity:'idle' as const,
+      startedAt:new Date(Date.UTC(2026,8,23,0,i)).toISOString(),updatedAt:new Date(Date.UTC(2026,8,23,0,i)).toISOString()
+    })) : [],
   }
 }
 let snapshot=fixture('tool')
-let saves=0
-Object.assign(window,{preReview:{get snapshot(){return snapshot},get saves(){return saves}}})
+let saves=0, reads=0, readDelay=60
+Object.assign(window,{preReview:{get snapshot(){return snapshot},get saves(){return saves},get reads(){return reads},set readDelay(value:number){readDelay=Math.max(0,Math.min(5000,value))},addCatalogModel(){snapshot={...snapshot,catalog:snapshot.catalog.map((p,i)=>i===0?{...p,models:[...p.models,{id:'new-catalog-model',name:'新增目录模型'}]}:p)}}}})
 async function request(payload:any,signal:AbortSignal):Promise<AgentClassView> {
-  await new Promise(resolve=>setTimeout(resolve,60))
+  if(payload.action==='read') reads++
+  await new Promise(resolve=>setTimeout(resolve,payload.action==='read'?readDelay:60))
   if(signal.aborted) throw new DOMException('Aborted','AbortError')
   if(payload.action==='save') {
     if(payload.revision!==snapshot.settings.revision) throw new Error('预览：配置版本冲突，请重新载入。')

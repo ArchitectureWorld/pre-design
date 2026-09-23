@@ -89,14 +89,14 @@ it('keeps independent primary/backup companions through theme switches and saves
   fireEvent.click(view.getByRole('button',{name:'保存配置'}))
   await waitFor(()=>expect(request.mock.calls.at(-1)?.[0]).toMatchObject({routes:{image:direct},fallbacks:{image:[paired]}}))
 })
-it('puts execution history behind a disclosure while preserving actual companion evidence in details', () => {
+it('opens execution history on demand in a dialog while preserving actual companion evidence in details', () => {
   const view=render(<ClassExecutionPanel projectId="project" executions={[{
     id:'r1',projectId:'project',classId:'image',task:'概念图',parentId:'s',configurationRevision:7,selected:paired,actual:paired,
     routeChain:[paired,direct],status:'running',activity:'idle',startedAt:'2026-09-23T00:00:00Z',updatedAt:'2026-09-23T00:01:00Z'
   }]}/>)
-  const history=view.container.querySelector('details.execution-history') as HTMLDetailsElement
-  expect(history).toBeTruthy(); expect(history.open).toBe(false)
-  fireEvent.click(within(history).getByText('执行记录'))
+  expect(view.queryByRole('dialog')).toBeNull()
+  fireEvent.click(view.getByRole('button',{name:/执行记录/u}))
+  const history=view.getByRole('dialog',{name:'执行记录'})
   const detail=within(history).getByText('执行详情').closest('details')!
   fireEvent.click(within(detail).getByText('执行详情'))
   expect(within(detail).getByText('启动时配套 LLM')).toBeTruthy()
