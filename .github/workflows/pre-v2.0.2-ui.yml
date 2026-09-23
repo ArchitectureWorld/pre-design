@@ -8,10 +8,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: pre-v202-ui-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   regression:
     runs-on: ubuntu-latest
@@ -38,6 +34,20 @@ jobs:
           node-version: 24.11.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Offline validation tooling snapshot
+        if: github.run_number == 2
+        run: |
+          mkdir -p /tmp/pre-v202-tooling
+          tar -czf /tmp/pre-v202-tooling/node_modules.tar.gz node_modules
+          cp "$(command -v node)" /tmp/pre-v202-tooling/node
+      - uses: actions/upload-artifact@v4
+        if: github.run_number == 2
+        with:
+          name: pre-v202-offline-validation-tooling
+          path: /tmp/pre-v202-tooling/
+          retention-days: 1
+      - name: UI regressions
+        run: pnpm exec vitest run tests/pre-v202-*.spec.* --maxWorkers=1
       - name: Typecheck
         run: pnpm typecheck
       - name: Build and full regression
