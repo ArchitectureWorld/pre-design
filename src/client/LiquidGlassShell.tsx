@@ -3,6 +3,7 @@ import { PRE_DESIGN_VERSION } from '../version.ts'
 import { APPEARANCE_KEY, GLASS_THEMES, isDarkGlass, isStrongGlass, restoreAppearance, themeAppearance, type GlassAppearance } from './glass-appearance.ts'
 import { installGlassOptics } from './glass-optics.ts'
 import { GLASS_STYLES } from './glass-styles.ts'
+import { INLINE_GLASS_STYLES } from './glass-inline-styles.ts'
 import { GlassAction, GlassHelp } from './GlassControls.tsx'
 import { GlassIcon } from './GlassIcon.tsx'
 
@@ -40,7 +41,7 @@ export function LiquidGlassShell({ children }: { readonly children: ReactNode })
   const strong = isStrongGlass(appearance.theme)
   const style = { '--blur': `${appearance.blur}px`, '--gloss': appearance.gloss / 100, '--lift': `${(strong ? 9 : 6) + appearance.lift * .17}px`, '--hover': `${-(strong ? 8 : 4) * appearance.lift / 100}px` } as CSSProperties
   return <div className="pre-glass" ref={root} onMouseMove={highlight} style={style} data-theme={isDarkGlass(appearance.theme) ? 'dark' : 'light'} data-depth={strong ? 'strong' : 'restrained'} data-treatment={appearance.theme} data-motion={appearance.motion ? 'on' : 'off'} data-grid={grid ? 'on' : 'off'}>
-    <style>{GLASS_STYLES}</style>
+    <style>{GLASS_STYLES}{INLINE_GLASS_STYLES}</style>
     <div className="pre-stage"><div className="pre-ambient" aria-hidden="true" />
       <div className="workspace">
         <header className="titlebar">

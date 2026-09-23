@@ -19,21 +19,18 @@ const optionName = (catalog: readonly CatalogProvider[], provider: string, model
 function CompanionPicker({ label, route, catalog, busy, onChange }: { label: string; route: ModelRoute; catalog: readonly CatalogProvider[]; busy: boolean; onChange: (route: ModelRoute) => void }) {
   if (!imageToolForRoute(route)) return null
   const invalid = !companionAvailable(catalog, route.llm)
-  return <div className="companion-picker">
-    <span className="companion-label"><GlassIcon name="branch" />配套 LLM <span className="required-marker" aria-hidden="true">*</span></span>
-    <select aria-label={label} title="显式选择支持工具调用的 LLM；不会借用其他类别模型" aria-invalid={invalid} required disabled={busy} value={routeValue(route.llm ?? null)} onChange={event => {
+  return <select aria-label={label} title={`${label}（必选，支持工具调用） · ${routeLabel(route.llm)}`} aria-invalid={invalid} required disabled={busy} value={routeValue(route.llm ?? null)} onChange={event => {
       const value = event.target.value ? JSON.parse(event.target.value) as [string, string] : null
       const { llm: _previous, ...base } = route
       onChange({ ...base, ...(value ? { llm: { provider: value[0], model: value[1] } } : {}) })
-    }} className="pre-select">
+    }} className="pre-select companion-picker">
       <option value="">选择配套 LLM</option>
       {route.llm && !companionAvailable(catalog, route.llm) && <option value={routeValue(route.llm)} disabled>已不可用 · {routeLabel(route.llm)}</option>}
       {catalog.filter(p => p.available).map(p => <optgroup key={p.provider} label={p.name}>
         {p.models.filter(m => !isToolChoice(p.provider, m)).map(m =>
           <option key={m.id} title={`${p.provider} / ${m.id}`} value={routeValue({ provider: p.provider, model: m.id })}>{optionName(catalog, p.provider, m)}</option>)}
       </optgroup>)}
-    </select>
-  </div>
+  </select>
 }
 export async function agentClassRequest(payload: unknown, signal: AbortSignal): Promise<AgentClassView> {
   const response = await fetch('/preplan-agent-classes', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload), signal })
@@ -134,9 +131,14 @@ function AgentClassPanelBody({ sessionId, request = agentClassRequest, onView, o
         const available = inCatalog(view.catalog, selected ?? undefined) && (!imageToolForRoute(selected) || companionAvailable(view.catalog, selected?.llm))
         const selectedInCatalog = !!selected && view.catalog.some(provider => provider.provider === selected.provider && provider.models.some(model => model.id === selected.model))
         return <article className="role-card" data-kind={kind.id} key={kind.id}>
-          <div className="role-identity"><span className="role-icon"><GlassIcon name={kind.id} /></span><label htmlFor={`${sessionId}-${kind.id}`}>{kind.title}</label></div>
+          <div className="role-identity"><span className="role-icon"><GlassIcon name={kind.id} /></span><label htmlFor={`${sessionId}-${kind.id}`}>{kind.title}</label><GlassHelp label={`${kind.title}说明`}><p>{kind.description}</p>
+                {selected && <p className="route-identifier">{routeLabel(selected)}</p>}
+                {kind.id === 'image' && <><p>普通生图模型直接生成图片；ComfyUI / Klein 是生图工具，主选项及每个备用选项必须分别配置配套 LLM。</p><p>配套 LLM 负责理解需求并调用 ComfyUI。地址、工作流、模型文件仍在 DSH 的 ComfyUI 插件设置中管理。</p><p>请选择支持工具调用的 LLM；DSH 目录尚未声明这项能力，目录可见不代表已验证出图。</p></>}
+                {kind.id === 'review' && <p>请选择支持图片输入的模型；首次审图会执行像素校验，未通过时保留素材缺口。</p>}
+              </GlassHelp></div>
           <div className="model-area">
             <div className="model-controls">
+              <div className="route-pair" data-paired={!!imageToolForRoute(selected)}>
               <select className="pre-select" title={routeLabel(selected)} id={`${sessionId}-${kind.id}`} aria-label={`${kind.title}模型`} disabled={busy} value={routeValue(selected)} onChange={event => {
                 const value = event.target.value ? JSON.parse(event.target.value) as [string, string] : null
                 // Promotion keeps the pair already explicitly configured on that same route.
@@ -154,19 +156,22 @@ function AgentClassPanelBody({ sessionId, request = agentClassRequest, onView, o
                   {provider.models.filter(model => kind.id === 'image' || !isToolChoice(provider.provider, model)).map(model => <option key={model.id} disabled={!provider.available} value={routeValue({ provider: provider.provider, model: model.id })}>{optionName(view.catalog, provider.provider, model)}</option>)}
                 </optgroup>)}
               </select>
-              {adding !== kind.id && <GlassAction label={`${kind.title}添加备用模型`} icon="plus" className="add-backup" disabled={busy || !selected || backups.length >= MAX_CLASS_FALLBACKS} onClick={() => setAdding(kind.id)} />}
-              <GlassHelp label={`${kind.title}说明`}><p>{kind.description}</p>
-                {selected && <p className="route-identifier">{routeLabel(selected)}</p>}
-                {kind.id === 'image' && <><p>普通生图模型直接生成图片；ComfyUI / Klein 是生图工具，主选项及每个备用选项必须分别配置配套 LLM。</p><p>配套 LLM 负责理解需求并调用 ComfyUI。地址、工作流、模型文件仍在 DSH 的 ComfyUI 插件设置中管理。</p><p>请选择支持工具调用的 LLM；DSH 目录尚未声明这项能力，目录可见不代表已验证出图。</p></>}
-                {kind.id === 'review' && <p>请选择支持图片输入的模型；首次审图会执行像素校验，未通过时保留素材缺口。</p>}
-              </GlassHelp>
-            </div>
+              {imageToolForRoute(selected) && <span className="route-link" aria-hidden="true"><GlassIcon name="link" /></span>}
             {selected && <CompanionPicker label={`${kind.title}配套 LLM`} route={selected} catalog={view.catalog} busy={busy} onChange={route => {
               setDraft(previous => ({ ...previous, [kind.id]: route })); dirtyRef.current = true; setDirty(true); setMessage('')
             }} />}
+              </div>
+              {adding !== kind.id && <GlassAction label={`${kind.title}添加备用模型`} icon="plus" className="add-backup" disabled={busy || !selected || backups.length >= MAX_CLASS_FALLBACKS} onClick={() => setAdding(kind.id)} />}
+
+            </div>
+
             {!available && <small className="pre-warning">{imageToolForRoute(selected) && inCatalog(view.catalog, selected ?? undefined) ? '请选择可用的配套 LLM。' : selected ? '当前主模型不可用，请检查 DSH 设置。' : '请选择模型。'}</small>}
             {backups.map((route, index) => <div className="fallback-row" key={routeValue(route)}>
-              <span className="fallback-name" title={routeLabel(route)}><span className="fallback-number">{index + 1}</span>{displayRoute(view.catalog, route)}{imageToolForRoute(route) && <span className="route-kind">ComfyUI</span>}{inCatalog(view.catalog, route) ? '' : ' · 已不可用'}</span>
+              <div className="route-pair" data-paired={!!imageToolForRoute(route)}>
+                <span className="fallback-name" title={routeLabel(route)}><span className="fallback-number" title={`备用模型 ${index + 1}`}>{index + 1}</span><span className="fallback-route-name">{displayRoute(view.catalog, route)}{inCatalog(view.catalog, route) ? '' : ' · 已不可用'}</span></span>
+                {imageToolForRoute(route) && <span className="route-link" aria-hidden="true"><GlassIcon name="link" /></span>}
+              <CompanionPicker label={`${kind.title}备用模型${index + 1}配套 LLM`} route={route} catalog={view.catalog} busy={busy} onChange={updated => changeFallbacks(kind.id, backups.map((row, i) => i === index ? updated : row))} />
+              </div>
               <div className="fallback-actions">
                 <GlassAction icon="up" label={`${kind.title}备用模型${index + 1}上移`} disabled={busy || index === 0} onClick={() => {
                   const rows = [...backups]; [rows[index - 1], rows[index]] = [rows[index]!, rows[index - 1]!]; changeFallbacks(kind.id, rows)
@@ -176,7 +181,7 @@ function AgentClassPanelBody({ sessionId, request = agentClassRequest, onView, o
                 }} />
                 <GlassAction icon="trash" label={`${kind.title}备用模型${index + 1}删除`} disabled={busy} onClick={() => changeFallbacks(kind.id, backups.filter((_, i) => i !== index))} />
               </div>
-              <CompanionPicker label={`${kind.title}备用模型${index + 1}配套 LLM`} route={route} catalog={view.catalog} busy={busy} onChange={updated => changeFallbacks(kind.id, backups.map((row, i) => i === index ? updated : row))} />
+
             </div>)}
             {adding === kind.id && <div className="fallback-picker">
               <select className="pre-select" aria-label={`${kind.title}选择备用模型`} disabled={busy} value="" onChange={event => {

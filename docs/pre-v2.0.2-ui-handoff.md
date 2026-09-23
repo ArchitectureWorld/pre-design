@@ -1,3 +1,7 @@
+# R3 inline image configuration
+
+最新并排配置修订见 [R3 inline UI](pre-v2.0.2-r3-inline.md)。接续 `6815bf7`，保留其全部配对保护与简约样式；2.0.2 候选包须按 commit/hash 区分。
+
 # R2 review correction
 
 最新修订与复核说明见 [R2 UI review](pre-v2.0.2-r2-review.md)。版本仍为 2.0.2，以候选包 commit/hash 区分；下文保留首轮交接记录。
