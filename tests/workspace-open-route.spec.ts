@@ -52,6 +52,54 @@ describe('direct Workspace folder route', () => {
     expect(opened).toEqual([workspace])
   })
 
+  it('opens the registered Workspace for a session absent from the live SessionStore', async () => {
+    const workspace = await mkdtemp(join(tmpdir(), 'preplan-open-workspace-'))
+    roots.push(workspace)
+    const openDirectory = vi.fn(async () => undefined)
+    const url = await listen((request, response) => {
+      void handleWorkspaceOpen(request, response, {
+        sessions: { get: () => undefined },
+        workspaceRegistry: {
+          list: () => [{ path: workspace, sessionIds: ['session-stored'] }],
+        },
+        openDirectory,
+      })
+    })
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: 'session-stored' }),
+    })
+
+    expect(response.status).toBe(204)
+    expect(openDirectory).toHaveBeenCalledExactlyOnceWith(workspace)
+  })
+
+  it('rejects an unrecognized session even when Workspaces are registered', async () => {
+    const workspace = await mkdtemp(join(tmpdir(), 'preplan-open-workspace-'))
+    roots.push(workspace)
+    const openDirectory = vi.fn(async () => undefined)
+    const url = await listen((request, response) => {
+      void handleWorkspaceOpen(request, response, {
+        sessions: { get: () => undefined },
+        workspaceRegistry: {
+          list: () => [{ path: workspace, sessionIds: ['session-stored'] }],
+        },
+        openDirectory,
+      })
+    })
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: 'session-unknown' }),
+    })
+
+    expect(response.status).toBe(404)
+    expect(openDirectory).not.toHaveBeenCalled()
+  })
+
   it('rejects caller-supplied paths instead of exposing an arbitrary local opener', async () => {
     const workspace = await mkdtemp(join(tmpdir(), 'preplan-open-workspace-'))
     roots.push(workspace)

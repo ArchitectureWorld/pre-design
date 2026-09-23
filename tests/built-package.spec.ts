@@ -60,6 +60,7 @@ describe('built npm package', () => {
       ctx.provide('commands', { register: () => () => {} } as never)
       ctx.provide('tools', { guard: () => () => {}, register: (tool: ToolDefinition) => { tools.push(tool); return () => {} } } as never)
       ctx.provide('attachments', {} as never); ctx.provide('llm', {} as never); ctx.provide('sessions', {} as never); ctx.provide('subagents', {} as never)
+      ctx.provide('workspaceRegistry', { list: () => [] } as never)
       ctx.provide('systemPrompt', { section: () => () => {} } as never); ctx.provide('webServer', { register: () => () => {} } as never)
       const manifest = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'))
       const host = await import(pathToFileURL(resolve(root, manifest.exports['.'].default)).href)

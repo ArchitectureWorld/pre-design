@@ -102,6 +102,7 @@ interface ConfigShape {}
 export const name = 'preplanning-agent'
 export const inject = [
   'attachments', 'commands', 'llm', 'sessions', 'storage', 'storageDomain', 'subagents', 'systemPrompt', 'tools', 'webServer',
+  'workspaceRegistry',
 ]
 export const Config: z<ConfigShape> = z.object({})
 
@@ -353,7 +354,7 @@ export async function apply(ctx: Context): Promise<void> {
   }), publishReportStatus)
   registerWorkspaceOpenRoute(ctx.webServer, {
     get: id => ctx.sessions.get(id as never),
-  })
+  }, Reflect.get(ctx, 'workspaceRegistry'))
   ctx.effect(() => async () => {
     await agentClasses.close()
     await presentationSync.close()

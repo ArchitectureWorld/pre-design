@@ -54,6 +54,7 @@ describe('Host apply composition', () => {
       listModels: vi.fn(async () => [{ provider: 'test', id: 'model', name: 'Model' }]),
     } as never)
     ctx.provide('sessions', { get: vi.fn() } as never)
+    ctx.provide('workspaceRegistry', { list: () => [] } as never)
     ctx.provide('subagents', {
       listChildren: vi.fn(async () => []),
       startContinuable: vi.fn(),

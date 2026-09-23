@@ -42,6 +42,7 @@ describe('installed Host Presentation runtime', () => {
     ctx.provide('attachments', { readImage: vi.fn() } as never)
     ctx.provide('llm', { listModels: vi.fn(async () => []) } as never)
     ctx.provide('sessions', { get: vi.fn() } as never)
+    ctx.provide('workspaceRegistry', { list: () => [] } as never)
     ctx.provide('subagents', {
       listChildren: vi.fn(async () => []),
       startContinuable: vi.fn(),

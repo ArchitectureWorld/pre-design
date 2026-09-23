@@ -45,6 +45,7 @@ describe('real Loader composition', () => {
     context.provide('attachments', { readImage: async () => undefined } as never)
     context.provide('llm', { listModels: async () => [] } as never)
     context.provide('sessions', { get: () => undefined } as never)
+    context.provide('workspaceRegistry', { list: () => [] } as never)
     context.provide('subagents', {
       listChildren: async () => [], startContinuable: async () => undefined, followup: async () => undefined,
     } as never)

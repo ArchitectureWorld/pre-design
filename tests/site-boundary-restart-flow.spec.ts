@@ -59,6 +59,7 @@ async function boot(storageRoot: string, fixtureRoot: string, host: SyntheticHos
   } as never)
   ctx.provide('llm', { listModels: vi.fn(async () => []) } as never)
   ctx.provide('sessions', { get: vi.fn() } as never)
+  ctx.provide('workspaceRegistry', { list: () => [] } as never)
   ctx.provide('subagents', { listChildren: vi.fn(async () => []), startContinuable: vi.fn(), followup: vi.fn() } as never)
   ctx.provide('systemPrompt', { section: () => () => undefined } as never)
   ctx.provide('webServer', { register: () => () => undefined } as never)

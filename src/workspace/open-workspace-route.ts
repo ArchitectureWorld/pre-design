@@ -7,8 +7,13 @@ interface SessionLookup {
   get(id: string): { readonly header: { readonly cwd?: string } } | undefined
 }
 
+export interface WorkspaceLookup {
+  list(): readonly { readonly path: string; readonly sessionIds: readonly string[] }[]
+}
+
 interface OpenWorkspaceOptions {
   readonly sessions: SessionLookup
+  readonly workspaceRegistry?: WorkspaceLookup
   readonly openDirectory?: (path: string) => Promise<void>
 }
 
@@ -98,8 +103,10 @@ export async function handleWorkspaceOpen(
     send(response, 400, 'Invalid request')
     return
   }
-  const session = options.sessions.get(Reflect.get(payload, 'sessionId'))
+  const sessionId = Reflect.get(payload, 'sessionId') as string
+  const session = options.sessions.get(sessionId)
   const workspace = session?.header.cwd?.trim()
+    || options.workspaceRegistry?.list().find(item => item.sessionIds.includes(sessionId))?.path.trim()
   if (workspace === undefined || workspace === '' || !isAbsolute(workspace)) {
     send(response, 404, 'Workspace not found')
     return
@@ -125,10 +132,11 @@ export interface WorkspaceOpenRegistrar {
 export function registerWorkspaceOpenRoute(
   webServer: WorkspaceOpenRegistrar,
   sessions: SessionLookup,
+  workspaceRegistry: WorkspaceLookup,
 ): void {
   webServer.register({
     kind: 'exact',
     path: '/preplan-open-workspace',
-    handler: (request, response) => handleWorkspaceOpen(request, response, { sessions }),
+    handler: (request, response) => handleWorkspaceOpen(request, response, { sessions, workspaceRegistry }),
   })
 }

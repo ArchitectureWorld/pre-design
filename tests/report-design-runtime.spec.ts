@@ -22,6 +22,7 @@ it('publishes the frozen bridge and isolates every default host artifact root be
   ctx.provide('commands', { register: () => () => {} } as never)
   ctx.provide('tools', { guard: () => () => {}, register: (definition: ToolDefinition) => { definitions.push(definition); return () => {} } } as never)
   ctx.provide('attachments', {} as never); ctx.provide('llm', {} as never); ctx.provide('sessions', {} as never); ctx.provide('subagents', {} as never)
+  ctx.provide('workspaceRegistry', { list: () => [] } as never)
   ctx.provide('systemPrompt', { section: (section: {text:string}) => {promptSections.push(section.text);return () => {}} } as never); ctx.provide('webServer', { register: () => () => {} } as never)
   await ctx.plugin(HostPlugin); await vi.waitFor(() => expect(ctx.get('preplanning')).toBeDefined())
   const host = ctx.preplanning
