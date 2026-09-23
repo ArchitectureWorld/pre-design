@@ -1,0 +1,48 @@
+name: Pre 2.0.2 UI and UX
+
+on:
+  push:
+    branches: [pre-V2.0.2]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pre-v202-ui-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Archive exact source for review
+        run: |
+          mkdir -p /tmp/pre-v202-delivery
+          git archive --format=tar HEAD > /tmp/pre-v202-delivery/pre-V2.0.2-source.tar
+          git rev-parse HEAD > /tmp/pre-v202-delivery/COMMIT.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pre-V2.0.2-source
+          path: /tmp/pre-v202-delivery/
+          retention-days: 14
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.11.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Build and full regression
+        run: pnpm test
+      - name: Built package regression
+        run: pnpm test:built
+      - name: Diff hygiene
+        run: git diff --check
