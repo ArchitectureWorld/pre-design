@@ -1,3 +1,11 @@
+# 当前交接：Pre-design 2.0.2 UI/UX
+
+本轮有效交接为 [pre-V2.0.2 UI/UX](docs/pre-v2.0.2-ui-handoff.md)，版本权威为 [version-matrix.json](docs/version-matrix.json)。用户指定分支 `pre-V2.0.2`；不合并 main，不发布、不修改用户安装。
+
+---
+
+以下为历史 2.0.0 交接，保留原文以便追溯，不代表本轮版本或部署结论。
+
 # Pre-design 2.0.0 当前交接
 
 > 机器版本权威：[`docs/version-matrix.json`](docs/version-matrix.json)  

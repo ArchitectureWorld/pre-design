@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
+import { GlassIcon } from './GlassIcon.tsx'
 import { deriveWorkspaceProjectName, type DirectStartResult } from './direct-start.ts'
 import { VersionFooter } from './VersionFooter.tsx'
 
@@ -10,6 +11,7 @@ export interface PreplanningProjectFormProps {
   readonly openProjectFolder?: () => Promise<void>
   readonly embedded?: boolean
   readonly checkingProject?: boolean
+  readonly projectReadError?: string
   readonly existingProjectId?: string
   readonly projectRunning?: boolean
 }
@@ -29,9 +31,11 @@ export function PreplanningProjectForm({
   openProjectFolder,
   embedded = false,
   checkingProject = false,
+  projectReadError,
   existingProjectId,
   projectRunning = false,
 }: PreplanningProjectFormProps) {
+  const submitting = useRef(false), opening = useRef(false)
   const [submitState, setSubmitState] = useState<SubmitState>('idle')
   const [startResult, setStartResult] = useState<DirectStartResult>()
   const [openState, setOpenState] = useState<OpenState>('idle')
@@ -42,13 +46,14 @@ export function PreplanningProjectForm({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (checkingProject || existingProjectId || submitState === 'running' || submitState === 'success') return
+    if (submitting.current || checkingProject || projectReadError || existingProjectId || submitState === 'running' || submitState === 'success') return
     if (workspaceMissing) {
       setError('请先选择或创建 DSH 工作区。该工作区就是当前 Pre 项目。')
       return
     }
     setError(undefined)
     setSubmitState('running')
+    submitting.current = true
     try {
       const result = await start()
       setStartResult(result)
@@ -56,11 +61,12 @@ export function PreplanningProjectForm({
     } catch (cause) {
       setError(messageOf(cause))
       setSubmitState('idle')
-    }
+    } finally { submitting.current = false }
   }
 
   const openFolder = async () => {
-    if (openProjectFolder === undefined) return
+    if (openProjectFolder === undefined || opening.current) return
+    opening.current = true
     setError(undefined)
     setOpenState('running')
     try {
@@ -69,7 +75,7 @@ export function PreplanningProjectForm({
     } catch (cause) {
       setError(messageOf(cause))
       setOpenState('idle')
-    }
+    } finally { opening.current = false }
   }
 
   const panelStyle = embedded
@@ -104,6 +110,37 @@ export function PreplanningProjectForm({
         width: 'min(420px, calc(100vw - 32px))',
         zIndex: 2_147_483_000,
       }
+
+  if (embedded) {
+    const buttonLabel = projectReadError ? '项目状态读取失败' : checkingProject ? '正在读取项目状态…' : existingProjectId
+      ? projectRunning ? '项目运行中' : '已关联项目'
+      : submitState === 'success' ? '前期策划已启动' : submitState === 'running' ? '正在启动…'
+      : submitState === 'waiting_for_source' ? '重新检测原始资料' : '开始前期策划'
+    return <form className="project-card" aria-label="前期策划项目" onSubmit={submit}>
+      <div className="project-identity"><div className="folder-tile" aria-hidden="true"><GlassIcon name="folder" /></div>
+        <div className="project-copy"><p className="eyebrow">CURRENT WORKSPACE</p><h1>前期策划</h1>
+          {!workspaceMissing && <><p className="project-name">{projectName}</p><p className="project-path">项目总文件夹：{workspacePath}</p></>}
+          {workspaceMissing && <p className="pre-alert" role="alert">请先选择或创建 DSH 工作区。该工作区就是当前 Pre 项目。</p>}
+        </div>
+      </div>
+      <div className="project-right">
+        <div className="project-notice"><span className="notice-icon"><GlassIcon name={existingProjectId ? 'check' : 'info'} /></span><div>
+          <strong>{existingProjectId ? '当前会话已关联前期策划项目。' : '零输入启动'}</strong>
+          <p>{existingProjectId ? '下方显示当前项目的实际执行记录，重新打开面板不会再次启动项目。' : 'Pre 直接使用当前 DSH 工作区，并自动读取工作区中的“原始资料”目录；无需填写项目描述或项目名称。'}</p>
+        </div></div>
+        {projectReadError && <p className="pre-warning">尚未确认当前会话的项目状态，请在下方重试读取配置；不会重复启动项目。</p>}
+        {error && !workspaceMissing && <div className="pre-alert" role="alert">{error}</div>}
+        {submitState === 'success' && startResult?.state === 'running' && <div className="pre-feedback" role="status"><strong>项目已创建或恢复，系统将自动推进前期策划。</strong><p>已登记 {startResult.sourceMaterialCount} 个标准原件；当前“原始资料”检测到 {startResult.sourceInboxFileCount} 个文件。</p></div>}
+        {submitState === 'waiting_for_source' && startResult?.state === 'waiting_for_source' && <div className="pre-feedback" role="status"><strong>等待原始资料</strong><p>当前项目尚未检测到可分析资料。请将项目资料放入“原始资料”文件夹。</p><p>标准项目目录已经初始化；检测到资料后才会启动自动前期策划。</p></div>}
+        <div className="project-actions">
+          <button className="pre-button pre-primary" disabled={!!projectReadError || checkingProject || !!existingProjectId || submitState === 'running' || submitState === 'success' || workspaceMissing} type="submit"><GlassIcon name="link" />{buttonLabel}</button>
+          {!workspaceMissing && openProjectFolder && <button className="pre-button" disabled={openState === 'running'} onClick={openFolder} type="button"><GlassIcon name="folder" />{openState === 'running' ? '正在打开…' : '打开项目文件夹'}</button>}
+        </div>
+        {openState === 'success' && <p className="pre-feedback" role="status">项目文件夹已打开。</p>}
+      </div>
+      <div className="project-version"><VersionFooter /></div>
+    </form>
+  }
 
   return (
     <form aria-label="前期策划项目" onSubmit={submit} style={panelStyle}>

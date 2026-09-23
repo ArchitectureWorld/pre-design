@@ -56,3 +56,16 @@ jobs:
         run: pnpm test:built
       - name: Diff hygiene
         run: git diff --check
+      - name: Pack tested candidate (no publish)
+        run: |
+          mkdir -p /tmp/pre-v202-candidate
+          npm pack --ignore-scripts --pack-destination /tmp/pre-v202-candidate
+          git rev-parse HEAD > /tmp/pre-v202-candidate/COMMIT.txt
+          cp docs/pre-v2.0.2-ui-handoff.md /tmp/pre-v202-candidate/HANDOFF.md
+          cd /tmp/pre-v202-candidate
+          sha256sum *.tgz > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pre-V2.0.2-tested-candidate
+          path: /tmp/pre-v202-candidate/
+          retention-days: 14

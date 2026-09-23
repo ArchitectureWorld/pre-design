@@ -1,38 +1,40 @@
-# Pre-design 2.0.0
+# Pre-design 2.0.2
 
 `pre-design` 是运行在 DeepSeek Harness 中的前期策划执行插件：
 
 ```text
-@architectureworld/dsh-preplanning-agent@2.0.0
+@architectureworld/dsh-preplanning-agent@2.0.2
 ```
 
 当前有效入口：
 
 ```text
-架构基线：architecture/pre-v2.0.0
-开发支线：feat/pre-v2.0.0
+主线基线：main@801afcc794b34fa734ba624303ed9552b152407c
+开发支线：pre-V2.0.2
 ```
 
 > 版本权威：[`docs/version-matrix.json`](docs/version-matrix.json) 与 [`docs/VERSIONING.md`](docs/VERSIONING.md)。
+
+本轮 UI/UX 更新与验收入口见 [pre-V2.0.2 交接](docs/pre-v2.0.2-ui-handoff.md)。基于 `main@801afcc794b34fa734ba624303ed9552b152407c`；四主题使用真实 DSH 配置接口，不是独立演示页。
 
 ## 当前状态
 
 | 项目 | 状态 |
 |---|---|
-| Pre 产品／插件版本 | `2.0.0` |
-| 当前开发支线 | `feat/pre-v2.0.0` |
+| Pre 产品／插件版本 | `2.0.2` |
+| 当前开发支线 | `pre-V2.0.2` |
 | Workspace 根目录接入 | 已实现并完成自动化验证 |
 | 发布状态 | 未合并、未发布 |
 | 上一正式发布 | `v0.7.0`，仅作历史基线 |
 | Presentation 项目格式 Contract | 外部依赖 `0.1.0` |
-| DSH 兼容基线 | `0.1.1-rc.2` |
+| DSH 兼容基线 | `0.1.5-rc.1` |
 
 ## 产品定位
 
 - Pre-design 是独立、可执行的 DSH 插件。
 - 插件内部包含前期策划 Skill、8 章 57 项专业工作流、Tools、Commands、状态、Gate、Revision、资料处理和成果生成能力。
 - DSH Harness 负责 Agent、模型、Workspace、Session 和工具执行。
-- `presentation-tools` 是独立的可视化交互、排版和导出工具。
+- `presentation-tools` 保持可视化交互、展示和导出工具属性；排版决策属于 Pre / DSH Skill。
 - 两个项目通过 `Presentation Standard Project Directory 0.1.0` 解耦，产品版本彼此独立。
 
 ## 默认使用模型
@@ -48,7 +50,7 @@
 这些 Session 共同使用同一个 Pre 项目
 ```
 
-当前 Session 的 `SessionHeader.cwd` 是项目总文件夹。Pre 不再默认把正常 UI 项目写到用户级公共输出目录。
+Workspace 面板使用 `WorkspaceView.path` 作为项目总文件夹；已有 Session 的 Host 兼容路径为 `SessionHeader.cwd`。Pre 不再默认把正常 UI 项目写到用户级公共输出目录。
 
 例如用户在 DSH 中选择：
 
@@ -60,6 +62,7 @@ D:\Projects\武汉站综合枢纽
 
 ```text
 D:\Projects\武汉站综合枢纽\
+├─ 原始资料\      # 用户拥有的输入目录
 ├─ project.json
 ├─ rules.json
 ├─ outline.json
@@ -84,54 +87,29 @@ assets/
 以下内容不会被 Pre 的标准项目同步替换：
 
 ```text
+原始资料/
 layouts/
 工作区中的其他用户文件和目录
 ```
 
 ## UI 创建和继续流程
 
-打开“前期策划”面板时，UI 显示当前 DSH Workspace 路径。点击“创建或继续全流程”后执行：
+打开“前期策划”面板后，UI 读取当前 DSH Workspace 和会话关联状态。已有项目只展示关联状态与执行记录，重新打开面板或切换主题不会重复启动。
+
+没有关联项目时，点击“开始前期策划”后通过 DSH 正式命令桥探测、创建或恢复当前 Workspace 项目，同步标准目录及用户“原始资料”，再按现有 Automatic-first 策略推进。资料为空时显示“等待原始资料”和重新检测入口，不启动资料分析。
+
+UI 不要求项目名、项目描述、报告深度或运行模式输入。模型目录与配置仍来自 DSH，ComfyUI 配套 LLM、备用模型顺序和服务端 revision 校验保留。
+
+## UI 刷新与外观
+
+首次打开默认 C；顶部 A/B/C/D 可直接对比浅/深、克制/强液态玻璃。C 与 A、D 与 B 的面板几何和光学参数相同，只有配色不同。外观按钮可调节折射、磨砂、高光和悬浮。
+
+仅外观偏好尝试保存在本浏览器；项目身份、模型配置和执行状态不以浏览器缓存为权威。主题切换不清空未保存的模型草稿；保存操作成功后才确认配置已保存。读取失败可重试，项目状态尚未确认时禁止重复启动。
+
+版本标识：
 
 ```text
-/preplan-presentation-sync --probe
-```
-
-### 当前 Workspace 没有 Pre 项目
-
-```text
-/preplan-new <项目名称>
-→ /preplan-presentation-sync
-→ /preplan-mode <manual|automatic> <图像预算> <报告深度>
-→ /preplan-run
-```
-
-### 当前 Workspace 已有 Pre 项目
-
-```text
-自动将当前 Session 绑定到已有 Pre 项目
-→ 不重复执行 /preplan-new
-→ /preplan-presentation-sync
-→ 继续既有工作流
-```
-
-同一 Workspace 下新增或切换 Session，不需要手工重新选择项目。
-
-## UI 刷新恢复
-
-新建面板中的以下输入按 Workspace 保存在浏览器本地：
-
-- 一句话项目描述；
-- 可编辑项目名称；
-- 人工确认或全自动；
-- 标准汇报或扩展汇报；
-- 概念图预算。
-
-页面刷新、关闭面板后重新打开，仍会恢复同一 Workspace 的未提交内容；不同 Workspace 相互隔离。项目创建和标准目录同步成功后，草稿自动清除。
-
-新建面板和项目状态卡底部均显示：
-
-```text
-Pre 2.0.0 · Project Format 0.1.0
+Pre 2.0.2 · Project Format 0.1.0
 ```
 
 ## 打开项目文件夹
@@ -198,7 +176,7 @@ PRE_DESIGN_PRESENTATION_PROJECT_ROOT
 
 旧目录不会被自动删除，Stable ID、Pre Revision 和 Presentation Project ID 保持不变。
 
-## Pre 2.0.0 核心能力
+## 继承的核心能力
 
 1. 创建和维护前期策划项目。
 2. 推进 8 章、57 项专业工作流。
@@ -252,7 +230,7 @@ pnpm test:built
 git diff --check
 ```
 
-Workspace 根目录代码验证坐标：
+历史 Workspace 根目录代码验证坐标（不代表本轮 UI 的验收结果）：
 
 ```text
 HEAD: 700a1675ac5801b4ed824b31de48184be2cc1c6c
@@ -263,14 +241,16 @@ Conclusion: success
 
 ## DSH 部署验证
 
+仅在获得用户对本次部署的确认后执行；先固定到通过完整 CI 的精确提交，不在运行中的正式会话里自动更换插件。
+
 ```powershell
-git switch feat/pre-v2.0.0
+git switch pre-V2.0.2
 git pull --ff-only
 pnpm install --frozen-lockfile
 pnpm test
 pnpm pack
-dsh plugin --profile web add .\architectureworld-dsh-preplanning-agent-2.0.0.tgz
+dsh plugin --profile web add (Resolve-Path '.\architectureworld-dsh-preplanning-agent-2.0.2.tgz').Path
 dsh --profile web --no-open
 ```
 
-重新加载浏览器后使用 `Ctrl + F5` 清理旧 Client 缓存。当前开发候选仍未合并主线、未创建 `v2.0.0` Tag 或正式 Release。
+重新加载浏览器后使用 `Ctrl + F5` 清理旧 Client 缓存。当前开发候选仍未合并主线、未创建 `v2.0.2` Tag 或正式 Release。

@@ -1,21 +1,21 @@
 {
-  "schemaVersion": 7,
-  "updatedAt": "2026-09-15",
+  "schemaVersion": 8,
+  "updatedAt": "2026-09-23",
   "repository": "ArchitectureWorld/pre-design",
   "product": {
     "name": "pre-design",
-    "version": "2.0.1",
+    "version": "2.0.2",
     "packageName": "@architectureworld/dsh-preplanning-agent",
-    "packageVersion": "2.0.1",
-    "status": "deployment-candidate",
+    "packageVersion": "2.0.2",
+    "status": "development-candidate",
     "publishedTag": null
   },
   "activeBranches": {
     "architecture": "architecture/pre-v2.0.0",
-    "development": "feat/pre-v2.0.1",
+    "development": "pre-V2.0.2",
     "baseline": "main",
-    "baselineVersion": "2.0.0",
-    "baselineCommitSHA": "49140423e14f3d3abcf3815c9bdf68e8e5e26730"
+    "baselineVersion": "2.0.1",
+    "baselineCommitSHA": "801afcc794b34fa734ba624303ed9552b152407c"
   },
   "dshCompatibility": {
     "version": "0.1.5-rc.1",
@@ -58,12 +58,28 @@
       "status": "historical-published-baseline"
     },
     "supersededBranchNames": [
-      { "name": "architecture/presentation-project-alignment-v2.0.0", "replacement": "architecture/pre-v2.0.0" },
-      { "name": "feature/presentation-phase0-foundation-v2.0.0", "replacement": "feat/pre-v2.0.0" },
-      { "name": "feat/presentation-standard-project-v0.1.0-integration", "replacement": "feat/pre-v2.0.0" }
+      {
+        "name": "architecture/presentation-project-alignment-v2.0.0",
+        "replacement": "architecture/pre-v2.0.0"
+      },
+      {
+        "name": "feature/presentation-phase0-foundation-v2.0.0",
+        "replacement": "feat/pre-v2.0.0"
+      },
+      {
+        "name": "feat/presentation-standard-project-v0.1.0-integration",
+        "replacement": "feat/pre-v2.0.0"
+      }
     ],
-    "clientReportCandidate": { "label": "v0.8", "authority": false },
-    "handoffArchive": { "label": "FINAL_v2.0", "authority": false, "path": "handoff/FINAL_v2.0/" }
+    "clientReportCandidate": {
+      "label": "v0.8",
+      "authority": false
+    },
+    "handoffArchive": {
+      "label": "FINAL_v2.0",
+      "authority": false,
+      "path": "handoff/FINAL_v2.0/"
+    }
   },
   "implementation": {
     "presentationStandardOutput": {
@@ -80,9 +96,22 @@
         "zeroInput": true,
         "syntheticUserMessageRequired": false,
         "workspaceDraftPersistence": "none-zero-input",
-        "userOwnedInputEntries": ["原始资料"],
-        "managedRootEntries": ["project.json", "rules.json", "outline.json", "pages", "source-materials", "assets"],
-        "preservedWorkspaceEntries": ["原始资料", "layouts", "all-unrelated-user-files-and-directories"],
+        "userOwnedInputEntries": [
+          "原始资料"
+        ],
+        "managedRootEntries": [
+          "project.json",
+          "rules.json",
+          "outline.json",
+          "pages",
+          "source-materials",
+          "assets"
+        ],
+        "preservedWorkspaceEntries": [
+          "原始资料",
+          "layouts",
+          "all-unrelated-user-files-and-directories"
+        ],
         "legacyFallbackProjectRoot": "~/.dsh/presentation-projects",
         "legacyFallbackEnvironmentVariable": "PRE_DESIGN_PRESENTATION_PROJECT_ROOT",
         "probeCommand": "/preplan-presentation-sync --probe",
@@ -90,7 +119,7 @@
         "forceSyncCommand": "/preplan-presentation-sync --force",
         "openFolderCommand": "/preplan-open-project-folder",
         "agentTool": "preplanning_sync_presentation_project",
-        "uiVersionLabel": "Pre 2.0.1 · Project Format 0.1.0",
+        "uiVersionLabel": "Pre 2.0.2 · Project Format 0.1.0",
         "presentationConsumption": "open-current-dsh-workspace-root"
       },
       "packageRuntime": {
@@ -119,7 +148,24 @@
       "formalReleasePublished": false
     },
     "releaseStatus": "not-merged-not-published",
-    "productionCodeChanged": true
+    "productionCodeChanged": true,
+    "liquidGlassUI": {
+      "branch": "pre-V2.0.2",
+      "baseline": "main@801afcc794b34fa734ba624303ed9552b152407c",
+      "themes": {
+        "A": "light-restrained",
+        "B": "light-strong",
+        "C": "dark-restrained",
+        "D": "dark-strong"
+      },
+      "pairedGeometry": [
+        "A=C",
+        "B=D"
+      ],
+      "defaultTheme": "C",
+      "hostSmoke": "pending-user-environment",
+      "handoff": "docs/pre-v2.0.2-ui-handoff.md"
+    }
   },
   "authority": {
     "machine": "docs/version-matrix.json",

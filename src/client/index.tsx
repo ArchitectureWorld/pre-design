@@ -19,6 +19,7 @@ import { PreplanningProjectForm } from './PreplanningProjectForm.tsx'
 import { PreplanningStatusCard } from './PreplanningStatusCard.tsx'
 import { preplanningStatusDefinition } from './status-definition.ts'
 import { AgentClassPanel } from './AgentClassPanel.tsx'
+import { LiquidGlassShell } from './LiquidGlassShell.tsx'
 import { installSubagentSummarySync } from './subagent-summary-sync.ts'
 
 const PREPLANNING_PANEL_ID = 'preplanning' as MainPanelId
@@ -157,6 +158,8 @@ export function apply(ctx: ClientContext): void {
     const acceptProjectView = useCallback((view: AgentClassView) => {
       setProjectView({ sessionId: configSessionId, view })
     }, [configSessionId])
+    const [projectReadError, setProjectReadError] = useState<{ sessionId?: string; message?: string }>()
+    const acceptReadError = useCallback((message?: string) => { setProjectReadError({ sessionId: configSessionId, message }) }, [configSessionId])
     const currentProjectView = configSessionId && projectView?.sessionId === configSessionId ? projectView.view : undefined
     const start = async () => {
       if (workspace === undefined) throw new Error('请先选择或创建 DSH 工作区。')
@@ -173,11 +176,12 @@ export function apply(ctx: ClientContext): void {
         }
 
     return (
-      <div style={{ overflowY: 'auto', height: '100%' }}>
+      <LiquidGlassShell>
       <PreplanningProjectForm
         key={`${workspace?.workspaceId ?? 'workspace-unavailable'}:${configSessionId ?? 'no-session'}`}
         embedded
         checkingProject={configSessionId !== undefined && currentProjectView === undefined}
+        projectReadError={configSessionId !== undefined && currentProjectView === undefined && projectReadError?.sessionId === configSessionId ? projectReadError?.message : undefined}
         existingProjectId={currentProjectView?.projectId}
         projectRunning={currentProjectView?.executions.some(run => run.activity === 'running')}
         openProjectFolder={openProjectFolder}
@@ -185,8 +189,8 @@ export function apply(ctx: ClientContext): void {
         workspacePath={workspace?.path}
         workspaceTitle={workspace?.title}
       />
-      <AgentClassPanel sessionId={configSessionId} onView={acceptProjectView} />
-      </div>
+      <AgentClassPanel sessionId={configSessionId} onView={acceptProjectView} onReadError={acceptReadError} />
+      </LiquidGlassShell>
     )
   }))
 

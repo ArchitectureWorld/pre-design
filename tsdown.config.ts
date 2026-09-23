@@ -38,6 +38,8 @@ export default defineConfig([
     clean: false,
     dts: false,
     sourcemap: true,
+    // Keep the full UI within the existing 100 KB DSH client budget.
+    minify: true,
     deps: {
       neverBundle: specifier => clientExternals.has(specifier),
       alwaysBundle: specifier => !clientExternals.has(specifier),

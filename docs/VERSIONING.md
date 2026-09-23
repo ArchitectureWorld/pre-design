@@ -6,32 +6,32 @@
 
 | 对象 | 当前值 | 含义 |
 |---|---:|---|
-| Pre 产品版本 | `2.0.1` | 当前开发/部署候选 |
-| Pre DSH 插件版本 | `2.0.1` | Workspace-first / zero-input 版本 |
-| Pre npm 包版本 | `@architectureworld/dsh-preplanning-agent@2.0.1` | 当前构建包版本 |
+| Pre 产品版本 | `2.0.2` | 当前开发/部署候选 |
+| Pre DSH 插件版本 | `2.0.2` | Workspace-first / zero-input + A/B/C/D 液态玻璃 |
+| Pre npm 包版本 | `@architectureworld/dsh-preplanning-agent@2.0.2` | 当前构建包版本 |
 | DSH 兼容基线 | `0.1.5-rc.1` | 当前 Host 与 Browser API 唯一支持基线 |
 | Presentation 标准版本 | `0.1.0` | 外部、解耦的数据格式 Contract |
 | Node.js 基线 | `>=24.11.0` | 构建与部署运行时要求 |
-| V2.0.0 正式基线 | `main@49140423e14f3d3abcf3815c9bdf68e8e5e26730` | 2.0.1 从该坐标继续演进 |
+| V2.0.1 主线基线 | `main@801afcc794b34fa734ba624303ed9552b152407c` | 2.0.2 从该坐标继续演进 |
 | 上一正式发布 | `v0.7.0` | 历史发布，不代表当前开发候选 |
 
 固定原则：
 
-- `2.0.1` 只属于 Pre 产品、插件和包；
+- `2.0.2` 只属于 Pre 产品、插件和包；
 - `0.1.5-rc.1` 只属于当前 DSH 兼容基线；
 - `0.1.0` 只属于 `Presentation Standard Project Directory`；
 - Pre 是 DSH Skill / Workspace 插件，实际执行仍由 DSH Agent 完成；
 - Presentation-tools 保持工具属性，排版能力仍归 Pre/DSH Skill 层；
-- 当前 2.0.1 支线未合并、未打 `v2.0.1` Tag、未创建正式 Release，也未声明 npm 正式发布。
+- 当前 2.0.2 支线未合并、未打 `v2.0.2` Tag、未创建正式 Release，也未声明 npm 正式发布。
 
 ## 2. 当前有效支线
 
 ```text
-main                    # Pre V2.0.0 正式基线
-feat/pre-v2.0.1         # Pre 2.0.1 开发与部署候选
+main                    # Pre V2.0.1 主线基线
+pre-V2.0.2         # Pre 2.0.2 开发与部署候选
 ```
 
-历史 `architecture/pre-v2.0.0` 和 `feat/pre-v2.0.0` 可保留用于追溯，但不再作为 2.0.1 的当前基线坐标。
+历史 `architecture/pre-v2.0.0` 和 `feat/pre-v2.0.0` 可保留用于追溯，但不再作为 2.0.2 的当前基线坐标。
 
 ## 3. DSH 0.1.5-rc.1 兼容权威
 
@@ -43,7 +43,7 @@ Node.js: >=24.11.0
 pnpm: 10.15.1
 ```
 
-2.0.1 Browser 侧使用 rc.1 的正式 owner packages，不再依赖旧 `@deepseek-ai/dsh-client-runtime` facade。核心集成为：
+2.0.2 Browser 侧使用 rc.1 的正式 owner packages，不再依赖旧 `@deepseek-ai/dsh-client-runtime` facade。核心集成为：
 
 ```text
 Workspace Controller
@@ -72,7 +72,7 @@ Schema Set SHA-256: 5bd329fcc8503ff7a48b3430e41b38dd264ae486cee7372a39cbbcccc2de
 
 ## 5. Workspace-first / zero-input 项目权威
 
-2.0.1 的项目模型固定为：
+2.0.2 的项目模型固定为：
 
 ```text
 一个 DSH Workspace
@@ -135,10 +135,10 @@ research/v2.0.1/
 
 ## 8. UI 版本标识
 
-2.0.1 分支显示：
+2.0.2 分支显示：
 
 ```text
-Pre 2.0.1 · Project Format 0.1.0
+Pre 2.0.2 · Project Format 0.1.0
 ```
 
 ## 9. 部署权威
@@ -149,18 +149,22 @@ Pre 2.0.1 · Project Format 0.1.0
 docs/deployment-dsh-v0.1.5-rc.1.md
 ```
 
-部署应固定到通过完整 CI 的精确 commit SHA，而不是长期跟随移动的 `feat/pre-v2.0.1` 分支头。
+部署应固定到通过完整 CI 的精确 commit SHA，而不是长期跟随移动的 `pre-V2.0.2` 分支头。
 
 ## 10. 版本禁止事项
 
 不得：
 
 - 将 DSH `0.1.1-rc.2` 或旧 `dsh-client-runtime` 写成当前兼容基线；
-- 将 `feat/pre-v2.0.0` 继续写成 2.0.1 活动基线；
+- 将 `feat/pre-v2.0.0` 继续写成 2.0.2 活动基线；
 - 将 Presentation `0.1.0` 写成 Pre 产品版本；
-- 将 Pre `2.0.1` 写成 Presentation 标准版本；
+- 将 Pre `2.0.2` 写成 Presentation 标准版本；
 - 把历史 `v0.7.0` 当成当前插件版本；
-- 把 `contracts/v0.6`、`contracts/v0.7` 改名为 `v2.0.1`；
+- 把 `contracts/v0.6`、`contracts/v0.7` 改名为 `v2.0.2`；
 - 把 `原始资料/` 当成 Pre 可改写的 Canonical 存储；
 - 在 root/blank-session UI 中重新要求虚构 prompt 才能实例化 Pre；
-- 在未完成完整测试、真实部署验收和合并审批前创建正式 `v2.0.1` Release。
+- 在未完成完整测试、真实部署验收和合并审批前创建正式 `v2.0.2` Release。
+
+## 11. UI/UX 更新边界
+
+C 是 A 的深色版，D 是 B 的深色版，同组面板几何与光学参数相同。主题偏好仅保存在浏览器，不写入模型配置。研究模块继续使用 `research/v2.0.1`，其版本不随本轮 UI 包升级。当前未安装至用户 DSH，真实宿主验收尚未进行。
