@@ -17,8 +17,8 @@ const BASELINE_COMMIT = '801afcc794b34fa734ba624303ed9552b152407c'
 const NODE_BASELINE = '>=24.11.0'
 const PRESENTATION_VERSION = '0.1.0'
 const PRESENTATION_PACKAGE = '@architectureworld/presentation-contracts'
-const PRESENTATION_COMMIT = '974668d308728386ea005c9e77d58ebff9372f0a'
-const PRESENTATION_SCHEMASET = '5bd329fcc8503ff7a48b3430e41b38dd264ae486cee7372a39cbbcccc2de2ebc'
+const PRESENTATION_COMMIT = 'fc54e4052e2ac2b2aa607391a55ab04fb79f4211'
+const PRESENTATION_SCHEMASET = 'cc954d1d47cf3a75146190e055be3c3e62eac91f760f9382a9348191e3b19f33'
 
 const matrix = json('docs/version-matrix.json')
 const pkg = json('package.json')
@@ -55,7 +55,7 @@ requireCondition(external?.standardVersion === PRESENTATION_VERSION, 'Presentati
 requireCondition(external?.packageName === PRESENTATION_PACKAGE, 'Presentation Contract package mismatch')
 requireCondition(external?.sourceCommitSHA === PRESENTATION_COMMIT, 'Presentation Contract commit changed')
 requireCondition(external?.schemaSetSha256 === PRESENTATION_SCHEMASET, 'Presentation Schema Set changed')
-requireCondition(pkg.devDependencies?.[PRESENTATION_PACKAGE] === 'file:vendor/presentation-contracts/architectureworld-presentation-contracts-0.1.0.tgz',
+requireCondition(pkg.devDependencies?.[PRESENTATION_PACKAGE] === 'file:vendor/presentation-contracts/architectureworld-presentation-contracts-0.1.1.tgz',
   'Presentation Contract tarball pin changed')
 
 for (const path of [

@@ -1,7 +1,9 @@
 import { spawn } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { stat } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { isAbsolute, win32 } from 'node:path'
+import { tmpdir } from 'node:os'
+import { isAbsolute, join, win32 } from 'node:path'
 
 interface SessionLookup {
   get(id: string): { readonly header: { readonly cwd?: string } } | undefined
@@ -53,6 +55,72 @@ function runDetached(command: string, args: readonly string[]): Promise<void> {
   })
 }
 
+function runToExit(command: string, args: readonly string[]): Promise<void> {
+  return new Promise((resolveRun, rejectRun) => {
+    const child = spawn(command, [...args], { windowsHide: true, stdio: 'ignore', signal: AbortSignal.timeout(20_000) })
+    child.once('error', rejectRun)
+    child.once('exit', code => code === 0 ? resolveRun() : rejectRun(new Error(`interactive Explorer launcher exited with ${code}`)))
+  })
+}
+
+function encodedPowerShell(script: string): string {
+  return Buffer.from(script, 'utf16le').toString('base64')
+}
+
+function interactiveExplorerCommand(path: string, windowsDirectory: string): [string, string[]] {
+  const id = randomUUID()
+  const taskName = `PreplanOpen-${id}`
+  const resultPath = join(tmpdir(), `preplan-open-${id}.json`)
+  const target = Buffer.from(path, 'utf8').toString('base64')
+  const result = Buffer.from(resultPath, 'utf8').toString('base64')
+  const interactiveScript = `
+$ErrorActionPreference = 'Stop'
+$target = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${target}'))
+$resultPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${result}'))
+try {
+  if ((Get-Process -Id $PID).SessionId -eq 0) { throw 'No interactive desktop session' }
+  $shell = New-Object -ComObject Shell.Application
+  function MatchingWindows {
+    @($shell.Windows() | ForEach-Object { try { if ($_.Document.Folder.Self.Path -ieq $target) { [long]$_.HWND } } catch {} })
+  }
+  $before = @(MatchingWindows)
+  Start-Process -FilePath (Join-Path $env:SystemRoot 'explorer.exe') -ArgumentList ('/n,"' + $target + '"')
+  $found = $false
+  for ($attempt = 0; $attempt -lt 40; $attempt++) {
+    Start-Sleep -Milliseconds 250
+    if (@(MatchingWindows | Where-Object { $_ -notin $before }).Count -gt 0) { $found = $true; break }
+  }
+  if (-not $found) { throw 'No new Explorer window appeared' }
+  @{ opened = $true } | ConvertTo-Json -Compress | Set-Content -LiteralPath $resultPath -Encoding utf8
+} catch {
+  @{ opened = $false } | ConvertTo-Json -Compress | Set-Content -LiteralPath $resultPath -Encoding utf8
+  exit 1
+}`
+  const powershell = win32.join(windowsDirectory, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+  const actionArguments = `-NoProfile -NonInteractive -EncodedCommand ${encodedPowerShell(interactiveScript)}`
+  const controllerScript = `
+$ErrorActionPreference = 'Stop'
+$taskName = '${taskName}'
+$resultPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${result}'))
+$action = New-ScheduledTaskAction -Execute '${powershell}' -Argument '${actionArguments}'
+$principal = New-ScheduledTaskPrincipal -UserId ([Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType Interactive -RunLevel Limited
+Register-ScheduledTask -TaskName $taskName -Action $action -Principal $principal -Force | Out-Null
+try {
+  Start-ScheduledTask -TaskName $taskName
+  for ($attempt = 0; $attempt -lt 120; $attempt++) {
+    if (Test-Path -LiteralPath $resultPath) { break }
+    Start-Sleep -Milliseconds 100
+  }
+  if (-not (Test-Path -LiteralPath $resultPath)) { throw 'Interactive Explorer did not respond' }
+  $outcome = Get-Content -LiteralPath $resultPath -Raw | ConvertFrom-Json
+  if (-not $outcome.opened) { throw 'Interactive Explorer did not open a window' }
+} finally {
+  Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $resultPath -Force -ErrorAction SilentlyContinue
+}`
+  return [powershell, ['-NoProfile', '-NonInteractive', '-EncodedCommand', encodedPowerShell(controllerScript)]]
+}
+
 export async function openWorkspaceInNewWindow(
   path: string,
   options: NativeOpenOptions = {},
@@ -61,7 +129,8 @@ export async function openWorkspaceInNewWindow(
   const run = options.run ?? runDetached
   if (platform === 'win32') {
     const windowsDirectory = options.windowsDirectory ?? process.env.SystemRoot ?? 'C:\\Windows'
-    await run(win32.join(windowsDirectory, 'explorer.exe'), [`/n,${path}`])
+    const [command, args] = interactiveExplorerCommand(path, windowsDirectory)
+    await (options.run ?? runToExit)(command, args)
     return
   }
   if (platform === 'darwin') {

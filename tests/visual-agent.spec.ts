@@ -23,6 +23,7 @@ function fixture(options: {
   collector?: SessionImageCollector
   existingExecutionId?: string
   existingModelRoute?: { provider: string; model: string }
+  writable?: boolean
 } = {}) {
   const visualTasks = [{
     taskId: 'task-1', projectId: 'project-1', chapterId: '03', workItemId: '03-06',
@@ -80,11 +81,15 @@ function fixture(options: {
       }),
     } as never,
     store: {
+      assertWritableProject: vi.fn(() => {
+        if (options.writable === false) throw new Error('VISUAL_WORKSPACE_REQUIRED')
+      }),
       saveCandidate: vi.fn(async (task) => ({
         assetId: 'asset-1', taskId: task.taskId, projectId: task.projectId, kind: 'concept', required: true,
         status: 'candidate', mimeType: 'image/png', fileName: 'project-1/candidates/asset-1.png',
         sha256: 'a'.repeat(64), width: 1600, height: 900, createdAt: '2026-08-28T08:30:00.000Z',
       })),
+      setCandidateStatus: vi.fn(async () => undefined),
     } as never,
     now: () => '2026-08-28T08:30:00.000Z',
   })
@@ -92,6 +97,15 @@ function fixture(options: {
 }
 
 describe('VisualAgentService', () => {
+  it('refuses a paid image dispatch when the project has no writable Workspace', async () => {
+    const f = fixture({ writable: false })
+    await expect(f.service.generate({ id: 'parent' } as never, {
+      taskId: 'task-1', projectId: 'project-1', chapterId: '03', workItemId: '03-06',
+      kind: 'concept', required: true, prompt: '林下休憩空间',
+    })).rejects.toThrow('VISUAL_WORKSPACE_REQUIRED')
+    expect(f.startContinuable).not.toHaveBeenCalled()
+  })
+
   it('dispatches ComfyUI through its paired LLM and only the image tool, while recording the image producer', async () => {
     const route = { provider: 'Comfyui-PIC', model: 'Klein', llm: { provider: 'test', model: 'writer' } }
     const agentClasses = { begin: vi.fn(async () => ({ id: 'comfy-execution', selected: route })), attach: vi.fn(), finish: vi.fn() } as unknown as AgentClassService

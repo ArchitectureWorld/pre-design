@@ -15,11 +15,11 @@ export interface PresentationStandardContractLock {
   readonly standardName: 'Presentation Standard Project Directory'
   readonly standardVersion: '0.1.0'
   readonly authorityRepository: 'ArchitectureWorld/presentation-tools'
-  readonly sourceCommitSHA: '974668d308728386ea005c9e77d58ebff9372f0a'
+  readonly sourceCommitSHA: 'fc54e4052e2ac2b2aa607391a55ab04fb79f4211'
   readonly contractRoot: 'contracts/presentation-standard-project'
   readonly packageName: '@architectureworld/presentation-contracts'
-  readonly packageVersion: '0.1.0'
-  readonly schemaSetSha256: '5bd329fcc8503ff7a48b3430e41b38dd264ae486cee7372a39cbbcccc2de2ebc'
+  readonly packageVersion: '0.1.1'
+  readonly schemaSetSha256: 'cc954d1d47cf3a75146190e055be3c3e62eac91f760f9382a9348191e3b19f33'
   readonly minimumNodeVersion: '22.0.0'
   readonly successMarker: 'PRESENTATION_STANDARD_PROJECT_V0_1_0_PASS'
   readonly schemaAuthorityExclusions: readonly ['feat/report-studio-v0.1.1-hardening']
@@ -30,11 +30,11 @@ export const PRESENTATION_STANDARD_CONTRACT_LOCK: PresentationStandardContractLo
   standardName: 'Presentation Standard Project Directory',
   standardVersion: '0.1.0',
   authorityRepository: 'ArchitectureWorld/presentation-tools',
-  sourceCommitSHA: '974668d308728386ea005c9e77d58ebff9372f0a',
+  sourceCommitSHA: 'fc54e4052e2ac2b2aa607391a55ab04fb79f4211',
   contractRoot: 'contracts/presentation-standard-project',
   packageName: '@architectureworld/presentation-contracts',
-  packageVersion: '0.1.0',
-  schemaSetSha256: '5bd329fcc8503ff7a48b3430e41b38dd264ae486cee7372a39cbbcccc2de2ebc',
+  packageVersion: '0.1.1',
+  schemaSetSha256: 'cc954d1d47cf3a75146190e055be3c3e62eac91f760f9382a9348191e3b19f33',
   minimumNodeVersion: '22.0.0',
   successMarker: 'PRESENTATION_STANDARD_PROJECT_V0_1_0_PASS',
   schemaAuthorityExclusions: ['feat/report-studio-v0.1.1-hardening'] as const,

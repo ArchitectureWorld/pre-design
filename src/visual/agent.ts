@@ -156,6 +156,7 @@ export class VisualAgentService {
     signal: AbortSignal = AbortSignal.timeout(600_000),
     options: { readonly preserveUncertain?: boolean; readonly recoveryOnly?: boolean; readonly beforeStart?: VisualDispatchGuard } = {},
   ): Promise<VisualAssetRecord> {
+    this.dependencies.store.assertWritableProject(task.projectId)
     const project = this.dependencies.governance.readProject(task.projectId)
     let existing = project.visualTasks
       .find(row => row.taskId === task.taskId)
@@ -378,6 +379,7 @@ export class VisualAgentService {
         ...(running.executionId ? { executionId: running.executionId } : {}), ...image.attemptSource } } : {}),
       quality,
     }
+    if (!quality.accepted) await this.dependencies.store.setCandidateStatus(task.projectId, stored.fileName, 'retired')
     if (running.executionId && classes && !image.attemptSource) {
       await classes.finish(running.executionId, quality.accepted ? 'completed' : 'failed', quality.accepted ? undefined : quality.issues.join('；'))
     }
@@ -398,6 +400,7 @@ export class VisualAgentService {
       throw new Error(`quality-approved visual candidate '${assetId}' not found`)
     }
     const adopted: VisualAssetRecord = { ...asset, status: 'adopted', adoptedRevision: revision }
+    await this.dependencies.store.setCandidateStatus(projectId, asset.fileName, 'adopted')
     await this.dependencies.governance.putVisualAsset(adopted)
     const task = project.visualTasks.find(row => row.taskId === asset.taskId)
     if (task !== undefined) {
@@ -412,6 +415,7 @@ export class VisualAgentService {
     const project = this.dependencies.governance.readProject(projectId)
     const asset = project.visualAssets.find(row => row.assetId === assetId)
     if (!asset) throw new Error('VISUAL_ASSET_NOT_FOUND')
+    if (asset.status === 'candidate') await this.dependencies.store.setCandidateStatus(projectId, asset.fileName, 'retired')
     await this.dependencies.governance.putVisualAsset({ ...asset, status: 'rejected',
       quality: { accepted: false, score: 0, issues: [reason] } })
     const task = project.visualTasks.find(row => row.taskId === asset.taskId)
@@ -440,6 +444,7 @@ export class VisualAgentService {
       || rejectedTask.kind !== replacementTask.kind) {
       throw new Error('replacement visual does not match the rejected visual brief')
     }
+    await this.dependencies.store.setCandidateStatus(projectId, rejectedAsset.fileName, 'retired')
     await this.dependencies.governance.putVisualAsset({ ...rejectedAsset, status: 'rejected' })
     await this.dependencies.governance.putVisualTask({
       ...rejectedTask,

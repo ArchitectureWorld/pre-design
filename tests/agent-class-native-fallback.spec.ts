@@ -182,7 +182,8 @@ it.each(['terminal', 'unknown'] as const)('handles %s image failure while preser
       if (visualTasks[0].modelRoute.model === 'a') throw new Error('provider failure')
       return { mimeType: 'image/png', data: new Uint8Array([1, 2, 3]), width: 1600, height: 900 }
     } } as never,
-    store: { saveCandidate: async (task: any) => ({ assetId: 'image', ...task, status: 'candidate', mimeType: 'image/png', fileName: 'image.png', sha256: 'a'.repeat(64), width: 1600, height: 900, createdAt: new Date().toISOString() }) } as never,
+    store: { assertWritableProject: () => undefined,
+      saveCandidate: async (task: any) => ({ assetId: 'image', ...task, status: 'candidate', mimeType: 'image/png', fileName: 'image.png', sha256: 'a'.repeat(64), width: 1600, height: 900, createdAt: new Date().toISOString() }) } as never,
   })
   const result = service.generate(parent, { taskId: 'image', projectId: 'p', chapterId: '03', workItemId: '03-01', kind: 'concept', required: true, prompt: '树林步行' }, signal(), { preserveUncertain: true })
   if (mode === 'unknown') {

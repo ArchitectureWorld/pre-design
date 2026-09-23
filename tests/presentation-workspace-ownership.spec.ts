@@ -1,5 +1,8 @@
 import { setTimeout as delay } from 'node:timers/promises'
+import { createHash } from 'node:crypto'
+import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { createStableId, type AssetManifest } from '@architectureworld/presentation-contracts'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   PRE_DESIGN_FIXED_MANAGED_PATHS,
@@ -41,6 +44,32 @@ function externalInventory(
 afterEach(cleanupSharedWorkspaces)
 
 describe('shared Workspace file ownership', () => {
+  it('preserves a registered candidate image across a standard project update', async () => {
+    const root = await createSharedWorkspace()
+    const initialBuild = await buildSharedProject({ revision: 1, summary: '初始结论。' })
+    const initial = await publishPresentationStandardProjectIntoWorkspace({
+      directoryRoot: root, build: initialBuild, operationId: 'candidate-initial',
+    })
+    const manifestPath = join(root, 'assets', 'manifest.json')
+    const manifest = await readJson<AssetManifest>(manifestPath)
+    const bytes = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
+    const assetId = createStableId('asset') as AssetManifest['assets'][number]['assetId']
+    const relativePath = 'assets/images/candidate-image.png'
+    await writeFile(join(root, 'assets', 'images', 'candidate-image.png'), bytes)
+    manifest.assets.push({ assetId, displayName: '候选图', mediaType: 'image', category: 'image',
+      semanticRole: 'concept_visual', relativePath, mimeType: 'image/png', sizeBytes: bytes.length,
+      sha256: createHash('sha256').update(bytes).digest('hex'), metadata: { widthPx: 1, heightPx: 1 },
+      adoptionStatus: 'candidate', origin: { type: 'generated_by_plugin', sourceMaterialIds: [],
+        parentAssetIds: [], method: 'visual task', sourceTool: { name: 'pre-design', version: '2.0.2' } },
+      createdAt: '2026-09-23T00:00:00.000Z', adoptedAt: null, retiredAt: null })
+    await writeJson(manifestPath, manifest)
+    const updatedBuild = await buildSharedProject({ revision: 2, summary: '更新结论。', stableIds: initialBuild.stableIds })
+    await publishPresentationStandardProjectIntoWorkspace({ directoryRoot: root, build: updatedBuild,
+      operationId: 'candidate-update', expectedExistingFileHashes: initial.fileHashes, confirmExternalChanges: true })
+    expect((await readJson<AssetManifest>(manifestPath)).assets).toContainEqual(expect.objectContaining({ assetId, adoptionStatus: 'candidate' }))
+    await expectContractValid(root)
+  })
+
   it('updates only exact Pre-managed files and preserves layouts plus unknown paths byte-for-byte', async () => {
     expect(PRE_DESIGN_FIXED_MANAGED_PATHS).toEqual([
       'project.json',

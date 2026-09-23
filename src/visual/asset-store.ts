@@ -1,6 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { mkdir, writeFile } from 'node:fs/promises'
-import { dirname, isAbsolute, relative, resolve } from 'node:path'
+import { existsSync, readFileSync, statSync } from 'node:fs'
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { createStableId, validateDocumentWithAjv, type AssetManifest, type AssetRecord } from '@architectureworld/presentation-contracts'
 import type { VisualAssetRecord } from '../governance/types.ts'
 import type { VisualGenerationTask, VisualImageData } from './types.ts'
 
@@ -71,13 +73,57 @@ function intrinsicDimensions(mimeType: keyof typeof EXTENSIONS, bytes: Buffer) {
 
 export class VisualAssetStore {
   private readonly root: string
+  private readonly manifestQueues = new Map<string, Promise<void>>()
 
   constructor(
     root: string,
     private readonly createId: () => string = randomUUID,
     private readonly now: () => string = () => new Date().toISOString(),
+    private readonly workspaceRootForProject?: (projectId: string) => string | undefined,
+    private readonly legacyAssetSha256?: (fileName: string) => string | undefined,
   ) {
     this.root = resolve(root)
+  }
+
+  assertWritableProject(projectId: string): void {
+    if (this.workspaceRootForProject === undefined) return
+    const workspaceRoot = this.workspaceRootForProject(safeSegment('projectId', projectId))
+    if (!workspaceRoot || !isAbsolute(workspaceRoot)
+      || !statSync(join(workspaceRoot, 'assets', 'images'), { throwIfNoEntry: false })?.isDirectory()
+      || !statSync(join(workspaceRoot, 'assets', 'manifest.json'), { throwIfNoEntry: false })?.isFile()) {
+      throw new Error(`VISUAL_WORKSPACE_REQUIRED: project '${projectId}' has no standard assets/images and assets/manifest.json`)
+    }
+  }
+
+  private async updateManifest<T>(workspaceRoot: string, change: (manifest: AssetManifest) => T): Promise<T> {
+    const previous = this.manifestQueues.get(workspaceRoot) ?? Promise.resolve()
+    let release!: () => void
+    const gate = new Promise<void>(resolveGate => { release = resolveGate })
+    const tail = previous.then(() => gate)
+    this.manifestQueues.set(workspaceRoot, tail)
+    await previous
+    const manifestPath = join(workspaceRoot, 'assets', 'manifest.json')
+    const temporary = `${manifestPath}.${randomUUID()}.tmp`
+    try {
+      const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as AssetManifest
+      if (!Array.isArray(manifest.assets)) throw new Error('VISUAL_ASSET_MANIFEST_INVALID: assets must be an array')
+      const result = change(manifest)
+      const validation = await validateDocumentWithAjv('AssetManifest', manifest)
+      if (!validation.valid) throw new Error(`VISUAL_ASSET_MANIFEST_INVALID: ${JSON.stringify(validation.errors)}`)
+      await writeFile(temporary, JSON.stringify(manifest), { flag: 'wx' })
+      await rename(temporary, manifestPath)
+      return result
+    } finally {
+      await rm(temporary, { force: true })
+      release()
+      if (this.manifestQueues.get(workspaceRoot) === tail) this.manifestQueues.delete(workspaceRoot)
+    }
+  }
+
+  private rootForNewAsset(projectId: string): string {
+    this.assertWritableProject(projectId)
+    const workspaceRoot = this.workspaceRootForProject?.(projectId)
+    return workspaceRoot ? resolve(workspaceRoot, 'assets', 'images') : this.root
   }
 
   async saveCandidate(task: VisualGenerationTask, image: VisualImageData): Promise<VisualAssetRecord> {
@@ -91,11 +137,41 @@ export class VisualAssetStore {
     if (image.height !== undefined && image.height !== intrinsic.height) throw new Error('image height metadata mismatch')
     const assetId = safeSegment('assetId', this.createId())
     const fileName = `${projectId}/candidates/${assetId}.${extension}`
-    const absolute = resolve(this.root, ...fileName.split('/'))
-    const boundary = relative(this.root, absolute)
+    const root = this.rootForNewAsset(projectId)
+    const absolute = this.workspaceRootForProject ? resolve(root, `${assetId}.${extension}`) : resolve(root, ...fileName.split('/'))
+    const boundary = relative(root, absolute)
     if (boundary.startsWith('..') || isAbsolute(boundary)) throw new Error('image output escaped asset root')
     await mkdir(dirname(absolute), { recursive: true })
     await writeFile(absolute, bytes, { flag: 'wx' })
+    const workspaceRoot = this.workspaceRootForProject?.(projectId)
+    if (workspaceRoot) {
+      const relativePath = `assets/images/${assetId}.${extension}`
+      const createdAt = this.now()
+      const record: AssetRecord = {
+        assetId: createStableId('asset') as AssetRecord['assetId'],
+        displayName: `AI 生图候选 ${assetId}`,
+        mediaType: 'image', category: 'image', semanticRole: 'concept_visual',
+        relativePath, mimeType: image.mimeType, sizeBytes: bytes.length,
+        sha256: createHash('sha256').update(bytes).digest('hex'),
+        metadata: { widthPx: intrinsic.width, heightPx: intrinsic.height },
+        adoptionStatus: 'candidate',
+        origin: { type: 'generated_by_plugin', sourceMaterialIds: [], parentAssetIds: [],
+          method: JSON.stringify({ visualAssetId: assetId, taskId: task.taskId }),
+          sourceTool: { name: 'pre-design', version: '2.0.2' } },
+        createdAt, adoptedAt: null, retiredAt: null,
+      }
+      try {
+        await this.updateManifest(workspaceRoot, manifest => {
+          if (manifest.assets.some(row => row.relativePath === relativePath || row.assetId === record.assetId)) {
+            throw new Error('VISUAL_ASSET_ALREADY_DECLARED')
+          }
+          manifest.assets.push(record)
+        })
+      } catch (error) {
+        await rm(absolute, { force: true })
+        throw error
+      }
+    }
     return {
       assetId,
       taskId: task.taskId,
@@ -113,7 +189,50 @@ export class VisualAssetStore {
     }
   }
 
+  async setCandidateStatus(projectId: string, fileName: string, status: 'adopted' | 'retired'): Promise<void> {
+    const workspaceRoot = this.workspaceRootForProject?.(safeSegment('projectId', projectId))
+    if (!workspaceRoot) return
+    const parts = fileName.split('/')
+    if (parts.length !== 3 || parts[0] !== projectId || parts[1] !== 'candidates') throw new Error('VISUAL_ASSET_PATH_INVALID')
+    const relativePath = `assets/images/${safeSegment('assetFileName', parts[2] ?? '')}`
+    await this.updateManifest(workspaceRoot, manifest => {
+      const legacyHash = this.legacyAssetSha256?.(fileName)
+      const record = manifest.assets.find(row => row.relativePath === relativePath)
+        ?? (legacyHash ? manifest.assets.find(row => row.category === 'image' && row.sha256 === legacyHash) : undefined)
+      if (!record) throw new Error('VISUAL_CANDIDATE_NOT_DECLARED')
+      if (record.adoptionStatus === 'adopted') return
+      if (record.adoptionStatus !== 'candidate') throw new Error('VISUAL_CANDIDATE_NOT_DECLARED')
+      if (status === 'adopted' && manifest.assets.some(row => row !== record && row.adoptionStatus === 'adopted' && row.sha256 === record.sha256 && row.sizeBytes === record.sizeBytes)) {
+        throw new Error('VISUAL_ASSET_DUPLICATES_ADOPTED_CONTENT')
+      }
+      record.adoptionStatus = status
+      if (status === 'adopted') record.adoptedAt = this.now()
+      else record.retiredAt = this.now()
+    })
+  }
+
   resolveAsset(fileName: string): string {
+    const segments = fileName.split('/')
+    const projectId = safeSegment('projectId', segments[0] ?? '')
+    const workspaceRoot = this.workspaceRootForProject?.(projectId)
+    if (workspaceRoot && isAbsolute(workspaceRoot) && segments.length === 3 && segments[1] === 'candidates') {
+      const assetFileName = safeSegment('assetFileName', segments[2] ?? '')
+      const projectRoot = resolve(workspaceRoot, 'assets', 'images')
+      const projectPath = resolve(projectRoot, assetFileName)
+      const boundary = relative(projectRoot, projectPath)
+      if (boundary.startsWith('..') || isAbsolute(boundary)) throw new Error('asset path escaped root')
+      if (existsSync(projectPath)) return projectPath
+      const legacyHash = this.legacyAssetSha256?.(fileName)
+      if (legacyHash) {
+        const manifest = JSON.parse(readFileSync(join(workspaceRoot, 'assets', 'manifest.json'), 'utf8')) as AssetManifest
+        const match = manifest.assets.find(row => row.category === 'image' && row.sha256 === legacyHash)
+        if (match) {
+          const assetPath = resolve(workspaceRoot, ...match.relativePath.split('/'))
+          const assetBoundary = relative(resolve(workspaceRoot, 'assets', 'images'), assetPath)
+          if (!assetBoundary.startsWith('..') && !isAbsolute(assetBoundary) && existsSync(assetPath)) return assetPath
+        }
+      }
+    }
     const absolute = resolve(this.root, ...fileName.split('/'))
     const boundary = relative(this.root, absolute)
     if (boundary.startsWith('..') || isAbsolute(boundary)) throw new Error('asset path escaped root')

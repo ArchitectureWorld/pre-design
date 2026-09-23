@@ -163,7 +163,14 @@ export async function apply(ctx: Context): Promise<void> {
   const questions = new QuestionService(repository, runtime, now)
   const gateway = new ProposalGateway(repository, registry, now, governance)
   const visualAssetRoot = join(dshHome, 'preplanning-agent', 'visual-assets')
-  const visualStore = new VisualAssetStore(visualAssetRoot)
+  const visualStore = new VisualAssetStore(visualAssetRoot, undefined, undefined, projectId => {
+    const binding = standardProjects.findByPreDesignProjectId(projectId)
+    return binding?.workspaceRoot ?? binding?.directoryRoot
+  }, fileName => {
+    const projectId = fileName.split('/')[0]
+    try { return governance.readProject(projectId).visualAssets.find(asset => asset.fileName === fileName)?.sha256 }
+    catch { return undefined }
+  })
   const siteBoundaryAssets = new SiteBoundaryAssetStore(visualAssetRoot, {
     readImage: (ref, signal) => ctx.attachments.readImage(ref, signal),
   }, now)

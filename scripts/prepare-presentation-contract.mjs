@@ -22,11 +22,14 @@ const skipInstall = process.argv.includes('--skip-install')
 const keepCheckout = process.argv.includes('--keep-checkout')
 
 function executable(name) {
-  return process.platform === 'win32' && ['npm', 'pnpm'].includes(name) ? `${name}.cmd` : name
+  return process.platform === 'win32' && name === 'pnpm' ? 'pnpm.cmd' : name
 }
 
 function run(command, args, options = {}) {
-  const result = execFileSync(executable(command), args, {
+  const npmCli = process.platform === 'win32' && command === 'npm'
+    ? path.join(path.dirname(execFileSync('where.exe', ['npm.cmd'], { encoding: 'utf8' }).trim().split(/\r?\n/u)[0]), 'node_modules', 'npm', 'bin', 'npm-cli.js')
+    : undefined
+  const result = execFileSync(npmCli ? process.execPath : executable(command), npmCli ? [npmCli, ...args] : args, {
     cwd: options.cwd ?? root,
     encoding: 'utf8',
     env: options.env ?? process.env,

@@ -203,7 +203,7 @@ async function preserveImportedMaterials(
     }
   }
   for (const record of assetDoc?.assets ?? []) {
-    if (hashes[record.relativePath] === undefined || record.adoptionStatus !== 'adopted') continue
+    if (hashes[record.relativePath] === undefined || record.adoptionStatus !== 'adopted' || record.adoptedAt === null) continue
     if (!isRenderablePresentationAsset(record.displayName ?? record.relativePath, record.mimeType)) continue
     const refs = record.sourceRefs?.filter(ref => ref.provider === 'pre-design' && ref.sourceProjectId === input.frozenProject.projectId) ?? []
     for (const sourceKey of assetKeys.get(record.assetId) ?? []) {

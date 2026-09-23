@@ -121,7 +121,7 @@ describe('direct Workspace folder route', () => {
     expect(openDirectory).not.toHaveBeenCalled()
   })
 
-  it('uses the Windows Explorer new-window switch', async () => {
+  it('uses an interactive desktop launcher instead of starting Explorer in the DSH service session', async () => {
     const run = vi.fn(async () => undefined)
 
     await openWorkspaceInNewWindow('D:\\少潭河', {
@@ -130,9 +130,18 @@ describe('direct Workspace folder route', () => {
       run,
     })
 
-    expect(run).toHaveBeenCalledWith(
-      'C:\\Windows\\explorer.exe',
-      ['/n,D:\\少潭河'],
-    )
+    expect(run).toHaveBeenCalledOnce()
+    const [command, args] = run.mock.calls[0] as unknown as [string, string[]]
+    expect(command).toBe('C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe')
+    expect(args.slice(0, 3)).toEqual(['-NoProfile', '-NonInteractive', '-EncodedCommand'])
+    expect(args[3]).not.toContain('D:\\少潭河')
+  })
+
+  it('does not report an opened folder when the interactive launcher fails', async () => {
+    await expect(openWorkspaceInNewWindow('D:\\少潭河', {
+      platform: 'win32',
+      windowsDirectory: 'C:\\Windows',
+      run: async () => { throw new Error('No visible Explorer window') },
+    })).rejects.toThrow('No visible Explorer window')
   })
 })

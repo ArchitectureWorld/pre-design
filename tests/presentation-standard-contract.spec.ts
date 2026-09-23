@@ -36,10 +36,10 @@ describe('pinned Presentation Standard Project Contract', () => {
       standardName: 'Presentation Standard Project Directory',
       standardVersion: '0.1.0',
       authorityRepository: 'ArchitectureWorld/presentation-tools',
-      sourceCommitSHA: '974668d308728386ea005c9e77d58ebff9372f0a',
+      sourceCommitSHA: 'fc54e4052e2ac2b2aa607391a55ab04fb79f4211',
       packageName: '@architectureworld/presentation-contracts',
-      packageVersion: '0.1.0',
-      schemaSetSha256: '5bd329fcc8503ff7a48b3430e41b38dd264ae486cee7372a39cbbcccc2de2ebc',
+      packageVersion: '0.1.1',
+      schemaSetSha256: 'cc954d1d47cf3a75146190e055be3c3e62eac91f760f9382a9348191e3b19f33',
     })
 
     const contract = await getPresentationStandardContract()

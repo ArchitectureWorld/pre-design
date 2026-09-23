@@ -6,7 +6,7 @@ interface PackageManifest {
   scripts?: Record<string, string>
 }
 
-const PRESENTATION_SCHEMA_SET_FILE = '5bd329fcc8503ff7a48b3430e41b38dd264ae486cee7372a39cbbcccc2de2ebc  schemas/0.1.0\n'
+const PRESENTATION_SCHEMA_SET_FILE = 'cc954d1d47cf3a75146190e055be3c3e62eac91f760f9382a9348191e3b19f33  schemas/0.1.0\n'
 
 describe('Pre 2.0.0 build toolchain', () => {
   it('uses the shared Node 24.11 baseline and native TypeScript config loading', async () => {

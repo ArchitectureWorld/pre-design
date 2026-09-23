@@ -34,8 +34,8 @@ importers:
         version: 0.34.5
     devDependencies:
       '@architectureworld/presentation-contracts':
-        specifier: file:vendor/presentation-contracts/architectureworld-presentation-contracts-0.1.0.tgz
-        version: file:vendor/presentation-contracts/architectureworld-presentation-contracts-0.1.0.tgz
+        specifier: file:vendor/presentation-contracts/architectureworld-presentation-contracts-0.1.1.tgz
+        version: file:vendor/presentation-contracts/architectureworld-presentation-contracts-0.1.1.tgz
       '@deepseek-ai/cordis':
         specifier: 4.0.1
         version: 4.0.1(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
@@ -165,9 +165,9 @@ importers:
 
 packages:
 
-  '@architectureworld/presentation-contracts@file:vendor/presentation-contracts/architectureworld-presentation-contracts-0.1.0.tgz':
-    resolution: {integrity: sha512-Jl4kEnF8Cs3GMZhQkb9rXd0xex2BocewKj8b7Gbx0TvewUQ/VABl9xAwvGhBmz2k3Dv+7dTX77phW0ygjw31UQ==, tarball: file:vendor/presentation-contracts/architectureworld-presentation-contracts-0.1.0.tgz}
-    version: 0.1.0
+  '@architectureworld/presentation-contracts@file:vendor/presentation-contracts/architectureworld-presentation-contracts-0.1.1.tgz':
+    resolution: {integrity: sha512-XhUt6N73fNMzfGB2yK52XyCflZKspdvt47Uq1gemRfkVRuQgFetI159s1UFCfXS1y3jEDYWqmpj5KREogqvklg==, tarball: file:vendor/presentation-contracts/architectureworld-presentation-contracts-0.1.1.tgz}
+    version: 0.1.1
     engines: {node: '>=22'}
     hasBin: true
 
@@ -2178,7 +2178,7 @@ packages:
 
 snapshots:
 
-  '@architectureworld/presentation-contracts@file:vendor/presentation-contracts/architectureworld-presentation-contracts-0.1.0.tgz':
+  '@architectureworld/presentation-contracts@file:vendor/presentation-contracts/architectureworld-presentation-contracts-0.1.1.tgz':
     dependencies:
       ajv: 8.17.1
       ajv-formats: 3.0.1(ajv@8.17.1)

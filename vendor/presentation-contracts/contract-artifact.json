@@ -3,12 +3,12 @@
   "standardName": "Presentation Standard Project Directory",
   "standardVersion": "0.1.0",
   "packageName": "@architectureworld/presentation-contracts",
-  "packageVersion": "0.1.0",
+  "packageVersion": "0.1.1",
   "authorityRepository": "ArchitectureWorld/presentation-tools",
-  "sourceCommitSHA": "974668d308728386ea005c9e77d58ebff9372f0a",
-  "schemaSetSha256": "5bd329fcc8503ff7a48b3430e41b38dd264ae486cee7372a39cbbcccc2de2ebc",
-  "tarballPath": "vendor/presentation-contracts/architectureworld-presentation-contracts-0.1.0.tgz",
-  "sizeBytes": 23703,
-  "sha256": "ae0e2955259abbb925d4c97b5b9a58ef93d8900fe9f39e35d3603e1f436b9cf5",
-  "integrity": "sha512-Jl4kEnF8Cs3GMZhQkb9rXd0xex2BocewKj8b7Gbx0TvewUQ/VABl9xAwvGhBmz2k3Dv+7dTX77phW0ygjw31UQ=="
+  "sourceCommitSHA": "fc54e4052e2ac2b2aa607391a55ab04fb79f4211",
+  "schemaSetSha256": "cc954d1d47cf3a75146190e055be3c3e62eac91f760f9382a9348191e3b19f33",
+  "tarballPath": "vendor/presentation-contracts/architectureworld-presentation-contracts-0.1.1.tgz",
+  "sizeBytes": 23918,
+  "sha256": "18c5d2149b64af05cf3c8a23065fb250aee44b7e5090ce3436482272acd3fdee",
+  "integrity": "sha512-XhUt6N73fNMzfGB2yK52XyCflZKspdvt47Uq1gemRfkVRuQgFetI159s1UFCfXS1y3jEDYWqmpj5KREogqvklg=="
 }
