@@ -1,13 +1,34 @@
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PNG } from 'pngjs'
 import { expect, it, vi } from 'vitest'
 import { acquireWebImage, discoverCasePublicationImages, validateCachedWebImage, validateWebImageCase } from '../src/visual/web-image-source.ts'
+import { validateProjectDirectoryWithAjv } from '@architectureworld/presentation-contracts'
+import { presentationContractPackageRoot } from '../src/presentation/standard-contract.ts'
 
 const candidate = { imageUrl: 'https://example.org/original.png', sourcePageUrl: 'https://example.org/article', publisher: '公共项目资料', author: '摄影作者', usageRights: '来源页注明署名使用', sourceLocation: '中国浙江', description: '树荫步道全景', evidenceExcerpt: '建成后的步道向公众开放。' }
 const imageResponse = (data: Uint8Array) => new Response(Uint8Array.from(data).buffer, { headers: { 'content-type': 'image/png' } })
+it('stores downloaded originals as declared candidates in an existing standard project', async () => {
+  const parent = await mkdtemp(join(tmpdir(), 'standard-web-images-'))
+  const root = join(parent, 'project')
+  const data = PNG.sync.write(new PNG({ width: 1200, height: 800 }))
+  try {
+    await cp(join(presentationContractPackageRoot(), 'fixtures/minimal/project_01992a80-0000-7000-8000-000000000001-minimal-project'),
+      root, { recursive: true })
+    const fetcher = vi.fn(async (input: any) => String(input).endsWith('.png') ? imageResponse(data)
+      : new Response('<img src="/original.png">建成后的步道向公众开放。'))
+    const material = await acquireWebImage(candidate, { root, trustedHosts: ['example.org'], fetch: fetcher, signal: AbortSignal.timeout(3000) })
+    expect(material.sourcePath).toBe(join(root, 'assets', 'images', `${createHash('sha256').update(data).digest('hex')}.png`))
+    const manifest = JSON.parse(await readFile(join(root, 'assets', 'manifest.json'), 'utf8'))
+    expect(manifest.assets).toMatchObject([{ relativePath: `assets/images/${createHash('sha256').update(data).digest('hex')}.png`, adoptionStatus: 'candidate' }])
+    expect((await validateProjectDirectoryWithAjv(root, { allowGitKeep: true })).valid).toBe(true)
+    expect((await readdir(join(root, '.pre-design', 'web-images'))).some(name => name.endsWith('.png'))).toBe(false)
+    expect((await acquireWebImage(candidate, { root, trustedHosts: ['example.org'], fetch: fetcher, signal: AbortSignal.timeout(3000) })).sourcePath).toBe(material.sourcePath)
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  } finally { await rm(parent, { recursive: true, force: true }) }
+})
 it('does not collect a sibling recruitment image from outside the established article content', async () => {
   const sourcePageUrl = 'https://www.gooood.cn/park', registeredImageUrl = 'https://www.gooood.cn/park-plan.png'
   const evidenceExcerpt = '项目地点：中国浙江杭州。'

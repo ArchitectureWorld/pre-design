@@ -73,7 +73,7 @@ function intrinsicDimensions(mimeType: keyof typeof EXTENSIONS, bytes: Buffer) {
 
 export class VisualAssetStore {
   private readonly root: string
-  private readonly manifestQueues = new Map<string, Promise<void>>()
+  private static readonly manifestQueues = new Map<string, Promise<void>>()
 
   constructor(
     root: string,
@@ -95,7 +95,7 @@ export class VisualAssetStore {
     }
   }
 
-  private async updateManifest<T>(workspaceRoot: string, change: (manifest: AssetManifest) => T): Promise<T> {
+  static async updateManifest<T>(workspaceRoot: string, change: (manifest: AssetManifest) => T): Promise<T> {
     const previous = this.manifestQueues.get(workspaceRoot) ?? Promise.resolve()
     let release!: () => void
     const gate = new Promise<void>(resolveGate => { release = resolveGate })
@@ -161,7 +161,7 @@ export class VisualAssetStore {
         createdAt, adoptedAt: null, retiredAt: null,
       }
       try {
-        await this.updateManifest(workspaceRoot, manifest => {
+        await VisualAssetStore.updateManifest(workspaceRoot, manifest => {
           if (manifest.assets.some(row => row.relativePath === relativePath || row.assetId === record.assetId)) {
             throw new Error('VISUAL_ASSET_ALREADY_DECLARED')
           }
@@ -195,7 +195,7 @@ export class VisualAssetStore {
     const parts = fileName.split('/')
     if (parts.length !== 3 || parts[0] !== projectId || parts[1] !== 'candidates') throw new Error('VISUAL_ASSET_PATH_INVALID')
     const relativePath = `assets/images/${safeSegment('assetFileName', parts[2] ?? '')}`
-    await this.updateManifest(workspaceRoot, manifest => {
+    await VisualAssetStore.updateManifest(workspaceRoot, manifest => {
       const legacyHash = this.legacyAssetSha256?.(fileName)
       const record = manifest.assets.find(row => row.relativePath === relativePath)
         ?? (legacyHash ? manifest.assets.find(row => row.category === 'image' && row.sha256 === legacyHash) : undefined)

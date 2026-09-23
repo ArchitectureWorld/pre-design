@@ -173,7 +173,10 @@ export async function apply(ctx: Context): Promise<void> {
   })
   const siteBoundaryAssets = new SiteBoundaryAssetStore(visualAssetRoot, {
     readImage: (ref, signal) => ctx.attachments.readImage(ref, signal),
-  }, now)
+  }, now, projectId => {
+    const binding = standardProjects.findByPreDesignProjectId(projectId)
+    return binding?.workspaceRoot ?? binding?.directoryRoot
+  })
   const boundaries = new SiteBoundaryService(governance, siteBoundaryAssets, now, () => `boundary-${randomUUID()}`)
   const visualCollector = new SessionImageCollector({
     sessions: { get: id => ctx.sessions.get(id as never) },

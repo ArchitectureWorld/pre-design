@@ -1,11 +1,14 @@
 import { createHash, randomUUID } from 'node:crypto'
+import { statSync } from 'node:fs'
 import { link, mkdir, readFile, unlink, writeFile } from 'node:fs/promises'
-import { dirname, isAbsolute, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
+import { createStableId, type AssetRecord } from '@architectureworld/presentation-contracts'
 import type { AttachmentStore, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { ImageBlock } from '@deepseek-ai/dsh-llm'
 import type { ActorRef } from '../state/types.ts'
 import type { SiteBoundaryAttachmentEvidence, VisualAssetRecord } from './types.ts'
+import { VisualAssetStore } from '../visual/asset-store.ts'
 
 const EXTENSIONS = {
   'image/png': 'png',
@@ -315,12 +318,14 @@ export class SiteBoundaryAssetStore {
     root: string,
     private readonly attachments: Pick<AttachmentStore, 'readImage'>,
     private readonly now: () => string,
+    private readonly workspaceRootForProject?: (projectId: string) => string | undefined,
   ) {
     this.root = resolve(root)
   }
 
   async ingestImage(input: IngestBoundaryImageInput): Promise<VisualAssetRecord> {
     const projectId = safeSegment('projectId', input.projectId)
+    this.workspaceFor(projectId)
     const expectedRef = input.block.attachment
     const stored = await this.attachments.readImage(expectedRef, input.signal)
     if (!attachmentRefsMatch(expectedRef, stored.ref)) throw new Error('attachment metadata does not match the requested image reference')
@@ -333,7 +338,7 @@ export class SiteBoundaryAssetStore {
     const assetId = `boundary-evidence-${this.identity(projectId, input.source, storageSha256)}`
     const fileName = `${projectId}/evidence/${assetId}.${EXTENSIONS[mimeType]}`
     await this.writeIdempotent(fileName, bytes, storageSha256)
-    return this.persistCanonical({
+    const record = await this.persistCanonical({
       assetId,
       taskId: assetId,
       projectId,
@@ -348,10 +353,13 @@ export class SiteBoundaryAssetStore {
       boundaryEvidence: boundaryEvidence(stored.ref, storageSha256, input.actor, input.submittedRevision),
       createdAt: this.now(),
     })
+    await this.declareProjectAsset(record, bytes)
+    return record
   }
 
   async saveGeometrySvg(input: SaveBoundarySvgInput): Promise<VisualAssetRecord> {
     const projectId = safeSegment('projectId', input.projectId)
+    this.workspaceFor(projectId)
     const geometrySha256 = assertSha256('geometrySha256', input.geometrySha256)
     validateSvg(input.svg)
     const bytes = Buffer.from(input.svg, 'utf8')
@@ -359,7 +367,7 @@ export class SiteBoundaryAssetStore {
     const assetId = `boundary-deterministic-${this.identity(projectId, input.source, geometrySha256)}`
     const fileName = `${projectId}/deterministic/${assetId}.svg`
     await this.writeIdempotent(fileName, bytes, fileSha256)
-    return this.persistCanonical({
+    const record = await this.persistCanonical({
       assetId,
       taskId: assetId,
       projectId,
@@ -374,6 +382,8 @@ export class SiteBoundaryAssetStore {
       height: 1000,
       createdAt: this.now(),
     })
+    await this.declareProjectAsset(record, bytes)
+    return record
   }
 
   async verifyVisualAsset(asset: VisualAssetRecord): Promise<void> {
@@ -398,10 +408,83 @@ export class SiteBoundaryAssetStore {
     if (segments.length !== 3 || (segments[1] !== 'evidence' && segments[1] !== 'deterministic')) {
       throw new Error('asset path is outside the boundary asset directories')
     }
+    const workspace = this.workspaceFor(segments[0]!)
+    if (workspace) {
+      const name = segments[2]!
+      const isSidecar = name.endsWith(SIDECAR_SUFFIX)
+      const directory = isSidecar ? join(workspace, '.pre-design')
+        : join(workspace, 'assets', segments[1] === 'evidence' ? 'images' : 'diagrams')
+      const absolute = resolve(directory, name)
+      const boundary = relative(directory, absolute)
+      if (boundary.startsWith('..') || isAbsolute(boundary)) throw new Error('asset path escaped root')
+      return absolute
+    }
     const absolute = resolve(this.root, ...segments)
     const boundary = relative(this.root, absolute)
     if (boundary.startsWith('..') || isAbsolute(boundary)) throw new Error('asset path escaped root')
     return absolute
+  }
+
+  private workspaceFor(projectId: string): string | undefined {
+    if (!this.workspaceRootForProject) return undefined
+    const root = this.workspaceRootForProject(projectId)
+    if (!root || !isAbsolute(root)
+      || !statSync(join(root, 'assets', 'images'), { throwIfNoEntry: false })?.isDirectory()
+      || !statSync(join(root, 'assets', 'diagrams'), { throwIfNoEntry: false })?.isDirectory()
+      || !statSync(join(root, 'assets', 'manifest.json'), { throwIfNoEntry: false })?.isFile()) {
+      throw new Error(`VISUAL_WORKSPACE_REQUIRED: project '${projectId}' has no standard asset directories and manifest`)
+    }
+    return resolve(root)
+  }
+
+  private async declareProjectAsset(record: VisualAssetRecord, bytes: Buffer): Promise<void> {
+    const workspace = this.workspaceFor(record.projectId)
+    if (!workspace) return
+    const category = record.kind === 'evidence' ? 'image' : 'diagram'
+    const directory = category === 'image' ? 'images' : 'diagrams'
+    const name = record.fileName.split('/')[2]!
+    const relativePath = `assets/${directory}/${name}`
+    await VisualAssetStore.updateManifest(workspace, manifest => {
+      const existing = manifest.assets.find(asset => asset.relativePath === relativePath)
+      if (existing) {
+        if (existing.sha256 !== record.sha256 || existing.sizeBytes !== bytes.length || existing.mimeType !== record.mimeType) {
+          throw new Error('SITE_BOUNDARY_ASSET_MANIFEST_DRIFT')
+        }
+        return
+      }
+      const asset: AssetRecord = {
+        assetId: createStableId('asset') as AssetRecord['assetId'],
+        displayName: record.kind === 'evidence' ? '场地边界原始图' : '场地边界示意图',
+        mediaType: 'image', category, semanticRole: 'site_boundary', relativePath,
+        mimeType: record.mimeType, sizeBytes: bytes.length, sha256: record.sha256,
+        metadata: { widthPx: record.width, heightPx: record.height },
+        adoptionStatus: 'candidate',
+        origin: { type: record.kind === 'evidence' ? 'human_added' : 'generated_by_plugin',
+          sourceMaterialIds: [], parentAssetIds: [], method: JSON.stringify({ boundaryAssetId: record.assetId }),
+          sourceTool: { name: 'pre-design', version: '2.0.2' } },
+        createdAt: record.createdAt, adoptedAt: null, retiredAt: null,
+      }
+      manifest.assets.push(asset)
+    })
+  }
+
+  async setAdopted(record: VisualAssetRecord): Promise<void> {
+    const workspace = this.workspaceFor(safeSegment('projectId', record.projectId))
+    if (!workspace) return
+    const bytes = await readFile(this.resolveAsset(record.fileName))
+    if (sha256(bytes) !== record.sha256) throw new Error('SITE_BOUNDARY_ASSET_INTEGRITY_DRIFT')
+    const directory = record.kind === 'evidence' ? 'images' : 'diagrams'
+    const relativePath = `assets/${directory}/${record.fileName.split('/')[2]}`
+    await VisualAssetStore.updateManifest(workspace, manifest => {
+      const asset = manifest.assets.find(item => item.relativePath === relativePath)
+      if (!asset || asset.sha256 !== record.sha256 || asset.sizeBytes !== bytes.length) {
+        throw new Error('SITE_BOUNDARY_ASSET_MANIFEST_DRIFT')
+      }
+      if (asset.adoptionStatus === 'adopted') return
+      if (asset.adoptionStatus !== 'candidate') throw new Error('SITE_BOUNDARY_ASSET_MANIFEST_DRIFT')
+      asset.adoptionStatus = 'adopted'
+      asset.adoptedAt = this.now()
+    })
   }
 
   private identity(projectId: string, source: string, contentSha256: string): string {

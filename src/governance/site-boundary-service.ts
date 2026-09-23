@@ -287,12 +287,16 @@ export class SiteBoundaryService {
       confirmationSourceSha256: acknowledgement.contentSha256,
     }
     if (asset.status === 'candidate') {
-      return this.governance.confirmSiteBoundary({
+      const result = await this.governance.confirmSiteBoundary({
         formal, candidate: asset, adopted: { ...asset, status: 'adopted', adoptedRevision: confirmedRevision },
       })
+      await this.assets.setAdopted(asset)
+      return result
     }
     if (asset.status !== 'adopted' || asset.adoptedRevision !== confirmedRevision) fail('SITE_BOUNDARY_INTEGRITY_FAILED')
-    return this.governance.putSiteBoundary(formal)
+    const result = await this.governance.putSiteBoundary(formal)
+    await this.assets.setAdopted(asset)
+    return result
   }
 
   async assertFormalBoundaryIntegrity(projectId: string, revision: number): Promise<{

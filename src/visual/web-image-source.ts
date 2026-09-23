@@ -1,11 +1,14 @@
 import { createHash } from 'node:crypto'
+import { existsSync, statSync } from 'node:fs'
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { lookup } from 'node:dns/promises'
 import { join, resolve } from 'node:path'
+import { createStableId, type AssetRecord } from '@architectureworld/presentation-contracts'
 import { z } from 'zod'
 import { parse as parseHtml, type DefaultTreeAdapterMap } from 'parse5'
 import type { PresentationAdoptedAssetInput } from '../presentation/standard-project-types.ts'
 import { verifiedRasterImageDimensions } from '../governance/site-boundary-asset-store.ts'
+import { VisualAssetStore } from './asset-store.ts'
 
 export const webImageCandidateSchema = z.object({ imageUrl: z.string().url(), sourcePageUrl: z.string().url(), publisher: z.string().min(1),
   author: z.string().min(1), usageRights: z.string().min(1), sourceLocation: z.string().min(1), description: z.string().min(1), evidenceExcerpt: z.string().min(8),
@@ -135,6 +138,42 @@ function materialFrom(candidate: WebImageCandidate, provenance: z.infer<typeof p
     imageQuality: provenance.sourceClaims.sourceLocation.status === 'supported' ? { sourceLocation: provenance.sourceClaims.sourceLocation.value } : {},
     origin: { type: 'human_added', sourceMaterialKeys: [], parentAssetKeys: [], sourceTool: { name: 'pre-design-web-images', version: '2' }, method: JSON.stringify(provenanceSchema.parse(provenance)) } }
 }
+
+function standardImageDirectory(root: string): string | undefined {
+  const imageDirectory = join(root, 'assets', 'images')
+  const manifestPath = join(root, 'assets', 'manifest.json')
+  if (!existsSync(imageDirectory) && !existsSync(manifestPath)) return undefined
+  if (!statSync(imageDirectory, { throwIfNoEntry: false })?.isDirectory()
+    || !statSync(manifestPath, { throwIfNoEntry: false })?.isFile()) throw new Error('WEB_IMAGE_STANDARD_PROJECT_INVALID')
+  return imageDirectory
+}
+
+async function declareStandardWebImage(root: string, material: PresentationAdoptedAssetInput, bytes: Buffer): Promise<void> {
+  const relativePath = `assets/images/${material.originalFileName}`
+  try { await writeFile(material.sourcePath, bytes, { flag: 'wx' }) }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error }
+  if (hash(await readFile(material.sourcePath)) !== material.imageIdentity?.fileSha256) throw new Error('WEB_IMAGE_ASSET_HASH_DRIFT')
+  await VisualAssetStore.updateManifest(root, manifest => {
+    const digest = material.imageIdentity!.fileSha256
+    const existing = manifest.assets.find(asset => asset.relativePath === relativePath)
+    if (existing) {
+      if (existing.sha256 !== digest || existing.sizeBytes !== bytes.length || existing.mimeType !== material.mimeType) {
+        throw new Error('WEB_IMAGE_ASSET_MANIFEST_DRIFT')
+      }
+      return
+    }
+    const asset: AssetRecord = {
+      assetId: createStableId('asset') as AssetRecord['assetId'],
+      displayName: material.displayName, mediaType: 'image', category: 'image', semanticRole: 'source_evidence',
+      relativePath, mimeType: material.mimeType, sizeBytes: bytes.length, sha256: digest,
+      metadata: { widthPx: material.widthPx, heightPx: material.heightPx }, adoptionStatus: 'candidate',
+      origin: { type: 'human_added', sourceMaterialIds: [], parentAssetIds: [], method: material.origin.method,
+        sourceTool: { name: 'pre-design-web-images', version: '2' } },
+      createdAt: material.createdAt, adoptedAt: null, retiredAt: null,
+    }
+    manifest.assets.push(asset)
+  })
+}
 /** Archives source page and original; decoded pixels and later visual review are separate checks. */
 export async function acquireWebImage(candidateInput: WebImageCandidate, options: { root: string; signal: AbortSignal; trustedHosts?: readonly string[]; fetch?: typeof fetch; cacheOnly?: boolean }): Promise<PresentationAdoptedAssetInput> {
   options.signal.throwIfAborted()
@@ -143,26 +182,35 @@ export async function acquireWebImage(candidateInput: WebImageCandidate, options
   const candidate = parsedCandidate.data, source = url(candidate.sourcePageUrl), original = url(candidate.imageUrl)
   const hosts = options.trustedHosts ?? DEFAULT_IMAGE_SOURCE_HOSTS
   if (!trusted(source.hostname, hosts)) throw new Error('WEB_IMAGE_SOURCE_UNTRUSTED')
-  const directory = join(options.root, '.pre-design', 'web-images'), key = hash(JSON.stringify(candidate)), receiptPath = join(directory, `${key}.json`)
+  const directory = join(options.root, '.pre-design', 'web-images'), imageDirectory = standardImageDirectory(options.root) ?? directory
+  const key = hash(JSON.stringify(candidate)), receiptPath = join(directory, `${key}.json`)
   try {
     const receipt = z.object({ sourcePath: z.string(), mimeType: z.enum(['image/png', 'image/jpeg']), origin: z.object({ method: z.string() }) }).safeParse(JSON.parse(await readFile(receiptPath, { encoding: 'utf8', signal: options.signal })))
     const saved = receipt.success ? provenanceSchema.safeParse(JSON.parse(receipt.data.origin.method)) : undefined
     if (receipt.success && saved?.success) {
       const provenance = saved.data
       const storedCandidate = webImageCandidateSchema.parse(Object.fromEntries(Object.keys(webImageCandidateSchema.shape).map(name => [name, provenance[name as keyof typeof provenance]])))
-      const path = join(directory, `${provenance.fileSha256}.${receipt.data.mimeType === 'image/png' ? 'png' : 'jpg'}`), pagePath = join(directory, `${key}.source.html`)
+      const imageName = `${provenance.fileSha256}.${receipt.data.mimeType === 'image/png' ? 'png' : 'jpg'}`
+      const path = join(imageDirectory, imageName), oldPath = join(directory, imageName), pagePath = join(directory, `${key}.source.html`)
+      const cachedPath = resolve(receipt.data.sourcePath) === resolve(path) ? path
+        : imageDirectory !== directory && resolve(receipt.data.sourcePath) === resolve(oldPath) ? oldPath : undefined
       const trustedHistory = provenance.sourcePageRedirects.every(address => trusted(url(address).hostname, hosts))
         && provenance.sourcePageRedirects[0] === source.href && provenance.sourcePageRedirects.at(-1) === provenance.finalSourcePageUrl
       const validImageHistory = provenance.imageRedirects.every(address => Boolean(url(address))) && provenance.imageRedirects[0] === original.href
         && provenance.imageRedirects.at(-1) === provenance.finalImageUrl
-      if (hash(JSON.stringify(storedCandidate)) === key && resolve(receipt.data.sourcePath) === resolve(path) && trustedHistory && validImageHistory
-        && (await stat(path)).size <= IMAGE_LIMIT && (await stat(pagePath)).size <= PAGE_LIMIT) {
-        const bytes = await readFile(path, { signal: options.signal }), pageBytes = await readFile(pagePath, { signal: options.signal })
+      if (hash(JSON.stringify(storedCandidate)) === key && cachedPath && trustedHistory && validImageHistory
+        && (await stat(cachedPath)).size <= IMAGE_LIMIT && (await stat(pagePath)).size <= PAGE_LIMIT) {
+        const bytes = await readFile(cachedPath, { signal: options.signal }), pageBytes = await readFile(pagePath, { signal: options.signal })
         if (hash(bytes) === provenance.fileSha256 && hash(pageBytes) === provenance.sourcePageSha256) {
           const claims = checkPage(candidate, pageBytes, provenance.finalSourcePageUrl)
           if (JSON.stringify(claims) === JSON.stringify(provenance.sourceClaims)) {
             options.signal.throwIfAborted()
-            return materialFrom(candidate, provenance, bytes, directory, receipt.data.mimeType)
+            const material = materialFrom(candidate, provenance, bytes, imageDirectory, receipt.data.mimeType)
+            if (imageDirectory !== directory) {
+              await declareStandardWebImage(options.root, material, bytes)
+              if (cachedPath !== path) await writeFile(receiptPath, JSON.stringify(material, null, 2) + '\n')
+            }
+            return material
           }
         }
       }
@@ -178,9 +226,12 @@ export async function acquireWebImage(candidateInput: WebImageCandidate, options
   const provenance = { kind: 'web-reference' as const, schemaVersion: 'pre-design.web-image.v2' as const, ...candidate, sourceClaims,
     retrievedAt: new Date().toISOString(), fileSha256: hash(image.bytes), sourcePageSha256: hash(page.bytes), finalSourcePageUrl: page.finalUrl,
     finalImageUrl: image.finalUrl, sourcePageRedirects: [...page.redirects], imageRedirects: [...image.redirects] }
-  const material = materialFrom(candidate, provenance, image.bytes, directory, image.contentType as 'image/png' | 'image/jpeg')
+  const material = materialFrom(candidate, provenance, image.bytes, imageDirectory, image.contentType as 'image/png' | 'image/jpeg')
   signal.throwIfAborted()
-  await mkdir(directory, { recursive: true }); await writeFile(material.sourcePath, image.bytes); await writeFile(join(directory, `${key}.source.html`), page.bytes)
+  await mkdir(directory, { recursive: true })
+  if (imageDirectory === directory) await writeFile(material.sourcePath, image.bytes)
+  else await declareStandardWebImage(options.root, material, image.bytes)
+  await writeFile(join(directory, `${key}.source.html`), page.bytes)
   await writeFile(receiptPath, JSON.stringify(material, null, 2) + '\n')
   return material
 }

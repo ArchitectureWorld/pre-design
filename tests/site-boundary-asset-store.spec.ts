@@ -1,11 +1,13 @@
 import { createHash } from 'node:crypto'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { ImageBlock } from '@deepseek-ai/dsh-llm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SiteBoundaryAssetStore } from '../src/governance/site-boundary-asset-store.ts'
+import { validateDocumentWithAjv, validateProjectDirectoryWithAjv } from '@architectureworld/presentation-contracts'
+import { presentationContractPackageRoot } from '../src/presentation/standard-contract.ts'
 
 const roots: string[] = []
 const PNG_1X1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
@@ -118,6 +120,35 @@ function imageInput(block = imageBlock()) {
 }
 
 describe('SiteBoundaryAssetStore', () => {
+  it('publishes bound boundary visuals into standard assets and declares candidates', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-boundary-legacy-'))
+    const parent = await mkdtemp(join(tmpdir(), 'dsh-boundary-workspace-'))
+    const workspace = join(parent, 'project')
+    roots.push(root, parent)
+    await cp(join(presentationContractPackageRoot(), 'fixtures/minimal/project_01992a80-0000-7000-8000-000000000001-minimal-project'),
+      workspace, { recursive: true })
+    const store = new SiteBoundaryAssetStore(root, { readImage: async () => ({ ref: imageRef(), data: PNG_1X1 }) } as never,
+      now, projectId => projectId === 'project-1' ? workspace : undefined)
+    const evidence = await store.ingestImage(imageInput())
+    const diagram = await store.saveGeometrySvg({ projectId: 'project-1', source: 'geojson',
+      geometrySha256: 'a'.repeat(64), svg: '<svg width="1600" height="1000" viewBox="0 0 1600 1000"></svg>' })
+    expect(store.resolveAsset(evidence.fileName)).toBe(join(workspace, 'assets', 'images', `${evidence.assetId}.png`))
+    expect(store.resolveAsset(diagram.fileName)).toBe(join(workspace, 'assets', 'diagrams', `${diagram.assetId}.svg`))
+    await store.verifyVisualAsset(evidence)
+    await store.verifyVisualAsset(diagram)
+    const manifest = JSON.parse(await readFile(join(workspace, 'assets', 'manifest.json'), 'utf8'))
+    expect(manifest.assets).toMatchObject([
+      { relativePath: `assets/images/${evidence.assetId}.png`, adoptionStatus: 'candidate', category: 'image' },
+      { relativePath: `assets/diagrams/${diagram.assetId}.svg`, adoptionStatus: 'candidate', category: 'diagram' },
+    ])
+    expect((await validateDocumentWithAjv('AssetManifest', manifest)).valid).toBe(true)
+    expect((await validateProjectDirectoryWithAjv(workspace, { allowGitKeep: true })).valid).toBe(true)
+    await store.setAdopted(evidence)
+    const adopted = JSON.parse(await readFile(join(workspace, 'assets', 'manifest.json'), 'utf8'))
+    expect(adopted.assets[0]).toMatchObject({ adoptionStatus: 'adopted', adoptedAt: now() })
+    await expect(readFile(join(root, ...evidence.fileName.split('/')))).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(store.ingestImage({ ...imageInput(), projectId: 'unbound' })).rejects.toThrow('VISUAL_WORKSPACE_REQUIRED')
+  })
   it('reads one verified DSH image and stores a stable evidence asset', async () => {
     const { root, store } = await makeStore()
 
