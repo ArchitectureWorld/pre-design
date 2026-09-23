@@ -64,12 +64,14 @@ describe('Preplanning full-flow UI', () => {
     expect(form.classList.contains('project-card')).toBe(true)
     expect(form.style.background).toBe('')
     expect(view.getByText('project')).toBeTruthy()
-    expect(view.getByText(/项目总文件夹：\/workspace\/project/u)).toBeTruthy()
+    expect(view.getByTitle('项目总文件夹：/workspace/project')).toBeTruthy()
+    fireEvent.click(view.getByRole('button', { name: '项目说明' }))
     expect(view.getByText(/零输入启动/u)).toBeTruthy()
     expect(view.queryByRole('textbox')).toBeNull()
     expect(view.queryByLabelText('一句话描述项目和目标')).toBeNull()
     expect(view.queryByLabelText('识别的项目名称')).toBeNull()
-    expect(view.getByText('Pre 2.0.2 · Project Format 0.1.0')).toBeTruthy()
+    // The version is rendered once by LiquidGlassShell, not repeated inside this card.
+    expect(view.queryByText('Pre 2.0.2 · Project Format 0.1.0')).toBeNull()
   })
 
   it('开始前期策划不再收集任何执行策略或项目信息', async () => {

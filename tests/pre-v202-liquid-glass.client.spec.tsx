@@ -37,10 +37,10 @@ it('shows unsaved changes until the server acknowledges the save', async () => {
   const view = render(<AgentClassPanel request={request} />)
   await view.findByLabelText('文本生成模型')
   fireEvent.change(view.getByLabelText('文本生成模型'), { target: { value: '["p","b"]' } })
-  expect(view.getByText('有未保存的修改')).toBeTruthy()
+  expect(view.getByText('未保存')).toBeTruthy()
   fireEvent.click(view.getByRole('button', { name: '保存配置' }))
   await view.findByText('已保存，将用于后续新任务。')
-  expect(view.queryByText('有未保存的修改')).toBeNull()
+  expect(view.queryByText('未保存')).toBeNull()
   await waitFor(() => expect(request.mock.calls.at(-1)?.[0]).toMatchObject({ action: 'save', revision: 3 }))
 })
 

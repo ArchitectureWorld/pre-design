@@ -1,3 +1,7 @@
+# R2 review correction
+
+最新修订与复核说明见 [R2 UI review](pre-v2.0.2-r2-review.md)。版本仍为 2.0.2，以候选包 commit/hash 区分；下文保留首轮交接记录。
+
 # Pre 2.0.2 · 液态玻璃 UI / UX 开发交接
 
 ## 状态与边界

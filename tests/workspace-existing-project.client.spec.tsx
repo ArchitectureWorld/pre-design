@@ -57,7 +57,9 @@ it('loads the existing session binding before offering start and clears it when 
     const view = render(<MainPanel />)
     expect((view.getByRole('button', { name: '正在读取项目状态…' }) as HTMLButtonElement).disabled).toBe(true)
     await act(async () => resolveRead({ ok: true, json: async () => existing }))
-    expect(await view.findByText('当前会话已关联前期策划项目。')).toBeTruthy()
+    await view.findByRole('button', { name: '已关联项目' })
+    fireEvent.click(view.getByRole('button', { name: '项目说明' }))
+    expect(view.getByText('当前会话已关联前期策划项目。')).toBeTruthy()
     const boundButton = view.getByRole('button', { name: '已关联项目' }) as HTMLButtonElement
     expect(boundButton.disabled).toBe(true)
     fireEvent.click(boundButton)

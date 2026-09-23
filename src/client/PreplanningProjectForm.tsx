@@ -1,4 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react'
+import { GlassAction, GlassHelp } from './GlassControls.tsx'
 import { GlassIcon } from './GlassIcon.tsx'
 import { deriveWorkspaceProjectName, type DirectStartResult } from './direct-start.ts'
 import { VersionFooter } from './VersionFooter.tsx'
@@ -118,27 +119,23 @@ export function PreplanningProjectForm({
       : submitState === 'waiting_for_source' ? '重新检测原始资料' : '开始前期策划'
     return <form className="project-card" aria-label="前期策划项目" onSubmit={submit}>
       <div className="project-identity"><div className="folder-tile" aria-hidden="true"><GlassIcon name="folder" /></div>
-        <div className="project-copy"><p className="eyebrow">CURRENT WORKSPACE</p><h1>前期策划</h1>
-          {!workspaceMissing && <><p className="project-name">{projectName}</p><p className="project-path">项目总文件夹：{workspacePath}</p></>}
+        <div className="project-copy"><h1>前期策划</h1>
+          {!workspaceMissing && <><p className="project-name">{projectName}</p><p className="project-path" title={`项目总文件夹：${workspacePath}`}>{workspacePath}</p></>}
           {workspaceMissing && <p className="pre-alert" role="alert">请先选择或创建 DSH 工作区。该工作区就是当前 Pre 项目。</p>}
         </div>
       </div>
       <div className="project-right">
-        <div className="project-notice"><span className="notice-icon"><GlassIcon name={existingProjectId ? 'check' : 'info'} /></span><div>
-          <strong>{existingProjectId ? '当前会话已关联前期策划项目。' : '零输入启动'}</strong>
-          <p>{existingProjectId ? '下方显示当前项目的实际执行记录，重新打开面板不会再次启动项目。' : 'Pre 直接使用当前 DSH 工作区，并自动读取工作区中的“原始资料”目录；无需填写项目描述或项目名称。'}</p>
-        </div></div>
         {projectReadError && <p className="pre-warning">尚未确认当前会话的项目状态，请在下方重试读取配置；不会重复启动项目。</p>}
         {error && !workspaceMissing && <div className="pre-alert" role="alert">{error}</div>}
         {submitState === 'success' && startResult?.state === 'running' && <div className="pre-feedback" role="status"><strong>项目已创建或恢复，系统将自动推进前期策划。</strong><p>已登记 {startResult.sourceMaterialCount} 个标准原件；当前“原始资料”检测到 {startResult.sourceInboxFileCount} 个文件。</p></div>}
         {submitState === 'waiting_for_source' && startResult?.state === 'waiting_for_source' && <div className="pre-feedback" role="status"><strong>等待原始资料</strong><p>当前项目尚未检测到可分析资料。请将项目资料放入“原始资料”文件夹。</p><p>标准项目目录已经初始化；检测到资料后才会启动自动前期策划。</p></div>}
         <div className="project-actions">
-          <button className="pre-button pre-primary" disabled={!!projectReadError || checkingProject || !!existingProjectId || submitState === 'running' || submitState === 'success' || workspaceMissing} type="submit"><GlassIcon name="link" />{buttonLabel}</button>
-          {!workspaceMissing && openProjectFolder && <button className="pre-button" disabled={openState === 'running'} onClick={openFolder} type="button"><GlassIcon name="folder" />{openState === 'running' ? '正在打开…' : '打开项目文件夹'}</button>}
+          <button className={`pre-button pre-primary ${existingProjectId ? 'pre-linked' : ''}`} disabled={!!projectReadError || checkingProject || !!existingProjectId || submitState === 'running' || submitState === 'success' || workspaceMissing} type="submit"><GlassIcon name={existingProjectId ? 'check' : 'link'} />{buttonLabel}</button>
+          {!workspaceMissing && openProjectFolder && <GlassAction icon="folder" label={openState === 'running' ? '正在打开…' : '打开项目文件夹'} disabled={openState === 'running'} onClick={openFolder} />}
+          <GlassHelp label="项目说明"><p>{existingProjectId ? '当前会话已关联前期策划项目。' : '零输入启动'}</p><p>{existingProjectId ? '下方显示当前项目的实际执行记录，重新打开面板不会再次启动项目。' : 'Pre 直接使用当前 DSH 工作区，并自动读取工作区中的“原始资料”目录；无需填写项目描述或项目名称。'}</p></GlassHelp>
         </div>
         {openState === 'success' && <p className="pre-feedback" role="status">项目文件夹已打开。</p>}
       </div>
-      <div className="project-version"><VersionFooter /></div>
     </form>
   }
 
