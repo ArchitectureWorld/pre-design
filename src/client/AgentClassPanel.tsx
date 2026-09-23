@@ -55,6 +55,16 @@ function AgentClassPanelBody({ sessionId, request = agentClassRequest, onView, o
   const dirtyRef = useRef(false)
   const inFlight = useRef(false)
   const lifetime = useRef<AbortController>()
+  const panel = useRef<HTMLElement>(null)
+  const readRequest = useRef<AbortController>()
+  type ReadResult = { data: AgentClassView } | { error: string }
+  const deferredRead = useRef<ReadResult>()
+  const refreshAfterSelection = useRef(false)
+  // Native select popups close when disabled or when their options change. Focus is
+  // deliberately conservative: keep the directory stable until the user leaves it.
+  const selectingModel = () => document.activeElement instanceof HTMLSelectElement
+    && !!panel.current?.contains(document.activeElement)
+  const cancelRead = () => { readRequest.current?.abort(); readRequest.current = undefined }
   const accept = (data: AgentClassView, reset = false) => {
     setView(data)
     onView?.(data)
@@ -67,38 +77,78 @@ function AgentClassPanelBody({ sessionId, request = agentClassRequest, onView, o
       setDirty(false)
     }
   }
-  const load = async (reset = false) => {
-    const controller = lifetime.current
-    if (!controller || controller.signal.aborted || inFlight.current) return
-    inFlight.current = true
-    setBusy(true)
-    try {
-      const data = await request({ action: 'read', sessionId }, controller.signal)
-      if (controller.signal.aborted) return
-      accept(data, reset)
+  const applyRead = (result: ReadResult, reset = false) => {
+    if ('data' in result) {
+      accept(result.data, reset)
       onReadError?.(undefined)
       setError('')
       if (reset) setMessage('已重新载入配置。')
+    } else { setError(result.error); onReadError?.(result.error) }
+  }
+  const load = async (reset = false, passive = false) => {
+    const owner = lifetime.current
+    if (!owner || owner.signal.aborted || inFlight.current) return
+    if (passive && selectingModel()) { refreshAfterSelection.current = true; return }
+    if (passive && readRequest.current) return
+    // Only an explicit reload can preempt another read. Never abort a save here.
+    cancelRead()
+    const controller = new AbortController()
+    readRequest.current = controller
+    if (!passive) {
+      inFlight.current = true; setBusy(true)
+      deferredRead.current = undefined; refreshAfterSelection.current = false
+    }
+    const current = () => !owner.signal.aborted && !controller.signal.aborted && readRequest.current === controller
+    const receive = (result: ReadResult) => {
+      if (!current()) return
+      if (passive && selectingModel()) {
+        deferredRead.current = result; refreshAfterSelection.current = true
+      } else applyRead(result, reset)
+    }
+    try {
+      const data = await request({ action: 'read', sessionId }, controller.signal)
+      receive({ data })
     } catch (cause) {
-      if (!controller.signal.aborted) {
-        const message = cause instanceof Error ? cause.message : '读取失败。'
-        setError(message); onReadError?.(message)
+      receive({ error: cause instanceof Error ? cause.message : '读取失败。' })
+    } finally {
+      if (current()) {
+        readRequest.current = undefined
+        if (!passive) { inFlight.current = false; setBusy(false) }
       }
-    } finally { if (!controller.signal.aborted) { inFlight.current = false; setBusy(false) } }
+    }
+  }
+  const finishSelection = () => {
+    const owner = lifetime.current
+    // Wait for focus to settle; tabbing directly to the paired LLM is still editing.
+    queueMicrotask(() => {
+      if (!owner || owner.signal.aborted || inFlight.current || selectingModel()) return
+      const result = deferredRead.current
+      deferredRead.current = undefined
+      if (result) applyRead(result)
+      if (refreshAfterSelection.current) {
+        refreshAfterSelection.current = false
+        void load(false, true)
+      }
+    })
   }
   useEffect(() => {
     const controller = new AbortController()
     lifetime.current = controller
     inFlight.current = false
     void load()
-    const timer = setInterval(() => void load(), 5000)
-    const focus = () => void load()
+    const timer = setInterval(() => void load(false, true), 5000)
+    const focus = () => void load(false, true)
     window.addEventListener('focus', focus)
-    return () => { controller.abort(); clearInterval(timer); window.removeEventListener('focus', focus) }
+    return () => {
+      controller.abort(); cancelRead(); deferredRead.current = undefined; refreshAfterSelection.current = false
+      clearInterval(timer); window.removeEventListener('focus', focus)
+    }
   }, [sessionId, request, onView, onReadError])
   const save = async () => {
     const controller = lifetime.current
-    if (!view || !controller || inFlight.current) return
+    if (!view || !controller || controller.signal.aborted || inFlight.current) return
+    // Read-only polling must not swallow a user's save or overwrite its response.
+    cancelRead(); deferredRead.current = undefined; refreshAfterSelection.current = false
     inFlight.current = true
     setBusy(true)
     setMessage('')
@@ -120,7 +170,7 @@ function AgentClassPanelBody({ sessionId, request = agentClassRequest, onView, o
     setFallbacks(previous => ({ ...previous, [kind]: rows }))
     dirtyRef.current = true; setDirty(true); setMessage('')
   }
-  return <section className="settings" aria-label="子 Agent 类配置" aria-busy={busy}>
+  return <section ref={panel} className="settings" aria-label="子 Agent 类配置" aria-busy={busy} onBlurCapture={finishSelection}>
     <header className="settings-heading"><div><h2>子 Agent</h2><span className="section-scope">全局设置</span></div><div className="settings-tools">{view && !dirty && <GlassAction icon="refresh" label="刷新配置" disabled={busy} onClick={() => void load(true)} />}<GlassHelp label="全局配置说明"><p>所有前期策划项目共用这些类别配置，模型与 DSH 设置同步。修改仅影响后续新任务，正在执行的任务保留启动时配置。</p><p>主模型连接失败、限流或服务错误且原调用已终止时，按顺序使用备用模型。失败或结果未知的任务会记录问题，流程继续处理其它可执行任务；主动取消仍然生效。</p></GlassHelp></div></header>
     {error && <div className="pre-alert" role="alert"><p>{error}</p><button className="pre-button" type="button" disabled={busy} onClick={() => void load()}>重试读取配置</button></div>}
     {!view && !error && <p className="pre-muted" role="status">正在读取模型与配置…</p>}
