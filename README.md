@@ -26,7 +26,7 @@
 | Workspace 根目录接入 | 已实现并完成自动化验证 |
 | 发布状态 | 未合并、未发布 |
 | 上一正式发布 | `v0.7.0`，仅作历史基线 |
-| Presentation 项目格式 Contract | 外部依赖 `0.1.0` |
+| Presentation 项目格式 Contract | 标准 `0.1.0`，依赖包 `0.1.1` |
 | DSH 兼容基线 | `0.1.5-rc.1` |
 
 ## 产品定位
@@ -106,6 +106,8 @@ UI 不要求项目名、项目描述、报告深度或运行模式输入。模�
 
 仅外观偏好尝试保存在本浏览器；项目身份、模型配置和执行状态不以浏览器缓存为权威。主题切换不清空未保存的模型草稿；保存操作成功后才确认配置已保存。读取失败可重试，项目状态尚未确认时禁止重复启动。
 
+桌面宽度达到 960px 时，主页加宽并将四张子 Agent 配置卡片排成两列；小窗口回到单列。1645×918 的本地 Web profile 常态内容已实测一屏可见。
+
 版本标识：
 
 ```text
@@ -152,6 +154,10 @@ Presentation 应直接打开或监听同一个 DSH Workspace 根目录。
 preplanning_sync_presentation_project
 ```
 
+## 同步开发看板
+
+[同步开发看板](research/v2.0.1/source-audit.html) 按 8 章 57 项工作流展示任务、研究步骤、资料与网站入口、截至记录日期的来源核查、汇总与分析方法、最低证据要求和预期结论。它展示的是 Skill/Research 合同及来源核查记录；具体项目是否已完成取证，需要查看运行证据。
+
 ## 历史目录兼容
 
 旧版本默认使用：
@@ -181,7 +187,7 @@ PRE_DESIGN_PRESENTATION_PROJECT_ROOT
 1. 创建和维护前期策划项目。
 2. 推进 8 章、57 项专业工作流。
 3. 管理 Project State、Evidence、Assumption、Question、Gate 和 Revision。
-4. 管理原始资料与正式采用素材。
+4. 管理原始资料与项目 `assets/images` 中已登记的候选、采用、退役素材。
 5. 将冻结的 Pre 项目生成 Presentation 标准项目目录。
 6. 输出结构化大纲、页面草案、讲解稿和素材引用。
 7. 使用稳定 ID、`sourceRefs`、MIME、字节数和 SHA-256 保证可追溯性。
@@ -193,10 +199,10 @@ PRE_DESIGN_PRESENTATION_PROJECT_ROOT
 
 ```text
 Presentation Standard Project Directory 0.1.0
-@architectureworld/presentation-contracts@0.1.0
+@architectureworld/presentation-contracts@0.1.1
 ArchitectureWorld/presentation-tools
-commit 974668d308728386ea005c9e77d58ebff9372f0a
-Schema Set 5bd329fcc8503ff7a48b3430e41b38dd264ae486cee7372a39cbbcccc2de2ebc
+commit fc54e4052e2ac2b2aa607391a55ab04fb79f4211
+Schema Set cc954d1d47cf3a75146190e055be3c3e62eac91f760f9382a9348191e3b19f33
 ```
 
 该版本仅表示外部 Contract，不参与 Pre 的分支、产品和发布命名。
@@ -241,7 +247,7 @@ Conclusion: success
 
 ## DSH 部署验证
 
-仅在获得用户对本次部署的确认后执行；先固定到通过完整 CI 的精确提交，不在运行中的正式会话里自动更换插件。
+部署前备份 Web profile 与 storages，检查没有正在运行的任务，并记录候选包 SHA-256。安装后重启 Web profile，验证真实页面和当前项目状态。
 
 ```powershell
 git switch pre-V2.0.2
@@ -253,4 +259,4 @@ dsh plugin --profile web add (Resolve-Path '.\architectureworld-dsh-preplanning-
 dsh --profile web --no-open
 ```
 
-重新加载浏览器后使用 `Ctrl + F5` 清理旧 Client 缓存。当前开发候选仍未合并主线、未创建 `v2.0.2` Tag 或正式 Release。
+重新加载浏览器后使用 `Ctrl + F5` 清理旧 Client 缓存。当前开发候选仍未合并主线、未创建 `v2.0.2` Tag 或正式 Release。2026-09-23 的本地部署、紧凑首页验收与支线文案核查见 [当前支线 Review](docs/pre-v2.0.2-branch-review-2026-09-23.md)。

@@ -10,7 +10,7 @@
 | Pre DSH 插件版本 | `2.0.2` | Workspace-first / zero-input + A/B/C/D 液态玻璃 |
 | Pre npm 包版本 | `@architectureworld/dsh-preplanning-agent@2.0.2` | 当前构建包版本 |
 | DSH 兼容基线 | `0.1.5-rc.1` | 当前 Host 与 Browser API 唯一支持基线 |
-| Presentation 标准版本 | `0.1.0` | 外部、解耦的数据格式 Contract |
+| Presentation 标准版本 | `0.1.0` | 外部、解耦的数据格式 Contract；当前依赖包为 `0.1.1` |
 | Node.js 基线 | `>=24.11.0` | 构建与部署运行时要求 |
 | V2.0.1 主线基线 | `main@801afcc794b34fa734ba624303ed9552b152407c` | 2.0.2 从该坐标继续演进 |
 | 上一正式发布 | `v0.7.0` | 历史发布，不代表当前开发候选 |
@@ -63,9 +63,9 @@ uiWorkspace.connectWorkspace(workspaceId)
 Standard: Presentation Standard Project Directory
 Version: 0.1.0
 Repository: ArchitectureWorld/presentation-tools
-Commit: 974668d308728386ea005c9e77d58ebff9372f0a
-Package: @architectureworld/presentation-contracts@0.1.0
-Schema Set SHA-256: 5bd329fcc8503ff7a48b3430e41b38dd264ae486cee7372a39cbbcccc2de2ebc
+Commit: fc54e4052e2ac2b2aa607391a55ab04fb79f4211
+Package: @architectureworld/presentation-contracts@0.1.1
+Schema Set SHA-256: cc954d1d47cf3a75146190e055be3c3e62eac91f760f9382a9348191e3b19f33
 ```
 
 它是 Pre 当前消费的外部格式依赖，不是 Pre 的产品版本，也不参与 Pre 的分支命名。
@@ -131,6 +131,8 @@ Research Runtime 资源统一位于：
 research/v2.0.1/
 ```
 
+该目录中的 [同步开发看板](../research/v2.0.1/source-audit.html) 以 Pre 2.0.2 产品身份展示 Research 合同 2.0.1 的工作流设计与来源核查；目录名不随 UI 版本改动。
+
 数据可信原则：项目正式资料、政府/法定机构、官方标准和权威专业数据优先；LLM inference / assumption 不能作为独立事实依据；关键结论必须可通过 Evidence 与 AnalysisTrace 回溯数据源、方法与输入。
 
 ## 8. UI 版本标识
@@ -167,4 +169,4 @@ docs/deployment-dsh-v0.1.5-rc.1.md
 
 ## 11. UI/UX 更新边界
 
-C 是 A 的深色版，D 是 B 的深色版，同组面板几何与光学参数相同。主题偏好仅保存在浏览器，不写入模型配置。研究模块继续使用 `research/v2.0.1`，其版本不随本轮 UI 包升级。当前未安装至用户 DSH，真实宿主验收尚未进行。
+C 是 A 的深色版，D 是 B 的深色版，同组面板几何与光学参数相同。主题偏好仅保存在浏览器，不写入模型配置。桌面宽度达到 960px 时，主页使用双列子 Agent 配置；窄窗口自动回到单列。研究合同继续使用 `research/v2.0.1`，其版本不随本轮 UI 包升级。2026-09-23 已在本地 DSH 验证 1645×918 下常态内容一屏可见，详见 [当前支线 Review](pre-v2.0.2-branch-review-2026-09-23.md)。

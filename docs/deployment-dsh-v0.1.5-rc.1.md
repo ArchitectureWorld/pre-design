@@ -1,10 +1,10 @@
-# Pre 2.0.1 / DSH 0.1.5-rc.1 部署说明
+# Pre 2.0.2 / DSH 0.1.5-rc.1 部署说明
 
-本说明对应 `feat/pre-v2.0.1` 的可部署候选。Pre 是 DSH 的前期策划 Skill / Workspace 插件，实际执行仍由 DSH Agent 完成。
+本说明对应 `pre-V2.0.2` 的开发与本地部署候选。Pre 是 DSH 的前期策划 Skill / Workspace 插件，实际执行仍由 DSH Agent 完成。Research 合同继续使用 `research/v2.0.1`，其目录版本与 Pre 产品版本独立。
 
 ## 固定版本
 
-- Pre: `2.0.1`
+- Pre: `2.0.2`
 - DSH: `0.1.5-rc.1`
 - Node.js: `>=24.11.0`
 - pnpm: `10.15.1`
@@ -15,7 +15,7 @@ DSH 官方 `0.1.5-rc.1` CLI 将 `dsh plugin --profile <name> <pnpm args>` 定义
 ## 从当前仓库构建
 
 ```bash
-git checkout feat/pre-v2.0.1
+git switch pre-V2.0.2
 git pull --ff-only
 corepack enable
 corepack prepare pnpm@10.15.1 --activate
@@ -26,7 +26,7 @@ mkdir -p dist
 pnpm pack --pack-destination dist
 ```
 
-部署前应以 GitHub Actions 的 `Pre 2.0.1 Research Foundation` 最新成功 run 为准，并确认本地 HEAD 与该 run 的 `head_sha` 一致。
+部署前应以 GitHub Actions 的 `Pre 2.0.2 UI and UX` 最新成功 run 为准，并确认本地 HEAD 与该 run 的 `head_sha` 一致。安装前备份 DSH Web profile 和 storages，确认无运行中的项目任务，保存包哈希；安装后核对项目数据并在真实页面验收。
 
 ## 安装到 DSH Web profile
 
@@ -64,7 +64,7 @@ dsh web
 
 ## Workspace 使用方式
 
-Pre 2.0.1 在第一条聊天消息之前就注册 root 级 `sidebar.panellist + main` 入口。进入一个 DSH Workspace 后可直接打开“前期策划”，不需要先发送 `hello` 或任何占位消息。
+Pre 2.0.2 在第一条聊天消息之前就注册 root 级 `sidebar.panellist + main` 入口。进入一个 DSH Workspace 后可直接打开“前期策划”，不需要先发送 `hello` 或任何占位消息。桌面宽度达到 960px 时，四张子 Agent 设置卡片排成两列；窄窗口自动回到单列。
 
 ```text
 DSH Workspace/
@@ -97,4 +97,4 @@ DSH Workspace/
 
 ## 边界
 
-该分支目前是“可部署候选”，不是 npm 正式发布版：没有 `v2.0.1` Tag，也未合并到 `main`。部署时应固定最终通过 CI 的 commit SHA，避免直接跟随移动分支头。
+该分支目前是“可部署候选”，不是 npm 正式发布版：没有 `v2.0.2` Tag，也未合并到 `main`。部署时应固定最终通过 CI 的 commit SHA，避免直接跟随移动分支头。本地验收与当前支线文案 Review 见 [2026-09-23 记录](pre-v2.0.2-branch-review-2026-09-23.md)。

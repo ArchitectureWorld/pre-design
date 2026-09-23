@@ -5,9 +5,9 @@ const root = resolve(import.meta.dirname, '..')
 const path = resolve(root, 'research/v2.0.1/source-audit.html')
 let html = await readFile(path, 'utf8')
 
-const title = 'V2.0.1 部署测试能力'
+const title = 'Research 合同 2.0.1 · 运行能力与边界'
 if (!html.includes(title)) {
-  const marker = '</p></section><section class="chapter">'
+  const marker = '</p></section><section class="chapter" id="chapter-01">'
   const markerIndex = html.indexOf(marker)
   if (markerIndex < 0) throw new Error('source audit automatic-policy insertion marker not found')
   const insertAt = markerIndex + '</p></section>'.length
