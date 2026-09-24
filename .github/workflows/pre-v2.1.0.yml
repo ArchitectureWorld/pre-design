@@ -1,0 +1,72 @@
+name: Pre 2.1.0 research upgrade
+
+on:
+  push:
+    branches: [v2.1.0]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/research-v2/**'
+      - 'research/v2.1.0/**'
+      - 'tests/research-v210*'
+      - '.github/workflows/pre-v2.1.0.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pre-v210-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Archive exact source for reproducible review
+        run: |
+          mkdir -p /tmp/pre-v210-source
+          git archive --format=tar HEAD > /tmp/pre-v210-source/source.tar
+          git rev-parse HEAD > /tmp/pre-v210-source/COMMIT.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pre-v210-source
+          path: /tmp/pre-v210-source/
+          retention-days: 14
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.11.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Archive offline validation tools for the bootstrap run
+        if: github.event_name == 'push' && github.run_number == 1
+        run: |
+          mkdir -p /tmp/pre-v210-tools
+          tar -czf /tmp/pre-v210-tools/node_modules.tar.gz node_modules
+          cp "$(command -v node)" /tmp/pre-v210-tools/node
+          PNPM_ROOT="$(dirname "$(dirname "$(readlink -f "$(command -v pnpm)")")")"
+          tar -czf /tmp/pre-v210-tools/pnpm.tar.gz -C "$PNPM_ROOT" .
+          cp pnpm-lock.yaml /tmp/pre-v210-tools/pnpm-lock.yaml
+          cd /tmp/pre-v210-tools
+          sha256sum node node_modules.tar.gz pnpm.tar.gz pnpm-lock.yaml > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push' && github.run_number == 1
+        with:
+          name: pre-v210-offline-validation-tools
+          path: /tmp/pre-v210-tools/
+          retention-days: 2
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Build and full regression
+        run: pnpm test
+      - name: Built package regression
+        run: pnpm test:built
+      - name: Diff hygiene
+        run: git diff --check
