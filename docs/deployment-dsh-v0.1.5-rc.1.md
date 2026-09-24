@@ -1,6 +1,6 @@
 # Pre 2.0.2 / DSH 0.1.5-rc.1 部署说明
 
-本说明对应 `pre-V2.0.2` 的开发与本地部署候选。Pre 是 DSH 的前期策划 Skill / Workspace 插件，实际执行仍由 DSH Agent 完成。Research 合同继续使用 `research/v2.0.1`，其目录版本与 Pre 产品版本独立。
+本说明对应已合入 `main` 的 Pre 2.0.2；合并源为 `pre-V2.0.2@6807a01`。Pre 是 DSH 的前期策划 Skill / Workspace 插件，实际执行仍由 DSH Agent 完成。Research 合同继续使用 `research/v2.0.1`，其目录版本与 Pre 产品版本独立。
 
 ## 固定版本
 
@@ -15,7 +15,7 @@ DSH 官方 `0.1.5-rc.1` CLI 将 `dsh plugin --profile <name> <pnpm args>` 定义
 ## 从当前仓库构建
 
 ```bash
-git switch pre-V2.0.2
+git switch main
 git pull --ff-only
 corepack enable
 corepack prepare pnpm@10.15.1 --activate
@@ -26,7 +26,7 @@ mkdir -p dist
 pnpm pack --pack-destination dist
 ```
 
-部署前应以 GitHub Actions 的 `Pre 2.0.2 UI and UX` 最新成功 run 为准，并确认本地 HEAD 与该 run 的 `head_sha` 一致。安装前备份 DSH Web profile 和 storages，确认无运行中的项目任务，保存包哈希；安装后核对项目数据并在真实页面验收。
+合并源 `6807a01` 的 GitHub Actions `Pre 2.0.2 UI and UX` 已通过。部署主线后续提交时，应重新核对目标 SHA 与相应验证结果。安装前备份 DSH Web profile 和 storages，确认无运行中的项目任务，保存包哈希；安装后核对项目数据并在真实页面验收。
 
 ## 安装到 DSH Web profile
 
@@ -97,4 +97,4 @@ DSH Workspace/
 
 ## 边界
 
-该分支目前是“可部署候选”，不是 npm 正式发布版：没有 `v2.0.2` Tag，也未合并到 `main`。部署时应固定最终通过 CI 的 commit SHA，避免直接跟随移动分支头。本地验收与当前支线文案 Review 见 [2026-09-23 记录](pre-v2.0.2-branch-review-2026-09-23.md)。
+代码已合入 `main`，但尚无 `v2.0.2` Tag、npm 正式发布或正式 Release。部署时固定已验证的提交，不直接跟随移动分支头。本地验收与支线文案 Review 见 [2026-09-23 记录](pre-v2.0.2-branch-review-2026-09-23.md)。

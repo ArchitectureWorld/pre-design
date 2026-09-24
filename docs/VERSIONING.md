@@ -6,7 +6,7 @@
 
 | 对象 | 当前值 | 含义 |
 |---|---:|---|
-| Pre 产品版本 | `2.0.2` | 当前开发/部署候选 |
+| Pre 产品版本 | `2.0.2` | 已合入 `main`，尚未正式发布 |
 | Pre DSH 插件版本 | `2.0.2` | Workspace-first / zero-input + A/B/C/D 液态玻璃 |
 | Pre npm 包版本 | `@architectureworld/dsh-preplanning-agent@2.0.2` | 当前构建包版本 |
 | DSH 兼容基线 | `0.1.5-rc.1` | 当前 Host 与 Browser API 唯一支持基线 |
@@ -22,13 +22,13 @@
 - `0.1.0` 只属于 `Presentation Standard Project Directory`；
 - Pre 是 DSH Skill / Workspace 插件，实际执行仍由 DSH Agent 完成；
 - Presentation-tools 保持工具属性，排版能力仍归 Pre/DSH Skill 层；
-- 当前 2.0.2 支线未合并、未打 `v2.0.2` Tag、未创建正式 Release，也未声明 npm 正式发布。
+- Pre 2.0.2 已合入 `main`；未打 `v2.0.2` Tag、未创建正式 Release，也未声明 npm 正式发布。
 
 ## 2. 当前有效支线
 
 ```text
-main                    # Pre V2.0.1 主线基线
-pre-V2.0.2         # Pre 2.0.2 开发与部署候选
+main                    # 当前 Pre 2.0.2 主线
+pre-V2.0.2              # 本轮合并来源；合并源提交 6807a01
 ```
 
 历史 `architecture/pre-v2.0.0` 和 `feat/pre-v2.0.0` 可保留用于追溯，但不再作为 2.0.2 的当前基线坐标。
@@ -151,7 +151,7 @@ Pre 2.0.2 · Project Format 0.1.0
 docs/deployment-dsh-v0.1.5-rc.1.md
 ```
 
-部署应固定到通过完整 CI 的精确 commit SHA，而不是长期跟随移动的 `pre-V2.0.2` 分支头。
+部署应固定到通过完整 CI 的精确 commit SHA。`pre-V2.0.2@6807a01` 的完整 CI 已通过；主线合并后仍须对最终提交核查。
 
 ## 10. 版本禁止事项
 

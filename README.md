@@ -9,8 +9,9 @@
 当前有效入口：
 
 ```text
-主线基线：main@801afcc794b34fa734ba624303ed9552b152407c
-开发支线：pre-V2.0.2
+当前主线：main（Pre 2.0.2）
+合并来源：pre-V2.0.2@6807a014b268a1130d8f263cf251d3753467cc1d
+历史基线：main@801afcc794b34fa734ba624303ed9552b152407c（Pre 2.0.1）
 ```
 
 > 版本权威：[`docs/version-matrix.json`](docs/version-matrix.json) 与 [`docs/VERSIONING.md`](docs/VERSIONING.md)。
@@ -22,9 +23,9 @@
 | 项目 | 状态 |
 |---|---|
 | Pre 产品／插件版本 | `2.0.2` |
-| 当前开发支线 | `pre-V2.0.2` |
+| 当前主线 | `main`；来源为 `pre-V2.0.2` |
 | Workspace 根目录接入 | 已实现并完成自动化验证 |
-| 发布状态 | 未合并、未发布 |
+| 发布状态 | 已合入 `main`；未打 Tag、未正式发布 |
 | 上一正式发布 | `v0.7.0`，仅作历史基线 |
 | Presentation 项目格式 Contract | 标准 `0.1.0`，依赖包 `0.1.1` |
 | DSH 兼容基线 | `0.1.5-rc.1` |
@@ -250,7 +251,7 @@ Conclusion: success
 部署前备份 Web profile 与 storages，检查没有正在运行的任务，并记录候选包 SHA-256。安装后重启 Web profile，验证真实页面和当前项目状态。
 
 ```powershell
-git switch pre-V2.0.2
+git switch main
 git pull --ff-only
 pnpm install --frozen-lockfile
 pnpm test
@@ -259,4 +260,4 @@ dsh plugin --profile web add (Resolve-Path '.\architectureworld-dsh-preplanning-
 dsh --profile web --no-open
 ```
 
-重新加载浏览器后使用 `Ctrl + F5` 清理旧 Client 缓存。当前开发候选仍未合并主线、未创建 `v2.0.2` Tag 或正式 Release。2026-09-23 的本地部署、紧凑首页验收与支线文案核查见 [当前支线 Review](docs/pre-v2.0.2-branch-review-2026-09-23.md)。
+重新加载浏览器后使用 `Ctrl + F5` 清理旧 Client 缓存。代码已合入主线，仍未创建 `v2.0.2` Tag 或正式 Release。2026-09-23 的本地部署、紧凑首页验收与支线文案核查见 [支线 Review](docs/pre-v2.0.2-branch-review-2026-09-23.md)。

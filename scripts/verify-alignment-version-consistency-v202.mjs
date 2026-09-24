@@ -11,6 +11,7 @@ const requireCondition = (condition, message) => { if (!condition) failures.push
 const PRE_VERSION = '2.0.2'
 const PRE_PACKAGE = '@architectureworld/dsh-preplanning-agent'
 const DEVELOPMENT_BRANCH = 'pre-V2.0.2'
+const CURRENT_BRANCH = 'main'
 const BASELINE_BRANCH = 'main'
 const BASELINE_VERSION = '2.0.1'
 const BASELINE_COMMIT = '801afcc794b34fa734ba624303ed9552b152407c'
@@ -32,6 +33,9 @@ requireCondition(matrix.product?.version === PRE_VERSION, 'Pre product version m
 requireCondition(matrix.product?.packageName === PRE_PACKAGE, 'Pre package name mismatch')
 requireCondition(matrix.product?.packageVersion === PRE_VERSION, 'Pre package version must be 2.0.2')
 requireCondition(matrix.product?.publishedTag === null, 'Pre 2.0.2 must remain unpublished')
+requireCondition(matrix.product?.status === 'merged-main-unpublished', 'Pre 2.0.2 main merge status mismatch')
+requireCondition(matrix.activeBranches?.current === CURRENT_BRANCH,
+  `current branch must be ${CURRENT_BRANCH}`)
 requireCondition(matrix.activeBranches?.development === DEVELOPMENT_BRANCH,
   `development branch must be ${DEVELOPMENT_BRANCH}`)
 requireCondition(matrix.activeBranches?.baseline === BASELINE_BRANCH,
@@ -78,8 +82,8 @@ requireCondition(matrix.implementation?.liquidGlassUI?.branch === DEVELOPMENT_BR
   'liquidGlassUI branch authority mismatch')
 requireCondition(matrix.implementation?.liquidGlassUI?.baseline === `${BASELINE_BRANCH}@${BASELINE_COMMIT}`,
   'liquidGlassUI main baseline coordinate mismatch')
-requireCondition(matrix.implementation?.releaseStatus === 'not-merged-not-published',
-  'Pre 2.0.2 release status must remain not merged and not published')
+requireCondition(matrix.implementation?.releaseStatus === 'merged-main-not-published',
+  'Pre 2.0.2 release status must reflect the main merge without claiming publication')
 
 const forbiddenRuntimeIdentity = [
   ['src/version.ts', "PRE_DESIGN_VERSION = '2.0.0'"],
@@ -100,6 +104,7 @@ console.log(JSON.stringify({
   product: `${matrix.product.name}@${matrix.product.version}`,
   package: `${pkg.name}@${pkg.version}`,
   developmentBranch: matrix.activeBranches.development,
+  currentBranch: matrix.activeBranches.current,
   baseline: `${matrix.activeBranches.baseline}@${matrix.activeBranches.baselineCommitSHA}`,
   baselineVersion: matrix.activeBranches.baselineVersion,
   presentationFormat: external.standardVersion,

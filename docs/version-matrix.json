@@ -1,18 +1,20 @@
 {
-  "schemaVersion": 8,
-  "updatedAt": "2026-09-23",
+  "schemaVersion": 9,
+  "updatedAt": "2026-09-24",
   "repository": "ArchitectureWorld/pre-design",
   "product": {
     "name": "pre-design",
     "version": "2.0.2",
     "packageName": "@architectureworld/dsh-preplanning-agent",
     "packageVersion": "2.0.2",
-    "status": "development-candidate",
+    "status": "merged-main-unpublished",
     "publishedTag": null
   },
   "activeBranches": {
     "architecture": "architecture/pre-v2.0.0",
+    "current": "main",
     "development": "pre-V2.0.2",
+    "mergedSourceCommitSHA": "6807a014b268a1130d8f263cf251d3753467cc1d",
     "baseline": "main",
     "baselineVersion": "2.0.1",
     "baselineCommitSHA": "801afcc794b34fa734ba624303ed9552b152407c"
@@ -135,7 +137,7 @@
     "sourceTraceableResearch": {
       "status": "merged-in-main-and-retained-in-2.0.2",
       "originBranch": "feat/pre-v2.0.1",
-      "currentBranch": "pre-V2.0.2",
+      "currentBranch": "main",
       "mergedBaseline": "main@801afcc794b34fa734ba624303ed9552b152407c",
       "contractVersion": "2.0.1",
       "spec": "docs/superpowers/specs/2026-09-12-pre-v2.0.1-source-traceable-research-design.md",
@@ -149,7 +151,7 @@
       "pinExactCommit": true,
       "formalReleasePublished": false
     },
-    "releaseStatus": "not-merged-not-published",
+    "releaseStatus": "merged-main-not-published",
     "productionCodeChanged": true,
     "liquidGlassUI": {
       "branch": "pre-V2.0.2",
