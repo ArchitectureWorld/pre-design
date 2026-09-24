@@ -69,11 +69,17 @@ describe('built npm package', () => {
       expect(tools.map(tool => tool.name)).toContain('preplanning_generate_page_visual')
       const researchPlan = researchCommands.find(command => command.name === 'preplan-research-plan')
       expect(researchPlan).toBeDefined()
+      const regionalOd = researchCommands.find(command => command.name === 'preplan-research-od')
+      expect(regionalOd).toBeDefined()
+      const peers = researchCommands.find(command => command.name === 'preplan-research-peers')
+      expect(peers).toBeDefined()
+      expect(await peers!.handler({rawInput:'--input=peers.json',agent:{id:'built-host'}})).toMatchObject({kind:'error',text:expect.stringContaining('RESEARCH_PROJECT_REQUIRED')})
+      expect(await regionalOd!.handler({rawInput:'--input=request.json',agent:{id:'built-host'}})).toMatchObject({kind:'error',text:expect.stringContaining('RESEARCH_PROJECT_REQUIRED')})
       expect(await researchPlan!.handler({ rawInput: '--item=2.03 --json', agent: { id: 'built-host' } })).toMatchObject({ kind: 'success' })
       expect(Object.isFrozen(ctx.preplanning.designVisualBridge)).toBe(true)
       await expect(ctx.preplanning.designVisualBridge.generate({ id: 'session' } as never, { runId: 'run', studioProjectId: 'studio', pageId: 'page', sourceStateHash: 'a'.repeat(64), requestId: 'request', prompt: '概念图' })).rejects.toThrow('RESOLVER_UNAVAILABLE')
     } finally { await ctx.fiber.dispose(); await rm(storageRoot, { recursive: true, force: true }) }
-  })
+  }, 20_000) // Cold import + real Host initialization; all behavioural assertions remain enabled.
   it('loads the Host export path declared by package.json', async () => {
     const manifest = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8')) as {
       exports: { '.': { default: string } }
@@ -123,6 +129,7 @@ describe('built npm package', () => {
 
   it('packs every generated Host chunk and the pinned Presentation Contract runtime assets', async () => {
     const paths = await packedFilePaths()
+    expect(paths).toContain('research/planning-v1.2/unified-data.json.br')
     const builtJavaScript = (await readdir(resolve(root, 'lib')))
       .filter(name => name.endsWith('.js'))
       .sort()

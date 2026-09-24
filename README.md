@@ -1,3 +1,7 @@
+> **v2.1.0 development / milestone3:** `/preplan-research-peers --input=research/peers.request.json` captures explicitly supplied workspace sources and produces auditable peer/product/audience tables. [Handoff](docs/pre-v2.1.0-milestone3-handoff.md). Not autonomous all62 research or a production release.
+
+> **v2.1.0 milestone 2:** full approved62 research dictionary + source-bound regional OD/SVG/table/audit bundles. See [usage and boundaries](docs/pre-v2.1.0-milestone2-handoff.md). This is not full62 automatic research completion.
+
 # Pre-design 2.1.0 — 开发中
 
 基于已经合并的 `main@a1c1ad12b469d086037ec66e4bd89c7c0e4ac422`（Pre 2.0.2），在 `v2.1.0` 开发支线实现已确认的研究与成果统一规格 v1.2。

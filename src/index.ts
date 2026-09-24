@@ -373,6 +373,11 @@ export async function apply(ctx: Context): Promise<void> {
     await repository.close()
   })
   registerPreplanningCommands(ctx, {
+    researchWorkspaceBinding: projectId => {
+      const binding = standardProjects.findByPreDesignProjectId(projectId)
+      const root = binding?.workspaceRoot ?? binding?.directoryRoot
+      return binding?.state === 'ready' && root && binding.presentationProjectId ? { root, standardProjectId: binding.presentationProjectId } : undefined
+    },
     repository,
     gateway,
     governance,

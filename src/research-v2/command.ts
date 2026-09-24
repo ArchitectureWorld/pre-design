@@ -1,4 +1,5 @@
 import type { CommandDefinition } from '@deepseek-ai/dsh-commands'
+import { getResearchModuleSpec } from './specification.ts'
 import { loadPlanningCatalog, requireModule } from './catalog.ts'
 import { candidateDeliverables, projectResearchPlan } from './planning.ts'
 import { CONDITION_FIELDS, type ResearchFlags } from './types.ts'
@@ -27,7 +28,7 @@ export function createResearchPlanCommand(): CommandDefinition {
         if (item) {
           const mod = requireModule(c,item), detail = {execution:'planning_only',catalogHash:c.hash,module:mod,
             requires:c.edges.filter(e => e.target === item),selected:p.edges.filter(e => e.target === item),
-            unresolved:p.unresolved.filter(e => e.target === item),deliverables:candidateDeliverables(c,item)}
+            unresolved:p.unresolved.filter(e => e.target === item),deliverables:candidateDeliverables(c,item),researchSpec:getResearchModuleSpec(item),fieldSchemaStatus:'regional_slice_only'}
           return {kind:'success',text:json ? JSON.stringify(detail,null,2) : `研究计划（只读） ${item} ${mod.title}\n${JSON.stringify(detail,null,2)}\n候选成果尚未生成；不改变旧57项执行状态。`}
         }
         if (json) return {kind:'success',text:JSON.stringify(p,null,2)}

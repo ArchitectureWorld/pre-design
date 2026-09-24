@@ -7,7 +7,7 @@ on:
     branches: [main]
     paths:
       - 'src/research-v2/**'
-      - 'research/v2.1.0/**'
+      - 'research/planning-v1.2/**'
       - 'tests/research-v210*'
       - '.github/workflows/pre-v2.1.0.yml'
   workflow_dispatch:
@@ -62,6 +62,8 @@ jobs:
           name: pre-v210-offline-validation-tools
           path: /tmp/pre-v210-tools/
           retention-days: 2
+      - name: Full research specification and routing lock
+        run: pnpm verify:research-v210
       - name: Typecheck
         run: pnpm typecheck
       - name: Build and full regression

@@ -1,3 +1,9 @@
+## Current development: v2.1.0 milestone 3
+
+See `docs/pre-v2.1.0-milestone3-handoff.md` for evidence intake, peer comparison and the regional bridge. Existing57 execution and UI are preserved; full62 automatic execution is not complete.
+
+> Milestone 2 continuation: see [source-bound regional OD handoff](docs/pre-v2.1.0-milestone2-handoff.md). The milestone1 text below is retained as history.
+
 # 当前交接：Pre-design 2.1.0 开发支线
 
 当前入口：[v2.1.0开发交接](docs/pre-v2.1.0-handoff.md)。基线是已合并Pre 2.0.2的 `main@a1c1ad12b469d086037ec66e4bd89c7c0e4ac422`，所有新增工作在 `v2.1.0`，不修改main。

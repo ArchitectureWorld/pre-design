@@ -1,3 +1,5 @@
+> Milestone 2 continuation: see [source-bound regional OD handoff](pre-v2.1.0-milestone2-handoff.md). The milestone1 text below is retained as history.
+
 # Pre-design 2.1.0 — milestone 1 handoff
 
 ## Coordinates

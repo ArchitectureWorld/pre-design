@@ -85,6 +85,8 @@ describe('Host apply composition', () => {
 
     expect(commands.map(definition => definition.name)).toEqual([
       'preplan-research-plan',
+      'preplan-research-peers',
+      'preplan-research-od',
       'preplan-new', 'preplan-open', 'preplan-list', 'preplan-status', 'preplan-confirm',
       'preplan-mode', 'preplan-run', 'preplan-pause', 'preplan-gate', 'preplan-revise',
       'preplan-visual-fill', 'preplan-visual-budget', 'preplan-visual-reject',

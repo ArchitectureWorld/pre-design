@@ -1,3 +1,5 @@
+import { createPeerResearchCommand } from '../research-v2/peer-command.ts'
+import { createRegionalOdCommand, type ResearchWorkspaceBinding } from '../research-v2/regional-command.ts'
 import { createResearchPlanCommand } from '../research-v2/command.ts'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -23,6 +25,7 @@ import type { ActorRef } from '../state/types.ts'
 import { buildPreplanningStatus, formatPreplanningStatus, type PreplanningStatusDependencies } from '../session/events.ts'
 
 export interface CommandDependencies {
+  readonly researchWorkspaceBinding?: (projectId: string) => ResearchWorkspaceBinding | undefined
   readonly reportErrors?: ReadonlyMap<string, string>
   readonly reportFormats?: PreplanningStatusDependencies['reportFormats']
   readonly repository: ProjectRepository
@@ -162,6 +165,16 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
   const { repository, gateway, governance, runtime } = dependencies
   const definitions: CommandDefinition[] = [
     createResearchPlanCommand(),
+    createPeerResearchCommand({
+      readContext: sessionId => repository.readContext(sessionId),
+      resolveBinding: projectId => dependencies.researchWorkspaceBinding?.(projectId),
+      now: () => new Date(dependencies.now()),
+    }),
+    createRegionalOdCommand({
+      readContext: sessionId => repository.readContext(sessionId),
+      resolveBinding: projectId => dependencies.researchWorkspaceBinding?.(projectId),
+      now: () => new Date(dependencies.now()),
+    }),
     {
       name: 'preplan-new',
       description: '新建并绑定一个前期策划项目',
