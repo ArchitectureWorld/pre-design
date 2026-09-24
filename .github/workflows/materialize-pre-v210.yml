@@ -1,0 +1,80 @@
+name: Materialize and verify Pre 2.1.0 foundation
+
+on:
+  push:
+    branches: [v2.1.0]
+    paths:
+      - 'scripts/pre-v210-integration.json'
+      - 'scripts/materialize-pre-v210.py'
+      - '.github/workflows/materialize-pre-v210.yml'
+
+permissions:
+  contents: write
+  statuses: write
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: materialize-pre-v210
+  cancel-in-progress: false
+
+jobs:
+  integrate:
+    if: github.ref == 'refs/heads/v2.1.0' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Apply only hash-verified integration edits
+        run: |
+          python scripts/materialize-pre-v210.py
+          git add -u
+          git rm scripts/pre-v210-integration.json scripts/materialize-pre-v210.py .github/workflows/materialize-pre-v210.yml
+          git diff --cached --check
+          mkdir -p /tmp/pre-v210-verification
+          git write-tree > /tmp/pre-v210-verification/TESTED_TREE.txt
+          test "$(cat /tmp/pre-v210-verification/TESTED_TREE.txt)" = '9e95e3916e77fa45cf9a6bc739950a3f1500e30d'
+          git diff --cached --stat > /tmp/pre-v210-verification/INTEGRATION.txt
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.11.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Validate foundation and source lock
+        run: pnpm test:research-v210 2>&1 | tee /tmp/pre-v210-verification/foundation.log
+      - name: Typecheck
+        run: pnpm typecheck 2>&1 | tee /tmp/pre-v210-verification/typecheck.log
+      - name: Build and complete existing plus new regression
+        run: pnpm test 2>&1 | tee /tmp/pre-v210-verification/full-regression.log
+      - name: Test built package and real Host composition
+        run: pnpm test:built 2>&1 | tee /tmp/pre-v210-verification/built-package.log
+      - name: Commit exactly the tested tree to the requested branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git diff --exit-code
+          test "$(git write-tree)" = "$(cat /tmp/pre-v210-verification/TESTED_TREE.txt)"
+          git fetch origin v2.1.0
+          test "$(git rev-parse origin/v2.1.0)" = "$GITHUB_SHA"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat(v2.1.0): integrate tested 62-module research foundation'
+          test "$(git rev-parse HEAD^{tree})" = "$(cat /tmp/pre-v210-verification/TESTED_TREE.txt)"
+          git push origin HEAD:refs/heads/v2.1.0
+          git rev-parse HEAD > /tmp/pre-v210-verification/COMMIT.txt
+          git archive --format=tar HEAD > /tmp/pre-v210-verification/source.tar
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$(git rev-parse HEAD)" -f state=success -f context='Pre 2.1.0 tested-tree integration' -f description='Exact committed tree passed typecheck, focused, full and built-package tests' -f target_url="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pre-v210-foundation-verification
+          path: /tmp/pre-v210-verification/
+          retention-days: 14

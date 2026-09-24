@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "planning-index-lock.v1",
+  "specVersion": "planning-research.v1.2",
+  "source": {
+    "name": "unified-data.json",
+    "sha256": "1ad0d7b0a2b52a84515cd97ab313c5596c0da02bea6175eaf4390d39d99d2a08",
+    "scope": "user-approved complete v1.2 specification; external input retained by owner"
+  },
+  "projection": {
+    "path": "src/research-v2/catalog-data.ts",
+    "sha256": "e4cf4aa7afc3de15483a3a176204dc48edbcc08d0407e61fde46595c4beae9a6",
+    "catalogSha256": "6617a6834468abf99fa2c3af6630f8eaaaa9018aecda7ad946e97bd5cba29f36",
+    "edgeSha256": "a5e0a247a8c7ac519e998280fc46e0adfa1707958ff5e43f7eba034bd245cb6e",
+    "edgeCanonicalization": "sortByEdgeId",
+    "moduleCount": 62,
+    "edgeCount": 176,
+    "legacyCount": 57,
+    "figureCount": 76
+  },
+  "status": "planning-foundation; not professional execution"
+}
