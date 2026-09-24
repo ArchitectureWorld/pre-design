@@ -31,6 +31,29 @@ jobs:
         with:
           node-version: 24.11.0
           cache: pnpm
+      - name: Restore exact M2 source from the previously verified transfer
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/pre-v210-m2-verification
+          node --input-type=module <<'JS'
+          import {createHash} from 'node:crypto';
+          import {execFileSync} from 'node:child_process';
+          const response=await fetch('https://api.github.com/repos/ArchitectureWorld/pre-design/contents/.github/workflows/materialize-pre-v210-m2.yml?ref=ea515c3f4c35ad1424c1419097373f1d836dfad4',{headers:{Authorization:`Bearer ${process.env.GH_TOKEN}`,Accept:'application/vnd.github+json'},signal:AbortSignal.timeout(30000)});
+          if(!response.ok)throw new Error('M2_TRANSFER_READ_FAILED');
+          const record=await response.json(),body=Buffer.from(record.content,'base64');
+          const blob=createHash('sha1').update(Buffer.concat([Buffer.from(`blob ${body.length}\0`),body])).digest('hex');
+          if(blob!=='897ed5f50ba1d3b11d78643cbcdfafa007b09a02')throw new Error('M2_TRANSFER_SOURCE_MISMATCH');
+          const text=body.toString('utf8'),marker="          node --input-type=module - <<'JS'\n",start=text.indexOf(marker),end=text.indexOf('          JS\n',start);
+          if(start<0||end<0)throw new Error('M2_TRANSFER_SECTION_MISSING');
+          let code=text.slice(start+marker.length,end).split('\n').map(line=>line.startsWith('          ')?line.slice(10):line).join('\n');
+          const cleanup="const temporary='.github/workflows/materialize-pre-v210-m2.yml';rmSync(temporary);",stage="execFileSync('git',['add','--',...paths,sourcePath,temporary]);";
+          if(!code.includes(cleanup)||!code.includes(stage))throw new Error('M2_TRANSFER_CLEANUP_MISMATCH');
+          code=code.replace(cleanup,'').replace(stage,"execFileSync('git',['add','--',...paths,sourcePath]);");
+          execFileSync(process.execPath,['--input-type=module','-'],{input:code,stdio:['pipe','inherit','inherit'],env:process.env});
+          JS
       - name: Apply exact source patch and remove one-time transport
         shell: bash
         run: |
@@ -47,7 +70,10 @@ jobs:
           JS
           git apply --index --check /tmp/pre-v210-m3/implementation.patch
           git apply --index /tmp/pre-v210-m3/implementation.patch
-          git rm .maintenance/pre-v210-m3/part-*.b64 .github/workflows/integrate-pre-v210-m3.yml
+          echo '659848a17e33435cecb6608892e4e2bfdff962c7faa603b1b7fc0106619b4985  .maintenance/pre-v210-m3/recovery-doc.patch' | sha256sum --check
+          git apply --index --check .maintenance/pre-v210-m3/recovery-doc.patch
+          git apply --index .maintenance/pre-v210-m3/recovery-doc.patch
+          git rm .maintenance/pre-v210-m3/part-*.b64 .maintenance/pre-v210-m3/recovery-doc.patch .github/workflows/integrate-pre-v210-m3.yml
           git diff --cached --check
           git diff --cached --name-only > /tmp/pre-v210-m3/CHANGED_PATHS.txt
           git write-tree > /tmp/pre-v210-m3/TESTED_TREE.txt

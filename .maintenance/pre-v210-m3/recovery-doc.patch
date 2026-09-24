@@ -1,0 +1,11 @@
+--- a/docs/pre-v2.1.0-milestone3-handoff.md
++++ b/docs/pre-v2.1.0-milestone3-handoff.md
+@@ -2,7 +2,7 @@
+ 
+ ## Baseline and scope
+ - Continue branch `v2.1.0`, product2.1.0, approved8chapters/62modules. Main, existing57 executor, UI and production image inspection are preserved.
+-- M2's remote run35977160724 passed focused/full/built tests but failed its commit step. Its candidate was subsequently landed with the authenticated GitHub commit API, retiring the one-time materializer; M3 is layered on that code, not on an assumed successful M2 bot commit.
++- M2's remote run35977160724 passed focused/full/built tests but failed its commit step. The first recovery commit only retired the failed materializer; its referenced tree did not contain the applied M2 source. The M3 integration therefore restores the original hash-locked M2 files before applying M3 and runs all gates on the combined final tree. Do not infer completed integration from a commit message.
+ - DSH0.1.5-rc.1 / Node>=24.11.0 / pnpm10.15.1 and existing dependency lock unchanged. Reuses parse5, zod, cartographic geometry, Chinese wrapping and checked workspace storage.
+ 
+ ## Implemented
