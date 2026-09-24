@@ -73,7 +73,12 @@ jobs:
           echo '659848a17e33435cecb6608892e4e2bfdff962c7faa603b1b7fc0106619b4985  .maintenance/pre-v210-m3/recovery-doc.patch' | sha256sum --check
           git apply --index --check .maintenance/pre-v210-m3/recovery-doc.patch
           git apply --index .maintenance/pre-v210-m3/recovery-doc.patch
-          git rm .maintenance/pre-v210-m3/part-*.b64 .maintenance/pre-v210-m3/recovery-doc.patch .github/workflows/integrate-pre-v210-m3.yml
+          echo '61867afb1d21daa449003bd72bdb791a9d827968fed503430cb0dd7a5ce16083  .maintenance/pre-v210-m3/source-bom.patch' | sha256sum --check
+          git apply --index --check .maintenance/pre-v210-m3/source-bom.patch
+          git apply --index .maintenance/pre-v210-m3/source-bom.patch
+          echo '5b9c7f847764f92c5a99612ca1a379d3c379e2b894a0f5ab92be14a42f84b2ef  .maintenance/pre-v210-m3/commit-verified-tree.mjs' | sha256sum --check
+          cp .maintenance/pre-v210-m3/commit-verified-tree.mjs /tmp/pre-v210-m3/commit-verified-tree.mjs
+          git rm .maintenance/pre-v210-m3/part-*.b64 .maintenance/pre-v210-m3/recovery-doc.patch .maintenance/pre-v210-m3/source-bom.patch .maintenance/pre-v210-m3/commit-verified-tree.mjs .github/workflows/integrate-pre-v210-m3.yml
           git diff --cached --check
           git diff --cached --name-only > /tmp/pre-v210-m3/CHANGED_PATHS.txt
           git write-tree > /tmp/pre-v210-m3/TESTED_TREE.txt
@@ -96,22 +101,11 @@ jobs:
           set -euo pipefail
           pnpm exec tsx scripts/build-peer-research-demo.ts 2>&1 | tee /tmp/pre-v210-m3/demo.log
           cp -r work/research-peer-demo /tmp/pre-v210-m3/synthetic-demo
-      - name: Commit and push exactly the verified tree
+      - name: Commit exactly the verified tree through explicit-identity Git API
         shell: bash
         env:
-          GIT_AUTHOR_NAME: 'github-actions[bot]'
-          GIT_AUTHOR_EMAIL: '41898282+github-actions[bot]@users.noreply.github.com'
-          GIT_COMMITTER_NAME: 'github-actions[bot]'
-          GIT_COMMITTER_EMAIL: '41898282+github-actions[bot]@users.noreply.github.com'
-        run: |
-          set -euo pipefail
-          git diff --exit-code
-          git diff --cached --check
-          test "$(git write-tree)" = "$(cat /tmp/pre-v210-m3/TESTED_TREE.txt)"
-          test "$(git ls-remote origin refs/heads/v2.1.0 | cut -f1)" = "$GITHUB_SHA"
-          git -c user.name="$GIT_AUTHOR_NAME" -c user.email="$GIT_AUTHOR_EMAIL" commit -m "feat(v2.1.0): integrate verified source-bound peer research and regional OD bridge"
-          git push origin HEAD:refs/heads/v2.1.0
-          git rev-parse HEAD > /tmp/pre-v210-m3/COMMIT.txt
+          GH_TOKEN: ${{ github.token }}
+        run: node /tmp/pre-v210-m3/commit-verified-tree.mjs
       - name: Publish tested-tree status only after all gates passed
         env:
           GH_TOKEN: ${{ github.token }}
