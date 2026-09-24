@@ -1,3 +1,4 @@
+import { createResearchPlanCommand } from '../research-v2/command.ts'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { CommandDefinition, CommandInvocation, CommandResult } from '@deepseek-ai/dsh-commands'
@@ -160,6 +161,7 @@ function successWithStatus(
 export function registerPreplanningCommands(ctx: Context, dependencies: CommandDependencies): void {
   const { repository, gateway, governance, runtime } = dependencies
   const definitions: CommandDefinition[] = [
+    createResearchPlanCommand(),
     {
       name: 'preplan-new',
       description: '新建并绑定一个前期策划项目',

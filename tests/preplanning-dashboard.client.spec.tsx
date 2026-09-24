@@ -1,3 +1,4 @@
+import { PRE_DESIGN_VERSION } from '../src/version.ts'
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -71,7 +72,7 @@ describe('Preplanning full-flow UI', () => {
     expect(view.queryByLabelText('一句话描述项目和目标')).toBeNull()
     expect(view.queryByLabelText('识别的项目名称')).toBeNull()
     // The version is rendered once by LiquidGlassShell, not repeated inside this card.
-    expect(view.queryByText('Pre 2.0.2 · Project Format 0.1.0')).toBeNull()
+    expect(view.queryByText(`Pre ${PRE_DESIGN_VERSION} · Project Format 0.1.0`)).toBeNull()
   })
 
   it('开始前期策划不再收集任何执行策略或项目信息', async () => {

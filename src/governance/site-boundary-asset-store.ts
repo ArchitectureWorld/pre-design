@@ -1,3 +1,4 @@
+import { PRE_DESIGN_VERSION } from '../version.ts'
 import { createHash, randomUUID } from 'node:crypto'
 import { statSync } from 'node:fs'
 import { link, mkdir, readFile, unlink, writeFile } from 'node:fs/promises'
@@ -461,7 +462,7 @@ export class SiteBoundaryAssetStore {
         adoptionStatus: 'candidate',
         origin: { type: record.kind === 'evidence' ? 'human_added' : 'generated_by_plugin',
           sourceMaterialIds: [], parentAssetIds: [], method: JSON.stringify({ boundaryAssetId: record.assetId }),
-          sourceTool: { name: 'pre-design', version: '2.0.2' } },
+          sourceTool: { name: 'pre-design', version: PRE_DESIGN_VERSION } },
         createdAt: record.createdAt, adoptedAt: null, retiredAt: null,
       }
       manifest.assets.push(asset)

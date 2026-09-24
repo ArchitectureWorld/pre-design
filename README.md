@@ -1,34 +1,27 @@
-# Pre-design 2.0.2
+# Pre-design 2.1.0 — 开发中
 
-`pre-design` 是运行在 DeepSeek Harness 中的前期策划执行插件：
+基于已经合并的 `main@a1c1ad12b469d086037ec66e4bd89c7c0e4ac422`（Pre 2.0.2），在 `v2.1.0` 开发支线实现已确认的研究与成果统一规格 v1.2。
 
-```text
-@architectureworld/dsh-preplanning-agent@2.0.2
-```
-
-当前有效入口：
-
-```text
-当前主线：main（Pre 2.0.2）
-合并来源：pre-V2.0.2@6807a014b268a1130d8f263cf251d3753467cc1d
-历史基线：main@801afcc794b34fa734ba624303ed9552b152407c（Pre 2.0.1）
-```
-
-> 版本权威：[`docs/version-matrix.json`](docs/version-matrix.json) 与 [`docs/VERSIONING.md`](docs/VERSIONING.md)。
-
-本轮 UI/UX 更新与验收入口见 [pre-V2.0.2 交接](docs/pre-v2.0.2-ui-handoff.md)。基于 `main@801afcc794b34fa734ba624303ed9552b152407c`；四主题使用真实 DSH 配置接口，不是独立演示页。
-
-## 当前状态
-
-| 项目 | 状态 |
+| 当前对象 | 状态 |
 |---|---|
-| Pre 产品／插件版本 | `2.0.2` |
-| 当前主线 | `main`；来源为 `pre-V2.0.2` |
-| Workspace 根目录接入 | 已实现并完成自动化验证 |
-| 发布状态 | 已合入 `main`；未打 Tag、未正式发布 |
-| 上一正式发布 | `v0.7.0`，仅作历史基线 |
-| Presentation 项目格式 Contract | 标准 `0.1.0`，依赖包 `0.1.1` |
-| DSH 兼容基线 | `0.1.5-rc.1` |
+| Pre 产品 / 插件 / 包版本 | `2.1.0`，开发阶段，未合并、未发布 |
+| 新研究架构 | 8章62项，目录、条件依赖、类型化输入门槛和候选成果计划 |
+| DSH 新入口 | `/preplan-research-plan`，只读，无取数或模型调用 |
+| 现有执行器 | 旧57项继续保留；尚未切换为62项自动执行 |
+| DSH / Node / pnpm | `0.1.5-rc.1` / `>=24.11.0` / `10.15.1` |
+| Presentation 项目格式 | 标准 `0.1.0`，依赖包 `0.1.1`，保持不变 |
+
+[当前交接](docs/pre-v2.1.0-handoff.md) · [版本矩阵](docs/version-matrix.json) · [开发计划](docs/superpowers/plans/2026-09-24-pre-v2.1.0-foundation.md) · [目录与来源锁](research/planning-v1.2/README.md)
+
+```text
+/preplan-research-plan
+/preplan-research-plan --industryPlanning=false --existingBuildings=false --externalPartners=false --marketing=false
+/preplan-research-plan --item=2.03 --json
+```
+
+不填的条件保持待判定，不能被当作不适用。计划有依赖层级不代表研究已经执行；候选图件没有实际文件或输出hash。该入口不修改任何已有项目。
+
+以下Workspace、UI与导出能力继承Pre 2.0.2；历史验收记录见 [2.0.2交接](docs/pre-v2.0.2-ui-handoff.md)。新62项的专业字段编译、执行调度、同源成果发布和双制式版式接入尚在后续开发范围内。
 
 ## 产品定位
 
@@ -112,7 +105,7 @@ UI 不要求项目名、项目描述、报告深度或运行模式输入。模�
 版本标识：
 
 ```text
-Pre 2.0.2 · Project Format 0.1.0
+Pre 2.1.0 · Project Format 0.1.0
 ```
 
 ## 打开项目文件夹

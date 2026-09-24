@@ -175,6 +175,7 @@ describe('preplanning commands', () => {
     registerPreplanningCommands(ctx, commandDependencies() as never)
 
     expect(definitions.map(definition => definition.name)).toEqual([
+      'preplan-research-plan',
       'preplan-new', 'preplan-open', 'preplan-list', 'preplan-status', 'preplan-confirm',
       'preplan-mode', 'preplan-run', 'preplan-pause', 'preplan-gate', 'preplan-revise',
       'preplan-visual-fill', 'preplan-visual-budget', 'preplan-visual-reject', 'preplan-visual', 'preplan-visual-adopt', 'preplan-visual-replace',

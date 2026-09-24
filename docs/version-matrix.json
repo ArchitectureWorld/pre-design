@@ -1,23 +1,22 @@
 {
-  "schemaVersion": 9,
+  "schemaVersion": 10,
   "updatedAt": "2026-09-24",
   "repository": "ArchitectureWorld/pre-design",
   "product": {
     "name": "pre-design",
-    "version": "2.0.2",
+    "version": "2.1.0",
     "packageName": "@architectureworld/dsh-preplanning-agent",
-    "packageVersion": "2.0.2",
-    "status": "merged-main-unpublished",
+    "packageVersion": "2.1.0",
+    "status": "development-foundation",
     "publishedTag": null
   },
   "activeBranches": {
     "architecture": "architecture/pre-v2.0.0",
-    "current": "main",
-    "development": "pre-V2.0.2",
-    "mergedSourceCommitSHA": "6807a014b268a1130d8f263cf251d3753467cc1d",
+    "current": "v2.1.0",
+    "development": "v2.1.0",
     "baseline": "main",
-    "baselineVersion": "2.0.1",
-    "baselineCommitSHA": "801afcc794b34fa734ba624303ed9552b152407c"
+    "baselineVersion": "2.0.2",
+    "baselineCommitSHA": "a1c1ad12b469d086037ec66e4bd89c7c0e4ac422"
   },
   "dshCompatibility": {
     "version": "0.1.5-rc.1",
@@ -81,6 +80,12 @@
       "label": "FINAL_v2.0",
       "authority": false,
       "path": "handoff/FINAL_v2.0/"
+    },
+    "pre202Merged": {
+      "sourceBranch": "pre-V2.0.2",
+      "sourceCommitSHA": "6807a014b268a1130d8f263cf251d3753467cc1d",
+      "mainCommitSHA": "a1c1ad12b469d086037ec66e4bd89c7c0e4ac422",
+      "version": "2.0.2"
     }
   },
   "implementation": {
@@ -121,7 +126,7 @@
         "forceSyncCommand": "/preplan-presentation-sync --force",
         "openFolderCommand": "/preplan-open-project-folder",
         "agentTool": "preplanning_sync_presentation_project",
-        "uiVersionLabel": "Pre 2.0.2 · Project Format 0.1.0",
+        "uiVersionLabel": "Pre 2.1.0 · Project Format 0.1.0",
         "presentationConsumption": "open-current-dsh-workspace-root"
       },
       "packageRuntime": {
@@ -151,7 +156,7 @@
       "pinExactCommit": true,
       "formalReleasePublished": false
     },
-    "releaseStatus": "merged-main-not-published",
+    "releaseStatus": "development-not-merged-not-published",
     "productionCodeChanged": true,
     "liquidGlassUI": {
       "branch": "pre-V2.0.2",
@@ -169,6 +174,19 @@
       "defaultTheme": "C",
       "hostSmoke": "local-web-profile-verified-2026-09-23",
       "handoff": "docs/pre-v2.0.2-ui-handoff.md"
+    },
+    "researchV210": {
+      "status": "planning-foundation",
+      "branch": "v2.1.0",
+      "baseline": "main@a1c1ad12b469d086037ec66e4bd89c7c0e4ac422",
+      "authority": "planning-research.v1.2",
+      "indexSchema": "planning-index.v1",
+      "runtimePath": "src/research-v2/",
+      "command": "/preplan-research-plan",
+      "execution": "planning_only",
+      "legacyExecution": "retained-57-workflows",
+      "automatic62Execution": false,
+      "handoff": "docs/pre-v2.1.0-handoff.md"
     }
   },
   "authority": {

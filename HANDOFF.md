@@ -1,3 +1,13 @@
+# 当前交接：Pre-design 2.1.0 开发支线
+
+当前入口：[v2.1.0开发交接](docs/pre-v2.1.0-handoff.md)。基线是已合并Pre 2.0.2的 `main@a1c1ad12b469d086037ec66e4bd89c7c0e4ac422`，所有新增工作在 `v2.1.0`，不修改main。
+
+本批新增只读62项研究计划与条件路由基础，旧57项执行保持可用。不能把目录已注册理解为62项研究自动执行已完成。
+
+---
+
+以下内容保留为历史记录。
+
 # 当前交接：Pre-design 2.0.2 主线
 
 Pre 2.0.2 已按用户要求从 `pre-V2.0.2@6807a01` 合入 `main`，仍未打 Tag 或正式发布。[UI/UX 历史交接](docs/pre-v2.0.2-ui-handoff.md)、[2026-09-23 支线 Review](docs/pre-v2.0.2-branch-review-2026-09-23.md) 保留原始验收记录；当前版本以 [version-matrix.json](docs/version-matrix.json) 为准。

@@ -1,8 +1,22 @@
-# Pre-design 版本权威
+# Pre-design 版本权威（v2.1.0支线）
 
 本文件解释 `ArchitectureWorld/pre-design` 当前有效版本。机器可执行权威为 [`version-matrix.json`](version-matrix.json)。
 
-## 1. 当前版本矩阵
+## 当前开发权威
+
+- Pre产品、插件、包：`2.1.0`，开发支线 `v2.1.0`；尚未合并或发布。
+- 唯一开发基线：`main@a1c1ad12b469d086037ec66e4bd89c7c0e4ac422`，已包含Pre 2.0.2。
+- 专业规格：`planning-research.v1.2`。本批只实现 `planning-index.v1` 的身份、依赖、候选成果与历史引用投影；不是62项专业执行完成。
+- DSH `0.1.5-rc.1`、Node `>=24.11.0`、pnpm `10.15.1`、Presentation格式 `0.1.0` 保持不变。
+- 旧业务/治理合同和 `research/v2.0.1` 继续支持57项执行。新目录不能覆盖旧对象和历史确认状态。
+- 版本校验入口：`scripts/verify-alignment-version-consistency-v210.mjs`。
+- 现有液态玻璃UI实现与来源坐标保留在矩阵 `implementation.liquidGlassUI` 中，不能将其历史源码支线改写为2.1.0。
+
+---
+
+## 以下为Pre 2.0.2历史基线说明（不是当前版本声明）
+
+## 1. 历史版本矩阵
 
 | 对象 | 当前值 | 含义 |
 |---|---:|---|

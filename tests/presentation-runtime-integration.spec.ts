@@ -1,3 +1,4 @@
+import { PRE_DESIGN_VERSION } from '../src/version.ts'
 import type { Context } from '@deepseek-ai/cordis'
 import type { CommandDefinition } from '@deepseek-ai/dsh-commands'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
@@ -71,7 +72,7 @@ describe('Presentation runtime integration', () => {
       evidenceIds: [],
       origin: expect.objectContaining({
         type: 'generated_by_plugin',
-        sourceTool: { name: 'pre-design', version: '2.0.2' },
+        sourceTool: { name: 'pre-design', version: PRE_DESIGN_VERSION },
       }),
     })])
   })

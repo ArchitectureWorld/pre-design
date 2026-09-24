@@ -27,7 +27,7 @@ afterEach(async () => {
 })
 
 describe('Host apply composition', () => {
-  it('提供二十命令、五工具，并通过真实 Host 发布可供 Presentation 使用的标准项目', async () => {
+  it('保留原命令工具并新增只读62项计划，通过真实Host发布标准项目', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-preplanning-host-'))
     roots.push(root)
     const presentationRoot = join(root, 'presentation-projects')
@@ -84,6 +84,7 @@ describe('Host apply composition', () => {
     ])
 
     expect(commands.map(definition => definition.name)).toEqual([
+      'preplan-research-plan',
       'preplan-new', 'preplan-open', 'preplan-list', 'preplan-status', 'preplan-confirm',
       'preplan-mode', 'preplan-run', 'preplan-pause', 'preplan-gate', 'preplan-revise',
       'preplan-visual-fill', 'preplan-visual-budget', 'preplan-visual-reject',

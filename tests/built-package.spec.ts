@@ -57,7 +57,8 @@ describe('built npm package', () => {
     try {
       await ctx.plugin(Storage); await ctx.plugin(StorageJson, { root: storageRoot }); await ctx.plugin(StorageDomain, { backend: 'json' })
       const tools: ToolDefinition[] = []
-      ctx.provide('commands', { register: () => () => {} } as never)
+      const researchCommands: { name: string; handler: (v: unknown) => unknown }[] = []
+      ctx.provide('commands', { register: (command: { name: string; handler: (v: unknown) => unknown }) => { researchCommands.push(command); return () => {} } } as never)
       ctx.provide('tools', { guard: () => () => {}, register: (tool: ToolDefinition) => { tools.push(tool); return () => {} } } as never)
       ctx.provide('attachments', {} as never); ctx.provide('llm', {} as never); ctx.provide('sessions', {} as never); ctx.provide('subagents', {} as never)
       ctx.provide('workspaceRegistry', { list: () => [] } as never)
@@ -66,6 +67,9 @@ describe('built npm package', () => {
       const host = await import(pathToFileURL(resolve(root, manifest.exports['.'].default)).href)
       await host.apply(ctx)
       expect(tools.map(tool => tool.name)).toContain('preplanning_generate_page_visual')
+      const researchPlan = researchCommands.find(command => command.name === 'preplan-research-plan')
+      expect(researchPlan).toBeDefined()
+      expect(await researchPlan!.handler({ rawInput: '--item=2.03 --json', agent: { id: 'built-host' } })).toMatchObject({ kind: 'success' })
       expect(Object.isFrozen(ctx.preplanning.designVisualBridge)).toBe(true)
       await expect(ctx.preplanning.designVisualBridge.generate({ id: 'session' } as never, { runId: 'run', studioProjectId: 'studio', pageId: 'page', sourceStateHash: 'a'.repeat(64), requestId: 'request', prompt: '概念图' })).rejects.toThrow('RESOLVER_UNAVAILABLE')
     } finally { await ctx.fiber.dispose(); await rm(storageRoot, { recursive: true, force: true }) }
