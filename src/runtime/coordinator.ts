@@ -2,6 +2,12 @@ import { createUserMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
 import type { WorkflowRuntime } from './workflow-runtime.ts'
 import type { ParallelWorkflowBatchResult, ParallelWorkflowRunOptions } from './parallel-workflow-executor.ts'
 
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    'preplanning-workflow': { kind: 'preplanning-workflow'; workflowId: string; form: 'notice'; summary: string }
+  }
+}
+
 export interface CoordinatorAgent {
   readonly id?: string
   followup(message: UserMessage): void | Promise<void>
@@ -128,8 +134,8 @@ export class AutomationCoordinator {
         await agent.followup(createUserMessage({
           content: [{ type: 'text', text }],
           source: {
-            kind: 'plugin',
-            plugin: 'preplanning-agent',
+            kind: 'preplanning-workflow',
+            workflowId: next.workflowId,
             form: 'notice',
             summary: `继续前期策划工作流 ${next.workflowId}`,
           },

@@ -23,6 +23,7 @@ import { RevisionService } from '../../src/runtime/revision-service.ts'
 import { WorkflowRuntime } from '../../src/runtime/workflow-runtime.ts'
 import { ProjectRepository } from '../../src/state/repository.ts'
 import { registerPreplanningTools } from '../../src/tools/register.ts'
+import { PreplanningSubagents } from '../../src/runtime/dsh-subagents.ts'
 import { VisualAgentService } from '../../src/visual/agent.ts'
 import { VisualAssetStore } from '../../src/visual/asset-store.ts'
 import { SessionImageCollector } from '../../src/visual/session-image-collector.ts'
@@ -101,7 +102,7 @@ export async function apply(ctx: Context, config: SyntheticFixtureConfig = {}): 
   const visual = new VisualAgentService({
     governance,
     llm: ctx.llm,
-    subagents: ctx.subagents,
+    subagents: new PreplanningSubagents(ctx, ctx.subagents, join(fixtureRoot, 'child-policies')),
     collector: visualCollector,
     store: visualStore,
     now,

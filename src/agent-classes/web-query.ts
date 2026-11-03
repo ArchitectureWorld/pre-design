@@ -1,5 +1,6 @@
+import { sessionToolResults } from '../session/tool-results.ts'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import type { SubagentRuntime } from '@deepseek-ai/dsh-subagent'
+import type { PreplanningSubagents as SubagentRuntime } from '../runtime/dsh-subagents.ts'
 import type Tools from '@deepseek-ai/dsh-tools'
 import type { AgentClassService, ExecutionSession } from './service.ts'
 import { nextAgentClassAttempt } from './service.ts'
@@ -62,12 +63,9 @@ export class WebQueryAgent {
         return [data.callId, data.name]
       }))
       const retrievals = events.filter(event => event.type === 'tool/result').flatMap(event => {
-        const content = object(object(event.data).message).content
-        if (!Array.isArray(content)) return []
-        return content.flatMap(value => {
-          const block = object(value)
+        return sessionToolResults(event.data).flatMap(block => {
           const tool = calls.get(block.toolCallId)
-          return block.type === 'tool-result' && !block.isError && typeof tool === 'string' && allow.includes(tool)
+          return !block.isError && typeof tool === 'string' && allow.includes(tool)
             ? [{ tool, callId: String(block.toolCallId), text: texts(block.content) }] : []
         })
       }).slice(0, 20)

@@ -1,3 +1,4 @@
+import { sessionToolResults } from '../session/tool-results.ts'
 import type { ConversationNodeDefinition } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 import { normalizePreplanningStatus, parsePreplanningStatus, type PreplanningStatusEventData } from '../session/events.ts'
@@ -31,9 +32,7 @@ function statusFromEvent(event: { readonly type: string; readonly data: unknown 
       : undefined
   }
   if (event.type !== 'tool/result' || !isRecord(event.data.message)) return undefined
-  const root = Array.isArray(event.data.message.content) ? event.data.message.content[0] : undefined
-  if (!isRecord(root) || root.type !== 'tool-result' || !Array.isArray(root.content)) return undefined
-  for (const block of root.content) {
+  for (const block of sessionToolResults(event.data).filter(result => !result.isError).flatMap(result => result.content)) {
     if (!isRecord(block) || block.type !== 'text' || typeof block.text !== 'string') continue
     try {
       const value = JSON.parse(block.text) as unknown

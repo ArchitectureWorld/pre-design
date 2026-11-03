@@ -93,11 +93,11 @@ export interface ReportDownloadRegistrar {
     readonly kind: 'prefix'
     readonly path: '/preplan-export'
     readonly handler: (request: IncomingMessage, response: ServerResponse) => Promise<void>
-  }): unknown
+  }): () => void
 }
 
-export function registerReportDownloadRoute(webServer: ReportDownloadRegistrar, packageRoot: string): void {
-  webServer.register({
+export function registerReportDownloadRoute(webServer: ReportDownloadRegistrar, packageRoot: string): () => void {
+  return webServer.register({
     kind: 'prefix',
     path: '/preplan-export',
     handler: (request, response) => handleReportDownload(request, response, packageRoot),

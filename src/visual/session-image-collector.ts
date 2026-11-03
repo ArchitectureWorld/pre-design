@@ -1,3 +1,4 @@
+import { sessionToolResults } from '../session/tool-results.ts'
 import type { VisualImageData } from './types.ts'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { completeRaster } from './complete-raster.ts'
@@ -136,10 +137,9 @@ export class SessionImageCollector {
       const data = event.data as { name?: string; callId?: string; turn?: unknown; step?: unknown; message?: { content?: unknown[] } } | undefined
       if (event.type === 'tool/call' && data?.name === COMFYUI_IMAGE_TOOL && typeof data.callId === 'string') calls.set(data.callId, { turn: data.turn, step: data.step })
       if (event.type !== 'tool/result' || !Array.isArray(data?.message?.content)) continue
-      for (const value of data.message.content) {
-        const block = value as { type?: string; toolCallId?: string; isError?: boolean; content?: unknown[] } | undefined
+      for (const block of sessionToolResults(data)) {
         const call = block?.toolCallId ? calls.get(block.toolCallId) : undefined
-        if (block?.type !== 'tool-result' || block.isError || !call || call.turn !== data.turn || call.step !== data.step || !Array.isArray(block.content)) continue
+        if (block.isError || !call || call.turn !== data.turn || call.step !== data.step || !Array.isArray(block.content)) continue
         images.push({ ...event, type: 'assistant/message', data: { message: { content: block.content.filter(part => part && typeof part === 'object' && (part as { type?: unknown }).type === 'image') } } })
       }
     }

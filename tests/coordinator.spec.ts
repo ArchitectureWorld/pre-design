@@ -34,7 +34,7 @@ describe('AutomationCoordinator', () => {
     await vi.waitFor(() => expect(followups).toHaveLength(1))
     expect(followups[0]).toMatchObject({
       role: 'user',
-      source: { kind: 'plugin', plugin: 'preplanning-agent', form: 'notice' },
+      source: { kind: 'preplanning-workflow', form: 'notice' },
     })
     expect(followups[0]?.content[0]?.text).toContain('只处理 nextWorkflow')
     expect(followups[0]?.content[0]?.text).toContain('preplan.wf.01.01')

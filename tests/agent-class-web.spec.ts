@@ -94,3 +94,13 @@ it('reports the runtime guard cause when DSH cancellation has no provider diagno
   h.start.mockResolvedValueOnce({ id: 'child', result: Promise.resolve({ stopReason: 'aborted', output: [] }), dispose: h.dispose } as never)
   await expect(h.service.query({ id: 'parent' } as never, 'p', '查询', AbortSignal.timeout(1000))).rejects.toThrow('PREPLANNING_REPEATED_TOOL_FAILURE')
 })
+
+it.each([false, true])('validates native retrieval receipts, isError=%s', async isError => {
+  const h = fixture([
+    { type: 'tool/call', data: { callId: 'native', name: 'web_fetch' } },
+    { type: 'tool/result', data: { message: { role: 'tool', toolCallId: 'native', isError, content: [{ type: 'text', text: '原始检索结果' }] } } },
+  ])
+  const result = h.service.query({ id: 'parent' } as never, 'p', 'query', AbortSignal.timeout(1000))
+  if (isError) await expect(result).rejects.toThrow('WEB_RETRIEVAL_UNVERIFIED')
+  else expect((await result).retrievals).toEqual([{ tool: 'web_fetch', callId: 'native', text: '原始检索结果' }])
+})

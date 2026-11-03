@@ -27,7 +27,7 @@ afterEach(async () => {
 })
 
 describe('Host apply composition', () => {
-  it('提供二十命令、五工具，并通过真实 Host 发布可供 Presentation 使用的标准项目', async () => {
+  it.each(['web', 'sdk'] as const)('%s profile 提供领域命令和工具，并发布真实标准项目', async profile => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-preplanning-host-'))
     roots.push(root)
     const presentationRoot = join(root, 'presentation-projects')
@@ -38,6 +38,7 @@ describe('Host apply composition', () => {
     const tools: ToolDefinition[] = []
     const promptSections: unknown[] = []
     const routes: unknown[] = []
+    const activeRoutes = new Map<string, unknown>()
     await ctx.plugin(Storage)
     await ctx.plugin(StorageJson, { root })
     await ctx.plugin(StorageDomain, { backend: 'json' })
@@ -54,7 +55,7 @@ describe('Host apply composition', () => {
       listModels: vi.fn(async () => [{ provider: 'test', id: 'model', name: 'Model' }]),
     } as never)
     ctx.provide('sessions', { get: vi.fn() } as never)
-    ctx.provide('workspaceRegistry', { list: () => [] } as never)
+    const removeWorkspace = profile === 'web' ? ctx.provide('workspaceRegistry', { list: () => [] } as never) : undefined
     ctx.provide('subagents', {
       listChildren: vi.fn(async () => []),
       startContinuable: vi.fn(),
@@ -63,11 +64,17 @@ describe('Host apply composition', () => {
     ctx.provide('systemPrompt', {
       section: (definition: unknown) => { promptSections.push(definition); return () => undefined },
     } as never)
-    ctx.provide('webServer', {
-      register: (definition: unknown) => { routes.push(definition); return () => undefined },
+    if (profile === 'web') ctx.provide('webServer', {
+      register: (definition: { path: string }) => {
+        if (activeRoutes.has(definition.path)) throw new Error(`duplicate route: ${definition.path}`)
+        routes.push(definition)
+        activeRoutes.set(definition.path, definition)
+        return () => { activeRoutes.delete(definition.path) }
+      },
     } as never)
 
-    await ctx.plugin(HostPlugin)
+    const hostFiber = ctx.plugin(HostPlugin)
+    await hostFiber
     await vi.waitFor(() => expect(ctx.get('preplanning')).toBeDefined())
     expect(ctx.get('preplanning')?.visual).toBeInstanceOf(VisualAgentService)
     expect(ctx.get('preplanning')?.reports).toBeInstanceOf(ReportPackageService)
@@ -77,11 +84,18 @@ describe('Host apply composition', () => {
     expect(ctx.get('preplanning')?.presentationProjectRoot).toBe(presentationRoot)
     const reportOptions = Reflect.get(ctx.get('preplanning')!.reports, 'options') as { readonly boundaryIntegrity?: unknown }
     expect(reportOptions.boundaryIntegrity).toBeInstanceOf(SiteBoundaryService)
-    expect(routes).toEqual([
+    expect(routes).toEqual(profile === 'web' ? [
       expect.objectContaining({ kind: 'prefix', path: '/preplan-export' }),
       expect.objectContaining({ kind: 'exact', path: '/preplan-agent-classes' }),
       expect.objectContaining({ kind: 'exact', path: '/preplan-open-workspace' }),
-    ])
+    ] : [])
+
+    if (removeWorkspace) {
+      await removeWorkspace()
+      await vi.waitFor(() => expect(activeRoutes.size).toBe(0))
+      ctx.provide('workspaceRegistry', { list: () => [] } as never)
+      await vi.waitFor(() => expect(activeRoutes.size).toBe(3))
+    }
 
     expect(commands.map(definition => definition.name)).toEqual([
       'preplan-new', 'preplan-open', 'preplan-list', 'preplan-status', 'preplan-confirm',
@@ -171,5 +185,7 @@ describe('Host apply composition', () => {
     await host.agentClasses.begin(actualProjectId, 'text', 'first model turn', parent)
     await expect(host.agentClasses.begin(actualProjectId, 'web', 'over budget', parent))
       .rejects.toThrow('PREPLANNING_MODEL_TURN_LIMIT')
+    await hostFiber.dispose()
+    expect(activeRoutes.size).toBe(0)
   })
 })

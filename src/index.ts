@@ -1,3 +1,4 @@
+import { PreplanningSubagents } from './runtime/dsh-subagents.ts'
 import { randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -63,6 +64,7 @@ import { prepareCaseStudies } from './report/case-studies/index.ts'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 
 interface PreplanningHost {
+  readonly subagents: PreplanningSubagents
   readonly agentClasses: AgentClassService
   readonly webQuery: WebQueryAgent
   readonly pluginId: 'preplanning-agent'
@@ -101,13 +103,14 @@ interface ConfigShape {}
 
 export const name = 'preplanning-agent'
 export const inject = [
-  'attachments', 'commands', 'llm', 'sessions', 'storage', 'storageDomain', 'subagents', 'systemPrompt', 'tools', 'webServer',
-  'workspaceRegistry',
+  'attachments', 'commands', 'llm', 'sessions', 'storage', 'storageDomain', 'subagents', 'systemPrompt', 'tools',
 ]
 export const Config: z<ConfigShape> = z.object({})
 
 export async function apply(ctx: Context): Promise<void> {
   const now = () => new Date().toISOString()
+  const dshHome = resolve(process.env.DSH_HOME?.trim() || join(homedir(), '.dsh'))
+  const subagents = new PreplanningSubagents(ctx, ctx.subagents, join(dshHome, 'preplanning-agent', 'child-policies'))
   const registry = await ContractRegistry.open(new URL('../contracts/v0.6/', import.meta.url))
   const researchRegistry = await ResearchRegistry.open(new URL('../research/v2.0.1/', import.meta.url))
   const repository = await ProjectRepository.open(ctx.storage.domain)
@@ -144,9 +147,8 @@ export async function apply(ctx: Context): Promise<void> {
   registerPreplanningExecutionGuard(ctx, id => {
     try { return !!repository.readContext(id).project } catch { return false }
   })
-  const webQuery = new WebQueryAgent({ classes: agentClasses, subagents: ctx.subagents, tools: ctx.tools, sessions: agentClassSessions })
+  const webQuery = new WebQueryAgent({ classes: agentClasses, subagents, tools: ctx.tools, sessions: agentClassSessions })
   const presentationBindings = await PresentationBindingRepository.open(ctx.storage.domain)
-  const dshHome = resolve(process.env.DSH_HOME?.trim() || join(homedir(), '.dsh'))
   const presentationProjectRoot = resolve(
     process.env.PRE_DESIGN_PRESENTATION_PROJECT_ROOT?.trim()
       || join(dshHome, 'presentation-projects'),
@@ -205,7 +207,7 @@ export async function apply(ctx: Context): Promise<void> {
     agentClasses,
     governance,
     llm: ctx.llm,
-    subagents: ctx.subagents,
+    subagents,
     collector: visualCollector,
     store: visualStore,
     now,
@@ -213,9 +215,9 @@ export async function apply(ctx: Context): Promise<void> {
   // The deployed WorkBuddy gateway has one global account with two in-flight slots.
   // Re-read the saved route on each run so changing models does not require a restart.
   const manuscriptConcurrency = () => agentClasses.settings().routes.text?.provider === 'workdubbyAI' ? 2 : 5
-  const manuscriptEditor = new PlanningManuscriptEditor({ subagents: ctx.subagents, agentClasses, now, maxConcurrency: manuscriptConcurrency })
-  const manuscripts = new PlanningManuscriptService({ subagents: ctx.subagents, agentClasses, now, maxConcurrency: manuscriptConcurrency, editor: manuscriptEditor })
-  const reportContentPlanner = new ReportContentPlanner({ subagents: ctx.subagents, agentClasses })
+  const manuscriptEditor = new PlanningManuscriptEditor({ subagents, agentClasses, now, maxConcurrency: manuscriptConcurrency })
+  const manuscripts = new PlanningManuscriptService({ subagents, agentClasses, now, maxConcurrency: manuscriptConcurrency, editor: manuscriptEditor })
+  const reportContentPlanner = new ReportContentPlanner({ subagents, agentClasses })
   const frozenProjectSource = async (projectId: string, revision: number) => {
     const input = createFrozenProjectInput(projectId, revision, { repository, governance, registry, visualStore })
     const binding = standardProjects.findByPreDesignProjectId(projectId)
@@ -249,7 +251,7 @@ export async function apply(ctx: Context): Promise<void> {
   const workflowAnalyzer = new DshSubagentWorkflowAnalyzer({
     revisionRequest: (projectId, workflowId) => governance.readProject(projectId).workflowRuns.find(run => run.workflowId === workflowId)?.revisionRequest,
     agentClasses,
-    subagents: ctx.subagents,
+    subagents,
     repository,
     registry,
     researchRegistry,
@@ -282,8 +284,8 @@ export async function apply(ctx: Context): Promise<void> {
   })
   const reportPackageRoot = join(dshHome, 'preplanning-agent', 'report-packages')
   const reportFormats = (record: import('./governance/types.ts').ReportPackageRecord) => readReportFormats(reportPackageRoot, record)
-  const imageInspection = new ImageInspectionAgent({ classes: agentClasses, subagents: ctx.subagents, attachments: ctx.attachments })
-  const sceneSpecs = new SceneSpecificationAgent({ classes: agentClasses, subagents: ctx.subagents })
+  const imageInspection = new ImageInspectionAgent({ classes: agentClasses, subagents, attachments: ctx.attachments })
+  const sceneSpecs = new SceneSpecificationAgent({ classes: agentClasses, subagents })
   const reportImagePipeline = createNativeReportImagePipeline({ classes: agentClasses, inspection: imageInspection, sceneSpecs, web: webQuery, visual,
     resolveAsset: fileName => visualStore.resolveAsset(fileName),
     reportIssues: (parent, signal, message) => publishReportStatus(parent, signal, message),
@@ -311,14 +313,6 @@ export async function apply(ctx: Context): Promise<void> {
     materials: prepareReportMaterials,
     createId: () => `report-${randomUUID()}`,
     now,
-  })
-  registerReportDownloadRoute(ctx.webServer, reportPackageRoot)
-  registerAgentClassRoute(ctx.webServer, {
-    classes: agentClasses, repository, sessions: agentClassSessions,
-    routeForSession: (id) => {
-      const parent = ctx.get('agents')?.get(id as never)
-      return parent ? parentRoute(parent) : undefined
-    },
   })
   const currentReportRevision = (projectId: string) => repository.listProjects().find(project => project.projectId === projectId)?.currentRevision ?? -1
   const conditionalReports = new ConditionalReportPackageService({
@@ -362,9 +356,20 @@ export async function apply(ctx: Context): Promise<void> {
     reports: conditionalReports, repository, prepareManuscript, prepareVisuals,
     publishStatus: publishReportStatus,
   }), publishReportStatus)
-  registerWorkspaceOpenRoute(ctx.webServer, {
-    get: id => ctx.sessions.get(id as never),
-  }, Reflect.get(ctx, 'workspaceRegistry'))
+  // Web routes are an optional adapter; SDK workers load the same domain core.
+  ctx.inject(['webServer', 'workspaceRegistry'], webCtx => {
+    webCtx.effect(() => registerReportDownloadRoute(webCtx.webServer, reportPackageRoot))
+    webCtx.effect(() => registerAgentClassRoute(webCtx.webServer, {
+      classes: agentClasses, repository, sessions: agentClassSessions,
+      routeForSession: (id) => {
+        const parent = ctx.get('agents')?.get(id as never)
+        return parent ? parentRoute(parent) : undefined
+      },
+    }))
+    webCtx.effect(() => registerWorkspaceOpenRoute(webCtx.webServer, {
+      get: id => ctx.sessions.get(id as never),
+    }, Reflect.get(webCtx, 'workspaceRegistry')))
+  })
   ctx.effect(() => async () => {
     await agentClasses.close()
     await presentationSync.close()
@@ -426,6 +431,7 @@ export async function apply(ctx: Context): Promise<void> {
     text: PREPLANNING_SYSTEM_PROMPT,
   })
   ctx.provide('preplanning', Object.freeze({
+    subagents,
     agentClasses,
     webQuery,
     designVisualBridge,

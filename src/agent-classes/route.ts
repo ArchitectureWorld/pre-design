@@ -16,7 +16,7 @@ interface Dependencies {
   readonly sessions: { get(id: string): { requestHeader?(): { config?: unknown } | undefined } | undefined }
 }
 export interface AgentClassRegistrar {
-  register(definition: { readonly kind: 'exact'; readonly path: '/preplan-agent-classes'; readonly handler: (request: IncomingMessage, response: ServerResponse) => Promise<void> }): unknown
+  register(definition: { readonly kind: 'exact'; readonly path: '/preplan-agent-classes'; readonly handler: (request: IncomingMessage, response: ServerResponse) => Promise<void> }): () => void
 }
 function send(response: ServerResponse, status: number, data: unknown) {
   response.statusCode = status
@@ -64,6 +64,6 @@ export async function handleAgentClasses(request: IncomingMessage, response: Ser
     send(response, invalid ? 400 : known ? 409 : 500, { error: known ? message : '子 Agent 配置操作失败，请检查 DSH 服务。' })
   }
 }
-export function registerAgentClassRoute(server: AgentClassRegistrar, deps: Dependencies): void {
-  server.register({ kind: 'exact', path: '/preplan-agent-classes', handler: (request, response) => handleAgentClasses(request, response, deps) })
+export function registerAgentClassRoute(server: AgentClassRegistrar, deps: Dependencies): () => void {
+  return server.register({ kind: 'exact', path: '/preplan-agent-classes', handler: (request, response) => handleAgentClasses(request, response, deps) })
 }

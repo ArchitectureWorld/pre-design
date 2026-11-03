@@ -26,7 +26,7 @@ function nativeChildPolicy(agent: Agent | undefined): { allow: readonly string[]
   const descriptor = value as Record<string, unknown>
   if (descriptor.version !== 3 || descriptor.provider !== 'spawn' || typeof descriptor.label !== 'string') return undefined
   const role = /^preplanning_(web|scene_spec|review|visual_task|visual_tool_task):.+/u.exec(descriptor.label)?.[1] as ChildRole | undefined
-  if (!role || descriptor.mode !== (role.startsWith('visual_') ? 'continuable' : 'one-shot')) return undefined
+  if (!role || !['continuable', 'one-shot'].includes(String(descriptor.mode))) return undefined
   const budget = role === 'web' ? /:retrieval=([1-9]|1\d|20)$/u.exec(descriptor.label)?.[1] : undefined
   return { allow: allowedTools[role], ...(budget ? { retrievalBudget: Number(budget) } : {}),
     ...(role === 'visual_tool_task' ? { retrievalBudget: 1, imageTool: true } : {}) }

@@ -16,7 +16,7 @@ function testSession(events: TestEvent[], seq = events.length) {
 }
 
 describe('SessionImageCollector', () => {
-  it.each(['valid', 'failed', 'wrong-call', 'wrong-tool', 'still-running'] as const)('collects only a settled, correlated ComfyUI tool image: %s', async variant => {
+  it.each(['valid', 'native', 'failed', 'native-failed', 'wrong-call', 'wrong-tool', 'still-running'] as const)('collects only a settled, correlated ComfyUI tool image: %s', async variant => {
     const image = { type: 'image', attachment: { attachmentId: 'generated' } }
     const events: TestEvent[] = [
       { seq: 0, type: 'subagent/descriptor', data: { version: 3, provider: 'spawn', mode: 'continuable', label: 'preplanning_visual_tool_task:p:t:1' } },
@@ -28,10 +28,14 @@ describe('SessionImageCollector', () => {
         toolCallId: variant === 'wrong-call' ? 'other' : 'call', isError: variant === 'failed', content: [image] }] } } },
       ...(variant === 'still-running' ? [] : [{ seq: 6, type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } }]),
     ]
+    if (variant.startsWith('native')) {
+      const receipt = events[5]!.data as any
+      receipt.message = { role: 'tool', ...receipt.message.content[0], isError: variant === 'native-failed' }
+    }
     const readImage = vi.fn(async () => ({ ref: { mediaType: 'image/png', width: 1600, height: 900, bytes: 3 }, data: new Uint8Array([1, 2, 3]) }))
     const collector = new SessionImageCollector({ sessions: { get: () => testSession(events) }, attachments: { readImage }, waitForEvent: vi.fn() })
     const result = await collector.findExistingImage('child', 0)
-    if (variant === 'valid') expect(result).toMatchObject({ attachmentId: 'generated', width: 1600 })
+    if (variant === 'valid' || variant === 'native') expect(result).toMatchObject({ attachmentId: 'generated', width: 1600 })
     else expect(result).toBeUndefined()
   })
   it.each(['image', 'no-image', 'idle'] as const)('settles %s after a missed child notification without waiting for the generation deadline', async kind => {

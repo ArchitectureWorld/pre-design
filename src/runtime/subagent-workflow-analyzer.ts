@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import type { SubagentRuntime } from '@deepseek-ai/dsh-subagent'
+import type { PreplanningSubagents as SubagentRuntime } from './dsh-subagents.ts'
 import type { ObjectJsonSchema } from '@deepseek-ai/dsh-tools'
 import type { ContractRegistry } from '../contracts/registry.ts'
 import type { WorkflowDescriptor } from '../contracts/types.ts'

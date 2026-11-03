@@ -33,3 +33,12 @@ it('does not interpret echoed action placeholders as useful progress', () => {
   ]).flat()
   expect(preplanningExecutionStop([start, context, ...echoes], true)).toContain('PREPLANNING_NO_PROGRESS')
 })
+
+it('counts native DSH 0.2 tool failures stored directly on the message', () => {
+  const nativeFailures = failures(3, 'web_search').map(event => {
+    if (event.type !== 'tool/result') return event
+    const old = (event.data as any).message.content[0]
+    return { ...event, data: { message: { role: 'tool', toolCallId: old.toolCallId, isError: old.isError, content: old.content } } }
+  })
+  expect(preplanningExecutionStop([start, { type: 'subagent/descriptor', data: { label: 'preplanning_web:p' } }, ...nativeFailures], false)).toContain('PREPLANNING_REPEATED_TOOL_FAILURE')
+})

@@ -195,15 +195,15 @@ export interface WorkspaceOpenRegistrar {
     readonly kind: 'exact'
     readonly path: '/preplan-open-workspace'
     readonly handler: (request: IncomingMessage, response: ServerResponse) => Promise<void>
-  }): unknown
+  }): () => void
 }
 
 export function registerWorkspaceOpenRoute(
   webServer: WorkspaceOpenRegistrar,
   sessions: SessionLookup,
   workspaceRegistry: WorkspaceLookup,
-): void {
-  webServer.register({
+): () => void {
+  return webServer.register({
     kind: 'exact',
     path: '/preplan-open-workspace',
     handler: (request, response) => handleWorkspaceOpen(request, response, { sessions, workspaceRegistry }),

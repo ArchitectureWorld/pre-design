@@ -1,0 +1,14 @@
+{
+  "host": "127.0.0.1",
+  "port": 4318,
+  "projectsRoot": "/absolute/path/pre-design-web/.local/web/projects",
+  "database": { "host": "/tmp/pre-design-pg-1000", "port": 55439, "database": "pre_design_web", "user": "YOUR_LINUX_USER" },
+  "users": [{ "id": "YOUR_USER_ID", "token": "REPLACE_WITH_A_RANDOM_SECRET_OF_AT_LEAST_32_CHARACTERS" }],
+  "worker": {
+    "privateRoot": "/absolute/path/pre-design-web/.local/web/workers",
+    "settings": "/absolute/path/to/profile/cordis.patch.yml",
+    "credentials": "/absolute/path/to/.credentials.yaml",
+    "provider": "yaoguang-codex",
+    "model": "yaoguang02-gpt-6-astra"
+  }
+}

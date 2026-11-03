@@ -12,3 +12,9 @@ work/
 /schemas/
 __pycache__/
 *.pyc
+
+web/worker/.host-build/
+
+web/app/dist/
+.local/
+web/app/test-results/

@@ -3,14 +3,14 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const root = resolve(import.meta.dirname, '..')
-const DSH_VERSION = '0.1.5-rc.1'
+const DSH_VERSION = '0.2.1-rc.5'
 
 async function json(path: string): Promise<Record<string, any>> {
   return JSON.parse(await readFile(resolve(root, path), 'utf8')) as Record<string, any>
 }
 
-describe('DSH 0.1.5-rc.1 deployment baseline', () => {
-  it('pins every direct DSH package to one rc.1 baseline and removes the retired client runtime', async () => {
+describe('DSH 0.2.1-rc.5 deployment baseline', () => {
+  it('pins every direct DSH package to one rc.5 baseline and removes the retired client runtime', async () => {
     const manifest = await json('package.json')
     const declared = {
       ...(manifest.dependencies ?? {}),
@@ -30,14 +30,14 @@ describe('DSH 0.1.5-rc.1 deployment baseline', () => {
     }
   })
 
-  it('records rc.1 as the deployable compatibility baseline', async () => {
+  it('records rc.5 as the deployable compatibility baseline', async () => {
     const baseline = await json('compatibility/dsh-baseline.json')
     expect(baseline.dsh?.version).toBe(DSH_VERSION)
-    expect(baseline.official_source?.tag).toBe('dsh-v0.1.5-rc.1')
+    expect(baseline.official_source?.tag).toBe('dsh-v0.2.1-rc.5')
     expect(baseline.compatibility?.supported_dsh_versions).toEqual([DSH_VERSION])
   })
 
-  it('uses the rc.1 owner packages instead of the pre-0.1.5 client runtime facade', async () => {
+  it('uses the rc.5 owner packages instead of the pre-0.1.5 client runtime facade', async () => {
     const source = await readFile(resolve(root, 'src/client/index.tsx'), 'utf8')
     expect(source).not.toContain('@deepseek-ai/dsh-client-runtime/client')
     expect(source).toContain('@deepseek-ai/dsh-api-remotes/client')

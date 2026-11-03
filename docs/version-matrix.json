@@ -1,6 +1,6 @@
 {
   "schemaVersion": 9,
-  "updatedAt": "2026-09-24",
+  "updatedAt": "2026-11-03",
   "repository": "ArchitectureWorld/pre-design",
   "product": {
     "name": "pre-design",
@@ -12,17 +12,17 @@
   },
   "activeBranches": {
     "architecture": "architecture/pre-v2.0.0",
-    "current": "main",
-    "development": "pre-V2.0.2",
+    "current": "web_V1",
+    "development": "web_V1",
     "mergedSourceCommitSHA": "6807a014b268a1130d8f263cf251d3753467cc1d",
     "baseline": "main",
     "baselineVersion": "2.0.1",
     "baselineCommitSHA": "801afcc794b34fa734ba624303ed9552b152407c"
   },
   "dshCompatibility": {
-    "version": "0.1.5-rc.1",
-    "officialTag": "dsh-v0.1.5-rc.1",
-    "officialCommitSHA": "183f08e9c6dde7e36cd2318eaee70b0da08fb35e",
+    "version": "0.2.1-rc.5",
+    "officialTag": "dsh-v0.2.1-rc.5",
+    "officialCommitSHA": "b830ec950faba0a46dda564be3e2d854afed94f1",
     "nodeEngine": ">=24.11.0",
     "pnpm": "10.15.1",
     "clientEntry": "workspace-root-sidebar-plus-main",
@@ -85,7 +85,7 @@
   },
   "implementation": {
     "presentationStandardOutput": {
-      "status": "workspace-first-zero-input-dsh-v0.1.5-rc.1-deployment-candidate",
+      "status": "workspace-first-zero-input-dsh-v0.2.1-rc.5-deployment-candidate",
       "contractVersion": "0.1.0",
       "verificationStatus": "requires-final-green-ci-on-deployment-head",
       "runtime": {
@@ -144,9 +144,9 @@
       "plan": "docs/superpowers/plans/2026-09-12-pre-v2.0.1-source-traceable-research.md"
     },
     "deployment": {
-      "guide": "docs/deployment-dsh-v0.1.5-rc.1.md",
-      "installMode": "dsh-profile-plugin",
-      "recommendedProfile": "web",
+      "guide": "web/worker/README.md",
+      "installMode": "isolated-sdk-worker",
+      "recommendedProfile": "sdk",
       "tarballPathRequirement": "absolute-path-because-dsh-plugin-runs-pnpm-in-profile-directory",
       "pinExactCommit": true,
       "formalReleasePublished": false

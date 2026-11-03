@@ -54,10 +54,10 @@ describe('DSH package manifest', () => {
     const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')) as PackageManifest
 
     expect(manifest.dependencies).toMatchObject({
-      '@deepseek-ai/schemastery': '3.18.1',
+      '@deepseek-ai/schemastery': '3.18.5',
     })
     expect(manifest.peerDependencies).toEqual({
-      '@deepseek-ai/cordis': '4.0.1',
+      '@deepseek-ai/cordis': '4.0.5',
     })
   })
 })

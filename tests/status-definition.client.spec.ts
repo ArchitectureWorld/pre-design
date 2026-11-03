@@ -64,3 +64,10 @@ describe('preplanning status conversation definition', () => {
     })
   })
 })
+
+it('reads native tool messages and ignores failed results', () => {
+  const message = { ...toolEvent.data.message, role: 'tool', toolCallId: 'call-1', isError: false, content: toolEvent.data.message.content[0]!.content }
+  const event = { ...toolEvent, data: { ...toolEvent.data, message } }
+  expect(projectOnce(event)).toMatchObject({ data: { projectId: 'project-1', pendingProposalId: 'proposal-1' } })
+  expect(preplanningStatusDefinition.match({ ...event, data: { ...event.data, message: { ...message, isError: true } } } as never)).toBeNull()
+})

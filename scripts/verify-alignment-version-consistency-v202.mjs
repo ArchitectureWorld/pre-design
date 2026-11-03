@@ -10,8 +10,8 @@ const requireCondition = (condition, message) => { if (!condition) failures.push
 
 const PRE_VERSION = '2.0.2'
 const PRE_PACKAGE = '@architectureworld/dsh-preplanning-agent'
-const DEVELOPMENT_BRANCH = 'pre-V2.0.2'
-const CURRENT_BRANCH = 'main'
+const DEVELOPMENT_BRANCH = 'web_V1'
+const CURRENT_BRANCH = 'web_V1'
 const BASELINE_BRANCH = 'main'
 const BASELINE_VERSION = '2.0.1'
 const BASELINE_COMMIT = '801afcc794b34fa734ba624303ed9552b152407c'
@@ -78,7 +78,7 @@ for (const path of [
 requireCondition(exists('docs/pre-v2.0.2-ui-handoff.md'), 'Pre 2.0.2 UI handoff is missing')
 requireCondition(!read('docs/VERSIONING.md').includes('research/v2.0.2'), 'UI version must not rename the retained research/v2.0.1 resource line')
 
-requireCondition(matrix.implementation?.liquidGlassUI?.branch === DEVELOPMENT_BRANCH,
+requireCondition(matrix.implementation?.liquidGlassUI?.branch === 'pre-V2.0.2',
   'liquidGlassUI branch authority mismatch')
 requireCondition(matrix.implementation?.liquidGlassUI?.baseline === `${BASELINE_BRANCH}@${BASELINE_COMMIT}`,
   'liquidGlassUI main baseline coordinate mismatch')

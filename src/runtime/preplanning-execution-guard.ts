@@ -1,3 +1,4 @@
+import { sessionToolResults } from '../session/tool-results.ts'
 import type { Context } from '@deepseek-ai/cordis'
 import { registerPreplanningChildToolBoundary } from '../agent-classes/child-tool-boundary.ts'
 
@@ -39,11 +40,7 @@ export function preplanningExecutionStop(events: readonly Event[], boundProject:
     const data = object(event.data)
     if (event.type === 'tool/call') calls.set(String(data.callId), String(data.name))
     if (event.type !== 'tool/result') continue
-    const content = object(data.message).content
-    if (!Array.isArray(content)) continue
-    for (const value of content) {
-      const block = object(value)
-      if (block.type !== 'tool-result') continue
+    for (const block of sessionToolResults(data)) {
       const name = calls.get(String(block.toolCallId))
       if (!name) continue
       const text = Array.isArray(block.content) ? block.content.filter(row => object(row).type === 'text').map(row => String(object(row).text ?? '')).join('\n') : ''

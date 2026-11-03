@@ -107,7 +107,8 @@ it('uses real current-page sources and persists one paid candidate across duplic
   expect(state.requests[0]).not.toHaveProperty('findingId')
   await expect(restored.generate(parent, { ...input, prompt: '另一提示词' })).rejects.toThrow('REQUEST_CONFLICT')
   expect(f.paidCalls()).toBe(1)
-})
+// First fixture includes cold dynamic-import and contract initialization; observed >5s in the full suite.
+}, 15_000)
 
 it.each(['project', 'page', 'hash', 'source', 'session', 'expired', 'generation-denied', 'workspace'] as const)('rejects %s mismatch before generation', async mode => {
   const f = await fixture()
