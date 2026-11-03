@@ -11,7 +11,7 @@ export async function readSearchAudit(privateRoot, projectId, { since } = {}) {
     let row
     try { row = JSON.parse(line) } catch { return [] }
     if (!row || !['started', 'succeeded', 'failed'].includes(row.phase) || !Number.isFinite(Date.parse(row.at)) || Date.parse(row.at) < threshold
-      || typeof row.id !== 'string' || !/^[a-f0-9-]{36}$/u.test(row.id) || row.provider !== 'deepseek-search-api') return []
+      || typeof row.id !== 'string' || !/^[a-f0-9-]{36}$/u.test(row.id) || !['deepseek-search-api', 'ddg', 'bing', 'exa'].includes(row.provider)) return []
     return [{ id: row.id, at: row.at, phase: row.phase, provider: row.provider,
       ...Object.fromEntries(['maxResults', 'sourceCount', 'durationMs'].filter(key => Number.isSafeInteger(row[key]) && row[key] >= 0).map(key => [key, row[key]])),
       ...(typeof row.truncated === 'boolean' ? { truncated: row.truncated } : {}),

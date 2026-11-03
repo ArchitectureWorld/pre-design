@@ -1,23 +1,95 @@
 import { expect, it, vi } from 'vitest'
-import { WebQueryAgent, nativeWebRetrievals, nativeWebSourceSubmission } from '../src/agent-classes/web-query.ts'
+import { WebQueryAgent, nativeWebRetrievals, nativeWebSearchCalls, nativeWebSourceSubmission } from '../src/agent-classes/web-query.ts'
 import { resolveChildAgentOptions } from '@deepseek-ai/dsh-subagent'
 import { assertObjectJsonSchema } from '@deepseek-ai/dsh-tools'
+import { readPersistedVisualEvents } from '../src/visual/session-image-collector.ts'
 
 it('uses the selected route default rather than inheriting the same-model parent reasoning depth', async () => {
   const h = fixture([{ type: 'tool/call', data: { callId: 'c', name: 'web_fetch' } },
-    { type: 'tool/result', data: { message: { content: [{ type: 'tool-result', toolCallId: 'c', content: [{ type: 'text', text: 'source' }] }] } } }])
+    { type: 'tool/result', data: { message: { content: [{ type: 'tool-result', toolCallId: 'c', isError: false, content: [{ type: 'text', text: 'source' }] }] } } }])
   const parent = { id: 'parent', options: { provider: 'p', model: 'm', reasoningEffort: 'high' }, session: { requestHeader: () => undefined } } as never
   await h.service.query(parent, 'p', '查询', AbortSignal.timeout(1000))
   expect(resolveChildAgentOptions(parent, h.start.mock.calls[0]![1].agentOptions, 1).reasoningEffort).toBeUndefined()
 })
 
-function fixture(events: unknown[] = [], hasTools = true) {
+function fixture(events: unknown[] = [], hasTools = true, cold?: {
+  readPersistedEvents: (id: string, signal: AbortSignal) => Promise<readonly { type: string; data: unknown }[] | undefined>
+}) {
   const classes = { begin: vi.fn(async () => ({ id: 'run', selected: { provider: 'p', model: 'm' } })), attach: vi.fn(), finish: vi.fn() }
   const dispose = vi.fn()
   const start = vi.fn(async (_provider: string, _request: any) => ({ id: 'child', result: Promise.resolve({ stopReason: 'completed', output: [{ type: 'text', text: '候选内容' }] }), dispose }))
-  const service = new WebQueryAgent({ classes, subagents: { start }, tools: { get: () => hasTools ? {} : undefined }, sessions: { get: () => ({ snapshotEvents: () => events }) } } as never)
-  return { service, start, classes, dispose }
+  const get = vi.fn(() => cold ? undefined : { snapshotEvents: () => events })
+  const service = new WebQueryAgent({ classes, subagents: { start }, tools: { get: () => hasTools ? {} : undefined }, sessions: { get }, ...cold } as never)
+  return { service, start, classes, dispose, get }
 }
+
+const persistedSearch = [
+  { seq: 1, type: 'tool/call', data: { callId: 'cold-search', name: 'web_search', arguments: JSON.stringify({ queries: ['通用查询'] }) } },
+  { seq: 2, type: 'tool/result', data: { message: { role: 'tool', toolCallId: 'cold-search', isError: false,
+    content: [{ type: 'text', text: 'https://example.org 原生来源' }] } } },
+  { seq: 3, type: 'turn/end', data: { reason: { kind: 'completed' } } },
+]
+
+it('reads a completed unloaded web child from its existing read-only session and closes the handle', async () => {
+  const signal = new AbortController().signal, close = vi.fn(async () => {})
+  const read = vi.fn(async () => ({ events: persistedSearch }))
+  const open = vi.fn(async () => ({ id: 'child', access: 'read' as const, read, close }))
+  const readPersistedEvents = vi.fn((id: string, signal: AbortSignal) => readPersistedVisualEvents({ open }, id, signal))
+  const h = fixture([], true, { readPersistedEvents })
+  await expect(h.service.query({ id: 'parent' } as never, 'p', '通用查询', signal)).resolves.toMatchObject({
+    childId: 'child', verifiedEvidence: false, retrievals: [{ tool: 'web_search', callId: 'cold-search', text: 'https://example.org 原生来源' }],
+    searchCalls: [{ callId: 'cold-search', status: 'succeeded', request: { queries: ['通用查询'] } }],
+  })
+  expect(open).toHaveBeenCalledWith('child', 'read', { signal })
+  expect(read).toHaveBeenCalledWith(0, undefined, { signal })
+  expect(close).toHaveBeenCalledOnce()
+  expect(h.start).toHaveBeenCalledOnce(); expect(h.dispose).toHaveBeenCalledOnce()
+  expect(h.classes.finish).toHaveBeenCalledWith('run', 'completed')
+})
+
+it('keeps a failed persisted read unverified, closes the handle and never dispatches another child', async () => {
+  const close = vi.fn(async () => {}), read = vi.fn(async () => { throw new Error('persisted evidence unreadable') })
+  const open = vi.fn(async () => ({ id: 'child', access: 'read' as const, read, close }))
+  const h = fixture([], true, { readPersistedEvents: (id, signal) => readPersistedVisualEvents({ open }, id, signal) })
+  await expect(h.service.query({ id: 'parent' } as never, 'p', '查询', AbortSignal.timeout(1000))).rejects.toThrow('persisted evidence unreadable')
+  expect(close).toHaveBeenCalledOnce()
+  expect(h.classes.finish).not.toHaveBeenCalledWith('run', 'completed')
+  expect(h.start).toHaveBeenCalledOnce(); expect(h.dispose).toHaveBeenCalledOnce()
+})
+
+it('does not accept a missing cold log as successful retrieval', async () => {
+  const readPersistedEvents = vi.fn(async () => undefined), h = fixture([], true, { readPersistedEvents })
+  await expect(h.service.query({ id: 'parent' } as never, 'p', '查询', AbortSignal.timeout(1000))).rejects.toThrow('WEB_RETRIEVAL_UNVERIFIED')
+  expect(readPersistedEvents).toHaveBeenCalledOnce()
+  expect(h.classes.finish).not.toHaveBeenCalledWith('run', 'completed')
+})
+
+it('prefers a concurrently restored live log over a stale successful cold receipt', async () => {
+  const readPersistedEvents = vi.fn(async () => {
+    h.get.mockReturnValue({ snapshotEvents: () => [] })
+    return persistedSearch
+  })
+  const h = fixture([], true, { readPersistedEvents })
+  await expect(h.service.query({ id: 'parent' } as never, 'p', '查询', AbortSignal.timeout(1000))).rejects.toThrow('WEB_RETRIEVAL_UNVERIFIED')
+  expect(readPersistedEvents).toHaveBeenCalledOnce()
+  expect(h.classes.finish).not.toHaveBeenCalledWith('run', 'completed')
+})
+
+it('does not settle a cancelled cold read as successful', async () => {
+  const controller = new AbortController()
+  const readPersistedEvents = vi.fn(async () => { controller.abort(new Error('cancelled while reading')); return persistedSearch })
+  const h = fixture([], true, { readPersistedEvents })
+  await expect(h.service.query({ id: 'parent' } as never, 'p', '查询', controller.signal)).rejects.toThrow('cancelled while reading')
+  expect(h.classes.finish).not.toHaveBeenCalledWith('run', 'completed')
+  expect(h.start).toHaveBeenCalledOnce(); expect(h.dispose).toHaveBeenCalledOnce()
+})
+
+it.each([undefined, null, 0, 'false', true])('requires explicit isError=false for a native search receipt (%s)', isError => {
+  const events = [{ type: 'tool/call', data: { callId: 'ambiguous', name: 'web_search' } },
+    { type: 'tool/result', data: { message: { role: 'tool', toolCallId: 'ambiguous', isError, content: [{ type: 'text', text: 'unverified' }] } } }]
+  expect(nativeWebRetrievals(events)).toEqual([])
+  expect(nativeWebSearchCalls(events)).toMatchObject([{ status: 'failed' }])
+})
 function sourceSubmissionEvents(sources: unknown[], acknowledged = true) {
   return [{ type: 'tool/call', data: { callId: 'fetch-source', name: 'web_fetch' } },
     { type: 'tool/result', data: { message: { content: [{ type: 'tool-result', toolCallId: 'fetch-source', isError: false,
@@ -97,7 +169,7 @@ it.each([0, 21, 1.5, NaN])('rejects invalid native retrieval budget %s before re
 it('passes a strict native retrieval budget label and asks the child to conclude from existing material', async () => {
   const h = fixture([
     { type: 'tool/call', data: { callId: 'c1', name: 'web_fetch' } },
-    { type: 'tool/result', data: { message: { content: [{ type: 'tool-result', toolCallId: 'c1', content: [{ type: 'text', text: '原文' }] }] } } },
+    { type: 'tool/result', data: { message: { content: [{ type: 'tool-result', toolCallId: 'c1', isError: false, content: [{ type: 'text', text: '原文' }] }] } } },
   ])
   await h.service.query({ id: 'parent' } as never, 'p', '查询', AbortSignal.timeout(1000), { maxToolCalls: 6 })
   expect(h.start.mock.calls[0]![1].label).toBe('preplanning_web:p:retrieval=6')

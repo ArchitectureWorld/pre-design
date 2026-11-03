@@ -20,15 +20,18 @@ function fail(code) { throw imageError(code) }
 function signalCheck(signal) { signal?.throwIfAborted() }
 
 function checkedArguments(args) {
+  // Structured tool callers can fill an optional string with "". Only a
+  // reference-free generation treats that exact value as an omitted field.
+  const referenceImage = args?.mode === 'generate' && args.referenceImage === '' ? undefined : args?.referenceImage
   if (!args || !['generate', 'edit'].includes(args.mode) || !text(args.prompt, 16000)
     || Object.keys(args).some(key => !['mode', 'prompt', 'width', 'height', 'seed', 'referenceImage'].includes(key))
     || (args.width === undefined) !== (args.height === undefined)
     || [args.width, args.height].some(value => value !== undefined && (!Number.isSafeInteger(value) || value < 16 || value > 8192 || value % 16 !== 0))
     || (args.width !== undefined && args.width * args.height > 16 * 1024 * 1024)
     || (args.seed !== undefined && (!Number.isSafeInteger(args.seed) || args.seed < 0))
-    || (args.mode === 'edit' ? !text(args.referenceImage) : args.referenceImage !== undefined)) fail('IMAGE_ARGUMENT_INVALID')
+    || (args.mode === 'edit' ? !text(referenceImage) : referenceImage !== undefined)) fail('IMAGE_ARGUMENT_INVALID')
   return { mode: args.mode, prompt: args.prompt, ...(args.width === undefined ? {} : { width: args.width, height: args.height }),
-    ...(args.seed === undefined ? {} : { seed: args.seed }), ...(args.referenceImage === undefined ? {} : { referenceImage: args.referenceImage }) }
+    ...(args.seed === undefined ? {} : { seed: args.seed }), ...(referenceImage === undefined ? {} : { referenceImage }) }
 }
 
 async function authorize(ctx, root, sessionId, policy, exec) {

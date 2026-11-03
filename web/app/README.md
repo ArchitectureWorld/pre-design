@@ -47,7 +47,7 @@ web/app/start-local.sh
 
 ## 管理员模型配置
 
-管理员“模型管理”包含完整的 14 项允许模型，按 `provider + model` 区分身份：SenseNova 6 项、DeepSeek 官方 4 项、ComfyUI Klein 和启航图像 3 项。保留各自上下文/输出预算、Kimi 的 `max_completion_tokens` 与明确的主备顺序。
+管理员“模型管理”包含 15 项允许模型，按 `provider + model` 区分身份：原有 SenseNova 6 项、DeepSeek 官方 4 项、ComfyUI Klein、启航图像 3 项，以及用户明确选定的 `yaoguang-codex / yaoguang02-gpt-6-astra`。保留各自上下文/输出预算、Kimi 的 `max_completion_tokens` 与明确的主备顺序。
 
 接入步骤：
 
@@ -56,13 +56,15 @@ web/app/start-local.sh
 3. 管理员填写对应实际 provider 映射，按真实验证结果填写文本、工具、视觉和图像能力以及验证状态，再为角色设置主备。文本角色用于带图章节时，其主备链也必须通过视觉能力验证。
 4. 配置保存使用版本校验。每个任务保存不可变策略快照，后续改配置不会改变已入队任务。管理员运行记录分别展示保存的候选路由与有原生证据的实际调用；未记录的用量不估算成实际消耗。
 
-被排除的 GPT/OpenAI、瑶光 Codex、Ollama 和 Antigravity/Gemini 来源不能用于新 Web 任务。允许保留模型使用 OpenAI 兼容协议。
+本机文本、网络查询、图片理解与生图配套角色已按用户选择接入 `yaoguang02-gpt-6-astra`，使用 `openai-responses`、输出上限 8192；文本、结构化工具调用及图片输入均经过真实验证。只允许这个精确瑶光身份，不允许其他模型借映射冒充；其他未授权来源仍被排除。历史 14 项任务快照保持原文，现行策略在新修订中追加第 15 项。
 
 ## 搜索与 Flux3 生图配置
 
-搜索和生图服务已接入适配器，真实端点仍需管理员配置与验证。它们与模型角色共用版本化策略，普通业务请求不能覆盖地址、工作流或凭据。
+本机已验证 Exa 中文官方来源检索和 ComfyUI Flux3 文生图、参考图编辑。它们与模型角色共用版本化策略，普通业务请求不能覆盖地址、工作流或凭据；新安装的初始状态仍为待验证。
 
-- 在“模型管理 → 独立搜索服务”启用搜索，填写 Search API 路径前缀（DeepSeek 官方默认为 `https://api.deepseek.com/v1/tools`，不带末尾 `/search`）和 `credential:SEARCH_KEY`。服务必须兼容该协议。密钥放在 `worker.credentials` 指向的私有 YAML/JSON 文件的 `refs.SEARCH_KEY`。支持每次结果数、查询数及超时限制；没有额外的 Messages 问答模型调用，不继承 DSH 登录账号或其他环境密钥。公开网页原文读取继续使用受控 HTTP 抓取。
+- 在“模型管理 → 独立搜索服务”选择 Exa、Bing、DuckDuckGo 或 DeepSeek Search API。Exa / Bing / DuckDuckGo 无需密钥，固定使用各自搜索端点；只提取真实网页来源，不自动换引擎或额外调用问答模型。验证码、重定向、网络错误和无法确认的空白页均明确失败。本机默认选 Exa；本次中文查询返回住建部和中国政府网来源。Bing 的中文结果相关性在实测中不稳定，DuckDuckGo 当前出口返回人工验证页。公开免密服务有频率限制，失败不会自动切换服务。
+- 使用 DeepSeek Search API 时，填写 Search API 路径前缀（DeepSeek 官方默认为 `https://api.deepseek.com/v1/tools`，不带末尾 `/search`）和 `credential:SEARCH_KEY`。服务必须兼容该协议。密钥放在 `worker.credentials` 指向的私有 YAML/JSON 文件的 `refs.SEARCH_KEY`。支持每次结果数、查询数及超时限制；没有额外的 Messages 问答模型调用，不继承 DSH 登录账号或其他环境密钥。公开网页原文读取继续使用受控 HTTP 抓取。
+- 若服务器需代理访问公开搜索，在私有配置设置 `worker.searchProxyURL`，只允许无账号密码、路径或查询参数的 HTTP(S) 代理地址。该配置只作用于 Exa / Bing / DuckDuckGo，不继承系统代理，不改变文本模型、ComfyUI 或网页原文抓取的连接。搜索代理使用配套 Undici fetch/dispatcher，固定 TLS 目标主机并保留证书验证。
 - 展开 `Comfyui-PIC / Klein`，填写 ComfyUI 地址，如 `http://主机地址:8188`。如需 Bearer 鉴权，填写凭据引用并在同一私有文件登记；无鉴权服务可留空。不要在地址或页面中填写密钥。
 - 固定使用本次提供的 `flux3-image-klein-bf16.safetensors`、文生图 `flux3-klein-t2i@2026-11-03.1`、图生图 `flux3-klein-i2i@2026-11-03.1`。模板只清空示例提示词和示例参考图，其余节点保留；工作流里的 Qwen 文本编码器/提示扩写器是 ComfyUI 模型文件，不是新的 LLM 提供方。
 - ComfyUI 必须安装两份工作流所需节点及模型。运行前检查 `/object_info`，不符合时在调用生图配套 LLM 前拒绝。文生图省略尺寸时保持原 2:3、4MP；图生图保持参考图比例、4MP；任务明确指定尺寸时覆盖。参考图必须是当前项目登记且哈希仍匹配的图片，不接受任意文件或 URL。
@@ -92,4 +94,4 @@ node web/worker/probe-services.mjs
 
 Web 数据库测试使用独立临时 schema 并清理。浏览器测试创建明确标注的验收样本，不调用收费模型。真实 Worker 探针 `node web/worker/probe-research.mjs` 使用本地模拟协议服务，不代表真实提供方成功。
 
-当前没有获得真实服务地址及允许模型的接入配置，因此尚未验证外部搜索、GPU 出图、真实研究生成和报告质量。ComfyUI Flux3 与独立 Search API 的本地协议及 Worker 联调不能代替真实服务验收。Office/CAD/OCR、注册密码管理、HTTPS 入口和备份恢复不在本次已验收范围。详细证据见 `VERIFICATION.md`。原型原 CSS 和 DOM 保持测试见 `tests/prototype.test.mjs`。
+真实验收已覆盖 yaoguang02 文本/工具/图片输入、Exa 原生搜索工具返回来源，以及两套 Flux3 GPU 工作流。搜索质量会随查询和远端页面变化；完整业务研究和长篇章节质量仍需按实际项目资料验收，最小能力探针不能替代质量评审。Office/CAD/OCR、注册密码管理、HTTPS 入口和备份恢复不在本次已验收范围。详细证据见 `VERIFICATION.md`。原型原 CSS 和 DOM 保持测试见 `tests/prototype.test.mjs`。

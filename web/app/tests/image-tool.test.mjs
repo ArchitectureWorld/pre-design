@@ -142,10 +142,24 @@ test('父会话、伪造 agent 对象、错误归属与非图像执行不能触�
 })
 
 test('generate/edit 参数、种子和成对尺寸在真实 schema 与执行边界校验', async t => {
-  for (const args of [{ ...request, mode: 'delete' }, { ...request, prompt: ' ' }, { ...request, prompt: 'x\0y' }, { ...request, width: 1600 }, { ...request, width: 17, height: 16 }, { ...request, seed: -1 }, { ...request, referenceImage: 'asset-a' }, { ...request, mode: 'edit' }, { ...request, server: 'http://foreign/' }]) {
+  for (const args of [{ ...request, mode: 'delete' }, { ...request, prompt: ' ' }, { ...request, prompt: 'x\0y' }, { ...request, width: 1600 }, { ...request, width: 17, height: 16 }, { ...request, seed: -1 }, { ...request, referenceImage: 'asset-a' }, { ...request, referenceImage: ' ' }, { ...request, referenceImage: null }, { ...request, mode: 'edit' }, { ...request, mode: 'edit', referenceImage: '' }, { ...request, server: 'http://foreign/' }]) {
     const f = await fixture(t)
     assert.equal((await f.call(args)).isError, true); assert.deepEqual(f.calls, [])
   }
+})
+
+test('真实结构化 generate 调用将空参考字段归一为省略且共享防重复收执', async t => {
+  const f = await fixture(t)
+  const input = { mode: 'generate', prompt: '白色背景上的蓝色圆形、橙色方形和绿色三角形。', width: 1024, height: 768, seed: 63 }
+  const result = await f.call({ ...input, referenceImage: '' })
+  assert.equal(result.isError, false, JSON.stringify(result))
+  assert.equal(Object.hasOwn(f.calls.find(call => call.op === 'compile').input, 'referenceImage'), false)
+  assert.equal(f.calls.filter(call => call.op === 'upload').length, 0)
+  const repeated = await f.call(input)
+  assert.equal(repeated.isError, false, JSON.stringify(repeated))
+  assert.equal(repeated.value.requestId, result.value.requestId)
+  assert.equal(f.calls.filter(call => call.op === 'submit').length, 1)
+  assert.equal((await receipts(f.root)).length, 1)
 })
 
 test('edit 只上传当前项目登记且哈希相符的图片，支持资产 ID 及绝对相对路径', async t => {

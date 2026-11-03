@@ -74,11 +74,24 @@ test('管理员填写独立搜索和 ComfyUI 地址，仅提交凭据引用并�
   assert.equal(sent.models[10].status,'unverified')
 })
 
+for(const provider of ['ddg','bing','exa']) test(`管理员选择${provider}后隐藏不适用的地址和凭据，保存固定无密钥搜索策略`,async t=>{
+  const {document,window,calls,open}=fixture(t,{policy:defaultPolicy()});await open()
+  change(window,byLabel(document,'搜索服务'),provider)
+  change(window,byLabel(document,'启用独立搜索'),true)
+  assert.equal(byLabel(document,'搜索服务地址'),undefined)
+  assert.equal(byLabel(document,'搜索凭据引用'),undefined)
+  change(window,byLabel(document,'每次搜索结果上限'),'6')
+  button(document,'保存策略').click()
+  await settle(()=>calls.some(call=>call.options.method==='PUT'))
+  assert.deepEqual(calls.find(call=>call.options.method==='PUT').options.body.policy.search,
+    {enabled:true,provider,maxResults:6,maxQueries:4,timeoutMs:30000})
+})
+
 test('管理员通过真实表单修改主备顺序与预算，并以原版本保存完整策略', async t => {
   const { document, window, calls, open } = fixture(t)
   await open()
   assert.equal(calls[0].path, '/admin/models')
-  assert.equal(document.querySelectorAll('[data-admin-model]').length, 14)
+  assert.equal(document.querySelectorAll('[data-admin-model]').length, 15)
   assert.equal(document.querySelectorAll('input[type="password"]').length, 0)
   const name = 'SenseNova / sensenova-6.8-flash-lite'
   change(window, byLabel(document, `${name} 输出预算`), '12345')

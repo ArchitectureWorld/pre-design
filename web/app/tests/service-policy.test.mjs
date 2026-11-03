@@ -6,6 +6,17 @@ import { reportModelRoles, validateReportSnapshot, publicBusinessData } from '..
 
 const klein = p => p.models.find(m => m.provider === 'Comfyui-PIC')
 const settings = {'llm-pi-ai':{providers:{SenseNova:{api:'openai-completions',baseURL:'https://example.org/v1',apiKeyEnv:'SENSE_KEY'}}}}
+for (const provider of ['ddg','bing','exa']) test(`${provider} 策略无需密钥和地址，拒绝借服务字段覆盖固定搜索后端`,()=>{
+  const p=defaultPolicy()
+  p.search={enabled:true,provider,maxResults:8,maxQueries:4,timeoutMs:30000}
+  const frozen=validateSnapshot(p,[])
+  assert.equal(frozen.search.provider,provider);assert.equal(frozen.search.baseURL,undefined)
+  p.search.enabled=false;assert.equal(frozen.search.enabled,true)
+  for(const field of ['baseURL','credentialRef','apiKey','proxyURL']) {
+    const bad=structuredClone(p);bad.search[field]='https://invalid.example'
+    assert.throws(()=>validatePolicy(bad),e=>e.code==='INVALID_MODEL_POLICY')
+  }
+})
 function ready() {
   const p=defaultPolicy(), main=p.models[1]
   main.status='verified';main.capabilities.tools=true

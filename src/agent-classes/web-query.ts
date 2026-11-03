@@ -15,6 +15,7 @@ interface Dependencies {
   readonly subagents: Pick<SubagentRuntime, 'start'>
   readonly tools: Pick<Tools, 'get'>
   readonly sessions: { get(id: string): ExecutionSession | undefined }
+  readonly readPersistedEvents?: (id: string, signal: AbortSignal) => Promise<ReturnType<ExecutionSession['snapshotEvents']> | undefined>
 }
 function object(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === 'object' ? value as Record<string, unknown> : {}
@@ -27,7 +28,7 @@ export function nativeWebRetrievals(events: readonly { type: string; data: unkno
   const calls = new Map(events.filter(event => event.type === 'tool/call').map(event => { const data = object(event.data); return [data.callId, data.name] }))
   return events.filter(event => event.type === 'tool/result').flatMap(event => {
     return sessionToolReceipts(event.data).flatMap(block => { const tool = calls.get(block.toolCallId)
-      return !block.isError && typeof tool === 'string' && ['web_search', 'web_fetch'].includes(tool) && allow.includes(tool)
+      return block.isError === false && typeof tool === 'string' && ['web_search', 'web_fetch'].includes(tool) && allow.includes(tool)
         ? [{ tool, callId: String(block.toolCallId), text: texts(block.content) }] : []
     })
   }).slice(0, 20)
@@ -87,7 +88,7 @@ export function nativeWebSourceSubmission(events: readonly { type: string; data:
 export function nativeWebSearchCalls(events: readonly { type: string; data: unknown }[]): NativeWebSearchCall[] {
   const results = new Map<unknown, { failed: boolean; text: string }>()
   for (const event of events.filter(e => e.type === 'tool/result')) {
-    for (const block of sessionToolReceipts(event.data)) results.set(block.toolCallId, { failed: !!block.isError, text: texts(block.content) })
+    for (const block of sessionToolReceipts(event.data)) results.set(block.toolCallId, { failed: block.isError !== false, text: texts(block.content) })
   }
   const publicText = (v: string) => v.replace(/([?&](?:token|key|secret|authorization|access_token|signature|sig)=)[^\s&"'<>]+/giu, '$1[redacted]').replace(/Bearer\s+\S+/giu, 'Bearer [redacted]')
   return events.filter(e => e.type === 'tool/call').flatMap(event => {
@@ -113,6 +114,17 @@ export class WebRetrievalExhaustedError extends Error {
 }
 export class WebQueryAgent {
   constructor(private readonly dependencies: Dependencies) {}
+
+  private async events(childId: string, signal: AbortSignal): Promise<ReturnType<ExecutionSession['snapshotEvents']>> {
+    signal.throwIfAborted()
+    const live = this.dependencies.sessions.get(childId)
+    if (live) return live.snapshotEvents()
+    const persisted = await this.dependencies.readPersistedEvents?.(childId, signal)
+    signal.throwIfAborted()
+    // A completed one-shot child may already be unloaded; a concurrent restore
+    // is fresher than its immutable log and must win without starting work.
+    return this.dependencies.sessions.get(childId)?.snapshotEvents() ?? persisted ?? []
+  }
   async query(parent: Agent, projectId: string, query: string, signal: AbortSignal, options: {
     readonly maxToolCalls?: number
     readonly sourceCandidateLimit?: number
@@ -153,7 +165,7 @@ export class WebQueryAgent {
       })
       await this.dependencies.classes.attach(execution.id, String(run.id))
       const result = await run.result
-      const events = this.dependencies.sessions.get(String(run.id))?.snapshotEvents() ?? []
+      const events = await this.events(String(run.id), signal)
       if (result.stopReason !== 'completed') {
         const reason = preplanningCancellationReason(events)
         if (!signal.aborted && result.stopReason === 'aborted' && reason

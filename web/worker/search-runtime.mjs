@@ -2,52 +2,75 @@ import { randomUUID } from 'node:crypto'
 import { WebError } from '@deepseek-ai/dsh-web'
 import { DeepSeekSearchApiProvider } from '@deepseek-ai/dsh-web-deepseek-api'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
+import { createDdgSearchProvider, DDG_SEARCH_ENDPOINT } from './ddg-search.mjs'
+import { createBingSearchProvider, BING_SEARCH_ENDPOINT } from './bing-search.mjs'
+import { createExaSearchProvider, EXA_SEARCH_ENDPOINT } from './exa-search.mjs'
+import { ProxyAgent, fetch as proxyFetch } from 'undici'
 
 const PROVIDER = 'deepseek-search-api'
 const CREDENTIAL_ENV = 'PRE_WEB_SEARCH_CREDENTIAL'
+const PROXY_ENV = 'PRE_WEB_SEARCH_PROXY_URL'
+const anonymousProviders = { ddg: { name: 'DuckDuckGo', endpoint: DDG_SEARCH_ENDPOINT, create: createDdgSearchProvider },
+  bing: { name: 'Bing', endpoint: BING_SEARCH_ENDPOINT, create: createBingSearchProvider },
+  exa: { name: 'Exa', endpoint: EXA_SEARCH_ENDPOINT, create: createExaSearchProvider } }
 const defaults = Object.freeze({ maxResults: 8, maxQueries: 4, timeoutMs: 30000 })
 
 function searchConfiguration(policy) {
   if (policy?.enabled === false) return { status: 'disabled', code: 'WEB_SEARCH_DISABLED', reason: '管理员已关闭独立网页搜索。' }
   const unavailable = reason => ({ status: 'not_ready', code: 'WEB_SEARCH_NOT_READY', reason })
   if (!policy || policy.enabled !== true) return unavailable('尚未配置独立网页搜索。')
-  if (policy.provider !== PROVIDER) return unavailable('搜索服务必须使用已适配的独立 Search API。')
+  if (policy.provider !== PROVIDER && !Object.hasOwn(anonymousProviders, policy.provider)) return unavailable('搜索服务必须使用已适配的独立搜索提供方。')
+  const limits = Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => [key, policy[key] ?? fallback]))
+  if (!Object.entries({ maxResults: 50, maxQueries: 8, timeoutMs: 120000 }).every(([key, max]) => Number.isInteger(limits[key]) && limits[key] >= 1 && limits[key] <= max)) return unavailable('搜索条数、查询数量或超时超出允许范围。')
+  if (Object.hasOwn(anonymousProviders, policy.provider)) return { status: 'ready', code: 'WEB_SEARCH_READY', reason: `${anonymousProviders[policy.provider].name} 配置已就绪；远端可用性以实际请求为准，遇到验证码会明确提示。`,
+    config: Object.freeze({ provider: policy.provider, ...limits }) }
   if (typeof policy.credentialRef !== 'string' || !/^credential:[\p{L}\p{N}][\p{L}\p{N}_.-]{0,127}$/u.test(policy.credentialRef)) return unavailable('尚未配置有效的搜索凭据引用。')
   let url
   try { url = new URL(policy.baseURL) } catch { return unavailable('尚未配置有效的搜索服务地址。') }
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) return unavailable('搜索服务地址必须为不含凭据、查询参数或片段的 HTTP(S) 地址。')
   const baseURL = url.href.replace(/\/+$/u, '')
   if (/\/(?:search|fetch)$/u.test(url.pathname.replace(/\/+$/u, ''))) return unavailable('搜索服务地址应包含 API 路径前缀，不包含末尾的 search 或 fetch 操作名。')
-  const limits = Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => [key, policy[key] ?? fallback]))
-  if (!Object.entries({ maxResults: 50, maxQueries: 8, timeoutMs: 120000 }).every(([key, max]) => Number.isInteger(limits[key]) && limits[key] >= 1 && limits[key] <= max)) return unavailable('搜索条数、查询数量或超时超出允许范围。')
   return { status: 'ready', code: 'WEB_SEARCH_READY', reason: '搜索配置已就绪；远端服务可用性以实际请求结果为准。',
-    config: Object.freeze({ baseURL, credentialRef: policy.credentialRef, ...limits }) }
+    config: Object.freeze({ provider: PROVIDER, baseURL, credentialRef: policy.credentialRef, ...limits }) }
+}
+
+const endpointOf = config => anonymousProviders[config.provider]?.endpoint ?? `${config.baseURL}/search`
+function validProxy(value) {
+  try {
+    const url = new URL(value)
+    return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password && url.pathname === '/' && !url.search && !url.hash && !/\s/u.test(value)
+  } catch { return false }
 }
 
 /** Project only the task's selected search configuration and private credential into DSH. */
-export function materializeSearchRuntime(searchPolicy, credentials = {}) {
+export function materializeSearchRuntime(searchPolicy, credentials = {}, { proxyURL } = {}) {
   let state = searchConfiguration(searchPolicy), credential
-  if (state.status === 'ready') {
+  if (state.status === 'ready' && state.config.provider === PROVIDER) {
     const ref = state.config.credentialRef
     credential = credentials?.refs?.[ref] ?? credentials?.refs?.[ref.slice('credential:'.length)]
     if (typeof credential !== 'string' || !credential.trim()) state = {
       status: 'not_ready', code: 'WEB_SEARCH_NOT_READY', reason: '指定搜索凭据不存在；未使用账户或其他环境凭据。',
     }
   }
+  if (state.status === 'ready' && Object.hasOwn(anonymousProviders, state.config.provider) && proxyURL !== undefined && !validProxy(proxyURL)) {
+    state = { status: 'not_ready', code: 'WEB_SEARCH_NOT_READY', reason: '服务器搜索代理配置无效；仅允许不含凭据和路径的 HTTP(S) 代理地址。' }
+  }
   const ready = state.status === 'ready', config = state.config ?? defaults
+  const provider = Object.hasOwn(anonymousProviders, searchPolicy?.provider) ? searchPolicy.provider : PROVIDER
+  const directReady = ready && provider === PROVIDER
   return {
     patches: [
       { id: 'web-search-deepseek', disabled: true },
-      { id: 'web', config: { searchProvider: PROVIDER, fetchProvider: 'http' } },
-      { id: 'web-deepseek-api', disabled: !ready, config: {
-        apiKey: '', apiKeyEnv: CREDENTIAL_ENV, baseURL: ready ? config.baseURL : '', count: config.maxResults, sendOriginalQuestion: false,
+      { id: 'web', config: { searchProvider: provider, fetchProvider: 'http' } },
+      { id: 'web-deepseek-api', disabled: !directReady, config: {
+        apiKey: '', apiKeyEnv: CREDENTIAL_ENV, baseURL: directReady ? config.baseURL : '', count: config.maxResults, sendOriginalQuestion: false,
       } },
       { id: 'tool-web', config: { search: ready, fetch: true, searchMaxResults: config.maxResults,
         searchMaxQueries: config.maxQueries, searchTimeoutMs: config.timeoutMs } },
     ],
-    env: ready ? { [CREDENTIAL_ENV]: credential } : {},
-    availability: { status: state.status, code: state.code, reason: state.reason, provider: PROVIDER,
-      ...(ready ? { endpoint: `${config.baseURL}/search` } : {}) },
+    env: directReady ? { [CREDENTIAL_ENV]: credential } : ready && proxyURL ? { [PROXY_ENV]: proxyURL } : {},
+    availability: { status: state.status, code: state.code, reason: state.reason, provider,
+      ...(ready ? { endpoint: endpointOf(config) } : {}) },
   }
 }
 
@@ -55,6 +78,17 @@ function operationError(error, signal, timeout) {
   if (signal?.aborted) return new WebError('网页搜索已取消。', 'WEB_ABORTED')
   if (timeout.aborted) return new WebError('独立网页搜索已超时。', 'WEB_TIMEOUT')
   if (error?.code === 'WEB_PROVIDER_CREDENTIAL_MISSING') return new WebError('本次任务的专用搜索凭据不可用。', 'WEB_PROVIDER_CREDENTIAL_MISSING')
+  const safeMessages = {
+    WEB_SEARCH_CHALLENGE: '搜索服务返回人工验证页面，本次搜索未成功；请稍后重试或由管理员选择其他搜索服务。',
+    WEB_SEARCH_EMPTY_UNCONFIRMED: '搜索服务未返回可确认的来源；本次未记为检索成功。',
+    WEB_SEARCH_INVALID_RESPONSE: '搜索服务返回了无法识别的页面。',
+    WEB_SEARCH_REDIRECT: '搜索服务返回重定向，本次未访问跳转目标。',
+    WEB_SEARCH_RATE_LIMITED: '搜索服务暂时限制请求，请稍后重试。',
+    WEB_RESPONSE_TOO_LARGE: '搜索响应超过允许大小。',
+    WEB_SEARCH_INVALID_QUERY: '搜索查询或结果数量无效。',
+    WEB_TIMEOUT: '独立网页搜索已超时。', WEB_ABORTED: '网页搜索已取消。',
+  }
+  if (Object.hasOwn(safeMessages, error?.code)) return new WebError(safeMessages[error.code], error.code)
   // Upstream bodies can echo credentials or arbitrary text. Preserve the failure,
   // never expose that body (or a cause containing it) to tools or the audit log.
   const status = /HTTP (\d{3})/u.exec(String(error?.message ?? ''))?.[1]
@@ -71,13 +105,21 @@ export function installSearchBoundary(ctx, { searchPolicy, availability, onAudit
   const state = searchConfiguration(searchPolicy), config = state.config
   const ready = state.status === 'ready' && availability?.status === 'ready'
   const unavailableReason = state.status === 'ready' ? availability?.reason ?? '本次任务的搜索配置未就绪。' : state.reason
-  const endpoint = ready ? `${config.baseURL}/search` : undefined
-  if (ready && (availability.provider !== PROVIDER || availability.endpoint !== endpoint)) throw new WebError('搜索可用性与任务快照不一致。', 'WEB_SEARCH_SNAPSHOT_MISMATCH')
+  const endpoint = ready ? endpointOf(config) : undefined
+  if (ready && (availability.provider !== config.provider || availability.endpoint !== endpoint)) throw new WebError('搜索可用性与任务快照不一致。', 'WEB_SEARCH_SNAPSHOT_MISMATCH')
   const web = ctx.web, originalSearch = web.search, originalFetch = web.fetch
   // The launch snapshot is immutable. Its process layer is supplied by the
   // parent Worker, and excludes managed credentials and project/user .env files.
   const environment = launchEnvironmentOf(ctx)
-  const provider = ready ? new DeepSeekSearchApiProvider(() => ({
+  const anonymous = ready ? anonymousProviders[config.provider] : undefined
+  const proxyURL = anonymous ? environment.getFrom(PROXY_ENV, ['process'])?.value : undefined
+  if (proxyURL && !validProxy(proxyURL)) throw new WebError('本次任务的搜索代理配置无效。', 'WEB_SEARCH_NOT_READY')
+  // A dedicated dispatcher affects only anonymous search requests. Text models,
+  // ComfyUI, webpage fetch, and unrelated environment proxies are not inherited.
+  // Pin the target TLS name independently of the proxy's CONNECT connection.
+  // Pair Undici 8's dispatcher with its fetch, not Node's bundled Undici 7.
+  const dispatcher = proxyURL ? new ProxyAgent({ uri: proxyURL, requestTls: { servername: new URL(endpoint).hostname } }) : undefined
+  const provider = ready ? anonymous ? anonymous.create(config, dispatcher ? { fetchImpl: (url, options) => proxyFetch(url, { ...options, dispatcher }) } : {}) : new DeepSeekSearchApiProvider(() => ({
     baseURL: config.baseURL, count: config.maxResults, apiKeyEnv: CREDENTIAL_ENV,
     resolveApiKey: async () => environment.getFrom(CREDENTIAL_ENV, ['process'])?.value,
   })) : undefined
@@ -90,7 +132,7 @@ export function installSearchBoundary(ctx, { searchPolicy, availability, onAudit
     const timeout = new AbortController(), timer = setTimeout(() => timeout.abort(), config.timeoutMs)
     const operationSignal = AbortSignal.any([timeout.signal, ...(signal ? [signal] : [])])
     const id = randomUUID(), started = Date.now()
-    const record = (phase, details = {}) => audit({ id, at: new Date().toISOString(), phase, provider: PROVIDER, endpoint, ...details })
+    const record = (phase, details = {}) => audit({ id, at: new Date().toISOString(), phase, provider: config.provider, endpoint, ...details })
     try {
       // "started" is an operation attempt, never proof that a network request
       // was sent or accepted; credential resolution and cancellation may stop it.
@@ -111,6 +153,6 @@ export function installSearchBoundary(ctx, { searchPolicy, availability, onAudit
   }
   return ctx.effect(function* () {
     web.search = search; web.fetch = fetch
-    yield () => { web.search = originalSearch; web.fetch = originalFetch }
+    yield async () => { web.search = originalSearch; web.fetch = originalFetch; await dispatcher?.close() }
   }, 'pre-web.search-boundary')
 }

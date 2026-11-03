@@ -46,7 +46,7 @@ test('initialization persists token hashes and resolves roles from the database'
   assert.equal(await store.authenticate(users[0].token), null)
   const policy = await store.getPolicy()
   assert.equal(policy.revision, 1)
-  assert.equal(policy.models.length, 14)
+  assert.equal(policy.models.length, 15)
 })
 
 test('startup rejects malformed accounts and duplicate identities or tokens', async t => {
@@ -175,6 +175,7 @@ test('concurrent initialization creates a single initial version and audit event
 test('旧 Flux2 配置迁移为独立 Flux3 修订，保留历史与其他模型设置且重启不重复迁移', async t => {
   const db=await database(t),users=accounts(),store=await createPlatformStore(db,users)
   const old=await store.getPolicy();delete old.search
+  old.models=old.models.filter(row=>row.provider!=='yaoguang-codex')
   old.models[10].imageConfig={modelFile:'Flux2-Klein-9B-True-v2-bf16.safetensors',textToImageWorkflow:'old.json'}
   old.models[10].status='verified';old.limits.globalConcurrency=7
   await db.query('UPDATE platform_policy_versions SET policy=$1 WHERE revision=1',[old])
@@ -186,4 +187,34 @@ test('旧 Flux2 配置迁移为独立 Flux3 修订，保留历史与其他模型
   assert.deepEqual((await db.query('SELECT policy FROM platform_policy_versions WHERE revision=1')).rows[0].policy,old)
   assert.equal((await (await createPlatformStore(db,users)).getPolicy()).revision,2)
   assert.equal((await db.query('SELECT count(*)::int AS count FROM platform_policy_audit')).rows[0].count,2)
+})
+
+test('完整14项配置追加瑶光02时仅产生一个新修订，历史快照与既有路由保持不变', async t => {
+  const db = await database(t), users = accounts(), store = await createPlatformStore(db, users)
+  const historical = markParentVerified(await store.getPolicy())
+  historical.models = historical.models.filter(row => row.provider !== 'yaoguang-codex')
+  historical.search = { enabled: true, provider: 'ddg', maxResults: 6, maxQueries: 3, timeoutMs: 20000 }
+  historical.models[0].maxOutputTokens = 4096
+  await db.query('UPDATE platform_policy_versions SET policy=$1 WHERE revision=1', [historical])
+  const snapshot = await store.snapshotPolicy(['text'])
+  assert.equal(snapshot.models.length, 14)
+  const reopened = await Promise.all([createPlatformStore(db, users), createPlatformStore(db, users)])
+  const migrated = await reopened[0].getPolicy()
+  assert.equal(migrated.revision, 2)
+  assert.equal(migrated.models.length, 15)
+  assert.deepEqual(migrated.models.slice(0, 14), historical.models)
+  assert.deepEqual(migrated.routes, historical.routes)
+  assert.deepEqual(migrated.search, historical.search)
+  assert.equal(migrated.models[14].provider, 'yaoguang-codex')
+  assert.equal(migrated.models[14].model, 'yaoguang02-gpt-6-astra')
+  assert.equal(migrated.models[14].status, 'unverified')
+  assert.deepEqual(snapshot.models, historical.models)
+  assert.equal(snapshot.revision, 1)
+  assert.deepEqual((await db.query('SELECT policy FROM platform_policy_versions WHERE revision=1')).rows[0].policy, historical)
+  assert.equal((await (await createPlatformStore(db, users)).getPolicy()).revision, 2)
+  assert.equal((await db.query('SELECT count(*)::int AS count FROM platform_policy_versions')).rows[0].count, 2)
+  assert.deepEqual((await db.query('SELECT revision,previous_revision,actor_id,action FROM platform_policy_audit ORDER BY revision')).rows, [
+    { revision: 1, previous_revision: null, actor_id: null, action: 'initialized' },
+    { revision: 2, previous_revision: 1, actor_id: null, action: 'updated' },
+  ])
 })

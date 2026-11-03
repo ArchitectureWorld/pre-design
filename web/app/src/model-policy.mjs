@@ -12,7 +12,9 @@ function freeze(value) {
 }
 const keyOf = ({ provider, model }) => JSON.stringify([provider, model])
 const capabilities = (text, vision = false, image = false) => ({ text, tools: false, vision, image })
-const sources = { SenseNova: 'SenseNova', 'deepseek-official': 'DeepSeek 官方', 'Comfyui-PIC': 'ComfyUI', '启航引擎AIGC组': '启航引擎 AIGC 组' }
+const yaoguang = { provider: 'yaoguang-codex', model: 'yaoguang02-gpt-6-astra' }
+const yaoguangKey = keyOf(yaoguang)
+const sources = { SenseNova: 'SenseNova', 'deepseek-official': 'DeepSeek 官方', 'Comfyui-PIC': 'ComfyUI', '启航引擎AIGC组': '启航引擎 AIGC 组', 'yaoguang-codex': '瑶光' }
 function entry(provider, model, declaredCapabilities, extra = {}) {
   return { source: sources[provider], provider, model, runtimeProvider: provider, status: 'unverified', declaredCapabilities,
     capabilities: { ...declaredCapabilities }, ...extra }
@@ -34,8 +36,10 @@ export const MODEL_CATALOG = freeze([
   entry('启航引擎AIGC组', 'tt-image-2.5', capabilities(false, false, true)),
   entry('启航引擎AIGC组', 'tt-image-2.5-flare', capabilities(false, false, true)),
   entry('启航引擎AIGC组', 'tt-image-2.5-sunburst', capabilities(false, false, true)),
+  entry(yaoguang.provider, yaoguang.model, capabilities(true), { maxOutputTokens: 8192, compat: { protocol: 'openai-responses' } }),
 ])
 const catalogByKey = new Map(MODEL_CATALOG.map(item => [keyOf(item), item]))
+const historicalCatalogKeys = MODEL_CATALOG.filter(item => keyOf(item) !== yaoguangKey).map(keyOf)
 const roles = ['parent', 'text', 'web', 'vision', 'image', 'imageLlm']
 const roleCapabilities = {
   // Research and chapter text agents submit through the native structured_output tool.
@@ -46,7 +50,7 @@ const positiveInteger = z.number().int().positive().max(Number.MAX_SAFE_INTEGER)
 const capabilitiesSchema = z.object({ text: z.boolean(), tools: z.boolean(), vision: z.boolean(), image: z.boolean() }).strict()
 const identifier = z.string().min(1).max(160).regex(/^[\p{L}\p{N}_.:@/-]+$/u)
 const modelKeySchema = z.object({ provider: identifier, model: identifier }).strict()
-const routeSchema = z.object({ primary: modelKeySchema.nullable(), fallbacks: z.array(modelKeySchema).max(13) }).strict()
+const routeSchema = z.object({ primary: modelKeySchema.nullable(), fallbacks: z.array(modelKeySchema).max(MODEL_CATALOG.length - 1) }).strict()
 const workflowRef = z.string().min(1).max(512).regex(/^[^\x00-\x1f\x7f]+$/u)
 const credentialRef = z.string().regex(/^credential:[\p{L}\p{N}][\p{L}\p{N}_.-]{0,127}$/u)
 const serviceURL = z.string().min(1).max(2048).refine(value => {
@@ -69,14 +73,19 @@ const modelSchema = z.object({
     baseURL: serviceURL.optional(), timeoutMs: z.number().int().min(1000).max(3600000).optional(),
     pollIntervalMs: z.number().int().min(100).max(10000).optional() }).strict().optional(),
 }).strict()
+const searchLimits = { enabled: z.boolean(), maxResults: z.number().int().min(1).max(50),
+  maxQueries: z.number().int().min(1).max(8), timeoutMs: z.number().int().min(1000).max(120000) }
 const policySchema = z.object({
-  revision: positiveInteger.optional(), models: z.array(modelSchema).length(14),
+  revision: positiveInteger.optional(), models: z.array(modelSchema).min(historicalCatalogKeys.length).max(MODEL_CATALOG.length),
   routes: z.object(Object.fromEntries(roles.map(role => [role, routeSchema]))).strict(),
   limits: z.object({ globalConcurrency: positiveInteger, perUserConcurrency: positiveInteger,
     maxQueuedPerUser: positiveInteger, maxDailyJobsPerUser: positiveInteger }).strict(),
-  search: z.object({ enabled: z.boolean(), provider: z.literal('deepseek-search-api'), baseURL: serviceURL,
-    credentialRef: credentialRef.optional(), maxResults: z.number().int().min(1).max(50),
-    maxQueries: z.number().int().min(1).max(8), timeoutMs: z.number().int().min(1000).max(120000) }).strict().optional(),
+  search: z.discriminatedUnion('provider', [
+    z.object({ ...searchLimits, provider: z.literal('deepseek-search-api'), baseURL: serviceURL, credentialRef: credentialRef.optional() }).strict(),
+    z.object({ ...searchLimits, provider: z.literal('ddg') }).strict(),
+    z.object({ ...searchLimits, provider: z.literal('bing') }).strict(),
+    z.object({ ...searchLimits, provider: z.literal('exa') }).strict(),
+  ]).optional(),
 }).strict()
 
 export function defaultPolicy() {
@@ -104,6 +113,10 @@ export function migrateServicePolicy(input) {
     next.routes.image.fallbacks = next.routes.image.fallbacks.filter(row => row.provider !== 'Comfyui-PIC')
     changed = true
   }
+  if (!next.models.some(row => keyOf(row) === yaoguangKey)) {
+    next.models.push(clone(catalogByKey.get(yaoguangKey)))
+    changed = true
+  }
   return changed ? validatePolicy(next) : null
 }
 
@@ -119,8 +132,12 @@ export function validatePolicy(input) {
   const models = new Map(), runtimeSources = new Map()
   for (const item of policy.models) {
     const key = keyOf(item), registered = catalogByKey.get(key)
-    if (!registered || models.has(key)) invalid('模型目录必须完整保留允许的 14 项来源和模型身份，不能重复或引入其他来源')
-    if (/(?:antigravity|ollama|openai|chatgpt|codex|yaoguang|gpt|gemini|qwen|瑶光)/iu.test(item.runtimeProvider.normalize('NFKC'))) {
+    if (!registered || models.has(key)) invalid('模型目录必须保留历史 14 项与已授权的瑶光02身份，不能重复或引入其他来源')
+    const exactYaoguang = key === yaoguangKey
+    if (exactYaoguang && (item.runtimeProvider !== registered.runtimeProvider || item.compat?.protocol !== 'openai-responses')) {
+      invalid('瑶光02必须保留精确运行提供方与 openai-responses 协议')
+    }
+    if (!exactYaoguang && /(?:antigravity|ollama|openai|chatgpt|codex|yaoguang|gpt|gemini|qwen|瑶光)/iu.test(item.runtimeProvider.normalize('NFKC'))) {
       invalid('运行提供方映射不能指向被排除的来源')
     }
     const runtimeIdentity = item.runtimeProvider.normalize('NFKC').toLowerCase()
@@ -141,6 +158,8 @@ export function validatePolicy(input) {
     if (item.provider !== 'Comfyui-PIC' && item.imageConfig) invalid('该模型不接受 Klein 工作流配置')
     models.set(key, item)
   }
+  // Legacy task snapshots keep their complete fourteen identities without mutation.
+  if (historicalCatalogKeys.some(key => !models.has(key))) invalid('模型目录不能删除或替换历史 14 项来源和模型身份')
   for (const role of roles) {
     const route = policy.routes[role], seen = new Set()
     if (!route.primary && route.fallbacks.length) invalid('未选择主模型时不能配置备用链')

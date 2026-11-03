@@ -286,12 +286,26 @@ export function mountAdminControls({ request, notify = () => {}, container, iden
   }
   function renderSearch() {
     draft.search ??= { ...DEFAULT_SEARCH_POLICY }
-    const search = draft.search, panel = section('独立搜索服务', '搜索通过 Search API 获取来源，不额外调用问答模型。配置随任务版本保存；服务地址与凭据引用仅管理员可见。'), grid = create('div', 'pd-admin-limits')
+    const search = draft.search, panel = section('独立搜索服务', '直接检索真实网页来源，不额外调用问答模型。配置随任务版本保存；服务地址与凭据引用仅管理员可见。'), grid = create('div', 'pd-admin-limits')
+    const provider = create('select', 'pd-admin-input'); provider.setAttribute('aria-label', '搜索服务')
+    for (const [id, name] of [['exa', 'Exa（无需密钥）'], ['bing', 'Bing（无需密钥）'], ['ddg', 'DuckDuckGo（无需密钥）'], ['deepseek-search-api', 'DeepSeek Search API']]) {
+      const option = create('option', '', name); option.value = id; provider.append(option)
+    }
+    provider.value = search.provider
+    provider.addEventListener('change', () => {
+      const { enabled, maxResults, maxQueries, timeoutMs } = search
+      draft.search = { enabled, provider: provider.value, maxResults, maxQueries, timeoutMs,
+        ...(provider.value === 'deepseek-search-api' ? { baseURL: DEFAULT_SEARCH_POLICY.baseURL } : {}) }
+      changed(); panel.replaceWith(renderSearch())
+    })
+    panel.append(labelField('搜索服务', provider))
     const enabled = create('input'); enabled.type = 'checkbox'; enabled.checked = search.enabled; enabled.setAttribute('aria-label', '启用独立搜索')
     enabled.addEventListener('change', () => { search.enabled = enabled.checked; changed() }); panel.append(labelField('启用独立搜索', enabled))
     for (const [name, label, options] of [
-      ['baseURL', '搜索服务地址', { type: 'url', required: true }],
-      ['credentialRef', '搜索凭据引用', { type: 'text', placeholder: 'credential:已登记标识' }],
+      ...(search.provider === 'deepseek-search-api' ? [
+        ['baseURL', '搜索服务地址', { type: 'url', required: true }],
+        ['credentialRef', '搜索凭据引用', { type: 'text', placeholder: 'credential:已登记标识' }],
+      ] : []),
       ['maxResults', '每次搜索结果上限', { type: 'number', min: 1, max: 50 }],
       ['maxQueries', '每轮搜索次数上限', { type: 'number', min: 1, max: 8 }],
       ['timeoutMs', '搜索超时（毫秒）', { type: 'number', min: 1000, max: 120000 }],
@@ -302,7 +316,9 @@ export function mountAdminControls({ request, notify = () => {}, container, iden
       input.addEventListener('input', () => { if (!input.value && name === 'credentialRef') delete search[name]; else search[name] = options.type === 'number' ? Number(input.value) : input.value; changed() })
       grid.append(labelField(label, input))
     }
-    panel.append(grid, create('p', 'pd-admin-hint', '支持 DeepSeek Search API 协议。未启用或凭据缺失时会显示具体原因；不会切换到其他账号或模型代替搜索。'))
+    panel.append(grid, create('p', 'pd-admin-hint', ['ddg', 'bing', 'exa'].includes(search.provider)
+      ? '通过选定服务检索，无需密钥。验证码、网络失败或不可用时会明确返回状态，不自动换引擎。'
+      : '支持 DeepSeek Search API 协议。未启用或凭据缺失时会显示具体原因；不会切换到其他账号或模型代替搜索。'))
     return panel
   }
   function renderPolicy() {
@@ -370,7 +386,8 @@ export function mountAdminControls({ request, notify = () => {}, container, iden
     }
     for (const row of searches) {
       const card = create('section', 'pd-admin-call')
-      card.append(create('h4', '', '独立搜索'), create('p', '', `状态：${{ started: '开始尝试', succeeded: '已返回', failed: '失败' }[row.phase] ?? '未知'}`))
+      card.append(create('h4', '', '独立搜索'), create('p', '', `服务：${{ exa: 'Exa', bing: 'Bing', ddg: 'DuckDuckGo', 'deepseek-search-api': 'DeepSeek Search API' }[row.provider] ?? '未记录'}`),
+        create('p', '', `状态：${{ started: '开始尝试', succeeded: '已返回', failed: '失败' }[row.phase] ?? '未知'}`))
       if (Number.isInteger(row.sourceCount)) card.append(create('p', '', `返回来源：${row.sourceCount} 条`))
       if (row.code) card.append(create('p', 'pd-admin-hint', row.code))
       details.append(card)

@@ -180,7 +180,7 @@ export async function apply(ctx: Context): Promise<void> {
   })
   const materialIntake = createNativeMaterialResearchIntake({ registry: researchRegistry, subagents, agentClasses,
     projectIdOf: parent => repository.readContext(String(parent.id)).project.projectId })
-  const webQuery = new WebQueryAgent({ classes: agentClasses, subagents, tools: ctx.tools, sessions: agentClassSessions })
+  const webQuery = new WebQueryAgent({ classes: agentClasses, subagents, tools: ctx.tools, sessions: agentClassSessions, readPersistedEvents: persistedChildEvents })
   const presentationBindings = await PresentationBindingRepository.open(ctx.storage.domain)
   const presentationProjectRoot = resolve(
     process.env.PRE_DESIGN_PRESENTATION_PROJECT_ROOT?.trim()

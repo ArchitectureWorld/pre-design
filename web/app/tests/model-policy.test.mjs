@@ -1,9 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { MODEL_CATALOG, defaultPolicy, validatePolicy, validateSnapshot } from '../src/model-policy.mjs'
+import { MODEL_CATALOG, defaultPolicy, migrateServicePolicy, validatePolicy, validateSnapshot } from '../src/model-policy.mjs'
 
 const sense = model => ({ provider: 'SenseNova', model })
 const official = model => ({ provider: 'deepseek-official', model })
+const yaoguang = { provider: 'yaoguang-codex', model: 'yaoguang02-gpt-6-astra' }
 const find = (policy, key) => policy.models.find(item => item.provider === key.provider && item.model === key.model)
 const invalid = action => assert.throws(action, error => error.statusCode === 400)
 const ready = () => {
@@ -14,7 +15,7 @@ const ready = () => {
   return policy
 }
 
-test('normalizes the fourteen allowed identities without merging independent budgets', () => {
+test('normalizes the fifteen allowed identities without merging independent budgets', () => {
   const policy = validatePolicy(defaultPolicy())
   assert.deepEqual(policy.models.map(({ provider, model }) => [provider, model]), [
     ['SenseNova', 'sensenova-6.7-flash-lite'], ['SenseNova', 'sensenova-6.8-flash-lite'],
@@ -24,6 +25,7 @@ test('normalizes the fourteen allowed identities without merging independent bud
     ['deepseek-official', 'deepseek-v4-pro'], ['deepseek-official', 'deepseek-v4-flash-vision-exp'],
     ['Comfyui-PIC', 'Klein'], ['启航引擎AIGC组', 'tt-image-2.5'],
     ['启航引擎AIGC组', 'tt-image-2.5-flare'], ['启航引擎AIGC组', 'tt-image-2.5-sunburst'],
+    ['yaoguang-codex', 'yaoguang02-gpt-6-astra'],
   ])
   assert.deepEqual(policy.models.slice(0, 6).map(({ contextWindow, maxOutputTokens }) => [contextWindow, maxOutputTokens]), [
     [262144, 65536], [262144, 65536], [1048576, 65536], [1048576, 65536], [1048576, 131072], [1048576, 131072],
@@ -38,6 +40,87 @@ test('normalizes the fourteen allowed identities without merging independent bud
   find(policy, sense('deepseek-v4-pro')).maxOutputTokens = 32000
   const normalized = validatePolicy(policy)
   assert.equal(find(normalized, official('deepseek-v4-pro')).maxOutputTokens, 393216)
+})
+
+test('瑶光02仅声明文本能力，真实工具能力通过验证后才可执行文本任务', () => {
+  const policy = defaultPolicy(), row = find(policy, yaoguang)
+  assert.deepEqual(row, { source: '瑶光', ...yaoguang, runtimeProvider: 'yaoguang-codex', status: 'unverified',
+    declaredCapabilities: { text: true, tools: false, vision: false, image: false },
+    capabilities: { text: true, tools: false, vision: false, image: false },
+    maxOutputTokens: 8192, compat: { protocol: 'openai-responses' } })
+  policy.routes.text.primary = { ...yaoguang }
+  assert.doesNotThrow(() => validatePolicy(policy))
+  assert.throws(() => validateSnapshot(policy, ['text']), error => error.code === 'MODEL_POLICY_NOT_READY')
+  row.status = 'verified'
+  invalid(() => validateSnapshot(policy, ['text']))
+  row.capabilities.tools = true
+  const snapshot = validateSnapshot(policy, ['text'])
+  assert.deepEqual(snapshot.routes.text.primary, yaoguang)
+  assert.equal(find(snapshot, yaoguang).declaredCapabilities.tools, false)
+})
+
+test('瑶光豁免只接受精确身份和Responses协议，拒绝别名与其他来源伪装', () => {
+  const changes = [
+    row => { row.provider = 'yaoguang02' },
+    row => { row.model = 'yaoguang01-gpt-6-astra' },
+    row => { row.model = 'gpt-6-astra' },
+    row => { row.runtimeProvider = 'yaoguang02' },
+    row => { row.runtimeProvider = 'YAOGUANG-CODEX' },
+    row => { row.runtimeProvider = 'ｙａｏｇｕａｎｇ－ｃｏｄｅｘ' },
+    row => { row.runtimeProvider = 'safe-looking-adapter' },
+    row => { row.runtimeProvider = 'SenseNova' },
+    row => { row.source = 'SenseNova' },
+    row => { row.compat.protocol = 'openai-completions' },
+    row => { delete row.compat },
+    row => { row.declaredCapabilities.tools = true },
+    row => { delete row.maxOutputTokens },
+  ]
+  assert.ok(find(defaultPolicy(), yaoguang), '目录必须注册精确瑶光02身份')
+  for (const change of changes) {
+    const policy = defaultPolicy(); change(find(policy, yaoguang))
+    invalid(() => validatePolicy(policy))
+  }
+  for (const runtimeProvider of ['yaoguang-codex', 'YAOGUANG-CODEX', 'ｙａｏｇｕａｎｇ－ｃｏｄｅｘ']) {
+    const policy = defaultPolicy(); policy.models[0].runtimeProvider = runtimeProvider
+    invalid(() => validatePolicy(policy))
+  }
+})
+
+test('历史14项快照保持可读且不被填充，不能用瑶光替换历史身份', () => {
+  const historical = ready()
+  historical.models = historical.models.filter(row => row.provider !== yaoguang.provider)
+  historical.revision = 17
+  const before = structuredClone(historical)
+  assert.equal(validatePolicy(historical).models.length, 14)
+  const snapshot = validateSnapshot(historical, ['parent', 'text'])
+  assert.equal(snapshot.models.length, 14)
+  assert.equal(snapshot.revision, 17)
+  assert.deepEqual(historical, before)
+  assert.throws(() => snapshot.models.push({ ...yaoguang }), TypeError)
+  for (let index = 0; index < 14; index++) {
+    const invalidSubset = defaultPolicy()
+    invalidSubset.models.splice(index, 1)
+    invalid(() => validatePolicy(invalidSubset))
+  }
+})
+
+test('当前服务迁移仅追加瑶光02且幂等，不改历史配置、能力或路由', () => {
+  const historical = ready()
+  historical.models = historical.models.filter(row => row.provider !== yaoguang.provider)
+  historical.search = { enabled: true, provider: 'ddg', maxResults: 6, maxQueries: 3, timeoutMs: 20000 }
+  historical.models[0].runtimeProvider = 'sensenova-linux'
+  historical.models[0].maxOutputTokens = 4096
+  historical.revision = 19
+  const before = structuredClone(historical), migrated = migrateServicePolicy(historical)
+  assert.ok(migrated, '旧目录必须生成一份待持久化的新配置')
+  assert.equal(migrated.models.length, 15)
+  assert.deepEqual(migrated.models.slice(0, 14), before.models)
+  assert.deepEqual(migrated.routes, before.routes)
+  assert.deepEqual(migrated.search, before.search)
+  assert.deepEqual(migrated.limits, before.limits)
+  assert.deepEqual(historical, before)
+  assert.equal(find(migrated, yaoguang).status, 'unverified')
+  assert.equal(migrateServicePolicy(migrated), null)
 })
 
 test('default routes keep suggested primaries unverified and do not invent fallbacks', () => {
@@ -55,7 +138,7 @@ test('default routes keep suggested primaries unverified and do not invent fallb
 
 test('rejects missing, duplicated or foreign model identities and excluded runtime providers', () => {
   const cases = [
-    policy => policy.models.pop(),
+    policy => policy.models.shift(),
     policy => { policy.models[1] = structuredClone(policy.models[0]) },
     policy => { policy.models[0].provider = 'OpenAI' },
     policy => { policy.models[0].model = 'gpt-6-astra' },

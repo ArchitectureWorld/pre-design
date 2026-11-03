@@ -38,7 +38,7 @@ export class ProjectWorkers {
       catch { throw researchError('MODEL_NOT_READY', 'MODEL_NOT_READY: 无法读取指定的模型配置或凭据。', 503) }
     }
     const model = materializeModelRuntime(snapshot, settingsData, credentialsData, requiredRoles)
-    const search = materializeSearchRuntime(snapshot?.search, credentialsData)
+    const search = materializeSearchRuntime(snapshot?.search, credentialsData, { proxyURL: this.config.searchProxyURL })
     if (snapshot?.search?.enabled && requiredRoles.includes('web') && search.availability.status !== 'ready') {
       throw researchError(search.availability.code, search.availability.reason, 503)
     }
@@ -48,7 +48,7 @@ export class ProjectWorkers {
   async availability(policy) {
     let credentials = {}
     if (this.config.credentials) { try { credentials = parse(await readFile(this.config.credentials, 'utf8')) } catch { /* Availability reports a missing explicit reference. */ } }
-    const search = materializeSearchRuntime(policy?.search, credentials).availability
+    const search = materializeSearchRuntime(policy?.search, credentials, { proxyURL: this.config.searchProxyURL }).availability
     return publicBusinessData({ image: materializeImageRuntime(policy, credentials).imageAvailability,
       web: { fetch: 'available', search: search.status === 'ready' ? 'configured' : search.status, ...search },
       models: { status: policy ? 'configured' : 'not_ready' } })

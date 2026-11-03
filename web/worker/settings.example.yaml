@@ -10,3 +10,13 @@ llm-pi-ai:
         - id: sensenova-6.8-flash-lite
           contextWindow: 262144
           maxTokens: 65536
+    # 用户选定瑶光02时，可只保留本 provider；与其他来源保持独立身份。
+    yaoguang-codex:
+      api: openai-responses
+      baseURL: https://configure-your-yaoguang-endpoint.invalid/v1
+      apiKeyEnv: YAOGUANG_CODEX_API_KEY
+      models:
+        - id: yaoguang02-gpt-6-astra
+          maxTokens: 8192
+          # 只有完成图片输入验证后才声明 image。
+          input: [text, image]

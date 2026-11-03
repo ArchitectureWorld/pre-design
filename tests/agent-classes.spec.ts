@@ -700,7 +700,7 @@ it('uses a backup in the native web entrypoint only after an evidenced terminal 
     const route = request.agentOptions, id = `child-${route.model}`
     childEvents.set(id, [{ type: 'request/header', data: { header: { config: route } } },
       ...(route.model === 'b' ? [{ type: 'tool/call', data: { callId: 'fetch', name: 'web_fetch' } },
-        { type: 'tool/result', data: { message: { content: [{ type: 'tool-result', toolCallId: 'fetch', content: [{ type: 'text', text: 'source' }] }] } } }] : []),
+        { type: 'tool/result', data: { message: { content: [{ type: 'tool-result', toolCallId: 'fetch', isError: false, content: [{ type: 'text', text: 'source' }] }] } } }] : []),
       { type: 'turn/end', data: { reason: route.model === 'a' ? { kind: 'error', error: { code: 'TRANSPORT' } } : { kind: 'completed' } } }])
     return { id, result: Promise.resolve({ stopReason: route.model === 'a' ? 'error' : 'completed', output: [{ type: 'text', text: 'source summary' }] }), dispose: vi.fn() }
   })
@@ -719,7 +719,7 @@ it.each([false, true])('keeps empty native web answers failed and retries only t
     const route = request.agentOptions, id = `empty-web-${++attempt}`
     childEvents.set(id, [{ type: 'request/header', data: { header: { config: route } } },
       { type: 'tool/call', data: { callId: 'fetch', name: 'web_fetch' } },
-      { type: 'tool/result', data: { message: { content: [{ type: 'tool-result', toolCallId: 'fetch', content: [{ type: 'text', text: 'source' }] }] } } },
+      { type: 'tool/result', data: { message: { content: [{ type: 'tool-result', toolCallId: 'fetch', isError: false, content: [{ type: 'text', text: 'source' }] }] } } },
       { type: 'turn/end', data: { reason: { kind: 'completed' } } }])
     return { id, result: Promise.resolve({ stopReason: 'completed', output: alwaysEmpty || attempt === 1 ? [] : [{ type: 'text', text: 'source summary' }] }), dispose: vi.fn() }
   })
@@ -741,7 +741,7 @@ it('binds a source correction to the original web route while recording the exac
     const id = `corrected-web-${++attempt}`
     childEvents.set(id, [{ type: 'request/header', data: { header: { config: request.agentOptions } } },
       { type: 'tool/call', data: { callId: id, name: 'web_fetch' } },
-      { type: 'tool/result', data: { message: { content: [{ type: 'tool-result', toolCallId: id, content: [{ type: 'text', text: 'source' }] }] } } },
+      { type: 'tool/result', data: { message: { content: [{ type: 'tool-result', toolCallId: id, isError: false, content: [{ type: 'text', text: 'source' }] }] } } },
       { type: 'turn/end', data: { reason: { kind: 'completed' } } }])
     return { id, result: Promise.resolve({ stopReason: 'completed', output: [{ type: 'text', text: 'source summary' }] }), dispose: vi.fn() }
   })

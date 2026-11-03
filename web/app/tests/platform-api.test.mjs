@@ -64,7 +64,7 @@ test('administrator model policy is server-authorized and ordinary identity has 
   assert.equal((await request('alice', 'GET', '/api/admin/models')).statusCode, 403)
   assert.equal((await request('alice', 'PUT', '/api/admin/models', { role: 'admin', expectedRevision: 0, policy: {} })).statusCode, 403)
   const policy = await request('admin', 'GET', '/api/admin/models')
-  assert.equal(policy.statusCode, 200, policy.body); assert.equal(policy.json().models.length, 14)
+  assert.equal(policy.statusCode, 200, policy.body); assert.equal(policy.json().models.length, 15)
 })
 
 test('business endpoints reject policy override fields and unverified models cannot enqueue paid work', async t => {
