@@ -35,7 +35,7 @@ function validDate(v: unknown): boolean { return typeof v === 'string' && /^\d{4
 
 /** A readiness check is not a scientific verification or a grant of publication permission. */
 export function assessResearchInputs(catalog: PlanningCatalog, plan: ResearchPlan, targetId: string,
-  sourceResults: readonly unknown[], snapshotId: string, stage: 'draft'|'formal') {
+  sourceResults: readonly unknown[], snapshotId: string, stage: 'draft'|'formal', verifiedSnapshots?: ReadonlyMap<string,string>) {
   requireModule(catalog,targetId)
   const { hash: suppliedHash, ...planBody } = plan
   if (sha256CanonicalJson(planBody) !== suppliedHash || plan.catalogHash !== catalog.hash || plan.hash !== projectResearchPlan(catalog,plan.flags).hash) throw new Error('PLAN_IDENTITY_MISMATCH')
@@ -51,7 +51,7 @@ export function assessResearchInputs(catalog: PlanningCatalog, plan: ResearchPla
     if (found.length !== 1) reason = found.length ? 'ambiguous_source_revision' : 'missing_source'
     else {
       const row = found[0], port = e.selector.slice('/outputs/'.length)
-      if (row.snapshotId !== snapshotId || row.lifecycle !== 'current') reason = 'stale_or_wrong_snapshot'
+      if ((row.snapshotId !== snapshotId && verifiedSnapshots?.get(String(row.moduleId)) !== row.snapshotId) || row.lifecycle !== 'current') reason = 'stale_or_wrong_snapshot'
       else if (!isObject(row.outputs) || !Object.hasOwn(row.outputs,port)) reason = 'missing_selected_port'
       else {
         const v = row.outputs[port]

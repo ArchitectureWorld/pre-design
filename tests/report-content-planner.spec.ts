@@ -37,6 +37,10 @@ async function setup(review: unknown = { accepted: ['a/body[0]'] }, options: { u
   return { root, planner, prepare, requests, executions, checkpoint, dependencies }
 }
 describe('durable independently reviewed report planning', () => {
+  it('keeps full delivery pending when the independent planning review fails',async()=>{
+    const h=await setup({accepted:['unknown-unit']});h.dependencies.requireNativePlan=true
+    await expect(h.prepare()).rejects.toThrow('CONTENT_PLAN_REVIEW_REQUIRED')
+  })
   it('continues from exhausted terminal planning routes without losing facts or reporting model success', async () => {
     const h = await setup(), file = join(h.root, '.pre-design', 'report-content-plans', `${contentPlanFingerprint(source)}.json`)
     const attempts = ['max-tokens', 'max-tokens', 'max-tokens', 'aborted'].map((stopReason, index) => ({

@@ -311,10 +311,12 @@ function evidenceReferences(value: unknown): NonNullable<FrozenReportEntry['evid
     if (evidenceId !== undefined) {
       const assetId = stringOf(record.asset_id)
       const versionId = stringOf(record.version_id)
+      const claimClass = stringOf(record.claim_class)
       const locator = asRecord(record.locator)
       const ref = { evidenceId,
         ...(assetId === undefined ? {} : { assetId }),
         ...(versionId === undefined ? {} : { versionId }),
+        ...(claimClass === undefined ? {} : { claimClass }),
         ...(Object.keys(locator).length === 0 ? {} : { locator: { ...locator } }),
       }
       refs.set(JSON.stringify(ref), ref)

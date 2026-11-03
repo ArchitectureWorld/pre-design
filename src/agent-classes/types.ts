@@ -5,7 +5,7 @@ export const AGENT_CLASSES = [
   { id: 'text', title: '文本生成', description: '完成工作流分析和结构化文本候选。' },
 ] as const
 export type AgentClassId = typeof AGENT_CLASSES[number]['id']
-export interface LlmRoute { readonly provider: string; readonly model: string }
+export interface LlmRoute { readonly provider: string; readonly model: string; readonly reasoningEffort?: string }
 export interface ModelRoute extends LlmRoute {
   /** Required for a tool-backed image route; never inherited from another class. */
   readonly llm?: LlmRoute
@@ -25,7 +25,10 @@ export interface CatalogProvider {
   readonly name: string
   readonly available: boolean
   readonly error?: string
-  readonly models: readonly { readonly id: string; readonly name: string; readonly imageTool?: string }[]
+  readonly models: readonly { readonly id: string; readonly name: string; readonly imageTool?: string
+    readonly contextWindow?: number; readonly maxTokens?: number
+    readonly reasoning?: { readonly efforts: readonly { readonly id: string; readonly name: string; readonly description?: string }[]; readonly defaultEffort?: string }
+    readonly reasoningError?: string }[]
 }
 export type ExecutionStatus = 'starting' | 'running' | 'completed' | 'failed' | 'cancelled' | 'recovery_required'
 export interface ClassExecution {
@@ -43,8 +46,12 @@ export interface ClassExecution {
   readonly routeIndex?: number
   readonly fallbackFromExecutionId?: string
   readonly correctionFromExecutionId?: string
+  /** One bounded same-route continuation after the final route's owned deadline. */
+  readonly deadlineRecoveryFromExecutionId?: string
   /** Derived only from a failed catalog validation or the native terminal envelope. */
   readonly availabilityFailure?: AvailabilityFailure
+  /** Owned timer plus native termination proof; never inferred from an abort alone. */
+  readonly modelCallDeadline?: import('./model-call-deadline.ts').OwnedModelCallDeadline
   readonly actual?: ModelRoute
   readonly childId?: string
   readonly status: ExecutionStatus

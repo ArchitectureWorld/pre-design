@@ -33,7 +33,7 @@ function parseOptions(raw: string) {
   return { input, verify, online }
 }
 
-export async function boundResearchContext(invocation: CommandInvocation, dependencies: RegionalCommandDependencies) {
+export async function boundResearchContext(invocation: Pick<CommandInvocation, 'agent'>, dependencies: RegionalCommandDependencies) {
   const sessionId = String(invocation.agent.id)
   const project = dependencies.readContext(sessionId).project
   if (!project) throw new Error('RESEARCH_PROJECT_REQUIRED')

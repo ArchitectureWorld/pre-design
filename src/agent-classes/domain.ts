@@ -2,7 +2,7 @@ import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
 import { z } from 'zod'
 import { MAX_CLASS_FALLBACKS } from './types.ts'
 
-const llmRouteSchema = z.object({ provider: z.string().trim().min(1).max(200), model: z.string().trim().min(1).max(300) }).strict()
+const llmRouteSchema = z.object({ provider: z.string().trim().min(1).max(200), model: z.string().trim().min(1).max(300), reasoningEffort: z.string().min(1).max(200).optional() }).strict()
 export const routeSchema = llmRouteSchema.extend({ llm: llmRouteSchema.optional() }).strict()
 export const routesSchema = z.object({ image: routeSchema.nullable(), web: routeSchema.nullable(), text: routeSchema.nullable(), review: routeSchema.nullable().optional() }).strict()
 export const fallbacksSchema = z.object({ image: z.array(routeSchema).max(MAX_CLASS_FALLBACKS).readonly().optional(),
@@ -17,7 +17,10 @@ const executionSchema = z.object({
   chainId: z.string().min(1).optional(), routeChain: z.array(routeSchema).min(1).max(MAX_CLASS_FALLBACKS + 1).readonly().optional(),
   routeIndex: z.number().int().nonnegative().optional(), fallbackFromExecutionId: z.string().min(1).optional(),
   correctionFromExecutionId: z.string().min(1).optional(),
+  deadlineRecoveryFromExecutionId: z.string().min(1).optional(),
   availabilityFailure: z.enum(['catalog', 'provider', 'transport', 'rate-limit', 'server', 'output-limit']).optional(),
+  modelCallDeadline: z.object({kind:z.literal('owned-model-call-deadline.v1'),
+    startedAt:z.number().int().positive(),timeoutMs:z.number().int().positive(),expiredAt:z.number().int().positive()}).strict().optional(),
   status: z.enum(['starting', 'running', 'completed', 'failed', 'cancelled', 'recovery_required']),
   childStopReason: z.string().optional(),
   error: z.string().optional(), startedAt: z.string(), updatedAt: z.string(),

@@ -22,6 +22,8 @@ import { renderPdf } from './render-pdf.ts'
 import { renderPptx } from './render-pptx.ts'
 import { renderPrintHtml } from './render-print-html.ts'
 import type { FrozenProjectInput } from './types.ts'
+import type { ReportAcceptancePort } from './acceptance.ts'
+import { assertReportDeliveryContract } from './delivery-contract.ts'
 import {
   validateAndHashReportArtifacts,
   type ArtifactManifestIdentity,
@@ -41,11 +43,13 @@ interface GovernancePort {
 }
 
 export interface ReportPackageServiceOptions {
+  readonly acceptance?: ReportAcceptancePort
   readonly governance: GovernancePort
   readonly boundaryIntegrity: Pick<SiteBoundaryService, 'assertFormalBoundaryIntegrity' | 'captureFormalBoundarySnapshot'>
   readonly packageRoot: string
   readonly browserExecutable: string
   readonly source: (projectId: string, revision: number) => Promise<FrozenProjectInput>
+  readonly assertSourceCurrent?: (input: FrozenProjectInput) => Promise<void>
   readonly profile: (projectId: string, input: FrozenProjectInput) => Promise<ClientProjectProfile>
   readonly materials?: (input: FrozenProjectInput) => Promise<readonly ConditionalReportMaterial[]>
   readonly projection?: (input: FrozenProjectInput, profile: ClientProjectProfile, materials?: readonly ConditionalReportMaterial[]) => ClientProjectionBundle
@@ -57,6 +61,7 @@ export interface ReportPackageServiceOptions {
     identity: ArtifactManifestIdentity,
     sensitive: ArtifactValidationSensitiveValues | undefined,
     bundle: ClientReportBundle,
+    formats?: readonly ('html'|'pdf'|'pptx')[],
   ) => Promise<ArtifactManifestRecord>
   readonly createId?: () => string
   readonly now?: () => string
@@ -129,9 +134,12 @@ export class ReportPackageService {
     const formalBoundary = await this.options.boundaryIntegrity.captureFormalBoundarySnapshot(projectId, revision)
 
     const input = await this.options.source(projectId, revision)
+    await this.options.assertSourceCurrent?.(input)
     if (input.projectId !== projectId || input.revision !== revision) {
       throw new Error('report source does not match requested project revision')
     }
+    if(input.deliveryContract){assertReportDeliveryContract(input.deliveryContract);if(!this.options.acceptance)throw new Error('REPORT_ACCEPTANCE_SERVICE_REQUIRED')}
+    await this.options.acceptance?.assertContent(input)
     const frozenBoundary = input.siteBoundary
     if (frozenBoundary === undefined || frozenBoundary.status !== 'confirmed') {
       throw new Error('SITE_BOUNDARY_CONFIRMATION_REQUIRED: 请提供总平图、红线图或闭合红线坐标并确认。')
@@ -193,16 +201,16 @@ export class ReportPackageService {
         pdf: { ...contexts.pdf, report: snapshotReport },
       }
       await this.renderers.html(snapshotContexts.html, stagingRoot)
-      const printHtmlPath = await this.renderers.printHtml(snapshotContexts.pdf, stagingRoot)
-      const renderResults = await Promise.allSettled([
+      const printHtmlPath = input.deliveryContract?undefined:await this.renderers.printHtml(snapshotContexts.pdf, stagingRoot)
+      const renderResults = await Promise.allSettled(input.deliveryContract?[]:[
         this.renderers.pptx(snapshotContexts.pptx, join(stagingRoot, 'report.pptx')),
         this.renderers.pdf(
-          printHtmlPath,
+          printHtmlPath!,
           join(stagingRoot, 'report.pdf'),
           this.options.browserExecutable,
         ),
       ])
-      const failedRender = renderResults.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+      const failedRender = renderResults.find(result => result.status === 'rejected') as PromiseRejectedResult|undefined
       if (failedRender !== undefined) throw failedRender.reason
       const postRenderBoundary = await this.options.boundaryIntegrity.assertFormalBoundaryIntegrity(projectId, revision)
       if (!sameFormalBoundary(formalBoundary, postRenderBoundary)) {
@@ -214,7 +222,7 @@ export class ReportPackageService {
       const sensitiveBoundary = bundle.identity.siteBoundaryId === undefined || bundle.identity.siteBoundaryAssetId === undefined
         ? undefined
         : { siteBoundary: { boundaryId: bundle.identity.siteBoundaryId, assetId: bundle.identity.siteBoundaryAssetId } }
-      const manifest = await this.validate(stagingRoot, {
+      let manifest = await this.validate(stagingRoot, {
         manifestId,
         packageId,
         projectId,
@@ -223,19 +231,29 @@ export class ReportPackageService {
         adoptedAssetIds,
         ...(bundle.identity.siteBoundaryIntegrityDigest === undefined ? {} : { siteBoundaryIntegrityDigest: bundle.identity.siteBoundaryIntegrityDigest }),
         createdAt,
-      }, sensitiveBoundary, bundle)
+      }, sensitiveBoundary, bundle,input.deliveryContract?['html']:undefined)
       if (manifest.packageId !== packageId || manifest.projectId !== projectId || manifest.sourceRevision !== revision) {
         throw new Error('artifact manifest does not match frozen report identity')
       }
+      if(input.deliveryContract&&(manifest.artifacts.length!==1||manifest.artifacts[0]?.format!=='html'))throw new Error('REPORT_HTML_ONLY')
+      if(this.options.acceptance){
+        const accepted=await this.options.acceptance.accept(input,stagingRoot)
+        if(accepted.status!=='passed')throw new Error('REPORT_ACCEPTANCE_INVALID')
+        manifest={...manifest,deliveryContractVersion:input.deliveryContract?.version,acceptanceHash:accepted.integrityHash}
+        await this.options.acceptance.verify(input,stagingRoot)
+      }
       await writeFile(join(stagingRoot, 'artifact-manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
       this.assertNoIncompleteRevision(projectId)
+      await this.options.assertSourceCurrent?.(input)
       await rename(stagingRoot, publishedRoot)
       published = true
+      await this.options.assertSourceCurrent?.(input)
       await this.options.governance.putReportPackage({
         packageId,
         projectId,
         sourceRevision: revision,
         status: 'published',
+        ...(manifest.acceptanceHash?{acceptanceState:'passed',acceptanceHash:manifest.acceptanceHash,deliveryContractVersion:input.deliveryContract?.version}:{}),
         sectionIds: bundle.report.chapters.map(chapter => chapter.id),
         adoptedAssetIds,
         warnings: [],

@@ -31,6 +31,8 @@ export function renderPlanningManuscriptEvidence(manuscript: PlanningManuscript,
   for (const chapter of manuscript.chapters) for (const page of chapter.pages) {
     parts.push(`### ${page.title}`, ...page.notes,
       `图文职责：${visualKinds[page.visual.kind]}；${page.visual.subject}。${page.visual.purpose}。图注：${page.visual.caption}`)
+    if(page.quantities?.length)parts.push(table(['项目','数值','性质','依据与复算'],page.quantities.map(q=>[q.label,`${q.value} ${q.unit}`,q.kind,`${q.rationale}；${q.operation??''} ${(q.inputIds??[]).join('、')}；${q.sourceRefs.join('、')}`])))
+    if(page.spatialEvidence)parts.push(`空间推敲依据：${JSON.stringify(page.spatialEvidence)}`)
     for (const ref of page.sourceRefs) {
       const source = index.get(ref)
       parts.push(source ? `- 来源：${source.objectId} / ${source.fieldPath}。${source.text}\n  依据与性质：${source.basis}` : `- 来源索引：${ref}`)

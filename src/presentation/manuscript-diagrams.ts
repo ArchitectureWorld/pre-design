@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { renderEditorialDiagram } from './editorial-diagram.ts'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { PlanningManuscriptDiagram, PlanningManuscriptPage } from '../report/manuscript/types.ts'
@@ -221,9 +222,60 @@ function diagramViewport(boxes: Map<string, Box>, routes: Route[]): Box {
 
 function createManuscriptDiagram(page: PlanningManuscriptPage): { svg: string; width: number; height: number } {
   if (page.visual.kind !== 'diagram' || page.visual.diagram === undefined) throw new Error('MANUSCRIPT_DIAGRAM: an authored graph is required')
-  const graph = validatePlanningDiagram(page.visual.diagram, `${page.id}.visual.diagram`)
+  return renderPlanningDiagram(page.visual.diagram,page.id,page.visual.subject)
+}
+
+/** The same authored graph renderer is shared by manuscripts and native chapter layouts. */
+/** Public graphic text is shared with export QA so group labels cannot be dropped. */
+export function planningDiagramText(graph:PlanningManuscriptDiagram):string[]{
+  return [...graph.nodes.map(n=>n.label),...graph.edges.flatMap(e=>e.label?[e.label]:[]),
+    ...graph.presentation?(graph.presentation.kind==='editorial'?graph.presentation.groups.map(g=>g.label):[graph.presentation.primaryLabel,graph.presentation.secondaryLabel]):[]]
+}
+
+function renderPrimarySecondary(graph:PlanningManuscriptDiagram,id:string,subject:string){
+  const p=graph.presentation as import('../report/diagram-design.ts').PrimarySecondaryPresentation,width=1280,height=400,mainY=142,secondaryY=290
+  const green='#245b50',muted='#60766b',gold='#b08a43'
+  const positions=new Map<string,Point>()
+  p.primaryNodeIds.forEach((id,i)=>positions.set(id,[310+i*820/(p.primaryNodeIds.length-1),mainY]))
+  const first=positions.get(p.secondaryNodeIds[0]!)!,last=positions.get(p.secondaryNodeIds.at(-1)!)!
+  p.secondaryNodeIds.slice(1,-1).forEach((id,i)=>positions.set(id,[first[0]+(last[0]-first[0])*(i+1)/(p.secondaryNodeIds.length-1),secondaryY]))
+  const markerId='lane-'+createHash('sha256').update(id).digest('hex').slice(0,12)
+  const primaryLinks=new Set(p.primaryNodeIds.slice(1).map((to,i)=>JSON.stringify([p.primaryNodeIds[i],to])))
+  const labels:string[]=[]
+  const edges=graph.edges.map((e,index)=>{
+    const primary=primaryLinks.has(JSON.stringify([e.from,e.to])),a=positions.get(e.from)!,b=positions.get(e.to)!
+    const direction=Math.sign(b[0]-a[0]),points:Point[]=primary?[[a[0]+16,a[1]],[b[0]-16,b[1]]]:
+      [a[1]===mainY?[a[0],mainY+16]:[a[0]+direction*13,secondaryY],
+        [a[0],secondaryY],[b[0],secondaryY],b[1]===mainY?[b[0],mainY+16]:[b[0]-direction*13,secondaryY]]
+    // A shared endpoint descends into the auxiliary lane; auxiliary nodes remain open.
+    if(!primary){if(a[1]===secondaryY)points.splice(1,1);if(b[1]===secondaryY)points.splice(points.length-2,1)}
+    if(e.label){
+      const room=Math.abs(b[0]-a[0])-42
+      if(room<textWidth(e.label,22))throw new Error('MANUSCRIPT_DIAGRAM_PRESENTATION: shorten relation labels or choose wider-spaced secondary endpoints')
+      labels.push(`<g data-edge-label="${index}">${centeredText([e.label],(a[0]+b[0])/2,(primary?mainY:secondaryY)-24,22,primary?green:muted)}</g>`)
+    }
+    return `<path data-edge-index="${index}" data-edge-from="${escape(e.from)}" data-edge-to="${escape(e.to)}" data-edge-role="${primary?'primary':'secondary'}" d="${simplify(points).map(([x,y],i)=>`${i?'L':'M'} ${round(x)} ${round(y)}`).join(' ')}" fill="none" stroke="${primary?green:muted}" stroke-width="${primary?3:2}" ${primary?'':'stroke-dasharray="7 6"'} stroke-linejoin="round" marker-end="url(#${markerId}-${primary?'main':'aux'})"/>`
+  }).join('')
+  const nodes=graph.nodes.map(n=>{
+    const [x,y]=positions.get(n.id)!,primary=p.primaryNodeIds.includes(n.id),start=n.id===p.primaryNodeIds[0]
+    const neighbor=primary?820/(p.primaryNodeIds.length-1):Math.abs(last[0]-first[0])/(p.secondaryNodeIds.length-1)
+    const lines=wrap(n.label,30,Math.min(220,neighbor-32))
+    if(lines.length>2)throw new Error('MANUSCRIPT_DIAGRAM_PRESENTATION: shorten node labels to keep the open composition readable')
+    const mark=primary?`${start?`<circle cx="${x}" cy="${y}" r="14" fill="none" stroke="${gold}" stroke-width="2"/>`:''}<circle cx="${x}" cy="${y}" r="7" fill="${green}"/>`:
+      `<path d="M ${x} ${y-9} L ${x+9} ${y} L ${x} ${y+9} L ${x-9} ${y} Z" fill="#f7f6f1" stroke="${muted}" stroke-width="2"/>`
+    return `<g data-node-id="${escape(n.id)}">${mark}${centeredText(lines,x,primary?82:340,30,primary?green:muted,start?600:500)}</g>`
+  }).join('')
+  const lane=(label:string,y:number,color:string)=>centeredText(wrap(label,22,200),120,y,22,color,500)
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img"><title>${escape(subject)}</title><defs>${[['main',green],['aux',muted]].map(([key,color])=>`<marker id="${markerId}-${key}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto" markerUnits="userSpaceOnUse"><path d="M 0 1 L 9 5 L 0 9" fill="none" stroke="${color}" stroke-width="1.7"/></marker>`).join('')}</defs><g font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif">${edges}${nodes}${labels.join('')}<path d="M 32 98 L 62 98" stroke="${gold}" stroke-width="2"/>${lane(p.primaryLabel,mainY,green)}${lane(p.secondaryLabel,secondaryY,muted)}</g></svg>`
+  return {svg,width,height}
+}
+
+export function renderPlanningDiagram(input:PlanningManuscriptDiagram,id:string,subject:string):{svg:string;width:number;height:number}{
+  const graph = validatePlanningDiagram(input, `${id}.visual.diagram`)
+  if(graph.presentation?.kind==='editorial')return renderEditorialDiagram(graph,graph.presentation,id,subject)
+  if(graph.presentation)return renderPrimarySecondary(graph,id,subject)
   const layout = layoutNodes(graph), routes = routeGraph(graph, layout), viewport = diagramViewport(layout.boxes, routes)
-  const markerId = `arrow-${createHash('sha256').update(page.id).digest('hex').slice(0, 12)}`
+  const markerId = `arrow-${createHash('sha256').update(id).digest('hex').slice(0, 12)}`
   const edgeLabels: string[] = []
   const edges = graph.edges.map((edge, index) => {
     const route = routes[index]!, label = route.label
@@ -237,7 +289,7 @@ function createManuscriptDiagram(page: PlanningManuscriptPage): { svg: string; w
     const box = layout.boxes.get(node.id)!, tone = tones[node.tone ?? 'neutral'], typography = nodeTypography(node.label, box)
     return `<g data-node-id="${escape(node.id)}"><rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" rx="14" fill="${tone.fill}" stroke="${tone.stroke}" stroke-width="2"/>${centeredText(typography.lines, box.x + box.width / 2, box.y + box.height / 2, typography.size, tone.text, node.tone === 'accent' ? 600 : 500)}</g>`
   }).join('')
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${viewport.width}" height="${viewport.height}" viewBox="${viewport.x} ${viewport.y} ${viewport.width} ${viewport.height}" role="img"><title>${escape(page.visual.subject)}</title><defs><marker id="${markerId}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="12" markerHeight="12" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M 0 0 L 10 5 L 0 10 Z" fill="#799485"/></marker></defs><rect x="${viewport.x}" y="${viewport.y}" width="${viewport.width}" height="${viewport.height}" fill="${BACKGROUND}"/><g font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif">${edges}${nodes}${edgeLabels.join('')}</g></svg>`
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${viewport.width}" height="${viewport.height}" viewBox="${viewport.x} ${viewport.y} ${viewport.width} ${viewport.height}" role="img"><title>${escape(subject)}</title><defs><marker id="${markerId}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="12" markerHeight="12" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M 0 0 L 10 5 L 0 10 Z" fill="#799485"/></marker></defs><rect x="${viewport.x}" y="${viewport.y}" width="${viewport.width}" height="${viewport.height}" fill="${BACKGROUND}"/><g font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif">${edges}${nodes}${edgeLabels.join('')}</g></svg>`
   return { svg, width: viewport.width, height: viewport.height }
 }
 

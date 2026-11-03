@@ -83,7 +83,7 @@ export function consumeRegularText(queue: string[], area: Box, texts: RegularTex
   }
   return body
 }
-export function regularOriginalImageId(asset: ClientVisualAsset): string {
+export function regularOriginalImageId(asset: Pick<ClientVisualAsset,'sha256'|'imageIdentity'>): string {
   return asset.imageIdentity?.fileSha256 === asset.sha256 && asset.imageIdentity.originalId.trim()
     ? asset.imageIdentity.originalId : asset.sha256
 }

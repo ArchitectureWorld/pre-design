@@ -114,7 +114,7 @@ describe('VisualAgentService', () => {
       taskId: 'task-1', projectId: 'project-1', chapterId: '03', workItemId: '03-06', kind: 'concept', required: true, prompt: '林下休憩空间',
     })
     expect(f.startContinuable).toHaveBeenCalledWith(expect.objectContaining({ label: 'preplanning_visual_tool_task:project-1:task-1:1',
-      request: expect.objectContaining({ agentOptions: { ...route.llm, maxTokens: 8192 }, toolFilter: { allow: ['comfyui_pic'] },
+      request: expect.objectContaining({ agentOptions: { ...route.llm, maxTokens: undefined }, toolFilter: { allow: ['comfyui_pic'] },
         persona: expect.stringContaining('comfyui_pic') }) }))
     expect((f.startContinuable.mock.calls[0]?.[0] as any).request.persona).not.toContain('禁止调用任何工具')
     expect(f.visualTasks[0]).toMatchObject({ modelRoute: route })
@@ -176,6 +176,21 @@ describe('VisualAgentService', () => {
       existingChildId: 'preplanning-visual-659ab1ce6ceb320a005db7c6', existingAttempts: 1, existingStatus: 'running', existingExecutionId: 'paid-original-execution',
       existingModelRoute: { provider: 'antigravity', model: 'gemini-3.1-flash-image' } }), finish, begin, read }
   }
+  it.each(['matching','mismatch'] as const)('recovers a verified ComfyUI result after its companion errors only with a %s route',async variant=>{
+    const childId='preplanning-visual-659ab1ce6ceb320a005db7c6'
+    const route={provider:'Comfyui-PIC',model:'Klein',llm:{provider:'paired',model:'router'}}
+    const image={mimeType:'image/png',data:new Uint8Array([1,2,3]),width:1600,height:900,attemptSource:{eventSeq:5,turn:1,step:1,toolCallId:'native-tool-call'}}
+    const collector={inspectExisting:vi.fn(async()=>({completed:true,turn:1,image}))} as unknown as SessionImageCollector
+    const original:any={id:'original',projectId:'project-1',classId:'image',status:'failed',childId,selected:route,actual:variant==='matching'?route.llm:{provider:'other',model:'router'}}
+    const finish=vi.fn(),begin=vi.fn(),execution=vi.fn(()=>original)
+    const h=fixture({collector,agentClasses:{finish,begin,execution} as unknown as AgentClassService,existingChildId:childId,existingAttempts:1,existingStatus:'failed',existingExecutionId:'original',existingModelRoute:route})
+    const result=h.service.generate({id:'parent'} as never,recoveryTask,AbortSignal.timeout(1000),{recoveryOnly:true})
+    if(variant==='matching')await expect(result).resolves.toMatchObject({provider:'Comfyui-PIC',model:'Klein',recoveredFrom:{toolCallId:'native-tool-call'}})
+    else await expect(result).rejects.toThrow()
+    expect(finish.mock.calls.some(c=>c[1]==='completed')).toBe(false)
+    expect(begin).not.toHaveBeenCalled();expect(h.startContinuable).not.toHaveBeenCalled()
+    expect(h.visualAssets).toHaveLength(variant==='matching'?1:0)
+  })
   it('settles an unloaded terminal child and its original class execution without a fresh model call', async () => {
     const h = coldRecovery([{ seq: 4, type: 'turn/start', data: { turn: 1 } }, { seq: 30, type: 'turn/end', data: { reason: { kind: 'aborted', reason: { kind: 'parent' } } } }])
     await expect(h.service.generate({ id: 'parent' } as never, recoveryTask, AbortSignal.timeout(1000), { preserveUncertain: true, recoveryOnly: true })).rejects.toMatchObject({ code: 'visual-generation-failed' })
@@ -221,7 +236,7 @@ describe('VisualAgentService', () => {
     const h = fixture(options)
     const task = { taskId: 'task-1', projectId: 'project-1', chapterId: '03', workItemId: '03-06', kind: 'concept' as const, required: true, prompt: '滨水公共文化空间概念表现图' }
     await expect(h.service.generate({ id: 'parent' } as never, task, AbortSignal.timeout(40), { preserveUncertain: true })).rejects.toMatchObject({ code: 'visual-recovery-required' })
-    expect(h.startContinuable).toHaveBeenCalledWith(expect.objectContaining({ request: expect.objectContaining({ agentOptions: { provider: 'custom-provider', model: 'image-a', maxTokens: 8192 } }) }))
+    expect(h.startContinuable).toHaveBeenCalledWith(expect.objectContaining({ request: expect.objectContaining({ agentOptions: { provider: 'custom-provider', model: 'image-a', maxTokens: undefined } }) }))
     classes.begin.mockResolvedValue({ id: 'execution-new', selected: { provider: 'new-provider', model: 'image-b' } })
     options.lateImage = true
     const recovered = await h.service.generate({ id: 'parent' } as never, task, AbortSignal.timeout(1000), { recoveryOnly: true })
@@ -252,7 +267,7 @@ describe('VisualAgentService', () => {
       request: {
         parent,
         prompt: [{ type: 'text', text: expect.stringContaining('当前唯一视觉任务 task-1') }],
-        agentOptions: { provider: 'antigravity', model: 'gemini-3.1-flash-image', maxTokens: 8192 },
+        agentOptions: { provider: 'antigravity', model: 'gemini-3.1-flash-image', maxTokens: undefined },
         maxDepth: 1,
         toolFilter: { allow: [] },
         persona: expect.stringContaining('禁止使用 Shell、网页搜索'),

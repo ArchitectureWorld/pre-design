@@ -109,7 +109,7 @@ describe('Pre 2.0.1 complete traceable research coverage', () => {
 
   it('renders the synchronized development dashboard with 57 inspectable workflows', async () => {
     const html = await readFile(new URL('source-audit.html', researchRoot), 'utf8')
-    expect(html).toContain('<title>同步开发看板 · Pre 2.0.2</title>')
+    expect(html).toContain('<title>同步开发看板 · Pre 2.1.0</title>')
     expect(html).toContain('不代表当前项目已经完成取证或运行验收')
     expect(html.match(/class="workflow mapped" data-search=/gu)).toHaveLength(57)
     expect(html.match(/<section class="chapter" id="chapter-\d{2}">/gu)).toHaveLength(8)

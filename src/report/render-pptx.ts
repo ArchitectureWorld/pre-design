@@ -1332,7 +1332,9 @@ async function renderClientPptx(
     if (!page.regularLayout && (page.kind !== 'visual-evidence' || page.layoutVariant !== 'full-bleed')) {
       addClientFooter(slide, context.report, index + 1, clientPageHasDarkBackground(page))
     }
-    slide.addNotes(clientNotes(context, page) + (block?.type === 'planning-page' ? `\n${block.page.notes.join('\n')}\n来源：${block.page.sourceRefs.join('、')}` : ''))
+    slide.addNotes(clientNotes(context, page)
+      + (index === 0 && context.report.compilationNote ? `\n编制与研究范围说明\n${context.report.compilationNote.join('\n')}` : '')
+      + (block?.type === 'planning-page' ? `\n${block.page.notes.join('\n')}\n来源：${block.page.sourceRefs.join('、')}` : ''))
   })
 
   await pptx.writeFile({ fileName: outputPath })

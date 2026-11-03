@@ -14,8 +14,12 @@ import type { DesignVisualBridge } from '../presentation/design-visual-bridge.ts
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { WorkspaceMaterialReader } from '../materials/workspace-materials.ts'
 import type { WebQueryAgent } from '../agent-classes/web-query.ts'
+import { registerPeerResearchTools } from '../research-v2/peer-tools.ts'
+import type { ResearchWorkspaceBinding } from '../research-v2/regional-command.ts'
 
 export interface ToolDependencies {
+  readonly reportDelivery?: PreplanningStatusDependencies['reportDelivery']
+  readonly researchWorkspaceBinding?: (projectId: string) => ResearchWorkspaceBinding | undefined
   readonly reportFormats?: PreplanningStatusDependencies['reportFormats']
   readonly webQuery?: WebQueryAgent
   readonly repository: ProjectRepository
@@ -125,6 +129,11 @@ const PROPOSAL_ENVELOPE_PARAMETER = {
 } as const
 
 export function registerPreplanningTools(ctx: Context, dependencies: ToolDependencies): void {
+  if (dependencies.researchWorkspaceBinding) registerPeerResearchTools(ctx, {
+    readContext: sessionId => dependencies.repository.readContext(sessionId),
+    resolveBinding: dependencies.researchWorkspaceBinding,
+    now: () => new Date(),
+  })
   if (dependencies.webQuery) ctx.tools.register(defineTool({
     name: 'preplanning_web_query',
     description: '按“网络查询”子 Agent 类配置启动真实独立子会话，用 DSH 网页工具检索。返回工具检索记录及待校验摘要，不自动写入项目事实。',

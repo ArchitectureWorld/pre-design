@@ -38,8 +38,16 @@ export default defineConfig([
     clean: false,
     dts: false,
     sourcemap: true,
-    // Keep the full UI within the existing 100 KB DSH client budget.
+    // Keep the full UI, including per-route reasoning controls, within 110 KB.
     minify: true,
+    plugins: [{
+      name: 'compact-inline-report-styles',
+      transform(code, id) {
+        if (!/[\\/]client[\\/]glass-(?:session-|inline-)?styles\.ts$/u.test(id)) return
+        // Only remove comments and insignificant rule whitespace in these static CSS literals.
+        return code.replace(/`([^`]*)`/gsu, (_match, css:string) => JSON.stringify(css.replace(/\/\*[\s\S]*?\*\//gu, '').replace(/\s*([{},;])\s*/gu, '$1').replace(/:\s+/gu, ':').replace(/;\}/gu, '}').trim()))
+      },
+    }],
     deps: {
       neverBundle: specifier => clientExternals.has(specifier),
       alwaysBundle: specifier => !clientExternals.has(specifier),

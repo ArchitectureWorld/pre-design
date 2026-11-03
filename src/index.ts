@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { establishedResearchWorkspace } from './research-v2/workspace-binding.ts'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
@@ -24,7 +25,15 @@ import { resolveBrowserExecutable } from './report/browser-executable.ts'
 import { registerReportDownloadRoute, type ReportDownloadRegistrar } from './report/download-route.ts'
 import { ReportPackageService } from './report/package-service.ts'
 import { ConditionalReportPackageService } from './report/conditional-package-service.ts'
+import { DEFAULT_REPORT_DELIVERY_CONTRACT } from './report/delivery-contract.ts'
+import { ReportContentReviewService, ReportContentRejected } from './report/content-review.ts'
+import { ReportAcceptanceService } from './report/acceptance.ts'
+import { ReportPageRejected } from './report/page-rejection.ts'
+import { ReportRenderedReviewService } from './report/rendered-review.ts'
+import { ensureReportResearch } from './report/research-preparation.ts'
+import { readReportDeliveryState, writeReportDeliveryState, type ReportDeliveryState } from './report/delivery-state.ts'
 import { readReportFormats } from './report/read-report-formats.ts'
+import { loadTerrainReference } from './report/terrain-reference.ts'
 import { prepareWorkspacePresentationMaterials } from './presentation/workspace-materials.ts'
 import { createAutomaticVisualCompletion } from './presentation/automatic-visuals.ts'
 import { sha256File } from './presentation/filesystem.ts'
@@ -40,6 +49,12 @@ import { QuestionService } from './runtime/question-service.ts'
 import { RevisionService } from './runtime/revision-service.ts'
 import { DshSubagentWorkflowAnalyzer } from './runtime/subagent-workflow-analyzer.ts'
 import { WorkflowResearchRuntime } from './runtime/workflow-research-runtime.ts'
+import { createNativeMaterialResearchIntake, sessionStatements } from './runtime/material-research-intake.ts'
+import { createNativeModuleRuntime } from './research-v2/native-module-runtime.ts'
+import {controlledResearchReady} from './research-v2/module-progress-review.ts'
+import {createReportTaskStatementReader} from './report/task-statements.ts'
+import { createModuleResearchCommands } from './research-v2/module-command.ts'
+import { acquireModuleWebCorpus } from './research-v2/module-web-acquisition.ts'
 import { WorkflowRuntime } from './runtime/workflow-runtime.ts'
 import { ProjectRepository } from './state/repository.ts'
 import { registerPreplanningTools } from './tools/register.ts'
@@ -60,7 +75,11 @@ import { registerWorkspaceOpenRoute, type WorkspaceOpenRegistrar } from './works
 import { PlanningManuscriptService, PlanningManuscriptEditor } from './report/manuscript/index.ts'
 import { ReportContentPlanner } from './report/manuscript/content-planner.ts'
 import { prepareCaseStudies } from './report/case-studies/index.ts'
+import { beginReportResearchSelection, acceptReportResearchSelection, createReportModuleResearchLoader, assertReportResearchReady, assertReportTaskUnchanged,
+  type ReportResearchBinding, type ReportModuleResearchLoad } from './report/module-source.ts'
+import type { FrozenProjectInput } from './report/types.ts'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import { ChapterProductionService } from './report/chapter-production.ts'
 
 interface PreplanningHost {
   readonly agentClasses: AgentClassService
@@ -112,6 +131,7 @@ export async function apply(ctx: Context): Promise<void> {
   const researchRegistry = await ResearchRegistry.open(new URL('../research/v2.0.1/', import.meta.url))
   const repository = await ProjectRepository.open(ctx.storage.domain)
   const workflowResearch = new WorkflowResearchRuntime(researchRegistry, {
+    materialEvidence: (parent, workflowId, signal) => materialIntake.collect(parent, workflowId, signal),
     excludedStateObjectIds: projectId => runtime.snapshot(projectId).runs.filter(run => run.status !== 'confirmed' && run.status !== 'not_applicable').map(run => run.targetObjectId),
     projectContextOf: (parent) => {
       const id = (parent as { readonly id?: unknown }).id
@@ -121,7 +141,9 @@ export async function apply(ctx: Context): Promise<void> {
   const governance = await GovernanceRepository.open(ctx.storage.domain)
   const automation = new AutomationService(governance, registry, now)
   const agentClassSessions = { get: (id: string) => ctx.sessions.get(id as never) }
-  const persistedChildEvents = (id: string, signal: AbortSignal = AbortSignal.timeout(5000)) => {
+  // Local receipt replay shares the event loop with full research verification.
+  // Its I/O allowance is independent of model deadlines and reasoning settings.
+  const persistedChildEvents = (id: string, signal: AbortSignal = AbortSignal.timeout(120_000)) => {
     const persistence = ctx.get('sessionPersistence')
     if (!persistence) throw new Error('VISUAL_SESSION_PERSISTENCE_UNAVAILABLE: cannot verify an unloaded child')
     return readPersistedVisualEvents(persistence, id, signal)
@@ -144,6 +166,8 @@ export async function apply(ctx: Context): Promise<void> {
   registerPreplanningExecutionGuard(ctx, id => {
     try { return !!repository.readContext(id).project } catch { return false }
   })
+  const materialIntake = createNativeMaterialResearchIntake({ registry: researchRegistry, subagents: ctx.subagents, agentClasses,
+    projectIdOf: parent => repository.readContext(String(parent.id)).project.projectId })
   const webQuery = new WebQueryAgent({ classes: agentClasses, subagents: ctx.subagents, tools: ctx.tools, sessions: agentClassSessions })
   const presentationBindings = await PresentationBindingRepository.open(ctx.storage.domain)
   const dshHome = resolve(process.env.DSH_HOME?.trim() || join(homedir(), '.dsh'))
@@ -212,29 +236,144 @@ export async function apply(ctx: Context): Promise<void> {
   })
   // The deployed WorkBuddy gateway has one global account with two in-flight slots.
   // Re-read the saved route on each run so changing models does not require a restart.
-  const manuscriptConcurrency = () => agentClasses.settings().routes.text?.provider === 'workdubbyAI' ? 2 : 5
+  const manuscriptConcurrency = () => 2
   const manuscriptEditor = new PlanningManuscriptEditor({ subagents: ctx.subagents, agentClasses, now, maxConcurrency: manuscriptConcurrency })
-  const manuscripts = new PlanningManuscriptService({ subagents: ctx.subagents, agentClasses, now, maxConcurrency: manuscriptConcurrency, editor: manuscriptEditor })
-  const reportContentPlanner = new ReportContentPlanner({ subagents: ctx.subagents, agentClasses })
-  const frozenProjectSource = async (projectId: string, revision: number) => {
-    const input = createFrozenProjectInput(projectId, revision, { repository, governance, registry, visualStore })
+  const manuscripts = new PlanningManuscriptService({ subagents: ctx.subagents, agentClasses, now, maxConcurrency: manuscriptConcurrency, editor: manuscriptEditor,
+    readEvents:async id=>agentClassSessions.get(id)?.snapshotEvents()??await persistedChildEvents(id,AbortSignal.timeout(120_000))??[] })
+  const reportContentPlanner = new ReportContentPlanner({ subagents: ctx.subagents, agentClasses,requireNativePlan:true })
+  const reportResearchBinding = (projectId: string): ReportResearchBinding | undefined => {
+    const binding = establishedResearchWorkspace(standardProjects.findByPreDesignProjectId(projectId))
+    return binding ? { projectId, workspaceRoot: binding.root, standardProjectId: binding.standardProjectId } : undefined
+  }
+  const moduleSourceDependencies = { executions: (projectId: string) => agentClasses.executions(projectId, { all:true }), readEvents: persistedChildEvents }
+  const loadReportResearch = createReportModuleResearchLoader(moduleSourceDependencies)
+  const readReportTaskStatements = createReportTaskStatementReader({
+    live: id => agentClassSessions.get(id),
+    stat: async id => {
+      const persistence = ctx.get('sessionPersistence')
+      const snapshot = await persistence?.stat(id as never)
+      return snapshot ? { id: String(snapshot.header.id), revision: String(snapshot.revision) } : undefined
+    },
+    readEvents: id => persistedChildEvents(id, AbortSignal.timeout(120_000)),
+  })
+  const reportWorkspaceRoot=(projectId:string)=>{const root=reportResearchBinding(projectId)?.workspaceRoot;if(!root)throw new Error('REPORT_WORKSPACE_REQUIRED');return root}
+  const reportParents=new Map<string,Agent>()
+  const reviewEvents=async(id:string)=>agentClassSessions.get(id)?.snapshotEvents()??await persistedChildEvents(id)??[]
+  const contentReview=new ReportContentReviewService({classes:agentClasses,subagents:ctx.subagents,readEvents:reviewEvents})
+  const chapterProduction=new ChapterProductionService({classes:agentClasses,subagents:ctx.subagents,attachments:ctx.attachments,readEvents:reviewEvents,manuscripts,review:contentReview,web:webQuery,visual})
+  const renderedReview=new ReportRenderedReviewService({classes:agentClasses,subagents:ctx.subagents,attachments:ctx.attachments,readEvents:reviewEvents,workspaceRoot:reportWorkspaceRoot,
+    parent:projectId=>{const parent=reportParents.get(projectId);if(!parent)throw new Error('REPORT_REVIEW_PARENT_REQUIRED');return parent}})
+  const reportAcceptance=new ReportAcceptanceService({content:contentReview,workspaceRoot:reportWorkspaceRoot,rendered:renderedReview,browserExecutable:resolveBrowserExecutable()})
+  const reportDelivery=(projectId:string)=>{const root=reportResearchBinding(projectId)?.workspaceRoot;return root?readReportDeliveryState(root,projectId):undefined}
+  const updateDelivery=async(projectId:string,revision:number,status:ReportDeliveryState['status'],message:string)=>{
+    await writeReportDeliveryState(reportWorkspaceRoot(projectId),projectId,revision,status,message)
+    const parent=reportParents.get(projectId)
+    if(parent)await publishReportStatus(parent,new AbortController().signal,status==='failed'?message:undefined)
+  }
+  const reportResearch = async (projectId: string, required: boolean, parent?: Agent): Promise<ReportModuleResearchLoad> => {
+    const binding = reportResearchBinding(projectId)
+    const load = binding ? await loadReportResearch(binding) : { status: 'not_requested' as const }
+    if (required) {
+      assertReportResearchReady(load)
+      if (load.status !== 'not_requested') {
+        assertReportTaskUnchanged(load, await readReportTaskStatements(load.selection.parentId))
+        if (parent && String(parent.id) !== load.selection.parentId) assertReportTaskUnchanged(load, sessionStatements(parent))
+      }
+    }
+    return load
+  }
+  const assertFrozenReportCurrent = async (input: FrozenProjectInput) => {
+    const load = await reportResearch(input.projectId, true)
+    if ((load.status === 'ready' ? load.research.fingerprint : undefined) !== input.moduleResearch?.fingerprint) throw new Error('REPORT_MODULE_SELECTION_CHANGED')
+    if((await loadTerrainReference(reportWorkspaceRoot(input.projectId)))?.fingerprint!==input.terrain?.fingerprint)throw new Error('REPORT_TERRAIN_CHANGED')
+  }
+  const frozenProjectSource = async (projectId: string, revision: number, requireResearch = false, parent?: Agent) => {
+    let input: FrozenProjectInput = { ...createFrozenProjectInput(projectId, revision, { repository, governance, registry, visualStore }), deliveryContract:DEFAULT_REPORT_DELIVERY_CONTRACT }
     const binding = standardProjects.findByPreDesignProjectId(projectId)
     const root = binding?.workspaceRoot ?? binding?.directoryRoot
+    const research = await reportResearch(projectId, requireResearch, parent)
+    if(root)input={...input,terrain:await loadTerrainReference(root)}
+    if (research.status === 'ready') input = { ...input, moduleResearch: research.research }
     const manuscript = root ? await manuscripts.load(input, root) : undefined
     return manuscript ? { ...input, manuscript: await reportContentPlanner.load(manuscript, root!) ?? manuscript, caseStudies: await prepareCaseStudies(input, root) } : input
   }
   const prepareManuscript = async (projectId: string, revision: number, agent: Agent, signal: AbortSignal) => {
+    reportParents.set(projectId,agent)
     const binding = standardProjects.findByPreDesignProjectId(projectId)
     const root = binding?.workspaceRoot ?? binding?.directoryRoot
     if (!root) throw new Error('MANUSCRIPT_WORKSPACE_REQUIRED: 请先绑定汇报工作区。')
-    const assertCurrent = () => {
+    await updateDelivery(projectId,revision,'generating','正在完成研究与完整图文策划文稿。')
+    try{
+    const current=repository.readContext(String(agent.id))
+    if(current.project.projectId!==projectId||current.project.currentRevision!==revision)throw new Error('REPORT_WORKFLOWS_INCOMPLETE')
+    if(governance.readProject(projectId).policy?.mode==='automatic')automation.requireValid(projectId,revision)
+    await ensureReportResearch({load:()=>reportResearch(projectId,false,agent),start:async flags=>{
+      const raw=flags?Object.entries(flags).map(([key,value])=>`--${key}=${value}`).join(' '):'--all-modules'
+      const result=await ctx.commands.execute(agent,`/preplan-research-run ${raw}`,[],signal)
+      if(!result||result.result.kind!=='success')throw new Error('REPORT_RESEARCH_START_FAILED')
+    },wait:()=>moduleResearch.whenIdle(projectId)},signal)
+    const input = await frozenProjectSource(projectId, revision, true, agent)
+    const assertCurrent = async () => {
       const current = repository.readContext(String(agent.id))
-      if (current.project.projectId !== projectId || current.project.currentRevision !== revision || !runtime.isComplete(projectId)) throw new Error('MANUSCRIPT_SOURCE_CHANGED')
+      if (current.project.projectId !== projectId || current.project.currentRevision !== revision) throw new Error('MANUSCRIPT_SOURCE_CHANGED')
       if (governance.readProject(projectId).policy?.mode === 'automatic') automation.requireValid(projectId, revision)
+      await assertFrozenReportCurrent(input)
     }
-    assertCurrent()
-    const manuscript = await manuscripts.prepare(await frozenProjectSource(projectId, revision), root, agent, signal, assertCurrent)
-    await reportContentPlanner.prepare(manuscript, root, agent, signal, assertCurrent)
+    await assertCurrent()
+    let manuscript = await manuscripts.prepare(input, root, agent, signal, assertCurrent)
+    for(;;){
+      const display=await reportContentPlanner.prepare(manuscript,root,agent,signal,assertCurrent)
+      const reviewInput={...input,manuscript:display,caseStudies:await prepareCaseStudies({...input,manuscript},root)}
+      await updateDelivery(projectId,revision,'pending','文稿已生成，正在进行独立内容验收。')
+      try{await contentReview.prepare(reviewInput,root,agent,signal,assertCurrent);break}
+      catch(error){
+        if(!(error instanceof ReportContentRejected))throw error
+        await updateDelivery(projectId,revision,'generating','内容验收发现具体页面问题，正在定向修订。')
+        manuscript=await manuscripts.revise({...input,manuscript},manuscript,error.findings,root,agent,signal,assertCurrent,error.stage)
+      }
+    }
+    }catch(error){
+      const message=error instanceof ReportContentRejected?error.message:'研究、文稿或独立审查未完成；已保留真实状态与诊断，尚无合格报告。'
+      await updateDelivery(projectId,revision,'failed',message);throw error
+    }
+  }
+  const prepareChapter = async (projectId: string, revision: number, parent: Agent, signal: AbortSignal,
+    chapterId: import('./report/manuscript/types.ts').PlanningChapterId, stage: 'write' | 'review' | 'revise' | `production-${import('./report/chapter-production.ts').ChapterProductionStage}`): Promise<string> => {
+    const { readFile, writeFile, mkdir, rename } = await import('node:fs/promises')
+    const root = reportWorkspaceRoot(projectId), briefPath = join(root, '.pre-design', 'report-chapter-plans', `${chapterId}.json`)
+    const briefText = stage==='production-plan'?undefined:await readFile(briefPath, 'utf8')
+    const brief = briefText?JSON.parse(briefText) as import('./report/chapter-plan.ts').ApprovedChapterBrief:undefined
+    if (brief&&brief.plan.chapterId !== chapterId) throw new Error('CHAPTER_PLAN_ID_MISMATCH')
+    const requestPath=join(root,'.pre-design','chapter-production-requests',`${chapterId}.json`)
+    const requestText=stage.startsWith('production-')?await readFile(requestPath,'utf8'):undefined
+    const research = stage.startsWith('production-') ? await reportResearch(projectId,true,parent) : undefined
+    const input = {...createFrozenProjectInput(projectId, revision, { repository, governance, registry, visualStore }),
+      ...(research?.status==='ready'?{moduleResearch:research.research}:{})}
+    const guard = async () => {
+      signal.throwIfAborted()
+      const current = repository.readContext(String(parent.id))
+      if (current.project.projectId !== projectId || current.project.currentRevision !== revision) throw new Error('MANUSCRIPT_SOURCE_CHANGED')
+      if (briefText!==undefined&&await readFile(briefPath, 'utf8') !== briefText) throw new Error('CHAPTER_PLAN_CHANGED')
+      if (requestText!==undefined&&await readFile(requestPath,'utf8')!==requestText)throw new Error('CHAPTER_PRODUCTION_REQUEST_CHANGED')
+    }
+    await guard()
+    if(stage.startsWith('production-'))return chapterProduction.run(input,root,chapterId,stage.slice(11) as import('./report/chapter-production.ts').ChapterProductionStage,parent,signal,guard)
+    if(!brief)throw new Error('CHAPTER_PRODUCTION_REQUEST_REQUIRED')
+    let draft = await manuscripts.prepareChapter(input, root, parent, signal, guard, brief)
+    let review = stage !== 'write' ? await contentReview.prepareChapter(draft, brief, root, parent, signal, guard) : undefined
+    if (stage === 'revise' && review?.status === 'needs_revision') {
+      draft = await manuscripts.reviseChapter(input, root, parent, signal, guard, brief, draft, review)
+      review = await contentReview.prepareChapter(draft, brief, root, parent, signal, guard)
+    }
+    await guard()
+    const folder = join(root, '.pre-design', 'report-chapters', chapterId)
+    await mkdir(folder, { recursive: true })
+    const temporary = join(folder, `latest.tmp-${randomUUID()}.json`)
+    await writeFile(temporary, JSON.stringify({ scope: 'chapter', chapterId, planHash: draft.planHash, rulesVersion: draft.rulesVersion,
+      draftPath: draft.artifactPaths.chapter, reviewPath: review?.path, contentStatus: review?.status ?? 'draft_ready',
+      userReview: 'pending', updatedAt: now(), pageCount: draft.chapter.pages.length }, null, 2))
+    await guard(); await rename(temporary, join(folder, 'latest.json'))
+    return `${draft.chapter.title}：${draft.chapter.pages.length}页原生正文已保存。${review ? `独立内容审查：${review.status}。` : '尚未进行独立内容审查。'}图件与正式HTML/PDF尚未导出。\n${draft.artifactPaths.chapter}${review ? `\n${review.path}` : ''}`
   }
   const presentationSync = new PresentationAutoSyncService({
     repository,
@@ -248,6 +387,7 @@ export async function apply(ctx: Context): Promise<void> {
   const designVisualBridge = createDesignVisualBridge({ repository, registry, standardProjects, source: frozenProjectSource, pageVisualFill, now })
   const workflowAnalyzer = new DshSubagentWorkflowAnalyzer({
     revisionRequest: (projectId, workflowId) => governance.readProject(projectId).workflowRuns.find(run => run.workflowId === workflowId)?.revisionRequest,
+    revisionHistory: (projectId, workflowId) => runtime.revisionHistory(projectId, workflowId),
     agentClasses,
     subagents: ctx.subagents,
     repository,
@@ -278,7 +418,7 @@ export async function apply(ctx: Context): Promise<void> {
     committer: workflowCommitter,
     gateApprover,
     presentationSync,
-    maxConcurrency: 5,
+    maxConcurrency: 2,
   })
   const reportPackageRoot = join(dshHome, 'preplanning-agent', 'report-packages')
   const reportFormats = (record: import('./governance/types.ts').ReportPackageRecord) => readReportFormats(reportPackageRoot, record)
@@ -302,11 +442,13 @@ export async function apply(ctx: Context): Promise<void> {
     return Promise.all(materials.assets.map(async asset => ({ ...asset, sha256: await sha256File(asset.sourcePath) })))
   }
   const reports = new ReportPackageService({
+    acceptance:reportAcceptance,
     governance,
     boundaryIntegrity: boundaries,
     packageRoot: reportPackageRoot,
     browserExecutable: resolveBrowserExecutable(),
-    source: async (projectId, revision) => frozenProjectSource(projectId, revision),
+    source: async (projectId, revision) => frozenProjectSource(projectId, revision, true),
+    assertSourceCurrent: assertFrozenReportCurrent,
     profile: async (projectId, input) => loadClientProjectProfile(clientProfileRoot, projectId, input),
     materials: prepareReportMaterials,
     createId: () => `report-${randomUUID()}`,
@@ -321,28 +463,54 @@ export async function apply(ctx: Context): Promise<void> {
     },
   })
   const currentReportRevision = (projectId: string) => repository.listProjects().find(project => project.projectId === projectId)?.currentRevision ?? -1
+  const reviseReportPages=async(projectId:string,revision:number,findings:readonly import('./report/delivery-contract.ts').ReportAcceptanceFinding[],parent:Agent,signal:AbortSignal)=>{
+    const input=await frozenProjectSource(projectId,revision,true,parent),root=reportWorkspaceRoot(projectId)
+    const caseFindings=findings.filter(f=>f.pageId?.startsWith('case-study-'))
+    if(caseFindings.length)throw new ReportPageRejected(caseFindings.map(f=>({...f,message:`${f.message}；请修订该真实案例的来源记录、对应图片或案例页面布局；业务正文改写不能解决此项。`})),'REPORT_CASE_PAGE_REJECTED')
+    const draft=await manuscripts.load(input,root)
+    if(!draft)throw new Error('REPORT_MANUSCRIPT_REQUIRED')
+    const mapped=findings.map(f=>{
+      if(draft.chapters.some(c=>c.pages.some(p=>p.id===f.pageId)))return f
+      const chapter=input.manuscript?.chapters.find(c=>c.pages.some(p=>p.id===f.pageId))
+        ??(f.pageId==='cover'?draft.chapters.find(c=>c.id==='positioning'):undefined)
+      return {...f,pageId:draft.chapters.find(c=>c.id===chapter?.id)?.pages[0]?.id}
+    })
+    if(mapped.some(f=>!f.pageId))throw new Error('REPORT_REVISION_PAGE_UNRESOLVED')
+    const guard=async()=>{signal.throwIfAborted();if(currentReportRevision(projectId)!==revision)throw new Error('REPORT_REVISION_CHANGED');await assertFrozenReportCurrent(input)}
+    await manuscripts.revise({...input,manuscript:draft},draft,mapped,root,parent,signal,guard)
+    await prepareManuscript(projectId,revision,parent,signal)
+  }
   const conditionalReports = new ConditionalReportPackageService({
+    acceptance:reportAcceptance,
+    revisePages:async(projectId,revision,findings,signal,options)=>{
+      const parent=reportParents.get(projectId);if(!parent)throw new Error('REPORT_REVIEW_PARENT_REQUIRED')
+      await reviseReportPages(projectId,revision,findings,parent,signal)
+      await prepareVisuals(projectId,revision,parent,signal,options)
+    },
+    onState:updateDelivery,
     formats: ['html'],
     requireManuscript: true,
     requireCaseStudies: true,
     governance, packageRoot: reportPackageRoot, browserExecutable: resolveBrowserExecutable(),
-    source: async (projectId, revision) => frozenProjectSource(projectId, revision),
+    source: async (projectId, revision) => frozenProjectSource(projectId, revision, true),
+    assertSourceCurrent: assertFrozenReportCurrent,
     materials: prepareReportMaterials,
-    currentRevision: currentReportRevision, isComplete: projectId => runtime.isComplete(projectId), now,
+    currentRevision: currentReportRevision, completionScheme: 'research-v210',
+    isComplete: async projectId => (await reportResearch(projectId, false)).status === 'ready', now,
   })
   const reportErrors = new Map<string, string>()
-  const prepareVisuals = createAutomaticVisualCompletion({ pageVisualFill,
+  const completeVisuals = createAutomaticVisualCompletion({ pageVisualFill,
     prepareImageQuality: async (input, parent, signal, assertCurrent, maxGenerations) => { await reportImagePipeline.prepare(input.frozenProject, input.workspaceRoot, parent, signal, assertCurrent, { maxGenerations }) },
     assertCurrent: (projectId, revision, parent) => {
       const current = repository.readContext(String(parent.id))
-      if (current.project.projectId !== projectId || current.project.currentRevision !== revision || !runtime.isComplete(projectId)) throw new Error('VISUAL_SOURCE_CHANGED')
+      if (current.project.projectId !== projectId || current.project.currentRevision !== revision) throw new Error('VISUAL_SOURCE_CHANGED')
       automation.requireValid(projectId, revision)
     },
     input: async (projectId, revision) => {
       const binding = standardProjects.findByPreDesignProjectId(projectId)
       const workspaceRoot = binding?.workspaceRoot ?? binding?.directoryRoot
       if (!workspaceRoot) throw new Error('VISUAL_WORKSPACE_REQUIRED: 请先绑定汇报工作区')
-      return { frozenProject: await frozenProjectSource(projectId, revision), workspaceRoot, previous: binding }
+      return { frozenProject: await frozenProjectSource(projectId, revision, true), workspaceRoot, previous: binding }
     },
     target: (projectId, revision) => {
       const governed = governance.readProject(projectId)
@@ -357,11 +525,27 @@ export async function apply(ctx: Context): Promise<void> {
       if (result.state !== 'synced') throw new Error('VISUAL_SYNC_INCOMPLETE: 图片已保存，页面同步未完成')
     },
   })
+  const prepareVisuals: typeof completeVisuals = async (projectId, revision, parent, signal, options) => {
+    reportParents.set(projectId,parent)
+    await updateDelivery(projectId,revision,'generating','正在准备与页面结论对应的图像和空间表达。')
+    try{
+    for(let round=0;;round++){
+      const input = await frozenProjectSource(projectId, revision, true, parent)
+      try{await completeVisuals(projectId, revision, parent, signal, options);await assertFrozenReportCurrent(input);break}
+      catch(error){
+        if(!(error instanceof ReportPageRejected)||round>=2)throw error
+        await updateDelivery(projectId,revision,'generating','地形方案未通过可复算检查，正在修订对应空间页面。')
+        await reviseReportPages(projectId,revision,error.findings,parent,signal)
+      }
+    }
+    }catch(error){await updateDelivery(projectId,revision,'failed','图文准备或独立审图未完成；具体缺口已记录。');throw error}
+  }
   const publishReportStatus = createReportStatusPublisher({ commands: ctx.commands, repository, reportErrors })
-  const coordinator = new AutomationCoordinator(runtime, parallel, createAutomaticReportCompletion({
+  const completeReport = createAutomaticReportCompletion({
     reports: conditionalReports, repository, prepareManuscript, prepareVisuals,
     publishStatus: publishReportStatus,
-  }), publishReportStatus)
+  })
+  const coordinator = new AutomationCoordinator(runtime, parallel, completeReport, publishReportStatus)
   registerWorkspaceOpenRoute(ctx.webServer, {
     get: id => ctx.sessions.get(id as never),
   }, Reflect.get(ctx, 'workspaceRegistry'))
@@ -372,11 +556,32 @@ export async function apply(ctx: Context): Promise<void> {
     await governance.close()
     await repository.close()
   })
+  const researchWorkspaceBinding = (projectId: string) => {
+    return establishedResearchWorkspace(standardProjects.findByPreDesignProjectId(projectId))
+  }
+  const nativeModuleRuntime = createNativeModuleRuntime({ subagents: ctx.subagents, agentClasses, attachments: ctx.attachments, readNativeEvents: persistedChildEvents,
+    synthesizeGroups:true,progressReview:true,objectGroupAuthorIds:['6.01','7.02','7.04'] })
+  const moduleResearch = createModuleResearchCommands({
+    onComplete: (parent, projectId, signal) => completeReport(projectId,signal,parent),
+    prepareSources: (parent, request, onProgress) => acquireModuleWebCorpus(parent, request, { web: webQuery, onProgress }),
+    readContext: sessionId => repository.readContext(sessionId), resolveBinding: researchWorkspaceBinding,
+    now: () => new Date(), runtime: { execute: async (parent, request, options) => {
+      const binding = reportResearchBinding(request.projectId)
+      if (!binding) throw new Error('REPORT_MODULE_BINDING')
+      const selection = request.moduleIds === undefined
+        ? await beginReportResearchSelection(binding, request, { parentId: String(parent.id), statements: sessionStatements(parent) }) : undefined
+      const summary = await nativeModuleRuntime.execute(parent, request, options)
+      if (selection && (summary.status === 'completed'||controlledResearchReady(summary))) await acceptReportResearchSelection(binding, selection, summary, moduleSourceDependencies)
+      return summary
+    } },
+  })
+  for (const command of moduleResearch.commands) ctx.commands.register(command)
   registerPreplanningCommands(ctx, {
-    researchWorkspaceBinding: projectId => {
-      const binding = standardProjects.findByPreDesignProjectId(projectId)
-      const root = binding?.workspaceRoot ?? binding?.directoryRoot
-      return binding?.state === 'ready' && root && binding.presentationProjectId ? { root, standardProjectId: binding.presentationProjectId } : undefined
+    researchWorkspaceBinding,
+    researchProgress: projectId => moduleResearch.progress(projectId),
+    unifiedResearch: {
+      run: invocation => moduleResearch.commands.find(command => command.name === 'preplan-research-run')!.handler({ ...invocation, rawInput: invocation.rawInput?.trim() || '--all-modules' }),
+      pause: invocation => moduleResearch.commands.find(command => command.name === 'preplan-research-cancel')!.handler(invocation),
     },
     repository,
     gateway,
@@ -392,8 +597,10 @@ export async function apply(ctx: Context): Promise<void> {
     reports,
     conditionalReports,
     prepareManuscript,
+    prepareChapter,
     prepareVisuals,
     reportErrors,
+    reportDelivery,
     reportFormats,
     presentationSync,
     pageVisualFill,
@@ -407,6 +614,8 @@ export async function apply(ctx: Context): Promise<void> {
     now,
   })
   registerPreplanningTools(ctx, {
+    reportDelivery,
+    researchWorkspaceBinding,
     reportFormats,
     webQuery,
     materialReader: new WorkspaceMaterialReader(),

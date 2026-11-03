@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { readReportFormats } from '../src/report/read-report-formats.ts'
 import type { ArtifactRecord, ReportPackageRecord } from '../src/governance/types.ts'
+import { sha256CanonicalJson as hash } from '../src/presentation/canonical-json.ts'
+import { createHash } from 'node:crypto'
 
 const roots: string[] = []
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }) })
@@ -24,6 +26,18 @@ async function fixture(formats: readonly ArtifactRecord['format'][] = ['html']) 
 }
 
 describe('report manifest format reader', () => {
+  it('withholds accepted links after a resource changes or the receipt is rewritten',async()=>{
+    const h=await fixture(),folder=join(h.root,h.record.packageId)
+    await mkdir(join(folder,'html'));await writeFile(join(folder,'html/index.html'),'HTML')
+    const body={version:'report-acceptance.v1',status:'passed',contractVersion:'complete-planning-html.v1',resources:[{path:'html/index.html',bytes:4,sha256:createHash('sha256').update('HTML').digest('hex')}]}
+    const receipt={...body,integrityHash:hash(body)}
+    Object.assign(h.record,{acceptanceState:'passed',acceptanceHash:receipt.integrityHash,deliveryContractVersion:body.contractVersion})
+    await writeFile(join(folder,'report-acceptance.json'),JSON.stringify(receipt))
+    await writeFile(h.path,JSON.stringify({...h.manifest,acceptanceHash:receipt.integrityHash,deliveryContractVersion:body.contractVersion}))
+    expect(readReportFormats(h.root,h.record)).toEqual(['html'])
+    await writeFile(join(folder,'html/index.html'),'changed')
+    expect(readReportFormats(h.root,h.record)).toBeUndefined()
+  })
   it.each([['html'], ['html', 'pptx', 'pdf']] as const)('reads the actual stored format set: %s', async (...formats) => {
     const h = await fixture(formats)
     expect(readReportFormats(h.root, h.record)).toEqual(formats)

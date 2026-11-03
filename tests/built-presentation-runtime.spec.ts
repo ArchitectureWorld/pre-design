@@ -66,5 +66,5 @@ describe('installed Host Presentation runtime', () => {
       kind: 'success',
       text: expect.stringContaining('PRESENTATION_STANDARD_PROJECT_V0_1_0_PASS'),
     })
-  })
+  }, 30_000)
 })

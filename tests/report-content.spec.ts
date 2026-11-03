@@ -16,6 +16,13 @@ function freeze(data: Record<string, unknown>) {
 }
 
 describe('完整报告内容提取', () => {
+  it('preserves the citation claim class with its original locator and source version', () => {
+    const source = freeze({ evidence_refs: [{ evidence_id: 'statement-1', asset_id: 'dsh://session/example#seq=17',
+      claim_class: 'user_statement', version_id: 'a'.repeat(64), locator: { section: 'dsh://session/example#seq=17' } }] })
+    const refs = source.reportSections!.flatMap(section => section.entries.flatMap(entry => entry.evidenceRefs ?? []))
+    expect(refs).toContainEqual({ evidenceId: 'statement-1', assetId: 'dsh://session/example#seq=17',
+      claimClass: 'user_statement', versionId: 'a'.repeat(64), locator: { section: 'dsh://session/example#seq=17' } })
+  })
   it('保留超过八条的成果及每条描述、条件和来源，不把完整材料缩成名称摘要', () => {
     const source = freeze({
       conditions: Array.from({ length: 12 }, (_, index) => ({

@@ -307,6 +307,8 @@ export interface ClientProjectProfile {
 
 export interface ClientReport {
   readonly schemaVersion: 'preplan.client-report.v1'
+  /** Readable frozen scope/date; exact research identities remain in package sidecars. */
+  readonly compilationNote?: readonly string[]
   readonly identity: ClientProjectIdentity
   readonly proposition: ClientProposition
   readonly chapters: readonly ClientChapter[]

@@ -25,7 +25,7 @@ export interface RegionalAuditBundle {
 }
 const json=(value:unknown)=>JSON.stringify(value,null,2)+'\n'
 export function safeBundlePath(path:string):boolean {
-  return path.length<250 && /^(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-][A-Za-z0-9_.-]*$/u.test(path)
+  return path.length<250 && /^(?:items\/[1-8]\.[0-9]{2}\/)?(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-][A-Za-z0-9_.-]*$/u.test(path)
     && !path.split('/').some(part=>part==='.'||part==='..')
 }
 

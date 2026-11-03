@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto'
 import type { FrozenProjectInput } from '../types.ts'
 import type { PlanningManuscriptSource } from './types.ts'
+import { makeModuleManuscriptSources } from './module-sources.ts'
+import { reportDeliveryContract } from '../delivery-contract.ts'
 
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical)
@@ -14,7 +16,7 @@ export function manuscriptSourceFingerprint(input: FrozenProjectInput): string {
   return createHash('sha256').update(JSON.stringify(canonical({ projectId: input.projectId, projectName: input.projectName,
     revision: input.revision, recommendation: input.recommendation, decisionItems: input.decisionItems,
     stateObjects: [...input.stateObjects].sort((a, b) => a.objectId.localeCompare(b.objectId)),
-    siteBoundary: input.siteBoundary, gates: input.gates,
+    siteBoundary: input.siteBoundary, gates: input.gates, moduleResearch: input.moduleResearch, terrain:input.terrain, deliveryContract: reportDeliveryContract(input.deliveryContract),
   }))).digest('hex')
 }
 
@@ -36,5 +38,10 @@ export function makeSourceIndex(input: FrozenProjectInput): readonly PlanningMan
       object.facts.forEach((fact, index) => add(object.objectId, `facts[${index}]`, fact.label, `${fact.label}：${fact.value}`, fact.basis, []))
     } else add(object.objectId, 'summary', 'summary', object.summary, '项目成果概述', [])
   }
-  return sources
+  if(input.terrain){
+    const t=input.terrain
+    sources.push({id:t.id,objectId:'terrain',fieldPath:'terrain.reference',text:JSON.stringify({method:t.method,bounds:t.bounds,limitations:t.limitations}),basis:'用户地形数据的确定性计算；'+t.files.map(f=>`${f.path} SHA256 ${f.sha256}`).join('；'),evidenceIds:[]})
+    for(const cell of t.cells)sources.push({id:t.id+':'+cell.id,objectId:'terrain',fieldPath:'terrain.cells.'+cell.id,text:JSON.stringify(cell),basis:t.method,evidenceIds:[t.id]})
+  }
+  return [...sources, ...(input.moduleResearch ? makeModuleManuscriptSources(input.moduleResearch) : [])]
 }

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -16,6 +16,7 @@ import { PresentationStandardProjectService } from '../src/presentation/standard
 import { ParallelWorkflowExecutor } from '../src/runtime/parallel-workflow-executor.ts'
 import { ReportPackageService } from '../src/report/package-service.ts'
 import { VisualAgentService } from '../src/visual/agent.ts'
+import { peerRequest } from './helpers/peer-research-fixture.ts'
 
 const contexts: Context[] = []
 const roots: string[] = []
@@ -27,7 +28,7 @@ afterEach(async () => {
 })
 
 describe('Host apply composition', () => {
-  it('保留原命令工具并新增只读62项计划，通过真实Host发布标准项目', async () => {
+  it('保留原执行器，在真实Host完成研究来源、生成、复算与标准项目发布', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-preplanning-host-'))
     roots.push(root)
     const presentationRoot = join(root, 'presentation-projects')
@@ -84,6 +85,7 @@ describe('Host apply composition', () => {
     ])
 
     expect(commands.map(definition => definition.name)).toEqual([
+      'preplan-research-run', 'preplan-research-status', 'preplan-research-cancel',
       'preplan-research-plan',
       'preplan-research-peers',
       'preplan-research-od',
@@ -95,6 +97,7 @@ describe('Host apply composition', () => {
       'preplan-manuscript', 'preplan-export', 'preplan-presentation-sync', 'preplan-open-project-folder',
     ])
     expect(tools.map(definition => definition.name)).toEqual([
+      'preplanning_read_research_source', 'preplanning_research_peers', 'preplanning_verify_peer_research',
       'preplanning_web_query',
       'preplanning_generate_page_visual',
       'preplanning_get_context', 'preplanning_read_material', 'preplanning_apply_commands',
@@ -134,6 +137,41 @@ describe('Host apply composition', () => {
     }
     expect(projectDocument.standardVersion).toBe('0.1.0')
     expect(projectDocument.projectId).toMatch(/^project_/u)
+
+    const peerInput = peerRequest(), peerSource = peerInput.captures[0]
+    const { content, sha256: _hash, schemaVersion: _schema, ...sourceMetadata } = peerSource
+    await writeFile(join(directoryRoot, 'peer-source.json'), content)
+    const researchExec = { agent: { id: 'session-1', session: { header: { cwd: directoryRoot } } }, signal: new AbortController().signal }
+    const sourceRead = await tools.find(d => d.name === 'preplanning_read_research_source')!.execute(
+      { document: { ...sourceMetadata, path: 'peer-source.json' } }, researchExec as never) as any
+    const research = await tools.find(d => d.name === 'preplanning_research_peers')!.execute(
+      { contextToken: sourceRead.contextToken, scope: peerInput.scope, asOf: peerInput.asOf, documents: [sourceRead.document], peers: peerInput.peers },
+      researchExec as never) as any
+    expect(research).toMatchObject({ publicationGranted: false, networkRequests: 0, summary: { total: 3 } })
+    expect(await readFile(join(directoryRoot, research.reportPath), 'utf8')).toContain('合成邻里运动馆')
+    expect(await tools.find(d => d.name === 'preplanning_verify_peer_research')!.execute(
+      { runId: research.runId }, researchExec as never)).toMatchObject({ valid: true, replayed: true, checkedPeers: 3 })
+
+    // Background export temporarily marks an established workspace as creating.
+    // Research control must retain that identity, but never accept a first export
+    // or a failed export as a usable binding.
+    const bindingStore = ctx.get('preplanning')!.presentationBindings
+    const researchProjectId = ctx.get('preplanning')!.repository.readContext('session-1').project.projectId
+    const readyBinding = bindingStore.read(researchProjectId)!
+    const researchStatus = commands.find(d => d.name === 'preplan-research-status')!
+    const researchCancel = commands.find(d => d.name === 'preplan-research-cancel')!
+    await bindingStore.put({ ...readyBinding, state: 'creating' })
+    expect(await researchStatus.handler(researchExec as never)).toMatchObject({ kind: 'success' })
+    expect(await researchCancel.handler(researchExec as never)).toMatchObject({ kind: 'success' })
+    await writeFile(join(directoryRoot, 'project.json'), JSON.stringify({ ...projectDocument, projectId: 'different' }))
+    expect(await researchStatus.handler(researchExec as never)).toMatchObject({ kind: 'error', text: 'RESEARCH_WORKSPACE_IDENTITY_MISMATCH' })
+    await writeFile(join(directoryRoot, 'project.json'), JSON.stringify(projectDocument))
+    await bindingStore.put({ ...readyBinding, state: 'creating', lastExportedAt: undefined,
+      lastExportedPreDesignRevision: undefined, lastExportedFileHashes: {} })
+    expect(await researchStatus.handler(researchExec as never)).toMatchObject({ kind: 'error', text: 'RESEARCH_WORKSPACE_BINDING_REQUIRED' })
+    await bindingStore.put({ ...readyBinding, state: 'recovery_required' })
+    expect(await researchStatus.handler(researchExec as never)).toMatchObject({ kind: 'error', text: 'RESEARCH_WORKSPACE_BINDING_REQUIRED' })
+    await bindingStore.put(readyBinding)
 
     const envelope = createD1ProposalExample({
       projectId: 'preplan-test-project',

@@ -173,7 +173,7 @@ export interface VisualAssetRecord {
   readonly model?: string
   readonly promptSummary?: string
   /** Complete raster recovered from the original failed stream; execution outcome is retained. */
-  readonly recoveredFrom?: { readonly childId: string; readonly executionId?: string; readonly eventSeq: number; readonly turn: number; readonly step: number }
+  readonly recoveredFrom?: { readonly childId: string; readonly executionId?: string; readonly eventSeq: number; readonly turn: number; readonly step: number; readonly toolCallId?: string }
   readonly mimeType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/svg+xml'
   readonly fileName: string
   readonly sha256: string
@@ -251,6 +251,9 @@ export interface SiteBoundaryRecord {
 }
 
 export interface ReportPackageRecord {
+  readonly acceptanceState?: 'generating' | 'pending' | 'failed' | 'passed'
+  readonly acceptanceHash?: string
+  readonly deliveryContractVersion?: string
   readonly packageId: string
   readonly projectId: string
   readonly sourceRevision: number
@@ -272,6 +275,8 @@ export interface ArtifactRecord {
 }
 
 export interface ArtifactManifestRecord {
+  readonly acceptanceHash?: string
+  readonly deliveryContractVersion?: string
   readonly deliveryMode?: 'formal' | 'conditional'
   readonly publishable?: boolean
   readonly manifestId: string

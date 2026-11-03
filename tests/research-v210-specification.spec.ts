@@ -50,6 +50,6 @@ describe('complete approved v1.2 specification', () => {
     expect(detail.researchSpec?.steps).toHaveLength(4)
     expect(detail.researchSpec?.fields).toContain('OD_ID')
     expect(detail.researchSpec?.figures[0].binding.dataset).toBe('regional-od.csv')
-    expect(detail.fieldSchemaStatus).toBe('regional_slice_only')
+    expect(detail.fieldSchemaStatus).toBe('strict_module_output_contracts')
   })
 })

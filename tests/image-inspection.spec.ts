@@ -25,6 +25,23 @@ function inspector(output: string, stopReason = 'completed') {
     slots: [{ brief, placementHash: 'place' }], ...verifiedSource } }
 }
 const outputFor = (assessment: unknown) => JSON.stringify({ probe: ['red', 'blue', 'green', 'yellow'], items: [assessment] })
+it('reuses legacy image receipts when native defaults become visible but rejects explicit depth mismatches', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'image-reasoning-'))
+  try {
+    const { service, classes, input } = inspector(outputFor(item))
+    const [review] = await service.inspect({ id: 'parent' } as never, input, AbortSignal.timeout(1000))
+    await saveImageInspection(root, brief, review!)
+    const route = review!.actualModel
+    const recorded = { execution: () => ({ ...classes.execution(), selected: route, actual: { ...route, reasoningEffort: 'high' } }) }
+    const read = () => readImageInspection(root, review!.imageSha256, brief, 'place', recorded as never, verifiedSource)
+    expect(await read()).toMatchObject({ decision: 'approved' })
+    await saveImageInspection(root, brief, { ...review!, actualModel: { ...route, reasoningEffort: 'low' } } as never)
+    expect(await read()).toBeUndefined()
+    await saveImageInspection(root, brief, review!)
+    const mismatch = { execution: () => ({ ...recorded.execution(), selected: { ...route, reasoningEffort: 'low' } }) }
+    expect(await readImageInspection(root, review!.imageSha256, brief, 'place', mismatch as never, verifiedSource)).toBeUndefined()
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
 it('requires a fresh native map review after clarifying road identifiers without accepting English labels', async () => {
   const root = await mkdtemp(join(tmpdir(), 'map-language-'))
   try {

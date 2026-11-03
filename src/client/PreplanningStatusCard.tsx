@@ -58,7 +58,8 @@ export function PreplanningStatusCard({ node, openProjectFolder }: Props) {
       }}
     >
       <PreplanningDashboard status={data} />
-      <span>{status} · revision {data.revision} · 阶段 {data.stage}</span>
+      {data.researchProgress && <strong>新版研究 {data.researchProgress.qualified} / {data.researchProgress.total} · {data.researchProgress.status}</strong>}
+      <span>{data.researchProgress ? '新版研究与独立审查' : status} · revision {data.revision} · 阶段 {data.stage}</span>
       <small>{proposalSummary} · 开放问题 {data.openQuestionCount} 项</small>
       {openProjectFolder !== undefined && (
         <button

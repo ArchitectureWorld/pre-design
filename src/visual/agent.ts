@@ -1,3 +1,4 @@
+import { agentOptionsForRoute } from '../agent-classes/model-options.ts'
 import { createHash } from 'node:crypto'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { LlmRuntime } from '@deepseek-ai/dsh-llm'
@@ -134,7 +135,7 @@ export class VisualAgentService {
         request: {
           parent,
           prompt: [{ type: 'text', text: taskPrompt(task) }, ...(task.referenceContent ?? [])],
-          agentOptions: { ...model, maxTokens: 8192 },
+          agentOptions: agentOptionsForRoute(model),
           maxDepth: 1,
           toolFilter: preplanningChildToolFilter(imageTool ? 'visual_tool_task' : 'visual_task'),
           persona: `${VISUAL_PERSONA}\n${imageTool ? TOOL_IMAGE_INSTRUCTIONS : DIRECT_IMAGE_INSTRUCTIONS}`,
@@ -354,7 +355,8 @@ export class VisualAgentService {
       await classes.finish(original.id, 'failed', original.status === 'failed' && original.error ? original.error
         : '流式生图未正常结束；完整图像已独立核验，原执行仍保留失败状态。')
       const observed = classes.execution(original.id)!
-      if (!observed.actual || observed.actual.provider !== original.selected.provider || observed.actual.model !== original.selected.model
+      const expected=image.attemptSource.toolCallId&&imageToolForRoute(original.selected)?executionModelRoute(original.selected):original.selected
+      if ((image.attemptSource.toolCallId&&!imageToolForRoute(original.selected))||!observed.actual || observed.actual.provider !== expected.provider || observed.actual.model !== expected.model
         || observed.error?.startsWith('MODEL_ROUTE_MISMATCH')
         || running.modelRoute?.provider !== original.selected.provider || running.modelRoute.model !== original.selected.model) {
         throw new Error('VISUAL_RECOVERY_ROUTE_UNVERIFIED: 完整图像的实际模型与原派发记录不一致')

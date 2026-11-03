@@ -17,6 +17,11 @@ function parsePeerOptions(raw:string):{input?:string;verify?:string} {
 export async function loadPeerWorkspaceInput(root:string,relative:string,context:{projectId:string;revision:number},signal?:AbortSignal) {
   signal?.throwIfAborted()
   const raw:unknown=JSON.parse((await readResearchFile(root,relative,4*1024*1024)).replace(/^\uFEFF/u,''))
+  return resolvePeerWorkspaceInput(root,raw,context,signal)
+}
+/** Shared document resolution; the file command also retains its existing inline-capture input. */
+export async function resolvePeerWorkspaceInput(root:string,raw:unknown,context:{projectId:string;revision:number},signal?:AbortSignal) {
+  signal?.throwIfAborted()
   if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new Error('PEER_REQUEST_INVALID')
   const request=raw as Record<string,unknown>
   if(request.projectId!==undefined&&request.projectId!==context.projectId)throw new Error('RESEARCH_PROJECT_MISMATCH')

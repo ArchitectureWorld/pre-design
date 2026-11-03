@@ -24,7 +24,7 @@ export interface VisualImageData {
   readonly height?: number
   readonly attachmentId?: string
   /** A decoded image from an uncommitted stream; its owning child must settle before adoption. */
-  readonly attemptSource?: { readonly eventSeq: number; readonly turn: number; readonly step: number }
+  readonly attemptSource?: { readonly eventSeq: number; readonly turn: number; readonly step: number; readonly toolCallId?: string }
 }
 
 export interface VisualQualityInput {

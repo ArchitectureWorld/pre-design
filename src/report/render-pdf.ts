@@ -30,6 +30,7 @@ export async function renderPdf(
   await mkdir(dirname(outputPath), { recursive: true })
   await runner(resolveBrowserExecutable(browserExecutable), [
     '--headless=new',
+    '--edge-skip-compat-layer-relaunch',
     '--disable-gpu',
     '--no-pdf-header-footer',
     `--print-to-pdf=${outputPath}`,

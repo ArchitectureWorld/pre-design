@@ -6,14 +6,16 @@ import { agentClassDomain, fallbacksSchema, routesSchema } from './domain.ts'
 import { AGENT_CLASSES, type AgentClassId, type AgentClassView, type AvailabilityFailure, type CatalogProvider, type ClassExecution, type ClassFallbacks, type ClassRoutes, type ClassSettings, type ExecutionStatus, type ModelRoute } from './types.ts'
 import { VISUAL_MODEL_ID, VISUAL_MODEL_PROVIDER } from '../visual/types.ts'
 import { preplanningCancellationReason } from '../runtime/preplanning-execution-guard.ts'
+import { verifyOwnedModelCallDeadline, type OwnedModelCallDeadline } from './model-call-deadline.ts'
 import { retryDurableWrite } from '../state/durable-write.ts'
 import { imageToolForRoute } from './image-tools.ts'
+import { matchesModelRoute } from './model-options.ts'
 
 export interface ExecutionSession {
   snapshotEvents(): readonly { readonly type: string; readonly data: unknown }[]
 }
 interface Dependencies {
-  readonly llm: Pick<LlmRuntime, 'listProviders' | 'listConfigurableProviders' | 'listModels'>
+  readonly llm: Pick<LlmRuntime, 'listProviders' | 'listConfigurableProviders' | 'listModels'> & Partial<Pick<LlmRuntime, 'resolveModelInfo'>>
   readonly tools?: { schemas(): readonly { readonly name: string }[] }
   readonly sessions: { get(id: string): ExecutionSession | undefined }
   readonly readPersistedEvents?: (id: string) => Promise<ReturnType<ExecutionSession['snapshotEvents']> | undefined>
@@ -28,14 +30,13 @@ interface Dependencies {
     readonly projectVisualBudget?: number
   } | undefined
 }
-const sameRoute = (a: ModelRoute, b: ModelRoute) => a.provider === b.provider && a.model === b.model
 function object(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined
 }
 export function modelRoute(value: unknown): ModelRoute | undefined {
   const config = object(value)
   return typeof config?.provider === 'string' && config.provider && typeof config.model === 'string' && config.model
-    ? { provider: config.provider, model: config.model } : undefined
+    ? { provider: config.provider, model: config.model, ...(typeof config.reasoningEffort === 'string' ? { reasoningEffort: config.reasoningEffort } : {}) } : undefined
 }
 export function parentRoute(parent: Agent): ModelRoute | undefined {
   return modelRoute(parent.session?.requestHeader?.()?.config) ?? modelRoute(parent.options)
@@ -47,9 +48,10 @@ interface RouteAttempt {
   readonly chainId: string
   readonly fallbackFromExecutionId?: string
   readonly correctionFromExecutionId?: string
+  readonly deadlineRecoveryFromExecutionId?: string
 }
-/** No message matching: a model can emit provider-looking prose or fail JSON validation. */
-function availabilityFailure(reason: Record<string, unknown> | undefined): AvailabilityFailure | undefined {
+/** Classify native terminal envelopes only, never assistant prose or invalid JSON. */
+export function nativeAvailabilityFailure(reason: Record<string, unknown> | undefined): AvailabilityFailure | undefined {
   // A native capacity terminal is a model failure, never a prose/JSON guess.
   // Keep the failed execution and move only along the configured backup chain.
   if (reason?.kind === 'max-tokens') return 'output-limit'
@@ -61,6 +63,13 @@ function availabilityFailure(reason: Record<string, unknown> | undefined): Avail
   // QUOTA is the provider account balance, not this project's authorization budget.
   if (['AUTH', 'MISSING_CREDENTIAL', 'INVALID_CREDENTIAL', 'NO_ADAPTER', 'MODEL_NOT_FOUND', 'PROVIDER_NOT_FOUND', 'QUOTA'].includes(code)) return 'provider'
   if (['TRANSPORT', 'NETWORK', 'CONNECTION', 'ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'EAI_AGAIN'].includes(code)) return 'transport'
+  // pi-ai's Codex WebSocket adapter emits this exact transport terminal, but
+  // DSH's word-boundary socket classifier leaves it under the generic code.
+  // Do not treat other PI_AI_ERROR messages as provider availability failures.
+  if (code === 'PI_AI_ERROR' && (failure?.message === 'WebSocket error' || failure?.message === 'WebSocket closed 1000')) return 'transport'
+  // The Codex adapter also wraps this native server overload under PI_AI_ERROR.
+  // Match the evidenced terminal exactly; quoted prose and generic errors stay ineligible.
+  if (code === 'PI_AI_ERROR' && failure?.message === 'Codex error: Our servers are currently overloaded. Please try again later.') return 'server'
   if (code === 'RATE_LIMIT') return 'rate-limit'
   if (code === 'SERVER') return 'server'
   if (failure?.status === 429) return 'rate-limit'
@@ -90,6 +99,11 @@ export class AgentClassService {
     return service
   }
   async close(): Promise<void> { await this.chain; await this.domain.close() }
+  async modelLimits(route: ModelRoute): Promise<{ contextWindow?: number; outputTokenLimit?: number }> {
+    const info = await this.dependencies.llm.resolveModelInfo?.(route.provider, route.model)
+    return { ...(info?.context ? { contextWindow: info.context.contextWindow } : {}),
+      ...(info?.defaultMaxTokens === undefined ? {} : { outputTokenLimit: info.defaultMaxTokens }) }
+  }
   private serialize<T>(job: () => Promise<T>): Promise<T> {
     const next = this.chain.then(job)
     this.chain = next.catch(() => undefined)
@@ -121,10 +135,16 @@ export class AgentClassService {
       if (!provider.available) return { ...provider, models: [], error: '请先在 DSH 设置中启用此 Provider。' }
       try {
         const models = await this.dependencies.llm.listModels(provider.provider)
-        return { ...provider, models: models.map(({ id, name }) => {
+        return { ...provider, models: await Promise.all(models.map(async ({ id, name }) => {
           const imageTool = imageToolForRoute({ provider: provider.provider, model: id })
-          return { id, name, ...(imageTool ? { imageTool } : {}) }
-        }) }
+          if (imageTool) return { id, name, imageTool }
+          try {
+            const info = await this.dependencies.llm.resolveModelInfo?.(provider.provider, id)
+            return { id, name, ...(info?.context ? { contextWindow: info.context.contextWindow } : {}),
+              ...(info?.defaultMaxTokens === undefined ? {} : { maxTokens: info.defaultMaxTokens }),
+              ...(info?.reasoning ? { reasoning: structuredClone(info.reasoning) } : {}) }
+          } catch { return { id, name, reasoningError: '思考深度选项读取失败，请刷新配置。' } }
+        })) }
       } catch {
         return { ...provider, available: false, models: [], error: '模型目录读取失败，请检查 DSH 设置。' }
       }
@@ -133,6 +153,7 @@ export class AgentClassService {
   private async validate(route: ModelRoute, classId: AgentClassId): Promise<void> {
     const tool = imageToolForRoute(route)
     if (tool) {
+      if (route.reasoningEffort !== undefined) throw new Error('MODEL_REASONING_UNSUPPORTED: 生图工具的思考深度应配置在配套 LLM 上。')
       if (classId !== 'image') throw new Error('MODEL_TOOL_CLASS_INVALID: ComfyUI 仅可用于生成图像，请为此功能选择 LLM。')
       if (!route.llm) throw new Error('MODEL_COMPANION_REQUIRED: ComfyUI 是生图工具，请同时选择配套 LLM。')
       if (imageToolForRoute(route.llm)) throw new Error('MODEL_COMPANION_INVALID: 配套 LLM 不能选择 ComfyUI 工具自身。')
@@ -142,6 +163,14 @@ export class AgentClassService {
     const live = this.dependencies.llm.listProviders().some(row => row.id === route.provider)
     const models = live ? await this.dependencies.llm.listModels(route.provider).catch(() => []) : []
     if (!models.some(row => row.id === route.model)) throw new Error(`MODEL_UNAVAILABLE: ${route.provider} / ${route.model} 已不可用，请在 DSH 设置和子 Agent 类配置中检查。`)
+    if (route.reasoningEffort !== undefined) {
+      let info
+      try { info = await this.dependencies.llm.resolveModelInfo?.(route.provider, route.model) }
+      catch { throw new Error('MODEL_REASONING_UNAVAILABLE: 无法核实该模型的思考深度，请刷新配置后重试。') }
+      if (!info?.reasoning?.efforts.some(effort => effort.id === route.reasoningEffort)) {
+        throw new Error('MODEL_REASONING_UNSUPPORTED: 所选模型不支持这个思考深度，请重新选择。')
+      }
+    }
   }
   async save(revision: number, input: ClassRoutes, inputFallbacks?: ClassFallbacks): Promise<ClassSettings> {
     const requestedRoutes = routesSchema.parse(input)
@@ -189,6 +218,9 @@ export class AgentClassService {
       }
       if (plan.correctionFromExecutionId && [...table.entries()].some(([, row]) => row.correctionFromExecutionId === plan.correctionFromExecutionId)) {
         throw new Error('MODEL_CORRECTION_ALREADY_STARTED: 此次内容校正已预留，不能重复派发。')
+      }
+      if (plan.deadlineRecoveryFromExecutionId && [...table.entries()].some(([, row]) => row.chainId === plan.chainId && row.deadlineRecoveryFromExecutionId)) {
+        throw new Error('MODEL_DEADLINE_RECOVERY_ALREADY_STARTED: 此模型链的超时续试已预留，不能重复派发或循环重试。')
       }
       if (authorization) {
         const grantedAt = Date.parse(authorization.grantedAt)
@@ -261,9 +293,78 @@ export class AgentClassService {
     const run = this.domain.table('executions').get(id)
     return run ? structuredClone(run) : undefined
   }
+  /** Continue only a confirmed owner deadline along the immutable backup chain.
+   * Cold recovery supplies the same independently replayed native evidence. */
+  async fallbackTimedOut(id: string, parent: Agent, signal?: AbortSignal,
+    proof?: OwnedModelCallDeadline): Promise<ClassExecution | undefined> {
+    signal?.throwIfAborted()
+    const previous = this.execution(id)
+    if (!previous || previous.parentId !== String(parent.id) || previous.status !== 'failed' || !previous.childId
+      || previous.childStopReason !== 'aborted' || !previous.actual || !previous.routeChain || !previous.chainId
+      || previous.availabilityFailure || previous.error?.startsWith('MODEL_ROUTE_MISMATCH')
+      || this.dependencies.activity?.(previous.childId) === 'running') return undefined
+    const events = this.dependencies.sessions.get(previous.childId)?.snapshotEvents()
+      ?? await this.dependencies.readPersistedEvents?.(previous.childId)
+    signal?.throwIfAborted()
+    const deadline = proof ?? previous.modelCallDeadline
+    if (!events || !verifyOwnedModelCallDeadline(events, previous.selected, deadline)
+      || this.observed(previous, events).status === 'failed' || preplanningCancellationReason(events)
+      || previous.modelCallDeadline && JSON.stringify(previous.modelCallDeadline) !== JSON.stringify(deadline)) return undefined
+    if (!previous.modelCallDeadline) await this.update(id, { modelCallDeadline: structuredClone(deadline!) })
+    const index = (previous.routeIndex ?? 0) + 1
+    if (index >= previous.routeChain.length) return undefined
+    return this.beginRoute(previous.projectId, previous.classId, previous.task, parent, {
+      configurationRevision: previous.configurationRevision, routeChain: previous.routeChain, routeIndex: index,
+      chainId: previous.chainId, fallbackFromExecutionId: previous.id,
+    }, signal)
+  }
+  /** Cold module recovery may continue an exhausted, unsubmitted owner deadline
+   * once on its same immutable route. The reservation consumes the current grant
+   * and remains charged after failure, cancellation or process restart. */
+  async retryTimedOutModule(id:string,parent:Agent,signal?:AbortSignal,proof?:OwnedModelCallDeadline):Promise<ClassExecution|undefined>{
+    signal?.throwIfAborted()
+    const previous=this.execution(id),index=previous?.routeIndex
+    if(!previous||previous.parentId!==String(parent.id)||previous.classId!=='text'||previous.status!=='failed'
+      ||!previous.childId||previous.childStopReason!=='aborted'||!previous.actual||previous.availabilityFailure
+      ||previous.error?.startsWith('MODEL_ROUTE_MISMATCH')||!previous.routeChain||!previous.chainId
+      ||!Number.isSafeInteger(index)||index!<0||index!==previous.routeChain.length-1
+      ||!matchesModelRoute(previous.selected,previous.routeChain[index]!)||!/^\d\.\d{2} /u.test(previous.task)
+      ||this.dependencies.activity?.(previous.childId)==='running')return undefined
+    const events=this.dependencies.sessions.get(previous.childId)?.snapshotEvents()
+      ??await this.dependencies.readPersistedEvents?.(previous.childId)
+    signal?.throwIfAborted()
+    const deadline=proof??previous.modelCallDeadline
+    if(!events||!verifyOwnedModelCallDeadline(events,previous.selected,deadline)
+      ||this.observed(previous,events).status==='failed'||preplanningCancellationReason(events)
+      ||previous.modelCallDeadline&&JSON.stringify(previous.modelCallDeadline)!==JSON.stringify(deadline))return undefined
+    if(!previous.modelCallDeadline)await this.update(id,{modelCallDeadline:structuredClone(deadline!)})
+    return this.beginRoute(previous.projectId,previous.classId,previous.task,parent,{configurationRevision:previous.configurationRevision,
+      routeChain:previous.routeChain,routeIndex:index,chainId:previous.chainId,deadlineRecoveryFromExecutionId:previous.id},signal)
+  }
+  /** Requires owned native format-stall proof, from the SDK watcher or three
+   * completed JSON-wire corrections. Other content failures keep their finite
+   * correction path; the new route still requires complete independent review. */
+  async fallbackContent(id: string, parent: Agent, signal?: AbortSignal, nativeSchemaStall = false): Promise<ClassExecution | undefined> {
+    signal?.throwIfAborted()
+    const previous = this.execution(id)
+    if (!nativeSchemaStall || !previous || previous.parentId !== String(parent.id) || previous.status !== 'failed'
+      || !previous.actual || !previous.routeChain || !previous.chainId || previous.availabilityFailure
+      || previous.error?.startsWith('MODEL_ROUTE_MISMATCH') || this.dependencies.activity?.(previous.childId ?? '') === 'running') return undefined
+    const terminalKind = previous.childStopReason
+    if (terminalKind !== 'completed' && terminalKind !== 'aborted') return undefined
+    const events = previous.childId ? this.dependencies.sessions.get(previous.childId)?.snapshotEvents() : undefined
+    if (events?.length && (object(this.terminal(previous)?.reason)?.kind !== terminalKind || this.observed(previous).status === 'failed'
+      || preplanningCancellationReason(events))) return undefined
+    const index = (previous.routeIndex ?? 0) + 1
+    if (index >= previous.routeChain.length) return undefined
+    return this.beginRoute(previous.projectId, previous.classId, previous.task, parent, {
+      configurationRevision: previous.configurationRevision, routeChain: previous.routeChain, routeIndex: index, chainId: previous.chainId,
+      fallbackFromExecutionId: previous.id, correctionFromExecutionId: previous.id,
+    }, signal)
+  }
   /** A schema correction stays on the same snapshotted route. Restarting the
    * primary here could cycle through the backup chain on every report resume. */
-  async retryContent(id: string, parent: Agent, signal?: AbortSignal): Promise<ClassExecution | undefined> {
+  async retryContent(id: string, parent: Agent, signal?: AbortSignal, correctedTask?: string): Promise<ClassExecution | undefined> {
     signal?.throwIfAborted()
     const previous = this.execution(id)
     if (!previous || previous.parentId !== String(parent.id) || previous.status !== 'failed' || previous.childStopReason !== 'completed'
@@ -272,10 +373,38 @@ export class AgentClassService {
     const events = previous.childId ? this.dependencies.sessions.get(previous.childId)?.snapshotEvents() : undefined
     if (events?.length && (object(this.terminal(previous)?.reason)?.kind !== 'completed' || this.observed(previous).status === 'failed'
       || preplanningCancellationReason(events))) return undefined
-    return this.beginRoute(previous.projectId, previous.classId, previous.task, parent, {
+    return this.beginRoute(previous.projectId, previous.classId, correctedTask ?? previous.task, parent, {
       configurationRevision: previous.configurationRevision, routeChain: previous.routeChain, routeIndex: previous.routeIndex ?? 0,
       chainId: previous.chainId, correctionFromExecutionId: previous.id,
     }, signal)
+  }
+  /** Trusted module recovery verifies its immutable pre-spawn capacity audit.
+   * Keep the failed reservation and charge a new one on its same frozen route;
+   * never restart an execution that has attached or contacted a native child. */
+  async retryUnsentModuleCapacity(id:string,parent:Agent,signal?:AbortSignal):Promise<ClassExecution|undefined>{
+    signal?.throwIfAborted()
+    const previous=this.execution(id),index=previous?.routeIndex
+    if(!previous||previous.parentId!==String(parent.id)||previous.status!=='failed'||previous.classId!=='text'
+      ||previous.childId||previous.actual||previous.childStopReason||previous.availabilityFailure
+      ||!previous.routeChain||!previous.chainId||!Number.isSafeInteger(index)||index!<1
+      ||index!>=previous.routeChain.length
+      ||!previous.fallbackFromExecutionId||!matchesModelRoute(previous.selected,previous.routeChain[index!]!)
+      ||!/^\d\.\d{2} /u.test(previous.task))return undefined
+    return this.beginRoute(previous.projectId,previous.classId,previous.task,parent,{configurationRevision:previous.configurationRevision,
+      routeChain:previous.routeChain,routeIndex:index!,chainId:previous.chainId,correctionFromExecutionId:previous.id},signal)
+  }
+  /** Trusted module preflight has admitted the unchanged complete request on
+   * the next snapshotted route. Never move a reservation that started a child. */
+  async fallbackUnsentModuleCapacity(id:string,parent:Agent,signal?:AbortSignal):Promise<ClassExecution|undefined>{
+    signal?.throwIfAborted()
+    const previous=this.execution(id),index=previous?.routeIndex
+    if(!previous||previous.parentId!==String(parent.id)||previous.status!=='failed'
+      ||previous.classId!=='text'||previous.childId!==undefined||previous.actual!==undefined
+      ||previous.childStopReason!==undefined||previous.availabilityFailure||!previous.routeChain||!previous.chainId
+      ||!Number.isSafeInteger(index)||index!<0||index!+1>=previous.routeChain.length
+      ||!matchesModelRoute(previous.selected,previous.routeChain[index!]!)||!/^\d\.\d{2} /u.test(previous.task))return undefined
+    return this.beginRoute(previous.projectId,previous.classId,previous.task,parent,{configurationRevision:previous.configurationRevision,
+      routeChain:previous.routeChain,routeIndex:index!+1,chainId:previous.chainId,fallbackFromExecutionId:previous.id},signal)
   }
   private update(id: string, patch: Partial<ClassExecution>): Promise<ClassExecution> {
     return this.serialize(async () => {
@@ -302,8 +431,8 @@ export class AgentClassService {
     // native request. Verify that immutable snapshot, not today's tool contract.
     // New dispatches still require an explicit companion during route validation.
     const expected = imageToolForRoute(run.selected) && run.selected.llm ? run.selected.llm
-      : { provider: run.selected.provider, model: run.selected.model }
-    if (!expected || routes.some(route => !sameRoute(route, expected))) return { ...lifecycle, actual, status: 'failed', error: 'MODEL_ROUTE_MISMATCH: 子会话实际请求模型与派发配置不一致。' }
+      : run.selected
+    if (!expected || routes.some(route => !matchesModelRoute(route, expected))) return { ...lifecycle, actual, status: 'failed', error: 'MODEL_ROUTE_MISMATCH: 子会话实际请求模型或思考深度与派发配置不一致。' }
     return { ...lifecycle, actual }
   }
   private terminal(run: ClassExecution, events = run.childId ? this.dependencies.sessions.get(run.childId)?.snapshotEvents() ?? [] : []): Record<string, unknown> | undefined {
@@ -323,7 +452,7 @@ export class AgentClassService {
       ? 'MODEL_LOGIN_EXPIRED: 模型登录已失效，请在 DSH 设置中重新登录。'
       : 'MODEL_AUTH_FAILED: 模型身份验证失败，请检查 DSH 设置中的凭据。'
     if (code === 'SERVER' && /\bno_healthy_account\b/u.test(message)) return 'MODEL_ACCOUNT_UNAVAILABLE: 模型服务没有可用账户，请检查服务账户状态；本次任务已停止。'
-    const availability = availabilityFailure(reason)
+    const availability = nativeAvailabilityFailure(reason)
     if (availability) return `MODEL_${availability.toUpperCase().replace('-', '_')}_UNAVAILABLE: 所选模型服务暂不可用，请检查 DSH 设置或服务状态。`
     return undefined
   }
@@ -340,7 +469,7 @@ export class AgentClassService {
       ? await this.dependencies.readPersistedEvents?.(run.childId) : undefined
     const events = run.childId ? this.dependencies.sessions.get(run.childId)?.snapshotEvents() ?? cold ?? [] : []
     const observed = this.observed(run, events)
-    const failure = availabilityFailure(object(this.terminal(run, events)?.reason))
+    const failure = nativeAvailabilityFailure(object(this.terminal(run, events)?.reason))
     const proof = { availabilityFailure: status === 'failed' && !preplanningCancellationReason(events) ? failure : undefined }
     if (status !== 'completed' && run.childId) error = preplanningCancellationReason(events)
       ?? this.terminalModelFailure(run, events) ?? error
@@ -357,9 +486,9 @@ export class AgentClassService {
     }
     await this.update(id, { status, error, ...observed, ...proof })
   }
-  async executions(projectId: string): Promise<ClassExecution[]> {
+  async executions(projectId: string, options: { all?: boolean } = {}): Promise<ClassExecution[]> {
     const runs = [...this.domain.table('executions').entries()].map(([, row]) => row)
-      .filter(row => row.projectId === projectId).sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, 100)
+      .filter(row => row.projectId === projectId).sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, options.all ? undefined : 100)
     const result: ClassExecution[] = []
     for (const run of runs) {
       const patch = this.observed(run)

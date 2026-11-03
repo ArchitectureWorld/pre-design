@@ -10,9 +10,24 @@ const DEFAULT_MAX_BYTES = 16 * 1024 * 1024
 const SUPPORTED_TEXT_EXTENSIONS = new Set([
   '.csv', '.geojson', '.gml', '.ifc', '.json', '.md', '.txt', '.xml', '.yaml', '.yml',
 ])
+export const WORKSPACE_SOURCE_DIRECTORIES = ['原始资料', 'source-materials'] as const
+const GENERATED_DIRECTORIES = new Set([
+  '.git', '.pre-design', 'output', 'outputs', 'node_modules', 'dist', 'lib', 'build',
+  '.next', '.cache', 'debug', 'tests', 'fixtures', 'examples', 'schemas',
+])
+const GENERATED_METADATA_FILES = new Set(['manifest.json', 'rules.json', 'outline.json'])
+
+/** Generated/technical folders cannot become evidence, even via an explicit file allowlist. */
+export function isGeneratedWorkspacePath(path: string): boolean {
+  const parts = path.split(/[\\/]/u).map(part => part.toLowerCase())
+  return GENERATED_METADATA_FILES.has(parts.at(-1) ?? '') || parts.some((part, index) => GENERATED_DIRECTORIES.has(part)
+    || (part === 'research' && parts[index + 1] === 'runs'))
+}
 
 export interface WorkspaceResearchProviderOptions {
   readonly rootDir: string
+  /** Exact source files outside the standard original-material directories; never generated outputs. */
+  readonly allowedFiles?: readonly string[]
   readonly maxBytes?: number
   readonly clock?: () => Date
 }
@@ -61,6 +76,7 @@ export class WorkspaceResearchProvider implements ResearchProvider {
   readonly accessModes = ['workspace_file'] as const
 
   private readonly rootDir: string
+  private readonly allowedFiles?: readonly string[]
   private readonly maxBytes: number
   private readonly clock: () => Date
 
@@ -70,6 +86,7 @@ export class WorkspaceResearchProvider implements ResearchProvider {
     const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES
     if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new Error('workspace provider maxBytes must be a positive safe integer')
     this.rootDir = resolve(rootDir)
+    this.allowedFiles = options.allowedFiles === undefined ? undefined : Object.freeze([...options.allowedFiles])
     this.maxBytes = maxBytes
     this.clock = options.clock ?? (() => new Date())
   }
@@ -95,6 +112,18 @@ export class WorkspaceResearchProvider implements ResearchProvider {
       throw new Error(`unsupported workspace file extension '${extension || '(none)'}'; use the DSH attachment/material extractor for binary documents`)
     }
 
+    const relativePath = normalizedRelativePath(root, target)
+    const requestedRelativePath = normalizedRelativePath(root, requestedPath)
+    if (isGeneratedWorkspacePath(relativePath) || isGeneratedWorkspacePath(requestedRelativePath)) {
+      throw new Error(`workspace locator is generated output, not an original source: ${request.locator}`)
+    }
+    const pathIdentity = (path: string) => process.platform === 'win32' ? path.toLowerCase() : path
+    const approved = this.allowedFiles === undefined
+      ? WORKSPACE_SOURCE_DIRECTORIES.some(directory => pathIdentity(relativePath).startsWith(`${directory}/`)
+        && pathIdentity(requestedRelativePath).startsWith(`${directory}/`))
+      : this.allowedFiles.some(file => pathIdentity(resolve(root, file)) === pathIdentity(target))
+    if (!approved) throw new Error(`workspace locator is not an approved source file: ${request.locator}`)
+
     const fileStat = await stat(target)
     if (!fileStat.isFile()) throw new Error(`workspace locator is not a file: ${request.locator}`)
     if (fileStat.size > this.maxBytes) throw new Error(`workspace file exceeds maxBytes (${fileStat.size} > ${this.maxBytes})`)
@@ -112,7 +141,6 @@ export class WorkspaceResearchProvider implements ResearchProvider {
     const selection = applyResearchSelector(text, parsedValue, request.selector)
     const contentHash = sha256(bytes)
     const fragmentHash = sha256(stableValueText(selection.rawValue))
-    const relativePath = normalizedRelativePath(root, target)
     const capturedAt = this.clock().toISOString()
     const selectorIdentity = JSON.stringify(selection.locator)
     const evidenceId = `ev-${sha256(`${request.workflowId}\n${request.dataPointId}\n${source.sourceId}\n${relativePath}\n${selectorIdentity}\n${contentHash}`).slice(0, 32)}`
@@ -142,10 +170,10 @@ export class WorkspaceResearchProvider implements ResearchProvider {
       unit: null,
       contentHash,
       reliability: source.reliabilityGrade,
-      claimClass: 'fact',
+      claimClass: 'source_conclusion',
       notes: request.selector === undefined
-        ? 'Workspace source snapshot. No field selector was supplied, so the full supported text/JSON file is the evidence value.'
-        : 'Workspace field-level evidence snapshot. The full file hash and exact selector/fragment hash are preserved for reproduction. Binary PDF/Office/CAD extraction remains delegated to DSH material/attachment extractors.',
+        ? 'Unverified workspace source assertion, not an independently verified fact or legal conclusion. No field selector was supplied, so the full supported text/JSON file is the evidence value.'
+        : 'Unverified workspace source assertion, not an independently verified fact or legal conclusion. The full file hash and exact selector/fragment hash are preserved for reproduction. Binary PDF/Office/CAD extraction remains delegated to DSH material/attachment extractors.',
     }
 
     return { records: Object.freeze([Object.freeze(record)]) }

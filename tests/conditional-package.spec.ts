@@ -13,6 +13,9 @@ import { reportImageDimensions } from '../src/report/regular/image-dimensions.ts
 import { createConditionalReportBundle, planConditionalPages, type ConditionalReportMaterial } from '../src/report/conditional-report.ts'
 import type { ArtifactRecord, ReportPackageRecord } from '../src/governance/types.ts'
 import type { FrozenProjectInput } from '../src/report/types.ts'
+import { reportModuleResearchFixture } from './support/report-module-research.ts'
+import { DEFAULT_REPORT_DELIVERY_CONTRACT } from '../src/report/delivery-contract.ts'
+import { ReportPageRejected } from '../src/report/page-rejection.ts'
 
 const roots: string[] = []
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }) })
@@ -43,6 +46,83 @@ async function fixture(formats?: readonly ArtifactRecord['format'][]) {
 }
 
 describe('conditional report packaging', () => {
+  it('revises specifically rejected pages before rendering again, with a finite correction budget', async () => {
+    const h=await fixture();Object.assign(h.source,{deliveryContract:DEFAULT_REPORT_DELIVERY_CONTRACT})
+    const findings=[{code:'HTML_VISUAL_CONTRADICTION',pageId:'spatial-plan',message:'入口与游线的图文矛盾'}]
+    const revisePages=vi.fn(async()=>{})
+    const acceptance={assertContent:async()=>({status:'passed'}),accept:async()=>{throw new ReportPageRejected(findings)},verify:async()=>({status:'passed'})}
+    const service=new ConditionalReportPackageService({...h.options,acceptance,revisePages} as never)
+    await expect(service.generate('project',103,undefined,{maxGenerations:0})).rejects.toThrow('REPORT_HTML_REJECTED')
+    expect(revisePages).toHaveBeenCalledTimes(2)
+    expect(revisePages.mock.calls[0]?.slice(0,3)).toEqual(['project',103,findings])
+    expect(revisePages.mock.calls.every((call:any[])=>call[4]?.maxGenerations===0)).toBe(true)
+    expect(h.renderers.html).toHaveBeenCalledTimes(3)
+    expect([...h.records.values()].every(r=>r.status==='failed')).toBe(true)
+  })
+  it('does not replace a manuscript after a review timeout', async () => {
+    const h=await fixture();Object.assign(h.source,{deliveryContract:DEFAULT_REPORT_DELIVERY_CONTRACT})
+    const revisePages=vi.fn()
+    const acceptance={assertContent:async()=>({status:'passed'}),accept:async()=>{throw new Error('REPORT_REVIEW_TIMEOUT')},verify:async()=>({status:'passed'})}
+    const service=new ConditionalReportPackageService({...h.options,acceptance,revisePages} as never)
+    await expect(service.generate('project',103)).rejects.toThrow('REPORT_REVIEW_TIMEOUT')
+    expect(revisePages).not.toHaveBeenCalled()
+    expect(h.renderers.html).toHaveBeenCalledTimes(1)
+  })
+  it('rejects rewritten package acceptance hashes against the governance receipt', async () => {
+    const h=await fixture();Object.assign(h.source,{deliveryContract:DEFAULT_REPORT_DELIVERY_CONTRACT})
+    let receipt='a'.repeat(64)
+    const acceptance={assertContent:async()=>({status:'passed'}),accept:async()=>({status:'passed',integrityHash:receipt}),verify:async()=>({status:'passed',integrityHash:receipt})}
+    const service=new ConditionalReportPackageService({...h.options,acceptance} as never)
+    const first=await service.generate('project',103)
+    receipt='b'.repeat(64)
+    await writeFile(join(h.root,first.packageId,'artifact-manifest.json'),JSON.stringify({...first,acceptanceHash:receipt}))
+    const next=await service.generate('project',103)
+    expect(next.packageId).not.toBe(first.packageId)
+    expect(h.records.get(first.packageId)?.status).toBe('failed')
+  })
+  it('cannot bypass the current delivery contract through an unguarded export service', async () => {
+    const h=await fixture();Object.assign(h.source,{deliveryContract:DEFAULT_REPORT_DELIVERY_CONTRACT})
+    await expect(h.service.generate('project',103)).rejects.toThrow('REPORT_ACCEPTANCE_SERVICE_REQUIRED')
+    expect(h.renderers.html).not.toHaveBeenCalled()
+  })
+  it('uses the acceptance port on generation and cache reuse and persists quality separately from legal mode', async () => {
+    const h=await fixture();Object.assign(h.source,{deliveryContract:DEFAULT_REPORT_DELIVERY_CONTRACT})
+    let stale=false
+    const acceptance={assertContent:async()=>({status:'passed'}),accept:async()=>({status:'passed',integrityHash:'a'.repeat(64)}),verify:async()=>{if(stale)throw new Error('REPORT_ACCEPTANCE_RESOURCE_CHANGED');return{status:'passed',integrityHash:'a'.repeat(64)}}}
+    const service=new ConditionalReportPackageService({...h.options,acceptance} as never)
+    const first=await service.generate('project',103)
+    expect(h.records.get(first.packageId)?.acceptanceState).toBe('passed')
+    expect(first.publishable).toBe(false)
+    expect((await service.generate('project',103)).packageId).toBe(first.packageId)
+    stale=true
+    await expect(service.generate('project',103)).rejects.toThrow('REPORT_ACCEPTANCE_RESOURCE_CHANGED')
+    expect([...h.records.values()].filter(r=>r.status==='generated_conditional')).toHaveLength(0)
+  })
+  it('does not reuse a package when only the frozen module source identity changes', async () => {
+    const h = await fixture()
+    Object.assign(h.source, { moduleResearch: reportModuleResearchFixture('research-a', 'run-a') })
+    const first = await h.service.generate('project', 103)
+    Object.assign(h.source, { moduleResearch: reportModuleResearchFixture('research-b', 'run-b') })
+    const second = await h.service.generate('project', 103)
+    expect(second.packageId).not.toBe(first.packageId)
+    const generation = JSON.parse(await readFile(join(h.root, second.packageId, 'generation.json'), 'utf8'))
+    expect(generation.moduleResearch.manifestRunId).toBe('run-b')
+    expect(generation.moduleResearch.fingerprint).toBe('research-b')
+    expect(generation.moduleResearch.selectionId).toBe('private-selection')
+    expect(generation.moduleResearch.snapshotHash).toBe('a'.repeat(64))
+  })
+  it('rejects a source selection changed during rendering before recording success', async () => {
+    const h = await fixture()
+    let current = 'research-a'
+    Object.assign(h.source, { moduleResearch: reportModuleResearchFixture(current, 'run-a') })
+    const html = h.renderers.html.getMockImplementation()!
+    h.renderers.html.mockImplementation(async (...args) => { const value = await html(...args); current = 'research-b'; return value })
+    const service = new ConditionalReportPackageService({ ...h.options, assertSourceCurrent: async (input: FrozenProjectInput) => {
+      if (input.moduleResearch?.fingerprint !== current) throw new Error('REPORT_MODULE_SELECTION_CHANGED')
+    } } as never)
+    await expect(service.generate('project', 103)).rejects.toThrow('REPORT_MODULE_SELECTION_CHANGED')
+    expect([...h.records.values()].some(row => row.status === 'generated_conditional')).toBe(false)
+  })
   it('exports and reuses HTML by default without invoking print, PDF or PPTX rendering', async () => {
     const h = await fixture()
     const [first, duplicate] = await Promise.all([h.service.generate('project', 103), h.service.generate('project', 103)])
@@ -183,6 +263,7 @@ describe('conditional report packaging', () => {
       })
     }
     const service = new ConditionalReportPackageService({ ...h.options, materials: async () => materials } as never)
+    Object.assign(h.source, { moduleResearch: reportModuleResearchFixture() })
     const manifest = await service.generate('project', 103)
     const directory = join(h.root, manifest.packageId)
     const html = await readFile(join(directory, 'html/index.html'), 'utf8')
@@ -192,6 +273,11 @@ describe('conditional report packaging', () => {
     const source = await readFile(join(directory, 'planning-sources.html'), 'utf8')
     expect(source).toContain('内部工作记录&lt;&amp;&gt;与论证过程全文')
     expect(source).toContain('完整依据')
+    expect(html).toContain('href="../planning-sources.html"')
+    expect(source).toContain('少潭河生态游憩与研学策划；实施范围待边界复核。')
+    expect(source).toContain('研究口径日期：2026-09-26。')
+    expect(source).not.toContain('PRIVATE RAW TASK TRANSCRIPT')
+    expect(source).not.toContain('private-snapshot')
   })
   it('drains a cancelled generation before an immediate resume creates a fresh package', async () => {
     const h = await fixture(['html', 'pptx', 'pdf'])

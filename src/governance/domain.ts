@@ -171,7 +171,7 @@ const visualAssetSchema = z.object({
   model: z.string().min(1).optional(),
   promptSummary: z.string().min(1).optional(),
   recoveredFrom: z.object({ childId: z.string().min(1), executionId: z.string().min(1).optional(),
-    eventSeq: z.number().int().min(0), turn: z.number().int().min(1), step: z.number().int().min(1) }).strict().optional(),
+    eventSeq: z.number().int().min(0), turn: z.number().int().min(1), step: z.number().int().min(1),toolCallId:z.string().min(1).optional() }).strict().optional(),
   mimeType: z.enum(['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']),
   fileName: z.string().min(1),
   sha256: z.string().regex(/^[a-fA-F0-9]{64}$/),
@@ -307,6 +307,9 @@ export function validateSiteBoundaryRecord(record: unknown): SiteBoundaryRecord 
 }
 
 const reportPackageSchema = z.object({
+  acceptanceState:z.enum(['generating','pending','failed','passed']).optional(),
+  acceptanceHash:z.string().regex(/^[a-f0-9]{64}$/u).optional(),
+  deliveryContractVersion:z.string().min(1).optional(),
   packageId: z.string().min(1),
   projectId: z.string().min(1),
   sourceRevision: z.number().int().nonnegative(),
@@ -319,6 +322,7 @@ const reportPackageSchema = z.object({
   publishedAt: z.string().min(1).optional(),
   generatedAt: z.string().min(1).optional(),
 }).strict().superRefine((record, context) => {
+  if(record.acceptanceState==='passed'&&(!record.acceptanceHash||!record.deliveryContractVersion||!['published','generated_conditional'].includes(record.status)))context.addIssue({code:'custom',message:'accepted report requires final artifact and versioned acceptance receipt'})
   if (record.status === 'published' && (record.artifactManifestId === undefined || record.publishedAt === undefined)) {
     context.addIssue({ code: 'custom', message: 'published report requires artifact manifest and publishedAt' })
   }
@@ -327,7 +331,7 @@ const reportPackageSchema = z.object({
   }
 })
 
-export function validateReportPackageRecord(record: ReportPackageRecord): ReportPackageRecord {
+export function validateReportPackageRecord(record: ReportPackageRecord) {
   return reportPackageSchema.parse(record)
 }
 

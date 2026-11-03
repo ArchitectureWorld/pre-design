@@ -1,6 +1,7 @@
 import { constants } from 'node:fs'
 import { lstat, mkdir, open, readdir, realpath, rename, rm } from 'node:fs/promises'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { isAbsolute, join, parse, resolve, win32 } from 'node:path'
 import { parseRegionalOdRequest } from './regional-schema.ts'
 import { safeBundlePath, verifyRegionalAuditBundle, type RegionalAuditBundle } from './regional-bundle.ts'
@@ -9,6 +10,48 @@ const REQUEST_LIMIT = 2 * 1024 * 1024
 const FILE_LIMIT = 64 * 1024 * 1024
 const BUNDLE_LIMIT = 160 * 1024 * 1024
 const RUN_ID = /^RUN-[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u
+
+interface ResearchReadSnapshot {
+  files: Map<string, { root: string; relative: string; limit: number; hash: string }>
+  bundles: Map<string, { root: string; prefix: string; files: string[] }>
+}
+const observedReads = new AsyncLocalStorage<ResearchReadSnapshot>()
+const textHash = (value: string) => createHash('sha256').update(value).digest('hex')
+
+async function snapshotMatches(snapshot: ResearchReadSnapshot): Promise<boolean> {
+  for (const file of snapshot.files.values()) {
+    if (textHash(await readResearchFile(file.root, file.relative, file.limit)) !== file.hash) return false
+  }
+  for (const bundle of snapshot.bundles.values()) {
+    if (JSON.stringify(await researchBundleFileNames(bundle.root, bundle.prefix)) !== JSON.stringify(bundle.files)) return false
+  }
+  return true
+}
+
+/** Cache a pure replay, never its freshness checks. Every captured file is read
+ * and hashed again, including bundle membership and safe path checks. */
+export function createResearchReadCache<T>(): (key: string, replay: () => Promise<T>) => Promise<T> {
+  let cached: { key: string; value: T; snapshot: ResearchReadSnapshot } | undefined
+  let tail: Promise<unknown> = Promise.resolve()
+  return (key, replay) => {
+    const pending = tail.catch(() => undefined).then(async () => {
+      if (cached?.key === key) {
+        let unchanged = false
+        try { unchanged = await snapshotMatches(cached.snapshot) } catch { /* Replay reports the precise source error. */ }
+        if (unchanged) return cached.value
+      }
+      cached = undefined
+      const snapshot: ResearchReadSnapshot = { files: new Map(), bundles: new Map() }
+      const value = await observedReads.run(snapshot, replay)
+      if (!snapshot.files.size) return value
+      if (!await snapshotMatches(snapshot)) throw new Error('RESEARCH_READ_SNAPSHOT_CHANGED')
+      cached = { key, value, snapshot }
+      return value
+    })
+    tail = pending
+    return pending
+  }
+}
 
 function partsOf(path: string): string[] {
   if (typeof path !== 'string' || path.length === 0 || path.length > 1000 || path.includes('\0')
@@ -71,7 +114,15 @@ export async function readResearchFile(root: string, relative: string, limit = R
     await checkedPath(canonical, relative)
     const pathAfter = await lstat(path)
     if (pathAfter.isSymbolicLink() || pathAfter.ino !== opened.ino || pathAfter.dev !== opened.dev) throw new Error('RESEARCH_FILE_CHANGED')
-    return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(buffer.subarray(0, size))
+    const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(buffer.subarray(0, size))
+    const snapshot = observedReads.getStore()
+    if (snapshot) {
+      const normalized = partsOf(relative).join('/'), key = canonical + '\0' + normalized, hash = textHash(text)
+      const previous = snapshot.files.get(key)
+      if (previous && previous.hash !== hash) throw new Error('RESEARCH_READ_SNAPSHOT_CHANGED')
+      snapshot.files.set(key, { root: canonical, relative: normalized, limit: Math.max(limit, previous?.limit ?? 0), hash })
+    }
+    return text
   } finally { await file.close() }
 }
 
@@ -131,6 +182,21 @@ export async function saveResearchAuditBundle<T extends StoredResearchBundle>(ro
   }
 }
 
+async function researchBundleFileNames(root: string, prefix: string): Promise<string[]> {
+  const canonical = await researchWorkspaceRoot(root), actual: string[] = []
+  async function scan(relative: string) {
+    const path = await checkedPath(canonical, relative + '/sentinel')
+    for (const entry of await readdir(join(path, '..'), { withFileTypes: true })) {
+      if (entry.isSymbolicLink()) throw new Error('RESEARCH_SYMLINK_FORBIDDEN')
+      if (entry.isDirectory()) await scan(`${relative}/${entry.name}`)
+      else if (entry.isFile()) actual.push(`${relative}/${entry.name}`.slice(prefix.length + 1))
+      else throw new Error('RESEARCH_NOT_FILE')
+    }
+  }
+  await scan(prefix)
+  return actual.sort()
+}
+
 export async function readResearchAuditBundle<T extends StoredResearchBundle>(root:string,runId:string,verify:(bundle:T)=>unknown):Promise<T> {
   if (!RUN_ID.test(runId)) throw new Error('RESEARCH_RUN_ID_INVALID')
   const prefix = `research/runs/${runId}`
@@ -146,17 +212,13 @@ export async function readResearchAuditBundle<T extends StoredResearchBundle>(ro
     files[entry.path] = content
   }
   const canonical = await researchWorkspaceRoot(root)
-  const actual: string[] = []
-  async function scan(relative: string) {
-    const path = await checkedPath(canonical, relative + '/sentinel')
-    for (const entry of await readdir(join(path, '..'), { withFileTypes: true })) {
-      if (entry.isSymbolicLink()) throw new Error('RESEARCH_SYMLINK_FORBIDDEN')
-      if (entry.isDirectory()) await scan(`${relative}/${entry.name}`)
-      else if (entry.isFile()) actual.push(`${relative}/${entry.name}`.slice(prefix.length + 1))
-      else throw new Error('RESEARCH_NOT_FILE')
-    }
+  const actual = await researchBundleFileNames(canonical, prefix)
+  const snapshot = observedReads.getStore(), key = canonical + '\0' + prefix
+  if (snapshot) {
+    const previous = snapshot.bundles.get(key)
+    if (previous && JSON.stringify(previous.files) !== JSON.stringify(actual)) throw new Error('RESEARCH_READ_SNAPSHOT_CHANGED')
+    snapshot.bundles.set(key, { root: canonical, prefix, files: actual })
   }
-  await scan(prefix)
   if (JSON.stringify(actual.filter(p => p !== 'manifest.json').sort()) !== JSON.stringify(Object.keys(files).sort())) throw new Error('BUNDLE_FILE_SET_MISMATCH')
   const bundle = { manifest, files } as unknown as T
   verify(bundle)

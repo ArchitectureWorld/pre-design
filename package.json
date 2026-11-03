@@ -64,14 +64,17 @@
     "typecheck": "tsc -p tsconfig.json",
     "test:continuous-sync": "vitest run tests/presentation-auto-sync.spec.ts tests/presentation-migration-guidance.spec.ts tests/parallel-workflow-executor.spec.ts tests/automation-workflow-committer.spec.ts tests/coordinator-parallel.spec.ts tests/presentation-sync-status.client.spec.tsx tests/automatic-gate-after-serial.spec.ts --maxWorkers=1",
     "verify:research-v210": "node scripts/verify-research-v210.mjs",
-    "test:research-v210": "node scripts/verify-research-v210.mjs && vitest run tests/research-v210-*.spec.ts --maxWorkers=1"
+    "test:research-v210": "node scripts/verify-research-v210.mjs && vitest run research-v210- --maxWorkers=1"
   },
   "license": "MIT",
   "dependencies": {
     "@deepseek-ai/dsh-llm": "0.1.5-rc.1",
     "@deepseek-ai/schemastery": "3.18.1",
+    "exifr": "7.1.3",
     "jpeg-js": "0.4.4",
+    "jszip": "3.10.1",
     "parse5": "7.3.0",
+    "pdf-lib": "1.17.1",
     "pdfjs-dist": "6.3.289",
     "pngjs": "7.0.0",
     "pptxgenjs": "4.0.1",

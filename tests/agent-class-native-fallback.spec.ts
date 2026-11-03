@@ -100,7 +100,9 @@ it('retains every scene translation attempt and does not charge an availability 
 })
 it('uses the text backup for workflow analysis without consuming the independent timeout retry', async () => {
   const candidate = { payload: { data: { canonical_name: '少潭河' } }, qualityEvidence: { completionChecks: [], evidenceChecks: [], assumptions: [], blockers: [], confidence: 0.9 } }
-  const f = await fixture(() => ({ stopReason: 'completed', structured: candidate }))
+  const f = await fixture(() => ({ stopReason: 'completed', structured: {
+    projectionVersion: 'legacy-workflow-author-v1', data: candidate.payload.data, qualityEvidence: candidate.qualityEvidence,
+  } }))
   const analyzer = new DshSubagentWorkflowAnalyzer({ agentClasses: f.classes, subagents: f.subagents,
     repository: { readContext: () => ({ project: { projectId: 'p', name: '少潭河', currentRevision: 0 }, stateObjects: [] }) },
     registry: { stateSchema: () => ({}), stateExample: () => ({}) } } as never)

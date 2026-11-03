@@ -28,7 +28,7 @@ export function createResearchPlanCommand(): CommandDefinition {
         if (item) {
           const mod = requireModule(c,item), detail = {execution:'planning_only',catalogHash:c.hash,module:mod,
             requires:c.edges.filter(e => e.target === item),selected:p.edges.filter(e => e.target === item),
-            unresolved:p.unresolved.filter(e => e.target === item),deliverables:candidateDeliverables(c,item),researchSpec:getResearchModuleSpec(item),fieldSchemaStatus:'regional_slice_only'}
+            unresolved:p.unresolved.filter(e => e.target === item),deliverables:candidateDeliverables(c,item),researchSpec:getResearchModuleSpec(item),fieldSchemaStatus:'strict_module_output_contracts'}
           return {kind:'success',text:json ? JSON.stringify(detail,null,2) : `研究计划（只读） ${item} ${mod.title}\n${JSON.stringify(detail,null,2)}\n候选成果尚未生成；不改变旧57项执行状态。`}
         }
         if (json) return {kind:'success',text:JSON.stringify(p,null,2)}
@@ -39,7 +39,7 @@ export function createResearchPlanCommand(): CommandDefinition {
           ...CONDITION_FIELDS.map(f => `${f}: ${p.flags[f] === 'unknown' ? '待判定' : p.flags[f]}`),
           `计划摘要 SHA-256: ${p.hash}`,
           '未填条件保持未知，不默认跳过。--item=2.03 查看子项；--json 输出机器可读计划。',
-          '本入口不取数、不调用模型、不生成图像、不写项目。现有57项执行器仍保留，62项自动执行接入尚未启用。',
+          '本入口只读。/preplan-research-run 执行新版研究；/preplan-research-status 查看真实进度。现有57项工作流状态单独保留。',
         ].join('\n')}
       } catch(error) {return {kind:'error',text:error instanceof Error ? error.message : 'RESEARCH_PLAN_FAILED'}}
     },

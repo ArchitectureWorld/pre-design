@@ -49,7 +49,7 @@ export interface ImageInspection {
   readonly placementHash: string
   readonly inspectedAt: string
   readonly actualImageInput: true
-  readonly actualModel: { readonly provider: string; readonly model: string }
+  readonly actualModel: { readonly provider: string; readonly model: string; readonly reasoningEffort?: string }
   readonly executionId: string
   readonly contentKind: ImageContentKind
   readonly relevant: boolean

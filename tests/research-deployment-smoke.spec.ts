@@ -37,6 +37,7 @@ describe('Pre 2.0.1 deployment research smoke', () => {
     const registry = await ResearchRegistry.open(researchRoot)
     const workspace = new WorkspaceResearchProvider({
       rootDir: root,
+      allowedFiles: ['inputs/project.json'],
       clock: () => new Date('2026-09-14T05:30:00.000Z'),
     })
     const service = new ResearchExecutionService(registry, new ResearchProviderRouter([workspace]))

@@ -63,7 +63,9 @@ function ExecutionDialog({ id, runs, onClose }: { readonly id: string; readonly 
         <p className="execution-meta"><span>{AGENT_CLASSES.find(kind => kind.id === run.classId)?.title ?? run.classId} · <span>{childActivityLabel(run.activity)}</span></span><time dateTime={run.startedAt}>{displayTime(run.startedAt)}</time></p>
         <details><summary>执行详情</summary><dl><dt>执行编号</dt><dd>{run.id}</dd><dt>启动配置版本</dt><dd>{run.configurationRevision}</dd><dt>选用模型 / 工具</dt><dd>{run.selected.provider} / {run.selected.model}</dd>
           {run.selected.llm && <><dt>启动时配套 LLM</dt><dd>{run.selected.llm.provider} / {run.selected.llm.model}</dd></>}
+          <dt>选用思考深度</dt><dd>{(run.selected.llm ?? run.selected).reasoningEffort ?? '默认（模型设置）'}</dd>
           {run.actual && <><dt>实际模型 / 工具</dt><dd>{run.actual.provider} / {run.actual.model}</dd></>}
+          {run.actual && <><dt>实际思考深度</dt><dd>{run.actual.reasoningEffort ?? '模型未显式记录'}</dd></>}
           {run.actual?.llm && <><dt>实际配套 LLM</dt><dd>{run.actual.llm.provider} / {run.actual.llm.model}</dd></>}
           {run.childId && <><dt>子会话</dt><dd>{run.childId}</dd></>}
           {run.childStopReason && <><dt>停止原因</dt><dd>{run.childStopReason}</dd></>}

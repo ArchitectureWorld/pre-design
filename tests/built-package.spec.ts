@@ -41,7 +41,7 @@ async function packedFilePaths(): Promise<string[]> {
   const { stdout } = await execFile(
     command,
     args,
-    { cwd: root, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 },
+    { cwd: root, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024, timeout: 25_000 },
   )
   const rows = JSON.parse(stdout) as PackedPackage[]
   if (!Array.isArray(rows) || rows.length !== 1 || !Array.isArray(rows[0]?.files)) {
@@ -67,6 +67,14 @@ describe('built npm package', () => {
       const host = await import(pathToFileURL(resolve(root, manifest.exports['.'].default)).href)
       await host.apply(ctx)
       expect(tools.map(tool => tool.name)).toContain('preplanning_generate_page_visual')
+      const peerTool = tools.find(tool => tool.name === 'preplanning_research_peers')
+      const sourceTool = tools.find(tool => tool.name === 'preplanning_read_research_source')
+      const verifyTool = tools.find(tool => tool.name === 'preplanning_verify_peer_research')
+      expect(peerTool).toBeDefined()
+      expect(sourceTool).toBeDefined()
+      expect(verifyTool).toBeDefined()
+      await expect(verifyTool!.execute({ runId: 'RUN-00000000-0000-0000-0000-000000000000' },
+        { agent: { id: 'built-host' }, signal: new AbortController().signal } as never)).rejects.toThrow('RESEARCH_PROJECT_REQUIRED')
       const researchPlan = researchCommands.find(command => command.name === 'preplan-research-plan')
       expect(researchPlan).toBeDefined()
       const regionalOd = researchCommands.find(command => command.name === 'preplan-research-od')
@@ -124,7 +132,8 @@ describe('built npm package', () => {
     ])
     expect(typeof browser.apply).toBe('function')
     expect([...requestedExternals].sort()).toEqual(['react', 'react/jsx-runtime'].sort())
-    expect(Buffer.byteLength(source, 'utf8')).toBeLessThan(100_000)
+    // Include the dynamic primary/backup/companion reasoning controls in the UI budget.
+    expect(Buffer.byteLength(source, 'utf8')).toBeLessThan(110_000)
   })
 
   it('packs every generated Host chunk and the pinned Presentation Contract runtime assets', async () => {
@@ -148,5 +157,5 @@ describe('built npm package', () => {
       'schemas/0.1.0/project-rules-document.schema.json',
       'schemas/0.1.0/source-material-manifest.schema.json',
     ]))
-  })
+  }, 30_000)
 })

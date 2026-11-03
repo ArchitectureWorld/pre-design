@@ -16,6 +16,16 @@ const runningStart = async () => ({
 })
 
 describe('Preplanning full-flow UI', () => {
+  it.each([['generating','生成中'],['pending','待验收'],['failed','验收未通过'],['passed','验收通过']] as const)('明确显示成果 %s 状态', (state,label)=>{
+    const status=buildPreplanningStatus({project:{projectId:'p',name:'项目',currentRevision:1,currentStage:'08-08'},proposals:[],questions:[]} as never)
+    const view=render(<PreplanningDashboard status={{...status,reportDelivery:{projectId:'p',revision:1,contractVersion:'complete-planning-html.v1',status:state,message:'页面验收状态',updatedAt:'2026-09-27'}}}/> )
+    expect(view.getByText(label)).toBeTruthy()
+  })
+  it('历史HTML没有新版验收记录时明确显示未验收',()=>{
+    const status=buildPreplanningStatus({project:{projectId:'p',name:'项目',currentRevision:1,currentStage:'08-08'},proposals:[],questions:[]} as never)
+    const view=render(<PreplanningDashboard status={{...status,reportPackage:{id:'old',html:'/preplan-export/old/html/index.html'}}}/> )
+    expect(view.getByText('尚无新版质量验收记录')).toBeTruthy()
+  })
   it('HTML-only 成果仅显示真实 HTML 入口，不显示不存在的 PPTX 或 PDF 下载', () => {
     const status = buildPreplanningStatus({ project: { projectId: 'project-1', name: '验收项目',
       currentRevision: 57, currentStage: '08-08' }, proposals: [], questions: [] } as never)

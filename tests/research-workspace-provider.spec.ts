@@ -1,6 +1,6 @@
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ResearchRegistry } from '../src/research/registry.ts'
 import { WorkspaceResearchProvider } from '../src/research/workspace-provider.ts'
@@ -28,6 +28,7 @@ describe('Pre 2.0.1 workspace research provider', () => {
     const source = registry.source('workspace-project-files')
     const provider = new WorkspaceResearchProvider({
       rootDir: root,
+      allowedFiles: ['inputs/project.json'],
       clock: () => new Date('2026-09-14T03:00:00.000Z'),
     })
 
@@ -49,7 +50,7 @@ describe('Pre 2.0.1 workspace research provider', () => {
       publisher: source.publisher,
       capturedAt: '2026-09-14T03:00:00.000Z',
       reliability: 'A',
-      claimClass: 'fact',
+      claimClass: 'source_conclusion',
       normalizedValue: { projectName: '武汉站改造' },
     })
     expect(record.sourceUri).toMatch(/^file:\/\//u)
@@ -64,7 +65,7 @@ describe('Pre 2.0.1 workspace research provider', () => {
     await writeFile(join(root, 'inputs', 'project.json'), JSON.stringify({ project: { name: '武汉站改造', location: '武汉市' } }), 'utf8')
 
     const registry = await ResearchRegistry.open(researchRoot)
-    const provider = new WorkspaceResearchProvider({ rootDir: root })
+    const provider = new WorkspaceResearchProvider({ rootDir: root, allowedFiles: ['inputs/project.json'] })
     const result = await provider.fetch(registry.source('workspace-project-files'), {
       mode: 'workspace_file',
       locator: 'inputs/project.json',
@@ -101,6 +102,41 @@ describe('Pre 2.0.1 workspace research provider', () => {
       workflowId: 'preplan.wf.01.01',
       dataPointId: 'canonical-name',
     })).rejects.toThrow(/outside workspace root/u)
+  })
+
+  it.each(['notes.json', 'inputs/project.json', 'research/runs/RUN-old/result.json'])('rejects an unapproved source locator: %s', async (path) => {
+    const root = await workspace()
+    await mkdir(dirname(join(root, path)), { recursive: true })
+    await writeFile(join(root, path), JSON.stringify({ canonical_name: '未经核验的内容' }))
+    const registry = await ResearchRegistry.open(researchRoot)
+    const provider = new WorkspaceResearchProvider({ rootDir: root })
+    await expect(provider.fetch(registry.source('workspace-project-files'), {
+      mode: 'workspace_file', locator: path, workflowId: 'preplan.wf.01.01', dataPointId: 'canonical-name',
+    })).rejects.toThrow(/approved source|generated/u)
+  })
+
+  it.each(['research/runs/RUN-old/result.json', '原始资料/output/project.json', 'source-materials/manifest.json'])('cannot allowlist generated output as an original source: %s', async (path) => {
+    const root = await workspace()
+    await mkdir(dirname(join(root, path)), { recursive: true })
+    await writeFile(join(root, path), JSON.stringify({ canonical_name: '历史生成结果' }))
+    const registry = await ResearchRegistry.open(researchRoot)
+    const provider = new WorkspaceResearchProvider({ rootDir: root, allowedFiles: [path] })
+    await expect(provider.fetch(registry.source('workspace-project-files'), {
+      mode: 'workspace_file', locator: path, workflowId: 'preplan.wf.01.01', dataPointId: 'canonical-name',
+    })).rejects.toThrow(/generated/u)
+  })
+
+  it.each(['原始资料/project.json', 'source-materials/project.json'])('keeps a directly selected original %s as an unverified source conclusion', async (path) => {
+    const root = await workspace()
+    await mkdir(dirname(join(root, path)), { recursive: true })
+    await writeFile(join(root, path), JSON.stringify({ canonical_name: '原件项目名称' }))
+    const registry = await ResearchRegistry.open(researchRoot)
+    const provider = new WorkspaceResearchProvider({ rootDir: root })
+    const result = await provider.fetch(registry.source('workspace-project-files'), {
+      mode: 'workspace_file', locator: path, workflowId: 'preplan.wf.01.01', dataPointId: 'canonical-name',
+      selector: { type: 'json_pointer', pointer: '/canonical_name' },
+    })
+    expect(result.records[0]).toMatchObject({ normalizedValue: '原件项目名称', claimClass: 'source_conclusion' })
   })
 
   it('rejects binary/unsupported files instead of pretending they satisfy a data point', async () => {

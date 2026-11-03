@@ -67,6 +67,16 @@ export class WorkflowRuntime {
     }
   }
 
+  /** Direct corrections stay relevant when an unrelated upstream revision later
+   * replaces the run's latest invalidation reason. History is review input, not facts. */
+  revisionHistory(projectId: string, workflowId: string): readonly WorkflowRevisionFeedback[] {
+    const target = this.registry.workflow(workflowId).targetObjectId
+    return (this.governance.readProject(projectId).workflowRevisions ?? [])
+      .filter(row => row.status === 'applied' && row.rootObjectIds.includes(target) && row.affectedObjectIds.includes(target))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .map(({ requestId, rootObjectIds, reason, actor, createdAt }) => ({ requestId, rootObjectIds, reason, actor, createdAt }))
+  }
+
   ready(projectId: string): readonly WorkflowDescriptor[] {
     if (this.revising.has(projectId) || this.pendingRevisions(projectId).length > 0) return []
     const readyIds = new Set(this.governance.readProject(projectId).workflowRuns

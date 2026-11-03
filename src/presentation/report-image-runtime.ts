@@ -19,6 +19,7 @@ import { prepareWorkspacePresentationMaterials } from './workspace-materials.ts'
 import { adoptedPresentationAssets } from './runtime-integration.ts'
 import type { PresentationAdoptedAssetInput } from './standard-project-types.ts'
 import { prepareReportCartography } from './report-cartography.ts'
+import { prepareTerrainPlanImage } from '../report/terrain-render.ts'
 import { checkVisualQuality, VISUAL_RASTER_QUALITY_VERSION } from '../visual/quality.ts'
 
 export function reportImageDimensions(ratio: number): { width: number; height: number } {
@@ -112,7 +113,8 @@ export function createNativeReportImagePipeline(deps: { classes: AgentClassServi
     }
   }
   return new ReportImagePipeline({ classes: deps.classes, inspection: deps.inspection, reportIssues: deps.reportIssues,
-    analysis: prepareReportCartography,
+    analysis: (demand,input,root,signal)=>input.manuscript?.chapters.flatMap(c=>c.pages).some(p=>p.id===demand.brief.pageId&&p.terrainPlan)
+      ? prepareTerrainPlanImage(demand,input,root,signal):prepareReportCartography(demand,input,root,signal),
     recover: (demand, parent, signal, project, root) => generatedImage(demand, parent, signal, project, true, root),
     resolveDemands: async (demands, parent, signal, project, root) => {
       const scenes = demands.filter(demand => !demand.sourceMaterialKey && !demand.caseSource

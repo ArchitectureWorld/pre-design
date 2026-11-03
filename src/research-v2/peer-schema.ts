@@ -15,6 +15,10 @@ const valueSchemas:Record<PeerField,z.ZodType>={
   observedAudience:z.object({description:text(1000),sampleSize:z.number().int().positive().max(100000000),method:text(500),period:text(120)}).strict(),
   metric:z.object({name:z.enum(['visits','revenue','occupancy','rating']),amount:z.number().finite().nonnegative(),unit:text(100),period:text(120),denominator:z.number().finite().positive().nullable()}).strict(),
 }
+/** Model-facing guidance is derived from the same validators used for submitted claims. */
+export function peerFieldJsonSchemas() {
+  return Object.fromEntries(Object.entries(valueSchemas).map(([field, schema]) => [field, z.toJSONSchema(schema)]))
+}
 const claim=z.object({id,field:z.enum(PEER_FIELDS),value:z.unknown().refine(v=>v!==undefined),sourceId:id,selector:evidenceSelectorSchema}).strict()
 export const peerRequestSchema=z.object({
   schemaVersion:z.literal('peer-research-request.v1'),projectId:id,snapshotId:id,scope:text(500),asOf:day,

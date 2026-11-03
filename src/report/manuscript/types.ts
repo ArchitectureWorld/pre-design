@@ -1,5 +1,5 @@
 export const PLANNING_MANUSCRIPT_SCHEMA_VERSION = 'pre-design.planning-manuscript.v1' as const
-export const PLANNING_MANUSCRIPT_POLICY_VERSION = 'planning-manuscript-2026-09-18.2'
+export const PLANNING_MANUSCRIPT_POLICY_VERSION = 'planning-manuscript-2026-10-09.1'
 
 export const PLANNING_CHAPTER_IDS = ['opportunity', 'site', 'positioning', 'products', 'spatial', 'launch', 'operation'] as const
 export type PlanningChapterId = typeof PLANNING_CHAPTER_IDS[number]
@@ -16,15 +16,19 @@ export interface PlanningPageTask {
 }
 
 export interface PlanningManuscriptSource {
+  readonly moduleLineage?: import('./module-sources.ts').ModuleSourceLineage
   readonly id: string
   readonly objectId: string
   readonly fieldPath: string
   readonly text: string
   readonly basis: string
+  /** Exact ordered components of basis, before joining with the Chinese semicolon. */
+  readonly basisParts?: readonly string[]
   readonly evidenceIds: readonly string[]
 }
 
 export interface PlanningManuscriptDiagram {
+  readonly presentation?: import('../diagram-design.ts').DiagramPresentation
   readonly nodes: readonly {
     readonly id: string
     readonly label: string
@@ -36,6 +40,19 @@ export interface PlanningManuscriptDiagram {
 }
 
 export interface PlanningManuscriptPage {
+  readonly terrainPlan?: import('../terrain-reference.ts').TerrainPlan
+  readonly productRefs?: readonly string[]
+  readonly spatialEvidence?: {
+    readonly baseRefs: readonly string[]
+    readonly zone: string; readonly node: string; readonly access: string; readonly route: string
+    readonly service: string; readonly logistics: string; readonly rationale: string
+  }
+  readonly quantities?: readonly {
+    readonly id: string; readonly label: string; readonly value: number; readonly unit: string
+    readonly kind: 'source' | 'assumption' | 'calculation'; readonly sourceRefs: readonly string[]; readonly rationale: string
+    readonly operation?: 'sum' | 'difference' | 'product' | 'ratio' | 'min' | 'max'
+    readonly inputIds?: readonly string[]
+  }[]
   /** A derived client summary; complete authored content remains in source notes. */
   readonly editorialSummary?: true
   readonly task?: PlanningPageTask

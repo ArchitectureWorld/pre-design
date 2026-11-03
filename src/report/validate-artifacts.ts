@@ -221,9 +221,10 @@ export async function validateAndHashReportArtifacts(
   identity: ArtifactManifestIdentity,
   sensitive: ArtifactValidationSensitiveValues | undefined,
   bundle: ClientReportBundle,
+  formats?: readonly ArtifactRecord['format'][],
 ): Promise<ArtifactManifestRecord> {
   assertPublishableClientReportBundle(bundle)
-  const artifacts = await validateArtifactFiles(stagingRoot, identity, sensitive)
+  const artifacts = await validateArtifactFiles(stagingRoot, identity, sensitive, formats)
   return {
     ...identity,
     ...(identity.adoptedAssetIds === undefined ? {} : { adoptedAssetIds: [...identity.adoptedAssetIds] }),

@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ResearchRegistry } from '../src/research/registry.ts'
 import { WorkflowResearchRuntime } from '../src/runtime/workflow-research-runtime.ts'
@@ -13,6 +13,79 @@ afterEach(async () => {
 })
 
 describe('V2.0.1 runtime workflow research', () => {
+  it.each([
+    'research/runs/RUN-synthetic/result.json',
+    'notes.json',
+    'archive/project.json',
+    'output/project.json',
+    '原始资料/research/runs/RUN-synthetic/result.json',
+    'source-materials/output/project.json',
+    'source-materials/manifest.json',
+    '原始资料/manifest.json',
+    'source-materials/rules.json',
+    'source-materials/outline.json',
+  ])('does not reuse generated or unapproved workspace JSON as evidence: %s', async (path) => {
+    const root = await mkdtemp(join(tmpdir(), 'pre-research-unapproved-'))
+    cleanup.push(root)
+    await mkdir(dirname(join(root, path)), { recursive: true })
+    await writeFile(join(root, path), JSON.stringify({
+      canonical_name: '旧运行自动生成的项目名', project_location: '未经核实的地点', project_trigger: '历史推断',
+    }))
+    const runtime = new WorkflowResearchRuntime(await ResearchRegistry.open(researchRoot), { workspaceRootOf: () => root })
+    const result = await runtime.collect({}, 'preplan.wf.01.01')
+    expect(result.records).toEqual([])
+    expect(result.validation.valid).toBe(false)
+  })
+
+  it.each(['原始资料', 'source-materials'])('takes original JSON assertions from %s ahead of legacy root metadata', async (directory) => {
+    const root = await mkdtemp(join(tmpdir(), 'pre-research-originals-'))
+    cleanup.push(root)
+    await mkdir(join(root, directory, 'survey'), { recursive: true })
+    await writeFile(join(root, directory, 'survey', 'data.json'), JSON.stringify({
+      canonical_name: '原件项目名', project_location: '原件地点', project_trigger: '原件任务说明',
+    }))
+    await writeFile(join(root, 'project.json'), JSON.stringify({
+      canonical_name: '历史项目名', project_location: '历史地点', project_trigger: '历史运行结果',
+    }))
+    if (directory === '原始资料') {
+      await mkdir(join(root, 'source-materials'))
+      await writeFile(join(root, 'source-materials', 'project.json'), JSON.stringify({ canonical_name: '备选资料' }))
+    }
+    const runtime = new WorkflowResearchRuntime(await ResearchRegistry.open(researchRoot), { workspaceRootOf: () => root })
+    const result = await runtime.collect({}, 'preplan.wf.01.01')
+    expect(result.validation.valid).toBe(true)
+    expect(result.records.map(record => record.normalizedValue)).toEqual(['原件项目名', '原件地点', '原件任务说明'])
+    expect(result.records.every(record => record.locator.relativePath === `${directory}/survey/data.json`
+      && record.claimClass === 'source_conclusion')).toBe(true)
+  })
+
+  it.each(['原始资料', 'source-materials'])('does not fall back to root metadata when %s has no matching structured evidence', async (directory) => {
+    const root = await mkdtemp(join(tmpdir(), 'pre-research-no-json-'))
+    cleanup.push(root)
+    await mkdir(join(root, directory))
+    await writeFile(join(root, directory, 'report.pdf'), '%PDF-1.7\n')
+    await writeFile(join(root, 'project.json'), JSON.stringify({
+      canonical_name: '生成的元数据', project_location: '历史地点', project_trigger: '历史运行结果',
+    }))
+    const runtime = new WorkflowResearchRuntime(await ResearchRegistry.open(researchRoot), { workspaceRootOf: () => root })
+    const result = await runtime.collect({}, 'preplan.wf.01.01')
+    expect(result.records).toEqual([])
+    expect(result.validation.valid).toBe(false)
+  })
+
+  it.each(['pre-design.research.json', 'research.json', 'project.json'])('keeps explicitly named legacy root file %s as source assertions', async (file) => {
+    const root = await mkdtemp(join(tmpdir(), 'pre-research-legacy-'))
+    cleanup.push(root)
+    await writeFile(join(root, file), JSON.stringify({
+      canonical_name: '旧项目原有名称', project_location: '旧项目原有地点', project_trigger: '旧项目任务说明',
+    }))
+    const runtime = new WorkflowResearchRuntime(await ResearchRegistry.open(researchRoot), { workspaceRootOf: () => root })
+    const result = await runtime.collect({}, 'preplan.wf.01.01')
+    expect(result.validation.valid).toBe(true)
+    expect(result.records).toHaveLength(3)
+    expect(result.records.every(record => record.locator.relativePath === file && record.claimClass === 'source_conclusion')).toBe(true)
+  })
+
   it('excludes superseded project state from research even when its revision is newer', async () => {
     const registry = await ResearchRegistry.open(researchRoot)
     const runtime = new WorkflowResearchRuntime(registry, {
