@@ -124,7 +124,8 @@ export class SessionImageCollector {
       && descriptor.label?.startsWith('preplanning_visual_tool_task:')
     // Tool-backed children must have a correlated tool result AND finish their
     // turn. Reference/assistant images are not proof of a ComfyUI generation.
-    const image = toolImage ? (completed(events) ? await this.image(this.toolImages(events), signal) : undefined)
+    const terminal=events.findLast(e=>e.type==='turn/end')?.data as {reason?:{kind?:string}}|undefined
+    const image = toolImage ? (completed(events) ? await this.image(this.toolImages(events), signal,terminal?.reason?.kind==='error') : undefined)
       : await this.image(events, signal) ?? this.attemptImage(events, turn)
     signal.throwIfAborted()
     return { completed: completed(events), image, ...(typeof turn === 'number' ? { turn } : {}) }
@@ -140,7 +141,7 @@ export class SessionImageCollector {
       for (const block of sessionToolResults(data)) {
         const call = block?.toolCallId ? calls.get(block.toolCallId) : undefined
         if (block.isError || !call || call.turn !== data.turn || call.step !== data.step || !Array.isArray(block.content)) continue
-        images.push({ ...event, type: 'assistant/message', data: { message: { content: block.content.filter(part => part && typeof part === 'object' && (part as { type?: unknown }).type === 'image') } } })
+        images.push({ ...event, type: 'assistant/message', data: { turn: data.turn, step: data.step, toolCallId: block.toolCallId, message: { content: block.content.filter(part => part && typeof part === 'object' && (part as { type?: unknown }).type === 'image') } } })
       }
     }
     return images
@@ -181,7 +182,7 @@ export class SessionImageCollector {
     return undefined
   }
 
-  private async image(events: readonly SessionEventLike[], signal: AbortSignal): Promise<VisualImageData | undefined> {
+  private async image(events: readonly SessionEventLike[], signal: AbortSignal,recoverTool=false): Promise<VisualImageData | undefined> {
     for (const event of events) {
       if (event.type !== 'assistant/message') continue
       const message = (event.data as { readonly message?: { readonly content?: readonly unknown[] } }).message
@@ -194,6 +195,8 @@ export class SessionImageCollector {
         if (image.type !== 'image' || image.attachment === undefined) continue
         const attachmentId = (image.attachment as { readonly attachmentId?: unknown }).attachmentId
         const stored = await this.dependencies.attachments.readImage(image.attachment, signal)
+        const proof=event.data as {turn:number;step:number;toolCallId:string}
+        if(recoverTool&&(!Number.isInteger(proof.turn)||!Number.isInteger(proof.step)||!proof.toolCallId))throw new Error('VISUAL_TOOL_RECOVERY_PROOF_INVALID')
         if (stored.ref.mediaType !== 'image/png' && stored.ref.mediaType !== 'image/jpeg' && stored.ref.mediaType !== 'image/webp') {
           throw new Error(`unsupported assistant image type: ${stored.ref.mediaType}`)
         }
@@ -203,6 +206,7 @@ export class SessionImageCollector {
           width: stored.ref.width,
           height: stored.ref.height,
           ...(typeof attachmentId === 'string' ? { attachmentId } : {}),
+          ...(recoverTool?{attemptSource:{eventSeq:event.seq,turn:proof.turn,step:proof.step,toolCallId:proof.toolCallId}}:{}),
         }
       }
     }

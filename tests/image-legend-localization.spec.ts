@@ -6,8 +6,8 @@ import { expect, it } from 'vitest'
 import sharp from 'sharp'
 import { localizeImageLegend, prepareLocalizedLegendMaterial, verifyLocalizedLegendMaterial, type ImageLegendLocalization } from '../src/visual/image-legend-localization.ts'
 import type { PresentationAdoptedAssetInput } from '../src/presentation/standard-project-types.ts'
-import { VERIFIED_CASE_STUDIES } from '../src/report/case-studies/catalog.ts'
-import { BUNDLED_CASE_STUDY_IMAGES } from '../src/report/case-studies/catalog-images.ts'
+import { VERIFIED_CASE_STUDIES } from './fixtures/case-studies/catalog.ts'
+import { BUNDLED_CASE_STUDY_IMAGES } from './fixtures/case-studies/catalog-images.ts'
 import { ImageIdentityIndex } from '../src/visual/image-identity.ts'
 
 const sha = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex')

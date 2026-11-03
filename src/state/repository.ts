@@ -2,6 +2,9 @@ import type { Domain, DomainFacility } from '@deepseek-ai/dsh-storage-domain'
 import { isDeepStrictEqual } from 'node:util'
 import { z, type JSONType } from 'zod'
 import { preplanningDomainSpec } from './domain.ts'
+import { recoverConfirmedCommitHeads } from './commit-recovery.ts'
+import { recoverUnconfirmedNewObjectStaging } from './staging-recovery.ts'
+import { withAtomicStorageRetry } from './storage-retry.ts'
 import type {
   AuditEventRecord,
   CommitStoredProposalInput,
@@ -49,7 +52,12 @@ export class ProjectRepository {
   private constructor(private readonly domain: PreplanningDomain) {}
 
   static async open(facility: DomainFacility): Promise<ProjectRepository> {
-    return new ProjectRepository(await facility.open(preplanningDomainSpec))
+    const domain = withAtomicStorageRetry(await facility.open(preplanningDomainSpec))
+    try {
+      await recoverConfirmedCommitHeads(domain)
+      await recoverUnconfirmedNewObjectStaging(domain)
+      return new ProjectRepository(domain)
+    } catch (error) { await domain.close(); throw error }
   }
 
   close(): Promise<void> {

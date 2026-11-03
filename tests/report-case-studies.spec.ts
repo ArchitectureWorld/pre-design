@@ -1,19 +1,21 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { VERIFIED_CASE_STUDIES } from './fixtures/case-studies/catalog.ts'
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { FrozenProjectInput } from '../src/report/types.ts'
 import { manuscriptSourceFingerprint, makeSourceIndex } from '../src/report/manuscript/source.ts'
-import { BUNDLED_CASE_STUDY_IMAGES } from '../src/report/case-studies/catalog-images.ts'
-import { CASE_STUDIES_CATALOG_VERSION, VERIFIED_CASE_STUDIES, caseStudyEvidenceMarkdown, caseStudyPages, caseStudyPhotoKey, caseStudyPhotos,
-  caseStudySources, caseStudySourceGaps, prepareCaseStudies, selectCaseStudies, validateCaseStudies, validateCatalogCase } from '../src/report/case-studies/index.ts'
+import { BUNDLED_CASE_STUDY_IMAGES } from './fixtures/case-studies/catalog-images.ts'
+import { CASE_STUDIES_CATALOG_VERSION, caseStudyEvidenceMarkdown, caseStudyPages, caseStudyPhotoKey, caseStudyPhotos,
+  caseStudySources, caseStudySourceGaps, prepareCaseStudies as prepareProjectCaseStudies, selectCaseStudies, validateCaseStudies, validateCatalogCase } from '../src/report/case-studies/index.ts'
 
+const prepareCaseStudies:typeof prepareProjectCaseStudies=(input,root,options)=>prepareProjectCaseStudies(input,root,{bundledImages:BUNDLED_CASE_STUDY_IMAGES,...options})
 const roots: string[] = []
 afterEach(async () => { vi.unstubAllGlobals(); await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))) })
 const sourceText = '现状茶园、水库和存量建筑构成场地资源。建议以茶饮品茶、茶园慢行步道、观景平台形成日间休闲，并在既有建筑配置游客中心和集散接待。'
 function input(text = sourceText): FrozenProjectInput {
-  return { projectId: 'case-test', projectName: '山水茶旅项目', revision: 103, generatedAt: '2026-09-18T10:00:00Z',
+  return { caseStudyCatalog: VERIFIED_CASE_STUDIES, projectId: 'case-test', projectName: '山水茶旅项目', revision: 103, generatedAt: '2026-09-18T10:00:00Z',
     recommendation: '以现状山水与茶园组织日间游览', decisionItems: [], gates: [], visualAssets: [],
     stateObjects: [{ objectId: 'PG04', chapterId: '06', title: '资源与产品', summary: text, facts: [], reportSections: [
       { key: 'products', title: '资源与产品', entries: [{ key: 'basis', fieldPath: 'data.products[0]', text, basis: '项目资料与策划建议', evidenceRefs: [{ evidenceId: 'site-source' }] }] },
@@ -365,11 +367,11 @@ describe('case-study preparation and client source projection', () => {
     additional.image = primary
     validateCatalogCase(additional)
     vi.resetModules()
-    vi.doMock('../src/report/case-studies/catalog.ts', () => ({ VERIFIED_CASE_STUDIES: [...VERIFIED_CASE_STUDIES, additional] }))
+    // The source catalog is supplied on this project only.
     try {
       const generic = await import('../src/report/case-studies/index.ts')
       const project = { ...input('茶园和水库构成场地资源，茶饮、步道和既有建筑配置游客中心。'), projectId: 'another-client', projectName: '第二个独立项目' }
-      const bundle = generic.selectCaseStudies(project)
+      const bundle = generic.selectCaseStudies({...project,caseStudyCatalog:[...VERIFIED_CASE_STUDIES,additional]})
       expect(bundle.cases).toHaveLength(4)
       const photos = generic.caseStudyPhotos(bundle).filter(photo => photo.caseId === additional.caseId)
       expect(photos).toHaveLength(3)
@@ -384,8 +386,26 @@ describe('case-study preparation and client source projection', () => {
       }
       expect(JSON.stringify(pages)).not.toMatch(/少潭河|shaotanhe/i)
     } finally {
-      vi.doUnmock('../src/report/case-studies/catalog.ts')
+      vi.doUnmock('./fixtures/case-studies/catalog.ts')
       vi.resetModules()
     }
   })
+})
+
+it('requires an explicit project case catalog instead of adding preset destination cases', () => {
+  const project=input();delete (project as any).caseStudyCatalog
+  expect(()=>selectCaseStudies(project)).toThrow('CASE_STUDIES_CATALOG_REQUIRED')
+})
+
+it('loads only a case catalog explicitly bound to the current workspace project', async () => {
+  const root=await workspace(),project=input();delete (project as any).caseStudyCatalog
+  await mkdir(join(root,'.pre-design'),{recursive:true})
+  const path=join(root,'.pre-design/report-case-catalog.json')
+  await writeFile(path,JSON.stringify({projectId:'other-project',cases:VERIFIED_CASE_STUDIES}))
+  await expect(prepareCaseStudies(project,root,{downloadImages:false})).rejects.toThrow('CASE_STUDIES_CATALOG_IDENTITY')
+  await writeFile(path,JSON.stringify({projectId:project.projectId,cases:VERIFIED_CASE_STUDIES}))
+  const bundle=await prepareCaseStudies(project,root,{downloadImages:false})
+  expect(bundle.cases).toHaveLength(3)
+  expect(bundle.catalog).toEqual(VERIFIED_CASE_STUDIES)
+  expect(()=>validateCaseStudies(bundle,{...project,caseStudyCatalog:VERIFIED_CASE_STUDIES.slice(1)})).toThrow('CASE_STUDIES_STALE')
 })

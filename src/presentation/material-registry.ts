@@ -1,5 +1,8 @@
 import { lstat, readFile, realpath } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { createReadStream } from 'node:fs'
 import { basename, isAbsolute, join, relative, resolve, win32 } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { AssetRecord, SourceMaterialRecord } from '@architectureworld/presentation-contracts'
 import type { FrozenProjectInput } from '../report/types.ts'
 import { classifySourceMaterial } from './material-plan.ts'
@@ -42,15 +45,21 @@ export interface PreparePresentationMaterialsInput {
   readonly frozenProject: FrozenProjectInput
   readonly workspaceRoot?: string
   readonly assets?: readonly PresentationAdoptedAssetInput[]
+  /** Workspace intake validates once all current inbox sources have been merged. */
+  readonly deferReferenceValidation?: boolean
   readonly previous?: {
     readonly stableIds?: Readonly<Record<string, string>>
     readonly lastExportedFileHashes?: Readonly<Record<string, string>>
   }
 }
 export interface PreparedPresentationMaterials {
-  readonly sourceMaterials: readonly PresentationSourceMaterialInput[]
+  readonly sourceMaterials: readonly PreparedPresentationSourceMaterial[]
   readonly assets: readonly PresentationAdoptedAssetInput[]
   readonly materialWarnings: readonly string[]
+}
+export interface PreparedPresentationSourceMaterial extends PresentationSourceMaterialInput {
+  readonly aliases?: readonly string[]
+  readonly evidenceIds?: readonly string[]
 }
 
 function fail(detail: string): never { throw new Error(`PRESENTATION_MATERIAL_REGISTRY_INVALID: ${detail}`) }
@@ -165,7 +174,7 @@ function keysByIdentity(keys: Readonly<Record<string, string>>, prefix: string):
 
 async function preserveImportedMaterials(
   input: PreparePresentationMaterialsInput,
-  sources: Map<string, PresentationSourceMaterialInput>,
+  sources: Map<string, PreparedPresentationSourceMaterial>,
   assets: Map<string, PresentationAdoptedAssetInput>,
 ): Promise<void> {
   const root = input.workspaceRoot
@@ -222,7 +231,7 @@ async function preserveImportedMaterials(
 
 /** Reads only the explicit registry and previously managed project files; it never scans originals. */
 export async function preparePresentationMaterials(input: PreparePresentationMaterialsInput): Promise<PreparedPresentationMaterials> {
-  const sources = new Map<string, PresentationSourceMaterialInput>()
+  const sources = new Map<string, PreparedPresentationSourceMaterial>()
   const assets = new Map<string, PresentationAdoptedAssetInput>()
   const warnings: string[] = []
   await preserveImportedMaterials(input, sources, assets)
@@ -277,7 +286,8 @@ export async function preparePresentationMaterials(input: PreparePresentationMat
       const assetRole = entry.role === undefined ? 'reference' : role(entry.role)
       if ((assetRole === 'background' || pageBindings?.some(binding => binding.role === 'background'))
         && (!mimeType.startsWith('image/') || sourceCategory === 'drawings')) fail(`只有图像素材可以作背景：${sourceKey}`)
-      if (provenance === undefined) sources.set(sourceKey, { sourceKey, sourcePath, originalFileName, mimeType, importedAt })
+      if (provenance === undefined) sources.set(sourceKey, { sourceKey, sourcePath, originalFileName, mimeType, importedAt,
+        aliases: strings(entry.aliases, 'aliases'), evidenceIds: strings(entry.evidenceIds, 'evidenceIds') })
       else sources.delete(sourceKey)
       if (provenance === undefined && (!isRenderablePresentationAsset(originalFileName, mimeType) || !pageBindings?.length)) {
         // Source-only materials are deliberately excluded from presentationAssets.
@@ -329,15 +339,88 @@ export async function preparePresentationMaterials(input: PreparePresentationMat
           taskId: request.taskId, prompt: request.prompt, style: request.style }) } })
     }
   }
-  const declared = new Set([...assets.values()].flatMap(asset => [asset.sourceKey, ...(asset.aliases ?? []), ...asset.evidenceIds]))
-  const internalObjects = new Set(input.frozenProject.stateObjects.map(object => object.objectId))
-  const unresolved = new Set<string>()
-  for (const object of input.frozenProject.stateObjects) for (const section of object.reportSections ?? []) for (const entry of section.entries) {
-    for (const ref of entry.evidenceRefs ?? []) {
-      if (!declared.has(ref.evidenceId) && ref.assetId !== undefined && !declared.has(ref.assetId)
-        && !internalObjects.has(ref.assetId) && !ref.assetId.startsWith('dsh-session-')) unresolved.add(ref.assetId)
+  const prepared = { sourceMaterials: [...sources.values()], assets: [...assets.values()], materialWarnings: warnings }
+  if (!input.deferReferenceValidation) warnings.push(...await presentationMaterialReferenceWarnings({ ...input, ...prepared }))
+  return prepared
+}
+
+function referenceIdentity(value: string): string {
+  let path = value.normalize('NFC').trim()
+  if (/^file:/iu.test(path)) {
+    try { path = fileURLToPath(path) } catch { return path }
+  }
+  path = path.replaceAll('\\', '/')
+  return process.platform === 'win32' ? path.toLowerCase() : path
+}
+
+/** Resolve source identity without changing the citation's page, version hash or claim class. */
+export async function presentationMaterialReferenceWarnings(input: {
+  readonly frozenProject: FrozenProjectInput
+  readonly workspaceRoot?: string
+  readonly sourceMaterials: readonly PreparedPresentationSourceMaterial[]
+  readonly assets: readonly PresentationAdoptedAssetInput[]
+}): Promise<readonly string[]> {
+  const sources = new Map<string, PreparedPresentationSourceMaterial | undefined>()
+  const root = input.workspaceRoot === undefined ? undefined : resolve(input.workspaceRoot)
+  for (const source of input.sourceMaterials) {
+    if (source.status === 'missing' || source.status === 'quarantined') continue
+    const aliases = [source.sourceKey, source.sourcePath, ...source.aliases ?? [], ...source.evidenceIds ?? [],
+      ...(root === undefined ? [] : [relative(root, source.sourcePath)]),
+      ...(source.sourceKey.startsWith('workspace-inbox:') ? [`原始资料/${source.sourceKey.slice('workspace-inbox:'.length)}`] : [])]
+    for (const alias of aliases) {
+      const identity = referenceIdentity(alias)
+      const previous = sources.get(identity)
+      // An ambiguous alias is not evidence that either original is the cited one.
+      sources.set(identity, sources.has(identity) && previous?.sourcePath !== source.sourcePath ? undefined : source)
     }
   }
-  for (const id of [...unresolved].sort()) warnings.push(`成果引用“${id}”尚未关联已登记的可读取原件`)
-  return { sourceMaterials: [...sources.values()], assets: [...assets.values()], materialWarnings: warnings }
+  const declaredAssets = new Set(input.assets.flatMap(asset => [asset.sourceKey, ...asset.aliases ?? [], ...asset.evidenceIds]))
+  const internalObjects = new Set(input.frozenProject.stateObjects.map(object => object.objectId))
+  const warnings = new Set<string>()
+  const digests = new Map<string, Promise<string | undefined>>()
+  const digest = (source: PreparedPresentationSourceMaterial) => {
+    let pending = digests.get(source.sourcePath)
+    if (pending === undefined) {
+      pending = (async () => {
+        const path = await registeredPath(root ?? resolve('.'), source.sourcePath)
+        if (path === undefined) return undefined
+        try {
+          const hash = createHash('sha256')
+          for await (const chunk of createReadStream(path)) hash.update(chunk)
+          return hash.digest('hex')
+        } catch (error) {
+          if (['ENOENT', 'EACCES', 'EPERM'].includes((error as NodeJS.ErrnoException).code ?? '')) return undefined
+          throw error
+        }
+      })()
+      digests.set(source.sourcePath, pending)
+    }
+    return pending
+  }
+  for (const object of input.frozenProject.stateObjects) for (const section of object.reportSections ?? []) for (const entry of section.entries) {
+    for (const ref of entry.evidenceRefs ?? []) {
+      const sectionLocator = typeof ref.locator?.section === 'string' ? ref.locator.section.split(' | ')[0] : undefined
+      const targets = [ref.assetId, sectionLocator].filter((value): value is string => value !== undefined)
+      const session = targets.find(value => /^dsh:\/\//iu.test(value) || value.startsWith('dsh-session-'))
+      if (session !== undefined) {
+        warnings.add(ref.claimClass === 'user_statement'
+          ? `会话引用“${session}”标记为用户陈述来源；尚未核验对应会话记录及原文，不作为文件原件或外部事实。`
+          : `会话引用“${session}”尚未核验；内容性质为“${ref.claimClass ?? '未注明'}”，不能作为已核验的用户陈述或文件原件。`)
+        continue
+      }
+      const source = [ref.evidenceId, ...targets].map(value => sources.get(referenceIdentity(value))).find(value => value !== undefined)
+      if (source !== undefined) {
+        const actualHash = await digest(source)
+        const label = ref.assetId ?? source.sourceKey
+        if (actualHash === undefined) warnings.add(`成果引用“${label}”对应的已登记原件暂不可读取`)
+        else if (ref.versionId !== undefined && /^[a-f0-9]{64}$/iu.test(ref.versionId) && ref.versionId.toLowerCase() !== actualHash) {
+          warnings.add(`成果引用“${label}”与已登记原件“${source.sourceKey}”的版本哈希不一致`)
+        }
+        continue
+      }
+      if (!declaredAssets.has(ref.evidenceId) && ref.assetId !== undefined && !declaredAssets.has(ref.assetId)
+        && !internalObjects.has(ref.assetId)) warnings.add(`成果引用“${ref.assetId}”尚未关联已登记的可读取原件`)
+    }
+  }
+  return [...warnings].sort()
 }

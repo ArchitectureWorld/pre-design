@@ -5,14 +5,14 @@ import { ProjectStateResearchProvider } from '../research/project-state-provider
 import type { ResearchProvider } from '../research/provider.ts'
 import type { ResearchRegistry } from '../research/registry.ts'
 import { ResearchProviderRouter } from '../research/router.ts'
-import type { ResearchDataPoint } from '../research/types.ts'
-import { WorkspaceResearchProvider } from '../research/workspace-provider.ts'
+import type { EvidenceRecord, ResearchDataPoint } from '../research/types.ts'
+import { validateWorkflowEvidence } from '../research/evidence-validator.ts'
+import { isGeneratedWorkspacePath, WORKSPACE_SOURCE_DIRECTORIES, WorkspaceResearchProvider } from '../research/workspace-provider.ts'
 import type { ProjectContext, StateObjectRecord } from '../state/types.ts'
 
 const DEFAULT_MAX_FILES = 64
 const DEFAULT_MAX_DEPTH = 4
 const DEFAULT_MAX_FILE_BYTES = 4 * 1024 * 1024
-const SKIP_DIRECTORIES = new Set(['.git', 'node_modules', 'dist', 'lib', 'build', '.next', '.cache', 'debug', 'tests', 'fixtures', 'examples', 'schemas'])
 const TECHNICAL_FILE = /(?:^|[._-])(?:schema|schemas|example|examples|fixture|fixtures|debug|envelope|proposal|trace|snapshot|prompt|response)(?:[._-]|$)/iu
 const TECHNICAL_KEYS = new Set(['$schema', '$defs', '$ref', 'definitions', 'schema', 'targetschema', 'outputschema', 'example', 'examples', 'fixture', 'fixtures', 'debug'])
 const JSON_EXTENSIONS = new Set(['.json', '.geojson'])
@@ -23,6 +23,7 @@ const PREFERRED_FILE_NAMES = new Map([
 ])
 
 export interface WorkflowResearchRuntimeOptions {
+  readonly materialEvidence?: (parent: unknown, workflowId: string, signal?: AbortSignal) => Promise<readonly EvidenceRecord[]>
   readonly excludedStateObjectIds?: (projectId: string) => readonly string[]
   readonly workspaceRootOf?: (parent: unknown) => string | undefined
   readonly projectContextOf?: (parent: unknown) => Pick<ProjectContext, 'project' | 'stateObjects'> | undefined
@@ -104,6 +105,12 @@ async function discoverJsonFiles(
   assertNotAborted(signal)
   const canonicalRoot = await realpath(root)
   const found: DiscoveredJsonFile[] = []
+  const rootEntries = await readdir(canonicalRoot, { withFileTypes: true })
+  // Directory presence, including empty/unreadable originals, suppresses legacy fallback.
+  // Never scan arbitrary workspace folders or reuse a previous research run as a source.
+  const originalEntry = WORKSPACE_SOURCE_DIRECTORIES
+    .map(name => rootEntries.find(row => row.name.toLowerCase() === name))
+    .find(row => row !== undefined)
 
   async function walk(directory: string, depth: number): Promise<void> {
     assertNotAborted(signal)
@@ -114,14 +121,16 @@ async function discoverJsonFiles(
       if (found.length >= options.maxFiles) break
       assertNotAborted(signal)
       const requested = resolve(directory, row.name)
+      if (isGeneratedWorkspacePath(relative(canonicalRoot, requested))) continue
       if (row.isDirectory()) {
-        if (!SKIP_DIRECTORIES.has(row.name.toLowerCase()) && depth < options.maxDepth) await walk(requested, depth + 1)
+        if (originalEntry !== undefined && depth < options.maxDepth) await walk(requested, depth + 1)
         continue
       }
+      if (originalEntry === undefined && !PREFERRED_FILE_NAMES.has(row.name.toLowerCase())) continue
       if (!row.isFile() || !JSON_EXTENSIONS.has(extname(row.name).toLowerCase())) continue
       if (TECHNICAL_FILE.test(row.name)) continue
       const target = await realpath(requested)
-      if (!inside(canonicalRoot, target)) continue
+      if (!inside(canonicalRoot, target) || isGeneratedWorkspacePath(relative(canonicalRoot, target))) continue
       const fileStat = await stat(target)
       if (!fileStat.isFile() || fileStat.size > options.maxFileBytes) continue
       let value: unknown
@@ -140,7 +149,8 @@ async function discoverJsonFiles(
     }
   }
 
-  await walk(canonicalRoot, 0)
+  if (originalEntry === undefined) await walk(canonicalRoot, 0)
+  else if (originalEntry.isDirectory()) await walk(resolve(canonicalRoot, originalEntry.name), 1)
   return Object.freeze(found.sort((left, right) => {
     const leftPriority = PREFERRED_FILE_NAMES.get(basename(left.relativePath).toLowerCase()) ?? 100
     const rightPriority = PREFERRED_FILE_NAMES.get(basename(right.relativePath).toLowerCase()) ?? 100
@@ -254,9 +264,11 @@ export class WorkflowResearchRuntime {
         ...(this.options.maxDepth === undefined ? {} : { maxDepth: this.options.maxDepth }),
         ...(this.options.maxFileBytes === undefined ? {} : { maxFileBytes: this.options.maxFileBytes }),
       }
-      acquisitions.push(...await planWorkspaceResearchAcquisitions(this.registry, workflowId, root, workspaceOptions, signal))
+      const workspaceAcquisitions = await planWorkspaceResearchAcquisitions(this.registry, workflowId, root, workspaceOptions, signal)
+      acquisitions.push(...workspaceAcquisitions)
       providers.push(new WorkspaceResearchProvider({
         rootDir: root,
+        allowedFiles: workspaceAcquisitions.map(acquisition => acquisition.request.locator),
         ...(this.options.maxFileBytes === undefined ? {} : { maxBytes: this.options.maxFileBytes }),
         clock: this.clock,
       }))
@@ -272,7 +284,11 @@ export class WorkflowResearchRuntime {
     }
 
     const service = new ResearchExecutionService(this.registry, new ResearchProviderRouter(providers))
-    const result = await service.execute(workflowId, acquisitions, this.clock().toISOString(), signal)
+    const collected = await service.execute(workflowId, acquisitions, this.clock().toISOString(), signal)
+    const materialRecords = await this.options.materialEvidence?.(parent, workflowId, signal) ?? []
+    assertNotAborted(signal)
+    const records = Object.freeze([...collected.records, ...materialRecords])
+    const result = Object.freeze({ records, validation: validateWorkflowEvidence(this.registry, workflowId, records, this.clock().toISOString()) })
     // Missing planning inputs are limitations, not a mandatory interaction node.
     // Do not relabel missing records as evidence or make incomplete validation pass.
     if (!result.validation.valid && result.validation.integrityValid

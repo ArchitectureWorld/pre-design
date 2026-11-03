@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { reportImageDimensions } from '../src/report/regular/image-dimensions.ts'
 import { verifiedRasterImageDimensions } from '../src/governance/site-boundary-asset-store.ts'
-import { BUNDLED_CASE_STUDY_IMAGES } from '../src/report/case-studies/catalog-images.ts'
+import { BUNDLED_CASE_STUDY_IMAGES } from './fixtures/case-studies/catalog-images.ts'
 
 describe('public report photograph dimensions', () => {
   const paddedEntry = Object.entries(BUNDLED_CASE_STUDY_IMAGES).find(([, encoded]) => Buffer.from(encoded, 'base64').at(-1) === 0)!

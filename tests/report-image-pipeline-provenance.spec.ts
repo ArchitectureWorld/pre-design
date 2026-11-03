@@ -14,6 +14,7 @@ import { imageSourceContextHash, type InspectImageInput } from '../src/visual/im
 import { imageBriefHash, REPORT_IMAGE_POLICY_VERSION, type ImageInspection } from '../src/visual/image-policy.ts'
 import { acquireWebImage } from '../src/visual/web-image-source.ts'
 import { png, resize, scene } from './support/image-identity/fixtures.ts'
+import { VERIFIED_CASE_STUDIES } from './fixtures/case-studies/catalog.ts'
 
 const roots: string[] = []
 const route = { provider: 'fixture', model: 'fixture-vision' }
@@ -36,7 +37,7 @@ async function workspace() {
 
 function project(withCases = false): FrozenProjectInput {
   const source = '现状茶园、水库和存量建筑构成场地资源。建议以茶饮品茶、茶园慢行步道、观景平台形成日间休闲，并在既有建筑配置游客中心和集散接待。'
-  const base: FrozenProjectInput = { projectId: 'provenance-pipeline', projectName: '山水茶旅项目', revision: 1, generatedAt: '2026-09-19T00:00:00Z',
+  const base: FrozenProjectInput = { caseStudyCatalog: VERIFIED_CASE_STUDIES, projectId: 'provenance-pipeline', projectName: '山水茶旅项目', revision: 1, generatedAt: '2026-09-19T00:00:00Z',
     recommendation: '林下座椅休憩', decisionItems: [], gates: [], visualAssets: [], stateObjects: [{ objectId: 'PG04', chapterId: '06', workItemId: '06-01',
       title: '资源与产品', summary: source, facts: [], reportSections: [{ key: 'products', title: '资源与产品', entries: [{ key: 'basis',
         fieldPath: 'data.products[0]', text: source, basis: '项目资料与策划建议', evidenceRefs: [{ evidenceId: 'site-source' }] }] }] }] }

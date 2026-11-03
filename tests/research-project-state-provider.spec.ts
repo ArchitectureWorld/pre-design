@@ -7,6 +7,42 @@ import { validateWorkflowEvidence } from '../src/research/evidence-validator.ts'
 const researchRoot = new URL('../research/v2.0.1/', import.meta.url)
 
 describe('Pre 2.0.1 Project State research provider', () => {
+  it('separates mixed-authority list entries into exact row citations without upgrading either source', async () => {
+    const registry = await ResearchRegistry.open(researchRoot)
+    const state = { projectId: 'project-1', objectId: 'BL02', revision: 15, updatedAt: '2026-09-28T07:21:00.000Z',
+      value: { data: { objects: [
+        { name: '历史管理范围', evidence_refs: [{ claim_class: 'source_conclusion' }] },
+        { name: '用户指定的待核对象', evidence_refs: [{ claim_class: 'user_statement' }] },
+      ] } } }
+    const provider = new ProjectStateResearchProvider({ projectId: 'project-1', stateObjects: [state] })
+    const { records } = await provider.readProjectState(registry.source('project-state-store'), {
+      mode: 'project_state', workflowId: 'preplan.wf.02.04', dataPointId: 'objects', locator: 'BL02',
+      selector: { type: 'json_pointer', pointer: '/data/objects' },
+    })
+    expect(records.map(row => [row.locator.jsonPointer, row.claimClass, row.rawValue])).toEqual([
+      ['/data/objects/0', 'source_conclusion', state.value.data.objects[0]],
+      ['/data/objects/1', 'user_statement', state.value.data.objects[1]],
+    ])
+    for (const evidence of records) {
+      const ref = { evidence_id: evidence.evidenceId, asset_id: 'research:project-state-store',
+        version_id: evidence.contentHash, claim_class: evidence.claimClass,
+        locator: { section: evidence.sourceUri + ' | JSON Pointer ' + evidence.locator.jsonPointer }, quote_hash: evidence.locator.fragmentHash }
+      expect(validateCandidateStateProvenance({ evidence_refs: [ref] }, { projectId: 'project-1', stateObjects: [state], researchEvidence: records })).toEqual({ valid: true, errors: [] })
+      if (evidence.claimClass === 'user_statement') expect(validateCandidateStateProvenance({ evidence_refs: [{ ...ref, claim_class: 'source_conclusion' }] },
+        { projectId: 'project-1', stateObjects: [state], researchEvidence: records }).valid).toBe(false)
+    }
+  })
+  it('still rejects a single business row with contradictory authority instead of splitting its supporting citations', async () => {
+    const registry = await ResearchRegistry.open(researchRoot)
+    const provider = new ProjectStateResearchProvider({ projectId: 'project-1', stateObjects: [{
+      projectId: 'project-1', objectId: 'BL02', revision: 15, updatedAt: '2026-09-28T07:21:00.000Z',
+      value: { data: { objects: [{ name: '未区分的复合主张', evidence_refs: [{ claim_class: 'source_conclusion' }, { claim_class: 'user_statement' }] }] } },
+    }] })
+    await expect(provider.readProjectState(registry.source('project-state-store'), {
+      mode: 'project_state', workflowId: 'preplan.wf.02.04', dataPointId: 'objects', locator: 'BL02',
+      selector: { type: 'json_pointer', pointer: '/data/objects' },
+    })).rejects.toThrow('PROJECT_STATE_CLASS_AMBIGUOUS')
+  })
   it('keeps an explicit missing field as a coverage gap instead of manufacturing invalid evidence', async () => {
     const registry = await ResearchRegistry.open(researchRoot)
     const provider = new ProjectStateResearchProvider({ projectId: 'project-1', stateObjects: [{

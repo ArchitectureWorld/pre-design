@@ -336,6 +336,7 @@ export async function probePrintLayoutWithEdge(
     await writeFile(probePath, injectProbe(source, options.injectedCss), 'utf8')
     const result = await runEdge(edgeExecutable, [
       '--headless=new',
+      '--edge-skip-compat-layer-relaunch',
       '--disable-gpu',
       '--disable-extensions',
       '--disable-background-networking',

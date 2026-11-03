@@ -1,4 +1,3 @@
-export { VERIFIED_CASE_STUDIES } from './catalog.ts'
 export { prepareCaseStudies, selectCaseStudies, validateCaseStudies, validateCatalogCase, caseStudyEvidenceMarkdown } from './service.ts'
 export type { PrepareCaseStudiesOptions } from './service.ts'
 export { caseStudyPages, caseStudySources, caseStudyPhotoKey, caseStudyPhotos } from './pages.ts'

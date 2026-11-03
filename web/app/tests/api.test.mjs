@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import pg from 'pg'
 import { createApp } from '../src/server.mjs'
+import { createPlatformStore } from '../src/platform-store.mjs'
 const root = await mkdtemp(join(tmpdir(), 'pre-web-test-'))
 const pool = new pg.Pool({ host: '/tmp/pre-design-pg-1000', port: 55439, database: 'pre_design_web', user: 'zetta' })
 const schema = `test_${Date.now()}`
@@ -19,7 +20,12 @@ const workers = { async call(p, body) {
   if (body.operation === 'confirm') { context.project.currentRevision++; context.proposals[0].status = 'confirmed' }
   return structuredClone(context)
 }, async run(p, text) { prompts.push(text); runs++; if (runs > 1) contexts.get(p.id).proposals.push({ proposalId: 'revision-proposal', status: 'pending_review' }); return { response: '真实模型的测试替身，非生产成果', eventCount: 2 } }, async closeAll() {} }
-const app = await createApp({ db, workers, projectsRoot: root, users: [{ id: 'alice', token: 'a'.repeat(40) }, { id: 'bob', token: 'b'.repeat(40) }] })
+const accounts = [{ id: 'alice', token: 'a'.repeat(40) }, { id: 'bob', token: 'b'.repeat(40) }, { id: 'test-admin', role: 'admin', token: 'z'.repeat(40) }]
+const policies = await createPlatformStore(db, accounts), configured = await policies.getPolicy()
+const model = configured.models.find(m => m.provider === 'SenseNova' && m.model === 'sensenova-6.8-flash-lite')
+model.status = 'verified'; model.capabilities.tools = true
+await policies.savePolicy(configured, configured.revision, 'test-admin')
+const app = await createApp({ db, workers, projectsRoot: root, users: accounts })
 const headers = { authorization: `Bearer ${'a'.repeat(40)}` }
 const post = (url, payload, more = {}) => app.inject({ method: 'POST', url, headers: { ...headers, ...more }, payload })
 after(async () => { await app.close(); await db.end(); await pool.query(`DROP SCHEMA ${schema} CASCADE`); await pool.end(); await rm(root, { recursive: true, force: true }) })

@@ -32,6 +32,29 @@ function CompanionPicker({ label, route, catalog, busy, onChange }: { label: str
       </optgroup>)}
   </select>
 }
+function ReasoningPicker({ label, route, catalog, busy, onChange }: { label: string; route: ModelRoute; catalog: readonly CatalogProvider[]; busy: boolean; onChange: (route: ModelRoute) => void }) {
+  const tool = !!imageToolForRoute(route)
+  const model = tool ? route.llm : route
+  if (!model) return null
+  const info = catalog.find(p => p.provider === model.provider)?.models.find(m => m.id === model.model)
+  const efforts = info?.reasoning?.efforts ?? []
+  const selected = model.reasoningEffort ?? ''
+  const invalid = !!selected && !efforts.some(e => e.id === selected)
+  const name = tool ? `${label}配套 LLM 思考深度` : `${label}思考深度`
+  return <label className="reasoning-control" title={name}><span className="reasoning-label">{tool ? '配套 LLM 思考深度' : '思考深度'}</span>
+    {!efforts.length && !selected ? <small role="status" title={info?.reasoningError ?? '思考深度由模型配置控制'}>{info?.reasoningError ? '读取失败' : '模型默认'}</small> :
+      <select className="pre-select" title={`${name} · ${selected || '默认（模型设置）'}`} aria-label={name} aria-invalid={invalid} disabled={busy} value={selected} onChange={event => {
+        const { reasoningEffort: _old, ...base } = model
+        const next = event.target.value ? { ...base, reasoningEffort: event.target.value } : base
+        onChange(tool ? { ...route, llm: next } : next)
+      }}>
+        <option value="">默认（{info?.reasoning?.defaultEffort ? efforts.find(e => e.id === info.reasoning!.defaultEffort)?.name ?? info.reasoning.defaultEffort : '模型设置'}）</option>
+        {invalid && <option value={selected} disabled>已不可用 · {selected}</option>}
+        {efforts.map(effort => <option key={effort.id} value={effort.id} title={effort.description}>{effort.name}</option>)}
+      </select>}
+    {invalid && <small className="pre-warning">{info?.reasoningError ?? '原深度不再可用，请重新选择。'}</small>}
+  </label>
+}
 export async function agentClassRequest(payload: unknown, signal: AbortSignal): Promise<AgentClassView> {
   const response = await fetch('/preplan-agent-classes', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload), signal })
   const data = await response.json()
@@ -211,10 +234,11 @@ function AgentClassPanelBody({ sessionId, request = agentClassRequest, onView, o
               setDraft(previous => ({ ...previous, [kind.id]: route })); dirtyRef.current = true; setDirty(true); setMessage('')
             }} />}
               </div>
+              {selected && <ReasoningPicker label={kind.title} route={selected} catalog={view.catalog} busy={busy} onChange={route => {
+              setDraft(previous => ({ ...previous, [kind.id]: route })); dirtyRef.current = true; setDirty(true); setMessage('')
+              }} />}
               {adding !== kind.id && <GlassAction label={`${kind.title}添加备用模型`} icon="plus" className="add-backup" disabled={busy || !selected || backups.length >= MAX_CLASS_FALLBACKS} onClick={() => setAdding(kind.id)} />}
-
             </div>
-
             {!available && <small className="pre-warning">{imageToolForRoute(selected) && inCatalog(view.catalog, selected ?? undefined) ? '请选择可用的配套 LLM。' : selected ? '当前主模型不可用，请检查 DSH 设置。' : '请选择模型。'}</small>}
             {backups.map((route, index) => <div className="fallback-row" key={routeValue(route)}>
               <div className="route-pair" data-paired={!!imageToolForRoute(route)}>
@@ -222,6 +246,7 @@ function AgentClassPanelBody({ sessionId, request = agentClassRequest, onView, o
                 {imageToolForRoute(route) && <span className="route-link" aria-hidden="true"><GlassIcon name="link" /></span>}
               <CompanionPicker label={`${kind.title}备用模型${index + 1}配套 LLM`} route={route} catalog={view.catalog} busy={busy} onChange={updated => changeFallbacks(kind.id, backups.map((row, i) => i === index ? updated : row))} />
               </div>
+              <ReasoningPicker label={`${kind.title}备用模型${index + 1}`} route={route} catalog={view.catalog} busy={busy} onChange={updated => changeFallbacks(kind.id, backups.map((row, i) => i === index ? updated : row))} />
               <div className="fallback-actions">
                 <GlassAction icon="up" label={`${kind.title}备用模型${index + 1}上移`} disabled={busy || index === 0} onClick={() => {
                   const rows = [...backups]; [rows[index - 1], rows[index]] = [rows[index]!, rows[index - 1]!]; changeFallbacks(kind.id, rows)

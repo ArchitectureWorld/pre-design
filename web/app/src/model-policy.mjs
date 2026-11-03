@@ -1,0 +1,150 @@
+import { z } from 'zod'
+
+const fail = (statusCode, message, details = {}) => Object.assign(new Error(message), { statusCode, ...details })
+const clone = value => JSON.parse(JSON.stringify(value))
+function freeze(value) {
+  if (value && typeof value === 'object') {
+    for (const item of Object.values(value)) freeze(item)
+    Object.freeze(value)
+  }
+  return value
+}
+const keyOf = ({ provider, model }) => JSON.stringify([provider, model])
+const capabilities = (text, vision = false, image = false) => ({ text, tools: false, vision, image })
+const sources = { SenseNova: 'SenseNova', 'deepseek-official': 'DeepSeek 官方', 'Comfyui-PIC': 'ComfyUI', '启航引擎AIGC组': '启航引擎 AIGC 组' }
+function entry(provider, model, declaredCapabilities, extra = {}) {
+  return { source: sources[provider], provider, model, runtimeProvider: provider, status: 'unverified', declaredCapabilities,
+    capabilities: { ...declaredCapabilities }, ...extra }
+}
+
+// These are the handed-over declarations, not successful capability probes.
+export const MODEL_CATALOG = freeze([
+  entry('SenseNova', 'sensenova-6.7-flash-lite', capabilities(true, true), { contextWindow: 262144, maxOutputTokens: 65536 }),
+  entry('SenseNova', 'sensenova-6.8-flash-lite', capabilities(true, true), { contextWindow: 262144, maxOutputTokens: 65536 }),
+  entry('SenseNova', 'deepseek-v4-flash', capabilities(true), { contextWindow: 1048576, maxOutputTokens: 65536 }),
+  entry('SenseNova', 'deepseek-v4-pro', capabilities(true), { contextWindow: 1048576, maxOutputTokens: 65536 }),
+  entry('SenseNova', 'glm-5.2', capabilities(true), { contextWindow: 1048576, maxOutputTokens: 131072 }),
+  entry('SenseNova', 'kimi-k3', capabilities(true), { contextWindow: 1048576, maxOutputTokens: 131072, compat: { maxTokensField: 'max_completion_tokens' } }),
+  entry('deepseek-official', 'deepseek-flash', capabilities(true), { maxOutputTokens: 393216 }),
+  entry('deepseek-official', 'deepseek-v4-flash', capabilities(true), { maxOutputTokens: 393216 }),
+  entry('deepseek-official', 'deepseek-v4-pro', capabilities(true), { maxOutputTokens: 393216 }),
+  entry('deepseek-official', 'deepseek-v4-flash-vision-exp', capabilities(true), { maxOutputTokens: 393216 }),
+  entry('Comfyui-PIC', 'Klein', capabilities(false, false, true), { imageConfig: { modelFile: 'Flux2-Klein-9B-True-v2-bf16.safetensors' } }),
+  entry('启航引擎AIGC组', 'tt-image-2.5', capabilities(false, false, true)),
+  entry('启航引擎AIGC组', 'tt-image-2.5-flare', capabilities(false, false, true)),
+  entry('启航引擎AIGC组', 'tt-image-2.5-sunburst', capabilities(false, false, true)),
+])
+const catalogByKey = new Map(MODEL_CATALOG.map(item => [keyOf(item), item]))
+const roles = ['parent', 'text', 'web', 'vision', 'image', 'imageLlm']
+const roleCapabilities = {
+  // Research and chapter text agents submit through the native structured_output tool.
+  parent: ['text', 'tools'], text: ['text', 'tools'], web: ['text', 'tools'],
+  vision: ['text', 'vision'], image: ['image'], imageLlm: ['text', 'tools'],
+}
+const positiveInteger = z.number().int().positive().max(Number.MAX_SAFE_INTEGER)
+const capabilitiesSchema = z.object({ text: z.boolean(), tools: z.boolean(), vision: z.boolean(), image: z.boolean() }).strict()
+const identifier = z.string().min(1).max(160).regex(/^[\p{L}\p{N}_.:@/-]+$/u)
+const modelKeySchema = z.object({ provider: identifier, model: identifier }).strict()
+const routeSchema = z.object({ primary: modelKeySchema.nullable(), fallbacks: z.array(modelKeySchema).max(13) }).strict()
+const workflowRef = z.string().min(1).max(512).regex(/^[^\x00-\x1f\x7f]+$/u)
+const modelSchema = z.object({
+  source: z.string().min(1).max(80).optional(),
+  provider: identifier, model: identifier, runtimeProvider: identifier,
+  status: z.enum(['unverified', 'verified', 'unavailable']),
+  declaredCapabilities: capabilitiesSchema.optional(), capabilities: capabilitiesSchema,
+  contextWindow: positiveInteger.optional(), maxOutputTokens: positiveInteger.optional(),
+  compat: z.object({ maxTokensField: z.enum(['max_tokens', 'max_completion_tokens']).optional(),
+    protocol: z.enum(['openai-completions', 'openai-responses']).optional() }).strict().optional(),
+  credentialRef: z.string().regex(/^credential:[\p{L}\p{N}][\p{L}\p{N}_.-]{0,127}$/u).optional(),
+  imageConfig: z.object({ modelFile: z.literal('Flux2-Klein-9B-True-v2-bf16.safetensors'),
+    textToImageWorkflow: workflowRef.optional(), referenceImageWorkflow: workflowRef.optional() }).strict().optional(),
+}).strict()
+const policySchema = z.object({
+  revision: positiveInteger.optional(), models: z.array(modelSchema).length(14),
+  routes: z.object(Object.fromEntries(roles.map(role => [role, routeSchema]))).strict(),
+  limits: z.object({ globalConcurrency: positiveInteger, perUserConcurrency: positiveInteger,
+    maxQueuedPerUser: positiveInteger, maxDailyJobsPerUser: positiveInteger }).strict(),
+}).strict()
+
+export function defaultPolicy() {
+  const main = { provider: 'SenseNova', model: 'sensenova-6.8-flash-lite' }
+  return {
+    revision: 1, models: clone(MODEL_CATALOG),
+    routes: Object.fromEntries(roles.map(role => [role, {
+      primary: role === 'image' ? { provider: 'Comfyui-PIC', model: 'Klein' } : { ...main }, fallbacks: [],
+    }])),
+    limits: { globalConcurrency: 2, perUserConcurrency: 1, maxQueuedPerUser: 10, maxDailyJobsPerUser: 20 },
+  }
+}
+
+function invalid(message) { throw fail(400, message, { code: 'INVALID_MODEL_POLICY' }) }
+function parsePolicy(input) {
+  const parsed = policySchema.safeParse(input)
+  if (!parsed.success) invalid('模型策略字段、凭据引用或预算格式不合法')
+  return parsed.data
+}
+
+export function validatePolicy(input) {
+  const policy = parsePolicy(input)
+  const models = new Map(), runtimeSources = new Map()
+  for (const item of policy.models) {
+    const key = keyOf(item), registered = catalogByKey.get(key)
+    if (!registered || models.has(key)) invalid('模型目录必须完整保留允许的 14 项来源和模型身份，不能重复或引入其他来源')
+    if (/(?:antigravity|ollama|openai|chatgpt|codex|yaoguang|gpt|gemini|qwen|瑶光)/iu.test(item.runtimeProvider.normalize('NFKC'))) {
+      invalid('运行提供方映射不能指向被排除的来源')
+    }
+    const runtimeIdentity = item.runtimeProvider.normalize('NFKC').toLowerCase()
+    const knownSource = Object.keys(sources).find(provider => provider.normalize('NFKC').toLowerCase() === runtimeIdentity)
+    const previousSource = runtimeSources.get(runtimeIdentity)
+    if ((knownSource && knownSource !== item.provider) || (previousSource && previousSource !== item.provider)) invalid('运行提供方映射不能改变或合并模型来源身份')
+    runtimeSources.set(runtimeIdentity, item.provider)
+    if (item.source !== undefined && item.source !== registered.source) invalid('模型来源不能被改写')
+    if (item.declaredCapabilities && Object.keys(registered.declaredCapabilities).some(capability => item.declaredCapabilities[capability] !== registered.declaredCapabilities[capability])) {
+      invalid('交接声明不可改写；实际验证能力应保存在 capabilities')
+    }
+    item.source = registered.source
+    item.declaredCapabilities = { ...registered.declaredCapabilities }
+    if ((registered.contextWindow !== undefined && item.contextWindow === undefined) || (registered.maxOutputTokens !== undefined && item.maxOutputTokens === undefined)) invalid('已交接的模型预算不能被删除')
+    if (item.contextWindow !== undefined && item.maxOutputTokens !== undefined && item.maxOutputTokens > item.contextWindow) invalid('模型输出预算不能超过其上下文预算')
+    if (item.provider === 'SenseNova' && item.model === 'kimi-k3' && item.compat?.maxTokensField !== 'max_completion_tokens') invalid('Kimi 必须保留 max_completion_tokens 兼容字段')
+    if (item.provider === 'Comfyui-PIC' && !item.imageConfig) invalid('Klein 必须保留图像模型文件配置')
+    if (item.provider !== 'Comfyui-PIC' && item.imageConfig) invalid('该模型不接受 Klein 工作流配置')
+    models.set(key, item)
+  }
+  for (const role of roles) {
+    const route = policy.routes[role], seen = new Set()
+    if (!route.primary && route.fallbacks.length) invalid('未选择主模型时不能配置备用链')
+    for (const [index, reference] of [route.primary, ...route.fallbacks].entries()) {
+      if (!reference) continue
+      const key = keyOf(reference), model = models.get(key)
+      if (!model) invalid('角色路由只能引用允许目录中的模型')
+      if (seen.has(key)) invalid('同一角色的主备模型不能重复')
+      seen.add(key)
+      // Draft primaries may await tool probes, but image and text roles must not be mixed.
+      const required = roleCapabilities[role].filter(capability => capability !== 'tools' || model.status === 'verified' || index > 0)
+      if (required.some(capability => !model.capabilities[capability])) invalid('角色路由与模型能力不匹配')
+      if (index > 0 && model.status !== 'verified') invalid('备用模型必须已验证，不能自动启用待验证或不可用模型')
+    }
+  }
+  return clone(policy)
+}
+
+export function validateSnapshot(input, requiredRoles = ['parent']) {
+  if (!Array.isArray(requiredRoles) || requiredRoles.some(role => !roles.includes(role)) || new Set(requiredRoles).size !== requiredRoles.length) invalid('任务要求的模型角色不合法')
+  if (!Number.isSafeInteger(input?.revision) || input.revision < 1) invalid('任务模型快照缺少有效配置版本')
+  const policy = validatePolicy(input)
+  const required = new Set(requiredRoles), models = new Map(policy.models.map(item => [keyOf(item), item]))
+  if (required.has('image') && [policy.routes.image.primary, ...policy.routes.image.fallbacks].some(item => item?.provider === 'Comfyui-PIC' && item.model === 'Klein')) required.add('imageLlm')
+  const notReady = []
+  for (const role of required) {
+    const route = policy.routes[role]
+    if (!route.primary) { notReady.push({ role, reason: 'missing_primary' }); continue }
+    for (const reference of [route.primary, ...route.fallbacks]) {
+      const model = models.get(keyOf(reference))
+      if (model.status !== 'verified') notReady.push({ role, reason: model.status })
+      else if (roleCapabilities[role].some(capability => !model.capabilities[capability])) notReady.push({ role, reason: 'missing_capability' })
+    }
+  }
+  if (notReady.length) throw fail(503, `模型策略未就绪：${[...new Set(notReady.map(item => item.role))].join('、')}`, { code: 'MODEL_POLICY_NOT_READY', notReady })
+  return freeze(clone(policy))
+}

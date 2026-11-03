@@ -1,0 +1,39 @@
+import { existsSync } from 'node:fs'
+import { mkdtemp, readdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
+import { peerRequest } from './helpers/peer-research-fixture.ts'
+import { regionalRequest } from './helpers/regional-od-fixture.ts'
+import { createSourceCapture } from '../src/research-v2/source-intake.ts'
+import { analyzePeers, preparePeerOd } from '../src/research-v2/peer-analysis.ts'
+import { runRegionalOd } from '../src/research-v2/regional-od.ts'
+const url=new URL('../src/research-v2/peer-bundle.ts',import.meta.url)
+async function api(){expect(existsSync(url),'peer audit implementation exists').toBe(true);return import(url.href)}
+function fixture(){const q=peerRequest();q.captures=q.captures.map(s=>createSourceCapture(s,s.content));return q}
+const roots:string[]=[]
+afterEach(async()=>{for(const r of roots.splice(0))await rm(r,{recursive:true,force:true})})
+describe('peer audit artifacts and safe storage',()=>{
+ it('produces native matrix, three tables, trace and exact sources without requiring photographs',async()=>{const a=await api(),bundle=a.buildPeerAuditBundle(analyzePeers(fixture()));for(const path of ['report.html','FIG-3.04-01.svg','datasets/peer-registry.csv','datasets/peer-products.csv','datasets/peer-operations.csv','analysis-trace.json'])expect(bundle.files[path]).toBeTruthy();expect(bundle.manifest.publicationGranted).toBe(false);expect(a.replayPeerAuditBundle(bundle).replayed).toBe(true)})
+ it('does not invent a spatial map where coordinates are missing',async()=>{const a=await api(),bundle=a.buildPeerAuditBundle(analyzePeers(fixture()));expect(bundle.manifest.artifacts.find((a:any)=>a.artifactId==='FIG-2.04-01').state).toBe('omitted');expect(bundle.files['report.html']).toContain('坐标缺失');expect(bundle.files['report.html']).toContain('未证明市场缺口')})
+ it('escapes markup and CSV formulas but retains original values in the evidence',async()=>{const a=await api(),q=fixture(),doc=JSON.parse(q.captures[0].content);doc.rows[0].name='=HYPERLINK("bad")<script>alert(1)</script>';q.captures[0]=createSourceCapture(q.captures[0],JSON.stringify(doc));q.peers[0].claims.find(c=>c.field==='name')!.value=doc.rows[0].name;const b=a.buildPeerAuditBundle(analyzePeers(q));expect(b.files['report.html']).not.toContain('<script>alert(1)</script>');expect(b.files['datasets/peer-registry.csv']).toContain("'=HYPERLINK");expect(b.files['request.json']).toContain('alert(1)')})
+ it('binds every presented claim back to its original source and selector',async()=>{const a=await api(),b=a.buildPeerAuditBundle(analyzePeers(fixture()));const trace=JSON.parse(b.files['analysis-trace.json']);expect(trace.bindings.length).toBeGreaterThan(15);for(const c of trace.bindings){expect(b.files[c.sourcePath]).toBeTruthy();expect(c.selector).toBeDefined();expect(b.files['report.html']).toContain(c.claimId)}})
+ it('rejects rehashed tampering with a result, chart or publication flag',async()=>{const a=await api(),b=a.buildPeerAuditBundle(analyzePeers(fixture()));for(const target of ['result.json','FIG-3.04-01.svg','report.html']){const x=structuredClone(b);x.files[target]+=' ';expect(()=>a.replayPeerAuditBundle(x)).toThrow()}const x=structuredClone(b);x.manifest.publicationGranted=true;expect(()=>a.replayPeerAuditBundle(x)).toThrow()})
+ it('replays deterministic comparisons with no filesystem or network',async()=>{const a=await api(),b=a.buildPeerAuditBundle(analyzePeers(fixture()));expect(a.replayPeerAuditBundle(b)).toMatchObject({replayed:true,networkRequests:0,checkedPeers:3,publicationGranted:false})})
+ it('persists an independent run and reads it through the same audited store',async()=>{const a=await api(),r=await mkdtemp(join(tmpdir(),'peer-store-'));roots.push(r);const b=a.buildPeerAuditBundle(analyzePeers(fixture()));const saved=await a.savePeerAuditBundle(r,b);expect(await readdir(join(r,'research/runs'))).toEqual([saved.runId]);expect(a.replayPeerAuditBundle(await a.readPeerAuditBundle(r,saved.runId)).checkedPeers).toBe(3)})
+ it('leaves no run if the workspace revision changes before commit',async()=>{const a=await api(),r=await mkdtemp(join(tmpdir(),'peer-store-'));roots.push(r);const b=a.buildPeerAuditBundle(analyzePeers(fixture()));await expect(a.savePeerAuditBundle(r,b,{beforeCommit:()=>{throw new Error('STALE')}})).rejects.toThrow('STALE');expect(await readdir(join(r,'research/runs'))).toHaveLength(0)})
+ it('does not read a symlink substituted for an archived source',async()=>{const a=await api(),r=await mkdtemp(join(tmpdir(),'peer-store-'));roots.push(r);const b=a.buildPeerAuditBundle(analyzePeers(fixture())),saved=await a.savePeerAuditBundle(r,b);const p=join(r,saved.relativePath,'result.json');await rm(p);await writeFile(join(r,'outside.json'),'{}');await symlink(join(r,'outside.json'),p);await expect(a.readPeerAuditBundle(r,saved.runId)).rejects.toThrow('RESEARCH_SYMLINK_FORBIDDEN')})
+})
+describe('shared peer to regional OD seam',()=>{
+ function withOrigin(){const q:any=fixture(),r=regionalRequest();q.regionalContext={origin:r.nodes[0],captures:r.captures,peerIds:['peer-1'],policy:{maxRequests:0,timeoutMs:1000}};return q}
+ it('converts the same peer ID to an evidence-preserving regional node accepted by the actual executor',async()=>{const q=withOrigin(),p=preparePeerOd(analyzePeers(q));expect(p.request).not.toBeNull();expect(p.request!.nodes[1].regionId).toBe('peer-1');const derived=JSON.parse(p.request!.captures.at(-1)!.content);expect(derived.lineage.originalCapture.content).toBe(q.captures[0].content);const od=await runRegionalOd(p.request);expect(od.rows[0].straightMeters).toBeGreaterThan(0);expect(od.rows[0].roadMeters).toBeNull()})
+ it('returns the precise gap rather than silently omitting requested peers',()=>{const q=withOrigin();q.regionalContext.peerIds.push('peer-2');const p=preparePeerOd(analyzePeers(q));expect(p.request).toBeNull();expect(p.gaps.join('')).toContain('peer-2')})
+ it('requires explicit supply classification before an external reference enters peer OD',()=>{const q=withOrigin();q.regionalContext.peerIds=['peer-3'];expect(()=>preparePeerOd(analyzePeers(q))).toThrow('PEER_OD_REFERENCE_NOT_SUPPLY')})
+ it('rejects a mutated analysis result before creating downstream coordinates',()=>{const r:any=structuredClone(analyzePeers(withOrigin()));r.rows[0].cells.coordinate.values[0].value.longitude=100;expect(()=>preparePeerOd(r)).toThrow('PEER_RESULT_MISMATCH')})
+})
+
+describe('adversarial audit rehashing',()=>{
+ it('detects rehashed semantic or visual changes, not just byte differences',async()=>{const a=await api(),{sha256CanonicalJson}=await import('../src/presentation/canonical-json.ts'),{sha256Bytes}=await import('../src/research-v2/regional-od.ts');for(const path of ['FIG-3.04-01.svg','result.json','report.html']){const b:any=structuredClone(a.buildPeerAuditBundle(analyzePeers(fixture())));b.files[path]+=' ';const entry=b.manifest.files.find((e:any)=>e.path===path);entry.sha256=sha256Bytes(b.files[path]);entry.sizeBytes=Buffer.byteLength(b.files[path]);const {manifestHash,...core}=b.manifest;b.manifest.manifestHash=sha256CanonicalJson(core);expect(()=>a.replayPeerAuditBundle(b)).toThrow('PEER_REPLAY_MISMATCH')}})
+})
+
+it('keeps peer results when original source capture exceeds the smaller OD input budget',async()=>{const a=await api(),q:any=fixture(),r=regionalRequest(),doc=JSON.parse(q.captures[0].content);doc.padding='x'.repeat(300000);q.captures[0]=createSourceCapture(q.captures[0],JSON.stringify(doc));q.regionalContext={origin:r.nodes[0],captures:r.captures,peerIds:['peer-1'],policy:{maxRequests:0,timeoutMs:1000}};const result=analyzePeers(q),p=preparePeerOd(result);expect(p.request).toBeNull();expect(p.gaps.join('')).toContain('地域输入');expect(a.replayPeerAuditBundle(a.buildPeerAuditBundle(result)).checkedPeers).toBe(3)})

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { AutomationWorkflowCommitter } from '../src/runtime/automation-workflow-committer.ts'
 import { ContractRegistry } from '../src/contracts/registry.ts'
+import { validateCandidateWorkspaceProvenance } from '../src/research/workspace-provenance.ts'
 
 const descriptor = {
   workflowId: 'preplan.wf.01.01', chapterId: '01', workItemId: '01-01',
@@ -37,6 +38,9 @@ describe('automatic workflow research provenance persistence', () => {
     { ...evidence, locator: { ...evidence.locator, jsonPointer: '/canonical_name' }, section: 'file:///workspace/project.json | JSON Pointer /canonical_name' },
     { ...evidence, sourceUri: 'https://example.org/official.txt', locator: { selectorType: 'text_lines', startLine: 3, endLine: 5 }, section: 'https://example.org/official.txt | lines 3-5' },
     { ...evidence, sourceType: 'project_state', sourceUri: 'project-state://project-1/PS01/2', locator: { objectId: 'PS01', revision: 2, jsonPointer: '/data/canonical_name' }, section: 'project-state://project-1/PS01/2 | JSON Pointer /data/canonical_name' },
+    { ...evidence, sourceUri: 'file:///workspace/source.pdf', locator: { relativePath: 'source.pdf', page: 6, fragmentHash: 'a'.repeat(64), quote: '原件第六页引句' }, section: 'file:///workspace/source.pdf' },
+    { ...evidence, sourceUri: 'file:///workspace/locations.pdf', locator: { relativePath: 'locations.pdf', page: 6, slide: 2, sheet: '测算表', cell_range: 'B2:C8', bbox: [0, 0, 1, 1], geometry_ref: 'geometry-1', fragmentHash: 'a'.repeat(64) }, section: 'file:///workspace/locations.pdf' },
+    { ...evidence, sourceUri: 'file:///workspace/no-fragment.pdf', locator: { relativePath: 'no-fragment.pdf', page: 6 }, section: 'file:///workspace/no-fragment.pdf' },
   ])('writes contract-valid Research references and lossless audit provenance for $sourceUri', async ({ section, ...record }) => {
     const contracts = await ContractRegistry.open(new URL('../contracts/v0.6/', import.meta.url))
     const submitProposal = vi.fn(async (envelope: any) => {
@@ -85,6 +89,16 @@ describe('automatic workflow research provenance persistence', () => {
       captured_at: evidence.capturedAt,
       reliability: 'A',
     })
+    const locator = record.locator as Record<string, unknown>
+    const preservedLocation = Object.fromEntries(['page', 'slide', 'sheet', 'cell_range', 'bbox', 'geometry_ref']
+      .filter(key => locator[key] !== undefined).map(key => [key, locator[key]]))
+    expect(envelope.evidence_refs[0].locator).toEqual({ ...preservedLocation, section })
+    expect(envelope.evidence_refs[0].quote_hash).toBe(locator.fragmentHash ?? null)
+    if (record.sourceType === 'workspace_file') {
+      expect(validateCandidateWorkspaceProvenance(envelope, {
+        researchEvidence: [record] as never, acceptedEvidenceIds: [record.evidenceId],
+      })).toEqual({ valid: true, errors: [] })
+    }
     expect(putAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
       eventType: 'research.trace', projectId: 'project-1', revision: 1,
       payload: expect.objectContaining({ workflowId: 'preplan.wf.01.01', evidenceRecords: [record], analysisTrace }),

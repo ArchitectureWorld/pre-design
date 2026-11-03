@@ -1,3 +1,6 @@
+import { createPeerResearchCommand } from '../research-v2/peer-command.ts'
+import { createRegionalOdCommand, type ResearchWorkspaceBinding } from '../research-v2/regional-command.ts'
+import { createResearchPlanCommand } from '../research-v2/command.ts'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { CommandDefinition, CommandInvocation, CommandResult } from '@deepseek-ai/dsh-commands'
@@ -22,6 +25,10 @@ import type { ActorRef } from '../state/types.ts'
 import { buildPreplanningStatus, formatPreplanningStatus, type PreplanningStatusDependencies } from '../session/events.ts'
 
 export interface CommandDependencies {
+  readonly researchProgress?: PreplanningStatusDependencies['researchProgress']
+  readonly unifiedResearch?: { readonly run: CommandDefinition['handler']; readonly pause: CommandDefinition['handler'] }
+  readonly reportDelivery?: PreplanningStatusDependencies['reportDelivery']
+  readonly researchWorkspaceBinding?: (projectId: string) => ResearchWorkspaceBinding | undefined
   readonly reportErrors?: ReadonlyMap<string, string>
   readonly reportFormats?: PreplanningStatusDependencies['reportFormats']
   readonly repository: ProjectRepository
@@ -37,6 +44,7 @@ export interface CommandDependencies {
   readonly reports: ReportPackageService
   readonly conditionalReports?: Pick<ConditionalReportPackageService, 'generate'>
   readonly prepareManuscript?: (projectId: string, revision: number, agent: Agent, signal: AbortSignal) => Promise<void>
+  readonly prepareChapter?: (projectId: string, revision: number, agent: Agent, signal: AbortSignal, chapterId: import('../report/manuscript/types.ts').PlanningChapterId, stage: 'write' | 'review' | 'revise' | `production-${import('../report/chapter-production.ts').ChapterProductionStage}`) => Promise<string>
   readonly prepareVisuals?: (projectId: string, revision: number, agent: Agent, signal: AbortSignal, options?: { readonly maxGenerations?: number }) => Promise<void>
   readonly registry: ContractRegistry
   readonly presentationSync?: Pick<PresentationAutoSyncService, 'request' | 'flush' | 'status'>
@@ -152,7 +160,7 @@ async function flushPresentationSync(
 function successWithStatus(
   text: string,
   context: ReturnType<ProjectRepository['readContext']>,
-  dependencies: Pick<CommandDependencies, 'governance' | 'runtime' | 'presentationSync' | 'reportFormats'>,
+  dependencies: Pick<CommandDependencies, 'governance' | 'runtime' | 'presentationSync' | 'reportFormats'|'reportDelivery'|'researchProgress'>,
 ): CommandResult {
   return { kind: 'success', text: `${text}\n${formatPreplanningStatus(buildPreplanningStatus(context, dependencies))}` }
 }
@@ -160,6 +168,17 @@ function successWithStatus(
 export function registerPreplanningCommands(ctx: Context, dependencies: CommandDependencies): void {
   const { repository, gateway, governance, runtime } = dependencies
   const definitions: CommandDefinition[] = [
+    createResearchPlanCommand(),
+    createPeerResearchCommand({
+      readContext: sessionId => repository.readContext(sessionId),
+      resolveBinding: projectId => dependencies.researchWorkspaceBinding?.(projectId),
+      now: () => new Date(dependencies.now()),
+    }),
+    createRegionalOdCommand({
+      readContext: sessionId => repository.readContext(sessionId),
+      resolveBinding: projectId => dependencies.researchWorkspaceBinding?.(projectId),
+      now: () => new Date(dependencies.now()),
+    }),
     {
       name: 'preplan-new',
       description: '新建并绑定一个前期策划项目',
@@ -311,7 +330,7 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
           })
           return {
             kind: 'success',
-            text: `已切换为全自动模式；授权 ${authorization.authorizationId} 覆盖 57 个工作项、8 个 Gate，最多 ${visualBudget} 张概念图和 120 个模型轮次。`,
+            text: `已切换为全自动模式；授权 ${authorization.authorizationId} 覆盖 57 个工作项、8 个 Gate，最多 ${visualBudget} 张概念图；模型轮次${authorization.scope.maxModelTurns === null ? '不限' : `上限 ${authorization.scope.maxModelTurns}`}。`,
           }
         }
         const active = governed.authorizations.find(row => row.status === 'active')
@@ -345,9 +364,11 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
     },
     {
       name: 'preplan-run',
-      description: '从当前就绪工作项开始或继续运行前期策划',
+      description: '执行或恢复新版62项研究及独立审查',
+      input: { hint: '[--all-modules] [--item=1.01] [--resume=RUN-…]' },
       handler: guarded(async (invocation) => {
         const context = repository.readContext(String(invocation.agent.id))
+        if (dependencies.unifiedResearch) return dependencies.unifiedResearch.run(invocation)
         await runtime.initializeProject(context.project.projectId)
         await dependencies.coordinator.start(invocation.agent, context.project.projectId)
         return { kind: 'success', text: `项目“${context.project.name}”已开始继续前期策划。` }
@@ -358,6 +379,7 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
       description: '在当前模型轮次结束后暂停前期策划自动推进',
       handler: guarded(async (invocation) => {
         const context = repository.readContext(String(invocation.agent.id))
+        if (dependencies.unifiedResearch) return dependencies.unifiedResearch.pause(invocation)
         await dependencies.coordinator.pause(context.project.projectId)
         return { kind: 'success', text: `项目“${context.project.name}”将在当前轮次结束后暂停。` }
       }),
@@ -367,6 +389,7 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
       description: '由当前自然人决策责任人确认一个章节 Gate',
       input: { hint: '<G1-G8> <approved|approved_with_conditions|returned|blocked> [原因]' },
       handler: guarded(async (invocation) => {
+        if (dependencies.unifiedResearch) return { kind: 'error', text: '旧57项Gate为只读兼容历史；新版章节资格由62项结果及独立审查核验，不能沿用旧Gate批准。' }
         const [gateId, rawDecision, ...reasonParts] = invocation.rawInput.trim().split(/\s+/u)
         const decisions: readonly GateDecisionRecord['decision'][] = [
           'approved', 'approved_with_conditions', 'returned', 'blocked',
@@ -632,6 +655,25 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
       name: 'preplan-manuscript',
       description: '基于现有策划成果编写对外汇报文案并同步草案',
       handler: guarded(async invocation => {
+        const mode = invocation.rawInput?.trim() ?? ''
+        const production = /^--chapter (opportunity|site|positioning|products|spatial|launch|operation) --production (plan|research|write|visuals|layout|export|review)$/u.exec(mode)
+        if(production){
+          if(!dependencies.prepareChapter)return {kind:'error',text:'单章生产服务尚未配置。'}
+          const current=repository.readContext(String(invocation.agent.id)),signal=invocation.signal??new AbortController().signal
+          const text=await dependencies.prepareChapter(current.project.projectId,current.project.currentRevision,invocation.agent,signal,
+            production[1] as import('../report/manuscript/types.ts').PlanningChapterId,`production-${production[2]}` as `production-${import('../report/chapter-production.ts').ChapterProductionStage}`)
+          signal.throwIfAborted();return {kind:'success',text}
+        }
+        const chapter = /^--chapter (opportunity|site|positioning|products|spatial|launch|operation)( --review| --revise)?$/u.exec(mode)
+        if (chapter) {
+          if (!dependencies.prepareChapter) return { kind: 'error', text: '单章服务尚未配置。' }
+          const current = repository.readContext(String(invocation.agent.id))
+          const signal = invocation.signal ?? new AbortController().signal
+          const text = await dependencies.prepareChapter(current.project.projectId, current.project.currentRevision, invocation.agent, signal,
+            chapter[1] as import('../report/manuscript/types.ts').PlanningChapterId, chapter[2] === ' --revise' ? 'revise' : chapter[2] ? 'review' : 'write')
+          signal.throwIfAborted(); return { kind: 'success', text }
+        }
+        if (mode) return { kind: 'error', text: '用法：/preplan-manuscript [--chapter <章节ID> [--review|--revise]]' }
         if (!dependencies.prepareManuscript) return { kind: 'error', text: '汇报文案服务尚未配置。' }
         const context = repository.readContext(String(invocation.agent.id))
         const signal = invocation.signal ?? new AbortController().signal
@@ -658,14 +700,17 @@ export function registerPreplanningCommands(ctx: Context, dependencies: CommandD
         signal.throwIfAborted()
         const manifest = await (dependencies.conditionalReports === undefined
           ? dependencies.reports.publish(context.project.projectId, context.project.currentRevision)
-          : dependencies.conditionalReports.generate(context.project.projectId, context.project.currentRevision, signal))
+          : dependencies.conditionalReports.generate(context.project.projectId, context.project.currentRevision, signal,
+            ...(mode === '--reuse-images' ? [{maxGenerations:0}] : [])))
         signal.throwIfAborted()
         const links = manifest.artifacts.map(artifact =>
           `- ${artifact.format.toUpperCase()}：/preplan-export/${manifest.packageId}/${artifact.fileName}`,
         )
         return {
           kind: 'success',
-          text: manifest.deliveryMode === 'conditional'
+          text: manifest.acceptanceHash
+            ? `版本 ${manifest.sourceRevision} 的完整图文 HTML 已通过内容与实际页面验收。质量验收不替代法定审批。\n${links.join('\n')}`
+            : manifest.deliveryMode === 'conditional'
             ? `已生成版本 ${manifest.sourceRevision} 的条件式策划成果（保留未知条件，不作为法定边界或正式审核结论）：\n${links.join('\n')}`
             : `已原子发布 Revision ${manifest.sourceRevision} 的甲方汇报成果：\n${links.join('\n')}`,
         }

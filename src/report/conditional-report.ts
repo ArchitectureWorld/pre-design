@@ -8,6 +8,7 @@ import type { PresentationAdoptedAssetInput } from '../presentation/standard-pro
 import { createClientTheme } from './theme.ts'
 import type { FrozenProjectInput } from './types.ts'
 import { caseStudySources, caseStudyEvidenceMarkdown } from './case-studies/index.ts'
+import { researchCompilationNote } from './research-note.ts'
 
 export const CONDITIONAL_REPORT_NOTICE = '条件式策划成果：保留资料缺口与成立条件，内容及测算尚待专项复核，不作为法定边界或正式审核结论。'
 const conditionalBrand: unique symbol = Symbol('conditional-report')
@@ -74,7 +75,8 @@ export function createConditionalReportBundle(input: FrozenProjectInput, materia
   const chapters: ClientChapter[] = [{ id: 'conditional-scope', role: 'brief', headline: '项目研究范围与决策条件',
     claim: CONDITIONAL_REPORT_NOTICE, blocks: [`${CONDITIONAL_REPORT_NOTICE}\n\n${boundary}`,
     ].map(statement => ({ type: 'narrative', statement, evidenceIds: [] })) }]
-  const fullDetails: ConditionalDetail[] = []
+  const compilationNote = researchCompilationNote(input, CONDITIONAL_REPORT_NOTICE)
+  const fullDetails: ConditionalDetail[] = compilationNote && !input.manuscript ? [{ title: '编制与研究范围说明', entries: compilationNote }] : []
   for (const object of [...input.stateObjects].sort((a, b) => (a.workItemId ?? a.objectId).localeCompare(b.workItemId ?? b.objectId))) {
     const entries = object.reportSections?.flatMap(section => section.entries.map(entry => `${entry.text}\n依据与性质：${entry.basis}`)) ?? []
     const fullEntries = entries.length > 0 ? entries : object.facts.map(fact => `${fact.label}：${fact.value}\n依据与性质：${fact.basis}`)
@@ -138,6 +140,7 @@ export function createConditionalReportBundle(input: FrozenProjectInput, materia
   const coreValue = findings.find(f => f.sectionKey === 'manuscript:positioning' || f.sectionKey === 'recommended-path')?.keyMessage ?? findings[0]?.keyMessage ?? CONDITIONAL_REPORT_NOTICE
   const report: ClientReport = {
     schemaVersion: 'preplan.client-report.v1',
+    ...(compilationNote ? { compilationNote } : {}),
     identity: { projectId: input.projectId, projectName: display(input.projectName), reportTitle: input.manuscript?.title ?? `${display(input.projectName)}｜前期策划汇报`,
       reportDate: input.generatedAt.slice(0, 10), audience: 'executive-and-professional', locale: 'zh-CN' },
     proposition: { projectDefinition: input.manuscript ? coreValue : `${display(input.projectName)}前期策划`, urgency: '项目价值 · 产品场景 · 实施路径',

@@ -1,3 +1,4 @@
+import { PRE_DESIGN_VERSION } from '../src/version.ts'
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, within, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -38,7 +39,7 @@ it('uses named icon-only secondary controls and short model names instead of dup
     expect(button.textContent).toBe(''); expect(button.getAttribute('title')).toBeTruthy()
   }
   expect(view.getByRole('button',{name:'C · 深色克制'}).textContent).toBe('C')
-  expect(view.getAllByText('Pre 2.0.2 · Project Format 0.1.0')).toHaveLength(1)
+  expect(view.getAllByText(`Pre ${PRE_DESIGN_VERSION} · Project Format 0.1.0`)).toHaveLength(1)
 })
 it('preserves the explicitly paired LLM when promoting a configured Klein fallback to primary', async () => {
   const initial=data()

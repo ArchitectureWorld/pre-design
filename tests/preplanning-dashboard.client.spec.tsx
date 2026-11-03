@@ -1,3 +1,4 @@
+import { PRE_DESIGN_VERSION } from '../src/version.ts'
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -15,6 +16,16 @@ const runningStart = async () => ({
 })
 
 describe('Preplanning full-flow UI', () => {
+  it.each([['generating','生成中'],['pending','待验收'],['failed','验收未通过'],['passed','验收通过']] as const)('明确显示成果 %s 状态', (state,label)=>{
+    const status=buildPreplanningStatus({project:{projectId:'p',name:'项目',currentRevision:1,currentStage:'08-08'},proposals:[],questions:[]} as never)
+    const view=render(<PreplanningDashboard status={{...status,reportDelivery:{projectId:'p',revision:1,contractVersion:'complete-planning-html.v1',status:state,message:'页面验收状态',updatedAt:'2026-09-27'}}}/> )
+    expect(view.getByText(label)).toBeTruthy()
+  })
+  it('历史HTML没有新版验收记录时明确显示未验收',()=>{
+    const status=buildPreplanningStatus({project:{projectId:'p',name:'项目',currentRevision:1,currentStage:'08-08'},proposals:[],questions:[]} as never)
+    const view=render(<PreplanningDashboard status={{...status,reportPackage:{id:'old',html:'/preplan-export/old/html/index.html'}}}/> )
+    expect(view.getByText('尚无新版质量验收记录')).toBeTruthy()
+  })
   it('HTML-only 成果仅显示真实 HTML 入口，不显示不存在的 PPTX 或 PDF 下载', () => {
     const status = buildPreplanningStatus({ project: { projectId: 'project-1', name: '验收项目',
       currentRevision: 57, currentStage: '08-08' }, proposals: [], questions: [] } as never)
@@ -71,7 +82,7 @@ describe('Preplanning full-flow UI', () => {
     expect(view.queryByLabelText('一句话描述项目和目标')).toBeNull()
     expect(view.queryByLabelText('识别的项目名称')).toBeNull()
     // The version is rendered once by LiquidGlassShell, not repeated inside this card.
-    expect(view.queryByText('Pre 2.0.2 · Project Format 0.1.0')).toBeNull()
+    expect(view.queryByText(`Pre ${PRE_DESIGN_VERSION} · Project Format 0.1.0`)).toBeNull()
   })
 
   it('开始前期策划不再收集任何执行策略或项目信息', async () => {

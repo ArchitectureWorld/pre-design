@@ -59,7 +59,23 @@ export class ProjectStateResearchProvider implements ResearchProvider {
     const contentHash = sha256(serialized)
     const fragmentHash = sha256(stableJson(selection.rawValue))
     const selectorIdentity = JSON.stringify(selection.locator)
-    const claimClass = projectStateClaimClass(state.value, request.selector?.type === 'json_pointer' ? request.selector.pointer : '')
+    const pointer = request.selector?.type === 'json_pointer' ? request.selector.pointer : ''
+    let claimClass: EvidenceRecord['claimClass']
+    try { claimClass = projectStateClaimClass(state.value, pointer) }
+    catch (error) {
+      // A list may legitimately contain historical facts and user-stated scopes.
+      // Preserve each complete row and its exact selector; never pick one class
+      // for the aggregate or split a mixed business assertion into isolated refs.
+      if (!(error instanceof Error) || !error.message.startsWith('PROJECT_STATE_CLASS_AMBIGUOUS:')
+        || !Array.isArray(selection.rawValue) || (request.selector !== undefined && request.selector.type !== 'json_pointer')) throw error
+      const rows: EvidenceRecord[] = []
+      for (let index = 0; index < selection.rawValue.length; index++) {
+        const result = await this.readProjectState(source,
+          { ...request, selector: { type: 'json_pointer', pointer: `${pointer}/${index}` } }, signal)
+        rows.push(...result.records)
+      }
+      return { records: Object.freeze(rows) }
+    }
     // An explicitly unavailable datum is a coverage gap, not a forged or malformed
     // record. Returning no evidence lets the existing conditional policy retain it.
     if (claimClass === 'missing') return { records: Object.freeze([]) }

@@ -11,6 +11,13 @@ const manuscript = (pages: PlanningManuscriptPage[]): PlanningManuscript => ({ s
   chapters: [{ id: 'products', title: '体验产品', thesis: '完整体验', pages }],
 })
 describe('whole report argument and source planning', () => {
+  it('preserves quantity formulas and product bindings when display pages are merged',()=>{
+    const q={id:'q',label:'试运行场次',kind:'assumption' as const,value:3,unit:'场',sourceRefs:['s'],rationale:'情景约束'}
+    const source=manuscript([page('a',['到达组织']),page('b',['后勤组织'],{productRefs:['core-product'],quantities:[q]})]),plan=defaultContentPlan(source)
+    const result=compileContentPlan(source,{...plan,groups:[{...plan.groups[0]!,pageIds:['a','b']}]})
+    expect(result.manuscript.chapters[0]!.pages[0]!.quantities).toEqual([q])
+    expect(result.manuscript.chapters[0]!.pages[0]!.productRefs).toEqual(['core-product'])
+  })
   it('keeps facts stated only in the title of a merged page in visible copy', () => {
     const source = manuscript([page('a', ['利用现有场地。'], { title: '空间安排' }), page('b', ['分期实施。'], { title: '首期投资上限200万元' })])
     const plan = defaultContentPlan(source)

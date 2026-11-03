@@ -1,0 +1,312 @@
+{
+  "schemaVersion": "peer-research-request.v1",
+  "asOf": "2026-09-24",
+  "scope": "合成研究范围",
+  "peers": [
+    {
+      "peerId": "peer-1",
+      "role": "direct",
+      "selectionReason": "合成纳入决定，用于验证分类边界",
+      "claims": [
+        {
+          "id": "claim-0-name",
+          "field": "name",
+          "value": "合成邻里运动馆",
+          "sourceId": "source-peers",
+          "selector": {
+            "type": "json-pointer",
+            "pointer": "/rows/0/name"
+          }
+        },
+        {
+          "id": "claim-0-address",
+          "field": "address",
+          "value": "合成路1号",
+          "sourceId": "source-peers",
+          "selector": {
+            "type": "json-pointer",
+            "pointer": "/rows/0/address"
+          }
+        },
+        {
+          "id": "claim-0-status",
+          "field": "status",
+          "value": "operating",
+          "sourceId": "source-peers",
+          "selector": {
+            "type": "json-pointer",
+            "pointer": "/rows/0/status"
+          }
+        },
+        {
+          "id": "claim-0-positioning",
+          "field": "positioning",
+          "value": "社区体育与亲子活动",
+          "sourceId": "source-peers",
+          "selector": {
+            "type": "json-pointer",
+            "pointer": "/rows/0/positioning"
+          }
+        },
+        {
+          "id": "claim-0-format",
+          "field": "format",
+          "value": "体育培训",
+          "sourceId": "source-peers",
+          "selector": {
+            "type": "json-pointer",
+            "pointer": "/rows/0/format"
+          }
+        },
+        {
+          "id": "claim-0-coordinate",
+          "field": "coordinate",
+          "value": {
+            "longitude": 114.31,
+            "latitude": 30.61,
+            "crs": "EPSG:4326",
+            "entranceStatus": "source-recorded"
+          },
+          "sourceId": "source-peers",
+          "selector": {
+            "type": "json-pointer",
+            "pointer": "/rows/0/coordinate"
+          }
+        },
+        {
+          "id": "claim-0-price",
+          "field": "price",
+          "value": {
+            "offer": "成人单次票",
+            "basis": "成人单次入场不含课程",
+            "currency": "CNY",
+            "unit": "元/人次",
+            "period": "2026-09",
+            "amount": 80
+          },
+          "sourceId": "source-peers",
+          "selector": {
+            "type": "json-pointer",
+            "pointer": "/rows/0/price"
+          }
+        },
+        {
+          "id": "claim-0-targetAudience",
+          "field": "targetAudience",
+          "value": "亲子家庭",
+          "sourceId": "source-peers",
+          "selector": {
+            "type": "json-pointer",
+            "pointer": "/rows/0/targetAudience"
+          }
+        },
+        {
+          "id": "claim-0-observedAudience",
+          "field": "observedAudience",
+          "value": {
+            "description": "现场访客以成人为主",
+            "sampleSize": 12,
+            "method": "合成定点观察",
+            "period": "2026-09-20"
+          },
+          "sourceId": "source-peers",
+          "selector": {
+            "type": "json-pointer",
+            "pointer": "/rows/0/observedAudience"
+          }
+        },
+        {
+          "id": "claim-0-metric",
+          "field": "metric",
+          "value": {
+            "name": "visits",
+            "amount": 120,
+            "unit": "人次",
+            "period": "2026-09-20",
+            "denominator": null
+          },
+          "sourceId": "source-peers",
+          "selector": {
+            "type": "json-pointer",
+            "pointer": "/rows/0/metric"
+          }
+        }
+      ]
+    },
+    {
+      "peerId": "peer-2",
+      "role": "direct",
+      "selectionReason": "合成纳入决定，用于验证分类边界",
+      "claims": [
+        {
+          "id": "claim-1-name",
+          "field": "name",
+          "value": "合成滨水活动中心",
+          "sourceId": "source-peers",
+          "selector": {
+            "type": "json-pointer",
+            "pointer": "/rows/1/name"
+          }
+        },
+        {
+          "id": "claim-1-address",
+          "field": "address",
+          "value": "合成路2号",
+          "sourceId": "source-peers",
+          "selector": {
+            "type": "json-pointer",
+            "pointer": "/rows/1/address"
+          }
+        },
+        {
+          "id": "claim-1-status",
+          "field": "status",
+          "value": "planned",
+          "sourceId": "source-peers",
+          "selector": {
+            "type": "json-pointer",
+            "pointer": "/rows/1/status"
+          }
+        },
+        {
+          "id": "claim-1-positioning",
+          "field": "positioning",
+          "value": "户外休闲",
+          "sourceId": "source-peers",
+          "selector": {
+            "type": "json-pointer",
+            "pointer": "/rows/1/positioning"
+          }
+        },
+        {
+          "id": "claim-1-format",
+          "field": "format",
+          "value": "运动休闲",
+          "sourceId": "source-peers",
+          "selector": {
+            "type": "json-pointer",
+            "pointer": "/rows/1/format"
+          }
+        },
+        {
+          "id": "claim-1-price",
+          "field": "price",
+          "value": {
+            "offer": "成人单次票",
+            "basis": "成人单次入场不含课程",
+            "currency": "CNY",
+            "unit": "元/人次",
+            "period": "2026-09",
+            "amount": 100
+          },
+          "sourceId": "source-peers",
+          "selector": {
+            "type": "json-pointer",
+            "pointer": "/rows/1/price"
+          }
+        }
+      ]
+    },
+    {
+      "peerId": "peer-3",
+      "role": "reference",
+      "selectionReason": "合成纳入决定，用于验证分类边界",
+      "claims": [
+        {
+          "id": "claim-2-name",
+          "field": "name",
+          "value": "异地模式参考",
+          "sourceId": "source-peers",
+          "selector": {
+            "type": "json-pointer",
+            "pointer": "/rows/2/name"
+          }
+        },
+        {
+          "id": "claim-2-address",
+          "field": "address",
+          "value": "外地合成路",
+          "sourceId": "source-peers",
+          "selector": {
+            "type": "json-pointer",
+            "pointer": "/rows/2/address"
+          }
+        },
+        {
+          "id": "claim-2-status",
+          "field": "status",
+          "value": "operating",
+          "sourceId": "source-peers",
+          "selector": {
+            "type": "json-pointer",
+            "pointer": "/rows/2/status"
+          }
+        },
+        {
+          "id": "claim-2-format",
+          "field": "format",
+          "value": "文化体验",
+          "sourceId": "source-peers",
+          "selector": {
+            "type": "json-pointer",
+            "pointer": "/rows/2/format"
+          }
+        }
+      ]
+    }
+  ],
+  "documents": [
+    {
+      "sourceId": "source-peers",
+      "label": "合成调查原始记录",
+      "locator": "workspace:research/peers.synthetic-source.json",
+      "observedAt": "2026-09-20T00:00:00Z",
+      "retrievedAt": "2026-09-24T00:00:00Z",
+      "claimClass": "assumption",
+      "rights": "synthetic",
+      "mediaType": "application/json",
+      "path": "research/peers.synthetic-source.json"
+    }
+  ],
+  "regionalContext": {
+    "origin": {
+      "id": "entry-a",
+      "regionId": "region-project",
+      "label": "合成项目入口",
+      "kind": "project-entry",
+      "selectionReason": "合成测试起点",
+      "relation": "existing",
+      "entranceStatus": "source-recorded",
+      "coordinate": {
+        "longitude": 114.3,
+        "latitude": 30.6,
+        "crs": "EPSG:4326"
+      },
+      "evidenceIds": [
+        "source-nodes"
+      ],
+      "coordinateBinding": {
+        "sourceId": "source-nodes",
+        "selector": "/entries/0/coordinate"
+      }
+    },
+    "captures": [
+      {
+        "sourceId": "source-nodes",
+        "label": "合成节点原始记录",
+        "locator": "workspace:synthetic-nodes.json",
+        "observedAt": "2026-09-24T00:00:00Z",
+        "claimClass": "assumption",
+        "mediaType": "application/json",
+        "content": "{\"entries\":[{\"coordinate\":{\"longitude\":114.3,\"latitude\":30.6,\"crs\":\"EPSG:4326\"}},{\"coordinate\":{\"longitude\":114.31,\"latitude\":30.61,\"crs\":\"EPSG:4326\"}}]}"
+      }
+    ],
+    "peerIds": [
+      "peer-1"
+    ],
+    "policy": {
+      "maxRequests": 0,
+      "timeoutMs": 10000
+    }
+  }
+}

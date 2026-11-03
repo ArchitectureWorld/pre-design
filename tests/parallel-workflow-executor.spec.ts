@@ -176,7 +176,7 @@ describe('DshSubagentWorkflowAnalyzer', () => {
         stopReason: 'completed',
         output: [],
         structured: {
-          payload: { object_type: 'EnvironmentalBaseline', data: { summary: '候选结论' } },
+          projectionVersion: 'legacy-workflow-author-v1', data: { summary: '候选结论' },
           qualityEvidence,
         },
       }),
@@ -199,14 +199,14 @@ describe('DshSubagentWorkflowAnalyzer', () => {
       },
       registry: {
         stateSchema: (objectId: string) => ({ type: 'object', title: objectId }),
-        stateExample: (objectId: string) => ({ object_id: objectId, data: {} }),
+        stateExample: (objectId: string) => ({ object_id: objectId, data: { summary: 'synthetic-example-not-project-evidence' } }),
       },
     } as never)
 
     expect(analyzer.available()).toBe(true)
     const result = await analyzer.analyze({ id: 'session-1' } as never, 'preplan-1', descriptors[2]!)
 
-    expect(result.payload).toMatchObject({ object_type: 'EnvironmentalBaseline' })
+    expect(result.payload).toEqual({ data: { summary: '候选结论' } })
     expect(result.qualityEvidence).toEqual(qualityEvidence)
     expect(start).toHaveBeenCalledOnce()
     expect(start.mock.calls[0]?.[0]).toBe('spawn')
@@ -219,7 +219,12 @@ describe('DshSubagentWorkflowAnalyzer', () => {
     const prompt = start.mock.calls[0]?.[1].prompt[0].text
     expect(prompt).toContain('preplan.wf.02.03')
     expect(prompt).toContain('PS03')
-    expect(prompt).toContain('禁止复制示例事实')
+    expect(prompt).not.toContain('synthetic-example-not-project-evidence')
+    const inputs = JSON.parse(prompt.split('本工作项实际可用的上游对象：\n')[1]!.split('\n\n')[0]!)
+    expect(inputs).toEqual([
+      { objectId: 'PS03', revision: 3, value: { data: { location: '武汉' } } },
+      { objectId: 'PS07', revision: 7, value: { data: { constraints: [] } } },
+    ])
     expect(prompt).toContain('完成条件')
     expect(prompt).toContain('完成核心判断并记录限制条件。')
     expect(prompt).toContain('证据规则')

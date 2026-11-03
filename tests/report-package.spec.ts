@@ -17,6 +17,13 @@ import type { ArtifactValidationSensitiveValues } from '../src/report/validate-a
 import { CLIENT_PROFILE, REPORT_INPUT } from './client-report-fixture.ts'
 
 const roots: string[] = []
+it('does not bypass content acceptance via formal publication with a confirmed boundary',async()=>{
+  const root=await mkdtemp(join(tmpdir(),'formal-contract-'));roots.push(root)
+  const h=fixture(root),input=await h.source()
+  const{DEFAULT_REPORT_DELIVERY_CONTRACT}=await import('../src/report/delivery-contract.ts')
+  h.source.mockResolvedValue({...input,deliveryContract:DEFAULT_REPORT_DELIVERY_CONTRACT} as never)
+  await expect(h.service.publish(input.projectId,input.revision)).rejects.toThrow('REPORT_ACCEPTANCE_SERVICE_REQUIRED')
+})
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
 const formalBoundary = {
   boundaryId: 'boundary-1', projectId: 'golden-project', submittedRevision: 3,

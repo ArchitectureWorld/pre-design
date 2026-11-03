@@ -174,16 +174,14 @@ describe('createFrozenProjectInput', () => {
 
       expect(profile.assetBindings).toEqual([
         expect.objectContaining({ assetId: 'hero', role: 'hero', chapterId: 'chapter-07' }),
-        expect.objectContaining({ assetId: 'mingtang', role: 'product-scene', chapterId: 'chapter-06', productId: 'product-cultural-district' }),
-        expect.objectContaining({ assetId: 'waterfront', role: 'product-scene', chapterId: 'chapter-06', productId: 'product-waterfront' }),
-        expect.objectContaining({ assetId: 'events', role: 'product-scene', chapterId: 'chapter-06', productId: 'product-city-events' }),
+        expect.objectContaining({ assetId: 'mingtang', role: 'product-scene', chapterId: 'chapter-06' }),
+        expect.objectContaining({ assetId: 'waterfront', role: 'product-scene', chapterId: 'chapter-06' }),
+        expect.objectContaining({ assetId: 'events', role: 'product-scene', chapterId: 'chapter-06' }),
         expect.objectContaining({ assetId: 'spatial', role: 'product-scene', chapterId: 'chapter-07' }),
       ])
-      expect(productChapter?.blocks.slice(2)).toEqual([
-        { type: 'product', productId: 'product-cultural-district', assetIds: ['mingtang'] },
-        { type: 'scene', headline: '滨水生活客厅', productIds: ['product-waterfront'], assetIds: ['waterfront'] },
-        { type: 'product', productId: 'product-city-events', assetIds: ['events'] },
-      ])
+      expect(profile.products).toEqual([])
+      expect(productChapter?.blocks.filter(block=>block.type==='evidence').flatMap(block=>block.assetIds)).toEqual(['mingtang','waterfront','events'])
+
       expect(spatialChapter?.blocks.find(block => block.type === 'evidence')).toMatchObject({ assetIds: ['spatial'] })
       expect(usedAssets).toEqual(expect.arrayContaining(['hero', 'mingtang', 'waterfront', 'events', 'spatial']))
       expect(new Set(usedAssets).size).toBe(usedAssets.length)
@@ -479,4 +477,18 @@ describe('createFrozenProjectInput', () => {
       await rm(root, { recursive: true, force: true })
     }
   })
+})
+
+it('derives fallback profiles from the actual project without inventing a fixed product program', async () => {
+  const root=await mkdtemp(join(tmpdir(),'project-profile-content-'))
+  try {
+    const input={...REPORT_INPUT,projectName:'轨道工业遗产项目',recommendation:'保留遗产并改善公共使用',stateObjects:Array.from({length:5},(_,i)=>({
+      objectId:'actual-'+i,chapterId:String(i+1).padStart(2,'0'),title:'真实专题'+i,summary:'当前项目研究结论'+i,
+      facts:Array.from({length:4},(_,j)=>({label:'实际字段'+j,value:'原始研究内容'+i+'-'+j,basis:'原始资料'}))}))}
+    const profile=await loadClientProjectProfile(root,input.projectId,input)
+    expect(profile.identity.projectName).toBe(input.projectName)
+    expect(profile.products).toEqual([])
+    expect(JSON.stringify(profile)).not.toMatch(/文化街区|滨水生活|城市活动场|落日剧场|三类核心产品|首期示范/)
+    expect(profile.proposition.positioning).toContain('当前项目研究结论')
+  } finally {await rm(root,{recursive:true,force:true})}
 })

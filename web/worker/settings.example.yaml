@@ -1,12 +1,12 @@
-# Copy locally and configure a reachable model. Never commit API keys.
+# 格式示例；在私有文件中填写真实端点，完成真实能力验证后再由管理员启用。
+# 不在本文件或 Git 中保存凭据。
 llm-pi-ai:
   providers:
-    p0-ollama:
+    SenseNova:
       api: openai-completions
-      baseURL: http://127.0.0.1:11434/v1
-      apiKeyEnv: OLLAMA_API_KEY
-      compat:
-        supportsDeveloperRole: false
+      baseURL: https://configure-your-endpoint.invalid/v1
+      apiKeyEnv: SENSENOVA_API_KEY
       models:
-        - id: qwen3.8:27b
+        - id: sensenova-6.8-flash-lite
           contextWindow: 262144
+          maxTokens: 65536

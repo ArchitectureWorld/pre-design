@@ -129,11 +129,16 @@ export function PreplanningDashboard({ status }: PreplanningDashboardProps) {
         </div>
       )}
       {status.reportError !== undefined && <div role="alert" style={panel}>{status.reportError}</div>}
+      {status.reportDelivery && <div style={panel}>
+        <strong>{({generating:'生成中',pending:'待验收',failed:'验收未通过',passed:'验收通过'})[status.reportDelivery.status]}</strong>
+        <div>{status.reportDelivery.message}</div>
+      </div>}
       {status.reportPackage === undefined ? (
         <div style={panel}><strong>策划成果</strong><div>流程全部完成后自动生成；缺少法定边界时保留条件式成果说明。</div></div>
       ) : (
         <div style={{ ...panel, display: 'grid', gap: 8 }}>
           <strong>{status.reportPackage.deliveryMode === 'conditional' ? '条件式策划成果' : '甲方汇报成果'} · 版本 {status.reportPackage.sourceRevision ?? status.revision}</strong>
+          <div>{status.reportPackage.acceptanceState==='passed'?'已通过完整图文 HTML 质量验收':'尚无新版质量验收记录'}</div>
           {status.reportPackage.deliveryMode === 'conditional' && <div>已生成；保留未知条件，不作为法定边界或正式审核结论。</div>}
           {status.reportPackage.sourceRevision !== undefined && status.reportPackage.sourceRevision < status.revision && <div>此成果来自较早版本，当前版本尚未生成。</div>}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>

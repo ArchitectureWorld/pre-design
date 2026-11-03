@@ -37,6 +37,18 @@ async function fixture() {
 }
 
 describe('persistent project material registry', () => {
+  it('resolves a registered source-only PDF by its source key, alias and evidence ID', async () => {
+    const { root, source } = await fixture()
+    const frozenProject = { ...source, stateObjects: [{ ...source.stateObjects[0]!, reportSections: [{
+      key: 'references', title: '资料来源', entries: [{ key: 'reference', text: '引用原始文件', basis: '原件', fieldPath: 'references',
+        evidenceRefs: [{ evidenceId: 'one', assetId: 'pdf' }, { evidenceId: 'two', assetId: 'legacy-pdf' }, { evidenceId: 'ev-pdf', assetId: 'external-id' }],
+      }],
+    }] }] }
+    const prepared = await preparePresentationMaterials({ frozenProject, workspaceRoot: root })
+    expect(prepared.sourceMaterials.some(source => source.sourceKey === 'pdf')).toBe(true)
+    expect(prepared.assets.some(asset => asset.sourceKey === 'pdf')).toBe(false)
+    expect(prepared.materialWarnings).toEqual([])
+  })
   it('exports an external AI concept only as generated_by_tool with visible disclosure and exact page binding', async () => {
     const { root, source, registry, indexPath } = await fixture()
     await writeFile(indexPath, JSON.stringify({ ...registry, materials: [{ ...registry.materials[0],

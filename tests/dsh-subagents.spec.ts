@@ -41,6 +41,7 @@ it('applies durable restrictions before publishing the new activation and owns c
   expect(f.runtime.startActivation.mock.calls[0][0].request).not.toHaveProperty('toolFilter')
   expect(f.runtime.startActivation.mock.calls[0][0].request).not.toHaveProperty('persona')
   expect(run.id).toMatch(/^preplanning-child-/)
+  expect(run.localAgent?.id).toBe(run.id)
   expect((await run.result).stopReason).toBe('completed')
   await run.dispose(); expect(f.dispose).toHaveBeenCalledOnce()
 })

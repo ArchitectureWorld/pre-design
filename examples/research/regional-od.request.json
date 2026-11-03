@@ -1,0 +1,80 @@
+{
+  "schemaVersion": "regional-od-request.v1",
+  "projectId": "prj_01J9K2M6T8Q4V7X9N3P5R6S8W0",
+  "snapshotId": "snapshot-regional-001",
+  "scope": "合成测试范围，非真实项目",
+  "asOf": "2026-09-24",
+  "nodes": [
+    {
+      "id": "entry-a",
+      "regionId": "region-project",
+      "label": "合成项目入口",
+      "kind": "project-entry",
+      "selectionReason": "合成测试起点",
+      "relation": "existing",
+      "entranceStatus": "source-recorded",
+      "coordinate": {
+        "longitude": 114.3,
+        "latitude": 30.6,
+        "crs": "EPSG:4326"
+      },
+      "evidenceIds": [
+        "source-nodes"
+      ],
+      "coordinateBinding": {
+        "sourceId": "source-nodes",
+        "selector": "/entries/0/coordinate"
+      }
+    },
+    {
+      "id": "entry-b",
+      "regionId": "region-hub",
+      "label": "合成交通节点入口",
+      "kind": "transport",
+      "selectionReason": "检验与交通节点的联系",
+      "relation": "potential",
+      "entranceStatus": "provisional",
+      "coordinate": {
+        "longitude": 114.31,
+        "latitude": 30.61,
+        "crs": "EPSG:4326"
+      },
+      "evidenceIds": [
+        "source-nodes"
+      ],
+      "coordinateBinding": {
+        "sourceId": "source-nodes",
+        "selector": "/entries/1/coordinate"
+      }
+    }
+  ],
+  "queries": [
+    {
+      "id": "OD-a-b",
+      "fromId": "entry-a",
+      "toId": "entry-b",
+      "mode": "driving"
+    }
+  ],
+  "captures": [
+    {
+      "sourceId": "source-nodes",
+      "label": "合成节点原始记录",
+      "locator": "workspace:synthetic-nodes.json",
+      "observedAt": "2026-09-24T00:00:00Z",
+      "claimClass": "assumption",
+      "mediaType": "application/json",
+      "content": "{\"entries\":[{\"coordinate\":{\"longitude\":114.3,\"latitude\":30.6,\"crs\":\"EPSG:4326\"}},{\"coordinate\":{\"longitude\":114.31,\"latitude\":30.61,\"crs\":\"EPSG:4326\"}}]}"
+    }
+  ],
+  "policy": {
+    "maxRequests": 4,
+    "timeoutMs": 30000,
+    "snapTolerance": {
+      "meters": 30,
+      "reviewedBy": "synthetic-reviewer",
+      "reviewedAt": "2026-09-24T00:00:00Z",
+      "rationale": "合成测试允许30米吸附，不作为生产项目默认值"
+    }
+  }
+}

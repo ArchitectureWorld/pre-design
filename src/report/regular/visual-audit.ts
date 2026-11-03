@@ -28,7 +28,7 @@ function unionArea(rectangles: readonly Box[]): number {
   return area
 }
 /** A conflicting declared ID cannot split identical source bytes into new families. */
-export function regularImageFamilies(assets: readonly ClientVisualAsset[]): ReadonlyMap<string, string> {
+export function regularImageFamilies(assets: readonly Pick<ClientVisualAsset,'assetId'|'sha256'|'imageIdentity'>[]): ReadonlyMap<string, string> {
   const parents = new Map<string, string>()
   const find = (id: string): string => {
     const parent = parents.get(id)

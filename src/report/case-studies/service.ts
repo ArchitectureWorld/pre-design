@@ -4,8 +4,6 @@ import { join } from 'node:path'
 import type { FrozenProjectInput } from '../types.ts'
 import { makeSourceIndex, manuscriptSourceFingerprint } from '../manuscript/source.ts'
 import type { PlanningManuscriptSource } from '../manuscript/types.ts'
-import { VERIFIED_CASE_STUDIES } from './catalog.ts'
-import { BUNDLED_CASE_STUDY_IMAGES } from './catalog-images.ts'
 import { caseStudySourceGaps, validateCaseStudyImageUses, validateCaseStudySpatialCoverage } from './coverage.ts'
 import { CASE_STUDIES_CATALOG_VERSION, CASE_STUDIES_SCHEMA_VERSION,
   type CaseStudyEvidence, type CaseStudyFeature, type CaseStudyFeatureId, type CaseStudyImage,
@@ -166,22 +164,24 @@ function definitionOf(row: SelectedCaseStudy): VerifiedCaseStudy {
 function bundleFingerprint(bundle: Omit<ReportCaseStudies, 'caseStudiesFingerprint'> | ReportCaseStudies): string {
   return digest({ schemaVersion: bundle.schemaVersion, catalogVersion: bundle.catalogVersion, projectId: bundle.projectId,
     sourceRevision: bundle.sourceRevision, baseSourceFingerprint: bundle.baseSourceFingerprint,
-    cases: bundle.cases.map(withoutLocalImage) })
+    catalog:bundle.catalog.map(withoutLocalImage), cases: bundle.cases.map(withoutLocalImage) })
 }
 
 /** Select from independently verified facts; there is no LLM or fabricated web_search dependency. */
 export function selectCaseStudies(input: FrozenProjectInput): ReportCaseStudies {
+  const catalog=input.caseStudyCatalog
+  if(!Array.isArray(catalog)||!catalog.length)return fail('CASE_STUDIES_CATALOG_REQUIRED','需要本项目明确提供、具有真实来源及图像审计的案例目录；不使用内置示例项目。')
   const sources = makeSourceIndex(input)
-  const complete = VERIFIED_CASE_STUDIES.filter(row => !caseStudySourceGaps(row).some(gap => gap.blocking))
+  const complete = catalog.filter(row => !caseStudySourceGaps(row).some(gap => gap.blocking))
   complete.forEach(validateCatalogCase)
   const cases = complete.map(row => matchCase(row, sources)).filter(row => row.similarities.length >= 2)
     .sort((a, b) => b.similarities.length - a.similarities.length || a.caseId.localeCompare(b.caseId)).slice(0, 5)
   if (cases.length < 3) throw Object.assign(new Error(`CASE_STUDIES_INSUFFICIENT: 现有已核实案例库仅找到 ${cases.length} 个具备点线面依据且具有至少两项共同点的案例；补充来源或改选案例，至少达到 3 个后才能导出。`), {
-    code: 'CASE_STUDIES_INSUFFICIENT', sourceGaps: VERIFIED_CASE_STUDIES.map(row => ({ caseId: row.caseId, gaps: caseStudySourceGaps(row) })).filter(row => row.gaps.length),
+    code: 'CASE_STUDIES_INSUFFICIENT', sourceGaps: catalog.map(row => ({ caseId: row.caseId, gaps: caseStudySourceGaps(row) })).filter(row => row.gaps.length),
   })
   const basis = { schemaVersion: CASE_STUDIES_SCHEMA_VERSION, catalogVersion: CASE_STUDIES_CATALOG_VERSION,
     projectId: input.projectId, sourceRevision: input.revision, baseSourceFingerprint: manuscriptSourceFingerprint(input),
-    generatedAt: input.generatedAt, cases }
+    generatedAt: input.generatedAt, catalog:structuredClone(catalog), cases }
   const bundle = { ...basis, caseStudiesFingerprint: bundleFingerprint(basis) }
   return validateCaseStudies(bundle, input)
 }
@@ -195,10 +195,12 @@ export function validateCaseStudies(value: ReportCaseStudies, input?: FrozenProj
   if (!hex.test(value.baseSourceFingerprint) || !Number.isFinite(Date.parse(value.generatedAt))) fail('CASE_STUDIES_IDENTITY', 'source identity and capture date are required')
   if (input && (value.projectId !== input.projectId || value.sourceRevision !== input.revision
       || value.baseSourceFingerprint !== manuscriptSourceFingerprint(input))) fail('CASE_STUDIES_STALE', 'the project or its professional source revision has changed')
+  if(!Array.isArray(value.catalog)||!value.catalog.length)fail('CASE_STUDIES_CATALOG_REQUIRED','缺少本项目案例目录')
+  if(input?.caseStudyCatalog&&digest(input.caseStudyCatalog.map(withoutLocalImage))!==digest(value.catalog.map(withoutLocalImage)))fail('CASE_STUDIES_STALE','project case catalog changed')
   const sources = input ? makeSourceIndex(input) : undefined
   for (const row of value.cases) {
     validateCatalogCase(row)
-    const verified = VERIFIED_CASE_STUDIES.find(item => item.caseId === row.caseId) ?? fail('CASE_STUDY_UNVERIFIED', `${row.caseId} is absent from the verified catalog`)
+    const verified = value.catalog.find(item => item.caseId === row.caseId) ?? fail('CASE_STUDY_UNVERIFIED', `${row.caseId} is absent from the verified catalog`)
     if (digest(withoutLocalImage(definitionOf(row))) !== digest(withoutLocalImage(verified))) fail('CASE_STUDY_UNVERIFIED', `${row.caseId} differs from its verified catalog record`)
     if (!Array.isArray(row.similarities) || row.similarities.length < 2
         || new Set(row.similarities.map(item => item.featureId)).size !== row.similarities.length
@@ -230,11 +232,11 @@ async function atomicWrite(path: string, content: string | Uint8Array): Promise<
   await rename(staging, path)
 }
 
-async function downloadPhoto<T extends CaseStudyImage>(image: T, target: string, fetcher: typeof fetch, refresh = false): Promise<T> {
+async function downloadPhoto<T extends CaseStudyImage>(image: T, target: string, fetcher: typeof fetch, refresh = false, bundledImages:Readonly<Record<string,string>>={}): Promise<T> {
   if (!refresh) {
     try { if (hash(await readFile(target)) === image.sha256) return { ...image, sourcePath: target } }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error }
-    const encoded = BUNDLED_CASE_STUDY_IMAGES[image.sha256]
+    const encoded = bundledImages[image.sha256]
     if (encoded) {
       const bytes = Buffer.from(encoded, 'base64')
       if (hash(bytes) !== image.sha256) fail('CASE_STUDY_IMAGE_HASH', 'bundled project photograph was altered')
@@ -292,14 +294,26 @@ export function caseStudyEvidenceMarkdown(bundle: ReportCaseStudies): string {
 
 export interface PrepareCaseStudiesOptions {
   readonly fetch?: typeof fetch
+  /** Optional explicitly supplied source bytes, checked against each original hash. */
+  readonly bundledImages?: Readonly<Record<string,string>>
   /** Evidence-only preparation is useful for tools; formal report export uses the default true. */
   readonly downloadImages?: boolean
-  /** Explicit source-image audit; ordinary exports reuse the verified bundled bytes. */
+  /** Explicit source-image audit; ordinary exports reuse verified workspace bytes. */
   readonly refreshImages?: boolean
 }
 
 /** Independently prepares reusable cases and real photographs without rewriting any manuscript chapter. */
 export async function prepareCaseStudies(input: FrozenProjectInput, workspaceRoot?: string, options: PrepareCaseStudiesOptions = {}): Promise<ReportCaseStudies> {
+  if(!input.caseStudyCatalog&&workspaceRoot){
+    let raw:string
+    try{raw=await readFile(join(workspaceRoot,'.pre-design/report-case-catalog.json'),'utf8')}catch(error){
+      if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error
+      fail('CASE_STUDIES_CATALOG_REQUIRED','本项目尚未提供案例来源目录')
+    }
+    const stored=JSON.parse(raw!) as {projectId:string;cases:VerifiedCaseStudy[]}
+    if(stored?.projectId!==input.projectId||!Array.isArray(stored.cases))fail('CASE_STUDIES_CATALOG_IDENTITY','案例目录必须绑定当前项目')
+    input={...input,caseStudyCatalog:stored.cases}
+  }
   let bundle = selectCaseStudies(input)
   if (!workspaceRoot) return bundle
   const directory = join(workspaceRoot, '.pre-design')
@@ -325,7 +339,7 @@ export async function prepareCaseStudies(input: FrozenProjectInput, workspaceRoo
         const target = join(assets, `${row.caseId}-${image.sha256.slice(0, 12)}.${image.mimeType === 'image/png' ? 'png' : 'jpg'}`)
         let pending = materialized.get(target)
         if (!pending) {
-          pending = downloadPhoto(image, target, options.fetch ?? fetch, options.refreshImages).then(saved => saved.sourcePath!)
+          pending = downloadPhoto(image, target, options.fetch ?? fetch, options.refreshImages, options.bundledImages).then(saved => saved.sourcePath!)
           materialized.set(target, pending)
         }
         // Two allowed uses share original bytes, while retaining their independent analytical purpose/caption.

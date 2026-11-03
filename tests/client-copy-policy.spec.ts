@@ -31,4 +31,24 @@ describe('client copy production policy', () => {
     expect(migrated.editorial).toEqual(manuscript.editorial)
     expect(migrated.policyVersion).toBe(manuscript.policyVersion)
   })
+  it('retains the referenced development questions as page notes while keeping the proposed report body intact', () => {
+    const source = { ...page, body: ['在入口集中组织集散、导览与休息。'], notes: ['按目标场景表达策划方案。'] }
+    const qualified = [
+      { ...sources[0]!, moduleLineage: { limitations: ['地块权属由业主确认。', '开发许可由主管部门确认。'] } as any },
+      { ...sources[0]!, id: 'unused', moduleLineage: { limitations: ['另一地块的事项。'] } as any },
+    ]
+    const projected = clientPlanningPage(source, qualified)
+    expect(projected.body).toEqual(source.body)
+    expect(projected.notes).toContain('来源备注：地块权属由业主确认。')
+    expect(projected.notes).toContain('来源备注：开发许可由主管部门确认。')
+    expect(projected.notes.join('\n')).not.toContain('另一地块')
+    expect(source.notes).toEqual(['按目标场景表达策划方案。'])
+    expect(clientPlanningPage(projected, qualified)).toEqual(projected)
+  })
+})
+import { clientCopyText as normalizeReportCopy } from '../src/report/manuscript/client-copy.ts'
+import { it as copyIt, expect as copyExpect } from 'vitest'
+copyIt('normalizes page-relative editorial phrases without changing scenario scope or values',()=>{
+ copyExpect(normalizeReportCopy('按本页情景，年度投入50,000元。')).toBe('按拟定情景，年度投入50,000元。')
+ copyExpect(normalizeReportCopy('该预算只覆盖本页列明项目，其他费用另行计入。')).toBe('该预算只覆盖所列项目，其他费用另行计入。')
 })

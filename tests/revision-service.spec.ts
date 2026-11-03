@@ -49,6 +49,23 @@ afterEach(async () => {
 })
 
 describe('RevisionService', () => {
+  it('keeps prior target corrections after a later upstream reopening and storage restart', async () => {
+    const h = await setup()
+    await h.revisions.reopen('p', ['OP04'], { ...repairRequest, requestId: 'finance-specific', reason: 'Do not invent prices or payback; preserve the historical year.' })
+    await h.revisions.reopen('p', ['PS01'], { ...repairRequest, requestId: 'upstream-change', reason: 'Recompute with the revised upstream brief.' })
+    expect(h.runtime.snapshot('p').runs.find(r => r.targetObjectId === 'OP04')?.revisionRequest?.requestId).toBe('upstream-change')
+    await h.governance.close()
+    const reopened = await GovernanceRepository.open(h.ctx.storage.domain)
+    const restarted = new WorkflowRuntime(h.registry, reopened)
+    await restarted.initializeProject('p')
+    expect(restarted.revisionHistory('p', 'preplan.wf.05.04').map(r => r.requestId)).toEqual(['finance-specific'])
+    expect(restarted.revisionHistory('p', 'preplan.wf.05.03')).toEqual([])
+    expect(restarted.revisionHistory('other-project', 'preplan.wf.05.04')).toEqual([])
+    await reopened.putWorkflowRevision({ projectId: 'p', requestId: 'pending-correction', reason: 'Not applied yet', status: 'pending',
+      rootObjectIds: ['OP04'], affectedObjectIds: ['OP04'], createdAt: '2026-09-30T00:00:00Z', actor: repairRequest.actor })
+    expect(restarted.revisionHistory('p', 'preplan.wf.05.04').map(r => r.requestId)).toEqual(['finance-specific'])
+  })
+
   it('replaces a corrected object through the real Gateway and preserves the prior revision and authorization', async () => {
     const h = await setup()
     const repository = await ProjectRepository.open(h.ctx.storage.domain)

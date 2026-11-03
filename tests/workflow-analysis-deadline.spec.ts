@@ -13,7 +13,9 @@ function harness(provider: string, timeoutMs?: number) {
   const start = vi.fn(async (_provider: string, request: { signal: AbortSignal; prompt: unknown }) => {
     childSignal = request.signal
     const result = new Promise((resolve, reject) => {
-      complete = output => resolve(output ?? { stopReason: 'completed', structured: candidate })
+      complete = output => resolve(output ?? { stopReason: 'completed', structured: {
+        projectionVersion: 'legacy-workflow-author-v1', data: candidate.payload.data, qualityEvidence: candidate.qualityEvidence,
+      } })
       request.signal.addEventListener('abort', () => reject(request.signal.reason), { once: true })
     })
     return { id: 'child', result, dispose }
@@ -69,12 +71,24 @@ describe('workflow analysis deadlines', () => {
     expect(h.finish).toHaveBeenCalledWith('execution', 'failed', expect.stringContaining('超时'))
   })
 
-  it('preserves the cloud deadline even when a caller supplies a non-aborted signal', async () => {
+  it('allows a configured cloud model to finish after five minutes without provider-name heuristics', async () => {
+    vi.useFakeTimers()
+    const h = harness('SenseNova')
+    const result = h.analyzer.analyze({ id: 'parent' } as never, 'project', descriptor as never, new AbortController().signal)
+    void result.catch(() => undefined)
+    await vi.advanceTimersByTimeAsync(600_001)
+    expect(h.start).toHaveBeenCalledTimes(1)
+    expect(h.signal().aborted).toBe(false)
+    h.complete()
+    await expect(result).resolves.toMatchObject({ payload: candidate.payload })
+  })
+
+  it('preserves the twenty-minute deadline even when a caller supplies a non-aborted signal', async () => {
     vi.useFakeTimers()
     const h = harness('cloud')
     const result = h.analyzer.analyze({ id: 'parent' } as never, 'project', descriptor as never, new AbortController().signal)
     const assertion = expect(result).rejects.toThrow('WORKFLOW_ANALYSIS_TIMEOUT')
-    await vi.advanceTimersByTimeAsync(600_001)
+    await vi.advanceTimersByTimeAsync(2_400_001)
     expect(h.signal().aborted).toBe(true)
     await assertion
   })

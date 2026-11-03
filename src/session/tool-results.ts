@@ -17,3 +17,15 @@ export function sessionToolResults(data: unknown): SessionToolResult[] {
       ? [{ toolCallId: block.toolCallId, isError: block.isError === true, content: block.content }] : []
   })
 }
+
+/** Preserve native receipt metadata exactly for audit checks; missing isError is never approval. */
+export function sessionToolReceipts(data: unknown): { toolCallId: string; isError: unknown; content: unknown }[] {
+  const message = object(object(data).message)
+  const values = message.role === 'tool' ? [message] : Array.isArray(message.content)
+    ? message.content.filter(value => object(value).type === 'tool-result') : []
+  return values.flatMap(value => {
+    const block = object(value)
+    return typeof block.toolCallId === 'string'
+      ? [{ toolCallId: block.toolCallId, isError: block.isError, content: block.content }] : []
+  })
+}

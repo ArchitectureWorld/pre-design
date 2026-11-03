@@ -1,3 +1,4 @@
+import { agentOptionsForRoute } from '../../agent-classes/model-options.ts'
 import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -7,6 +8,7 @@ import type { AgentClassService } from '../../agent-classes/service.ts'
 import { nextAgentClassAttempt } from '../../agent-classes/service.ts'
 import type { PlanningManuscriptServiceOptions } from './service.ts'
 import type { PlanningManuscript } from './types.ts'
+import { waitForReportTask } from '../content-review.ts'
 import { compileContentPlan, contentPlanFingerprint, contentUnits, defaultContentPlan, REPORT_CONTENT_PLAN_VERSION, type ReportContentPlan } from './content-plan.ts'
 
 const string = { type: 'string' } as const, strings = { type: 'array', items: string } as const
@@ -83,7 +85,7 @@ const REVIEW_SCHEMA: ObjectJsonSchema = { type: 'object', additionalProperties: 
 type Guard = () => void | Promise<void>
 export class ReportContentPlanner {
   private readonly running = new Map<string, Promise<PlanningManuscript>>()
-  constructor(private readonly dependencies: Pick<PlanningManuscriptServiceOptions, 'subagents' | 'timeoutMs'> & { agentClasses: PlanningManuscriptServiceOptions['agentClasses'] & Pick<AgentClassService, 'execution'> & Partial<Pick<AgentClassService, 'retryContent'>> }) {}
+  constructor(private readonly dependencies: Pick<PlanningManuscriptServiceOptions, 'subagents' | 'timeoutMs'> & { requireNativePlan?:boolean; agentClasses: PlanningManuscriptServiceOptions['agentClasses'] & Pick<AgentClassService, 'execution'> & Partial<Pick<AgentClassService, 'retryContent'>> }) {}
   private path(root: string, source: PlanningManuscript) { return join(root, '.pre-design', 'report-content-plans', `${contentPlanFingerprint(source)}.json`) }
   private async read(root: string, source: PlanningManuscript): Promise<Checkpoint> {
     try {
@@ -122,12 +124,13 @@ export class ReportContentPlanner {
   }
   async load(source: PlanningManuscript, root: string): Promise<PlanningManuscript | undefined> {
     const checkpoint = await this.read(root, source)
-    if (checkpoint.fallback) return this.conservativePlan(source, checkpoint).manuscript
+    if (checkpoint.fallback) {if(this.dependencies.requireNativePlan)throw new Error('CONTENT_PLAN_NATIVE_REQUIRED');return this.conservativePlan(source, checkpoint).manuscript}
     const plan = checkpoint.attempts.findLast(a => a.phase === 'plan' && a.status === 'completed')
     const review = checkpoint.attempts.findLast(a => a.phase === 'review' && a.status === 'completed')
     if (!plan) return undefined
     if (!this.verified(plan, source)) throw new Error('CONTENT_PLAN_EXECUTION_UNVERIFIED')
     if (!review) {
+      if(this.dependencies.requireNativePlan)return undefined
       const failed = checkpoint.attempts.findLast(a => a.phase === 'review')
       if (!failed || !this.verified(failed, source, false)) return undefined
       return compileContentPlan(source, plan.proposal).manuscript
@@ -152,6 +155,7 @@ export class ReportContentPlanner {
     }
     const preserveSource = async (reason: ConservativePlanning['reason']) => {
       await guard()
+      if(this.dependencies.requireNativePlan)throw new Error('CONTENT_PLAN_NATIVE_REQUIRED: 统稿模型未完成，保留原稿但不宣称交付完成。')
       checkpoint.fallback ??= { mode: 'source-preserving', reason,
         failedExecutionIds: checkpoint.attempts.filter(a => a.phase === 'plan').map(a => a.executionId!) }
       const compiled = this.conservativePlan(source, checkpoint)
@@ -186,7 +190,7 @@ export class ReportContentPlanner {
       if (checkpoint.attempts.some(a => a.phase === phase && a.status === 'completed')) continue
       // Failed review conservatively preserves all prose; unknown native state still locks above.
       const previous = checkpoint.attempts.filter(a => a.phase === phase)
-      if (phase === 'review' && previous.length) break
+      if (phase === 'review' && previous.length&&!this.dependencies.requireNativePlan) break
       let nextExecution: Awaited<ReturnType<PlanningManuscriptServiceOptions['agentClasses']['begin']>> | undefined
       const last = previous.at(-1)
       if (last?.executionId && !last.feedback) nextExecution = await nextAgentClassAttempt(this.dependencies.agentClasses,
@@ -214,13 +218,13 @@ export class ReportContentPlanner {
             : contentReviewPrompt(source, proposal)
           // Explicit undefined clears the parent cap in native delegation, letting
           // DSH resolve this model's configured budget (including reasoning).
-          run = await this.dependencies.subagents.start('spawn', { parent, signal: taskSignal, agentOptions: { ...execution.selected, maxTokens: undefined },
+          run = await this.dependencies.subagents.start('spawn', { parent, signal: taskSignal, agentOptions: { ...agentOptionsForRoute(execution.selected), maxTokens: undefined },
             prompt: [{ type: 'text', text: prompt }], outputSchema: phase === 'plan' ? CONTENT_PLAN_SCHEMA : REVIEW_SCHEMA, maxDepth: 1, toolFilter: { allow: [] },
             persona: phase === 'plan' ? '你是前期策划汇报的全稿编辑。只输出 JSON。' : '你是独立事实保全审核员。谨慎核验每条命题，只输出 JSON。', label: `preplanning_report_${phase}:${source.projectId}` })
           void run.result.catch(() => {})
           attempt.childId = String(run.id); attempt.status = 'running'; await persist()
           await this.dependencies.agentClasses.attach(execution.id, attempt.childId)
-          const result = await run.result
+          const result = await waitForReportTask(run.result,taskSignal)
           attempt.stopReason = result.stopReason; attempt.proposal = result.structured; await persist()
           taskSignal.throwIfAborted()
           if (result.stopReason !== 'completed') throw new Error(`CONTENT_PLAN_INCOMPLETE: ${result.stopReason}`)
@@ -265,6 +269,7 @@ export class ReportContentPlanner {
     }
     if (!plan || !this.verified(plan, source)) throw new Error('CONTENT_PLAN_EXECUTION_UNVERIFIED')
     const review = checkpoint.attempts.findLast(a => a.phase === 'review' && a.status === 'completed')
+    if(!review&&this.dependencies.requireNativePlan)throw new Error('CONTENT_PLAN_REVIEW_REQUIRED')
     if (review && (!this.verified(review, source) || review.childId === plan.childId)) throw new Error('CONTENT_PLAN_EXECUTION_UNVERIFIED')
     const compiled = compileContentPlan(source, plan.proposal, review ? this.accepted(review, plan.proposal as ReportContentPlan) : [])
     // Artifact write/guard failures must never rewrite a completed native execution as failed.

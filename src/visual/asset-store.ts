@@ -1,3 +1,4 @@
+import { PRE_DESIGN_VERSION } from '../version.ts'
 import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
@@ -157,7 +158,7 @@ export class VisualAssetStore {
         adoptionStatus: 'candidate',
         origin: { type: 'generated_by_plugin', sourceMaterialIds: [], parentAssetIds: [],
           method: JSON.stringify({ visualAssetId: assetId, taskId: task.taskId }),
-          sourceTool: { name: 'pre-design', version: '2.0.2' } },
+          sourceTool: { name: 'pre-design', version: PRE_DESIGN_VERSION } },
         createdAt, adoptedAt: null, retiredAt: null,
       }
       try {

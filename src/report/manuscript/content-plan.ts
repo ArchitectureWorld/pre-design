@@ -39,6 +39,7 @@ export function isGeographicTask(task?: PlanningPageTask): boolean {
   return !!task && ['regional-context', 'accessibility', 'audience-catchment', 'competitor-distribution', 'site-analysis'].includes(task.kind)
 }
 export function inferPlanningPageTask(page: PlanningManuscriptPage): PlanningPageTask {
+  if(page.terrainPlan)return{kind:'site-analysis',question:page.claim,scale:'site',requiredEvidence:['terrain','proposed-zones','proposed-routes'],preferredTemplate:'map-analysis',imageCount:1}
   if (page.task) return page.task
   if (/^case[-:]/u.test(page.id) || page.sourceRefs.some(ref => /^case[-:]/u.test(ref))) return {
     kind: 'comparison', question: page.claim, scale: 'site', requiredEvidence: [], preferredTemplate: 'map-analysis', imageCount: 1,
@@ -102,6 +103,14 @@ export function compileContentPlan(source: PlanningManuscript, proposal: unknown
     const originals = group.pageIds.map(id => pages.get(id)!), primary = originals[0]!, first = primary.page
     if (originals.some(row => row.chapterId !== primary.chapterId)) throw new Error('CONTENT_PLAN_CHAPTER: 跨章论证应指定主位置，不合并不同职责的章节。')
     const products = originals.flatMap(row => row.page.product ? [row.page.product] : [])
+    const spatial=originals.flatMap(row=>row.page.spatialEvidence?[row.page.spatialEvidence]:[])
+    const terrainPlans=originals.flatMap(row=>row.page.terrainPlan?[row.page.terrainPlan]:[])
+    if(new Set(terrainPlans.map(p=>JSON.stringify(p))).size>1)throw new Error('CONTENT_PLAN_TERRAIN: 不同地形方案必须独立保留。')
+    const terrainPlan=terrainPlans[0]?{...terrainPlans[0],zones:terrainPlans[0].zones.map(z=>({...z,productRefs:z.productRefs.map(ref=>owner.get(ref)??ref)})),nodes:terrainPlans[0].nodes.map(n=>({...n,productRefs:n.productRefs.map(ref=>owner.get(ref)??ref)}))}:undefined
+    if(new Set(spatial.map(s=>JSON.stringify(s))).size>1)throw new Error('CONTENT_PLAN_SPATIAL: 不同空间推敲需独立保留。')
+    const quantities=originals.flatMap(row=>row.page.quantities??[]),quantitiesById=new Map<string,NonNullable<PlanningManuscriptPage['quantities']>[number]>()
+    for(const quantity of quantities){const existing=quantitiesById.get(quantity.id);if(existing&&JSON.stringify(existing)!==JSON.stringify(quantity))throw new Error('CONTENT_PLAN_QUANTITY: 同名数值依据冲突，不得合并。');quantitiesById.set(quantity.id,quantity)}
+    const productRefs=[...new Set(originals.flatMap(row=>row.page.productRefs??[]).map(ref=>owner.get(ref)??ref))]
     if (new Set(products.map(product => JSON.stringify(product))).size > 1) throw new Error('CONTENT_PLAN_PRODUCT: 不同核心产品必须保持独立身份。')
     const tables = originals.flatMap(row => row.page.table ? [row.page.table] : [])
     if (new Set(tables.map(table => JSON.stringify(table.columns))).size > 1) throw new Error('CONTENT_PLAN_TABLE: 不同列含义的比较表不得混合。')
@@ -143,6 +152,8 @@ export function compileContentPlan(source: PlanningManuscript, proposal: unknown
       visual = { kind: 'source', subject: task.question, purpose: '以真实地图说明区域空间关系', caption: first.title }
     }
     displayPages.set(first.id, { ...first, editorialSummary: true, task, body,
+      ...(terrainPlan?{terrainPlan}:{}),
+      ...(productRefs.length?{productRefs}:{}),...(quantities.length?{quantities:[...quantitiesById.values()]}:{}),...(spatial.length?{spatialEvidence:spatial[0]}:{}),
       ...(products.length ? { kind: 'product', product: products[0] } : {}),
       ...(tables.length ? { table: { columns: tables[0]!.columns, rows: tables.flatMap(table => table.rows) } } : {}),
       visual, sourceRefs: [...new Set(originals.flatMap(row => row.page.sourceRefs))],

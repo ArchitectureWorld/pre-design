@@ -73,6 +73,7 @@ export interface FrozenReportEntry {
     readonly evidenceId: string
     readonly assetId?: string
     readonly versionId?: string
+    readonly claimClass?: string
     readonly locator?: Readonly<Record<string, unknown>>
   }[]
   readonly metric?: {
@@ -126,6 +127,10 @@ export type FrozenSiteBoundary =
   }
 
 export interface FrozenProjectInput {
+  readonly terrain?: import('./terrain-reference.ts').TerrainReference
+  readonly deliveryContract?: import('./delivery-contract.ts').ReportDeliveryContract
+  readonly moduleResearch?: import('./module-source.ts').FrozenModuleResearch
+  readonly caseStudyCatalog?: readonly import('./case-studies/types.ts').VerifiedCaseStudy[]
   readonly caseStudies?: import('./case-studies/types.ts').ReportCaseStudies
   readonly manuscript?: import('./manuscript/types.ts').PlanningManuscript
   readonly projectId: string

@@ -1,0 +1,110 @@
+{
+  "boundary": "Exact native structured submission; source fixture contains its complete referenced physical page only, not a complete project corpus.",
+  "raw": {
+    "projectionVersion": "module-author-field-group-json.v3",
+    "groupId": "project_brief:1",
+    "outputsJson": "{\"project_brief\":{\"type\":\"planning.project_brief.v1.2\",\"quality\":\"limited\",\"limitations\":[\"语料中无项目立项书、批复或会议纪要（corpus 仅 2 个可提取文本 PDF），projectId 与 formalName 无法核定，保持 missing/待核。\",\"提供的材料页面均未给出行政区代码（行政区划代码），不得从模型知识或目录名补造，administrativeCode 记 missing。\",\"来源内名称存在“少潭河水库”与“少谭河水库”两种用字，别名以 source_conclusion 登记；正式名称尚未被任何权威文件确认。\",\"任务上下文（taskContext）仅为 V2.1.0 全流程软件测试任务（项目 preplan-89390823… 为软件任务标识、生态文旅方向为测试假设），不构成正式项目命名或委托依据，未将其写入任何专业值。\",\"语料中 DWG/PSD/EXE 及 2 个超大 PDF 页面不可读，遗漏页与未支持文件可能含身份信息，未据此做否定结论。\",\"本组仅完成身份字段组（project_brief:1），未做模块级核验，后续组须沿用本组 recordId/resultClass。\"],\"scope\":\"项目身份字段组：projectId、formalName、aliases、administrativeCode（记录 PB-01）\",\"asOf\":\"2026-09-26\",\"records\":[{\"recordId\":\"PB-01\",\"resultClass\":\"observation_summary\",\"projectId\":{\"value\":null,\"claimClass\":\"missing\",\"limitations\":[\"corpus 未提供任何项目立项/批复文件给出项目编号；会话中的 preplan-89390823-64dd-486b-a162-7a19b015fbe9 是 V2.1.0 软件测试任务标识，不是规划项目 ID，按任务上下文边界不得冒充项目事实。\"]},\"formalName\":{\"value\":null,\"claimClass\":\"missing\",\"limitations\":[\"无正式委托或立项文件确认正式项目名；仅从河湖治理专项方案获得“少潭河水库”名称变体，属对象名称线索而非已核定的规划项目正式名称；任务上下文（少潭河V210全流程验收）为软件测试任务名，不作正式名称。\"],\"notApplicableReason\":\"正式名称须以有权限的正式委托/立项文件核定；当前材料身份待核（按任务 fallback 处理）。\"},\"aliases\":{\"value\":[\"少潭河水库\",\"少谭河水库\"],\"claimClass\":\"source_conclusion\",\"limitations\":[\"仅为来源文本中出现的名称变体，不是已核定的正式名与别名清单；同一对象在来源内用字不一（潭/谭）。\"]},\"administrativeCode\":{\"value\":null,\"claimClass\":\"missing\",\"limitations\":[\"corpus 未给出行政区代码；项目位于湖北省武汉市新洲区旧街街（来源结论），但代码不得由模型知识或推断补造。\"],\"notApplicableReason\":\"原始材料未提供行政区代码，且不允许从非来源知识补造。\"}}]}}",
+    "evidence": [
+      {
+        "kind": "source",
+        "rationale": "记录名称变体第 1 个：正式方案标题与编制对象句给出“少潭河水库”。",
+        "source": {
+          "page": 1,
+          "path": "原始资料/水利资料/少潭河水库“一库一策”方案.pdf",
+          "quote": "新洲区少潭河水库“一库一策”方案 （ 2021-2025   年）",
+          "valueQuote": "少潭河水库"
+        },
+        "target": {
+          "at": "/0",
+          "field": "aliases",
+          "port": "project_brief",
+          "recordId": "PB-01"
+        }
+      }
+    ],
+    "limitations": [
+      "corpus 未包含项目立项书、批复或会议纪要，projectId 与 formalName 无权威来源可核，按 missing 处理。",
+      "材料中未出现行政区代码，administrativeCode 记 missing，不引用模型知识补造。",
+      "来源内名称用字存在 潭/谭 两种变体，aliases 仅登记 source_conclusion，未确认为正式别名清单。",
+      "DWG/PSD/EXE 等文件不可读，遗漏页与未支持文件未作为否定依据。",
+      "本组输出仅为字段组投影，尚未经完整模块校验与独立 review。"
+    ],
+    "steps": [
+      {
+        "fieldRefs": [
+          {
+            "at": "/0",
+            "field": "aliases",
+            "port": "project_brief",
+            "recordId": "PB-01"
+          }
+        ],
+        "limitations": [
+          "未支持格式文件（DWG/PSD/EXE）与遗漏页未读取，不作否定结论。"
+        ],
+        "status": "limited",
+        "step": 1,
+        "summary": "读取 corpus 可提取页面（一库一策方案 PDF 标题、编制对象、总体目标等页）与任务上下文；确认证据内仅有名称变体，无项目编号、正式立项名、行政区代码；目录名与软件任务名不作正式项目名。"
+      },
+      {
+        "fieldRefs": [
+          {
+            "at": "/0",
+            "field": "aliases",
+            "port": "project_brief",
+            "recordId": "PB-01"
+          }
+        ],
+        "limitations": [
+          "无法排除其他同名候选项目，合并结论受限。"
+        ],
+        "status": "completed",
+        "step": 2,
+        "summary": "名称＋地点消歧：来源一致指向湖北省武汉市新洲区旧街街沙河支流少潭河上的少潭河水库；“少潭河/少谭河”判为同一对象用字变体，登记 aliases；网上同名项目不可用（本会话无检索工具，且未授权联网）。"
+      },
+      {
+        "fieldRefs": [
+          {
+            "at": "/0",
+            "field": "aliases",
+            "port": "project_brief",
+            "recordId": "PB-01"
+          }
+        ],
+        "limitations": [
+          "委托关系与正式项目身份待核。"
+        ],
+        "status": "completed",
+        "step": 3,
+        "summary": "区分既有事实与任务陈述：名称变体为 source_conclusion；任务上下文（V2.1.0 全流程验收测试、生态文旅方向）为 user_statement/测试假设，不写入专业值；正式名称与代码无来源保持 missing。"
+      },
+      {
+        "fieldRefs": [
+          {
+            "at": "/0",
+            "field": "aliases",
+            "port": "project_brief",
+            "recordId": "PB-01"
+          }
+        ],
+        "limitations": [
+          "本步骤为字段组级完成，不代表模块级通过。"
+        ],
+        "status": "completed",
+        "step": 4,
+        "summary": "按任务 fallback 输出受限结论：仅有地区和性质时建立临时研究状态，身份字段待核，不发布地块/权属/获批结论；本组字段组投影完成，待完整模块汇合核验。"
+      }
+    ]
+  },
+  "document": {
+    "path": "原始资料/水利资料/少潭河水库“一库一策”方案.pdf",
+    "contentHash": "00983f354ed06aec04c4b54ff506002e496d067962120107912c69a53432aa7b",
+    "byteLength": 1354750,
+    "pages": [
+      {
+        "page": 1,
+        "text": "新洲区少潭河水库“一库一策”方案 \n（ 2021-2025   年） \n湖北省武汉市水文水资源勘测局\n二〇二二年六月"
+      }
+    ]
+  }
+}

@@ -1,77 +1,40 @@
-> Web实际入口与启动说明见 [web/app/README.md](../app/README.md)。本目录同时保留P0诊断脚本；`runtime.mjs`与`web-bridge.mjs`用于本地Web接入。
+# Web 2.1.0 DSH Worker
 
-# DSH P0 Linux 验证器（实验代码）
+Web 运行入口见 [Web README](../app/README.md)。CLI/SDK 固定 `0.2.1-rc.5`，Node >=24.11。`runtime.mjs` 为每个项目建立独立 DSH 会话，`web-bridge.mjs` 通过本机私有 socket 调用研究、章节和专业核心；浏览器不能直接调用 Worker。
 
-此目录独立于旧插件依赖，用来验证 RFC 的 **P0-A**。不包含业务 API，不代表 pre-design Core 已适配。CLI 与 SDK 固定为 `0.2.1-rc.5`，npm 锁文件锁定传递依赖。本地 Node 固定 `24.22.2`。
-
-在仓库根目录执行：
+`build-host-probe.mjs` 构建实际使用的 Host 到 `.host-build/lib/index.mjs`，DSH 依赖由锁定的 Worker 安装提供。修改 Core 后必须重建 Host。
 
 ```bash
 npm ci --prefix web/worker
 export PATH="$PWD/web/worker/node_modules/node/bin:$PATH"
-node --version
-# 只验证 SDK 控制面，不调用模型，不算 P0-A 通过
-PRE_DSH_SETTINGS="$PWD/web/worker/settings.example.yaml" \
-PRE_DSH_PROVIDER=p0-ollama PRE_DSH_MODEL=qwen3.8:27b \
-node web/worker/smoke.mjs --control-only
-```
-
-真实模型测试：准备本地 settings.yaml（格式见示例），配置可达的模型端点；所需密钥通过配置中的 `apiKeyEnv` 对应环境变量提供；也可设置 `PRE_DSH_CREDENTIALS` 指向已有 DSH 凭据文件，脚本只读取所选 provider 的引用并传给子进程，不复制凭据文件。模型配置会转换为显式 profile patch，不依赖旧 settings 导入。不要将密钥提交 Git。
-
-```bash
-PRE_DSH_SETTINGS=/absolute/path/to/settings.yaml \
-PRE_DSH_PROVIDER=your-provider PRE_DSH_MODEL=your-model \
-node web/worker/smoke.mjs
-```
-
-每次测试创建全新的 `.cache/dsh-p0/run-*`，包含独立 `home`、`workspace` 和 `report.json`。真实测试将随机标记写入测试目录，要求 Agent 调工具读取，再关闭 Worker，恢复原 Session，让模型从历史返回标记。事件保存在该目录，只用于本地排障，可能含模型输出；不要上传整个 DSH_HOME。
-
-失败返回非零退出码；控制面成功标记为 `control-only-passed-not-P0`；只有实际读取和历史恢复都通过才标记 `P0-A-passed`。请求超时 180 秒，整体截止 240 秒，清理时间额外由 SDK 限定。每次运行均在 finally 中关闭 SDK 子进程。验证器继承当前进程环境，因此只能在可信开发机运行；生产 Worker 的凭据隔离仍需另外实现。
-
-P0-A 通过后才能继续 P0-B：将 pre-design 的 DSH 依赖迁移到新版本、拆分 Web-only 路由、加载真实专业核心并验证工具与领域状态。此脚本不会自动完成 P0-B。
-
-已确认本机 Remote 的重跑命令（从仓库根目录）：
-
-```bash
-NO_PROXY="${NO_PROXY},192.168.5.221" no_proxy="${no_proxy},192.168.5.221" \
-PRE_DSH_SETTINGS="$PWD/../deepseek-harness/config/settings.yaml" \
-PRE_DSH_CREDENTIALS="$PWD/../deepseek-harness/state/.credentials.yaml" \
-PRE_DSH_PROVIDER=ollama-remote PRE_DSH_MODEL=qwen3.8 \
-web/worker/node_modules/node/bin/node web/worker/smoke.mjs
-```
-
-局域网模型地址必须加入大小写两种免代理变量；本机的全局 HTTP 代理不一定能访问局域网服务。此命令只读取已有配置，不修改原部署。
-
-已通过 P0-A 的 Astra 路由（从仓库根目录）：
-
-```bash
-PRE_DSH_SETTINGS="$PWD/../deepseek-harness/state/profiles/web/cordis.patch.yml" \
-PRE_DSH_CREDENTIALS="$PWD/../deepseek-harness/state/.credentials.yaml" \
-PRE_DSH_PROVIDER=yaoguang-codex PRE_DSH_MODEL=yaoguang02-gpt-6-astra \
-web/worker/node_modules/node/bin/node web/worker/smoke.mjs
-```
-
-输入可以是传统 settings.yaml，也可以是包含 `id: llm-pi-ai` 的 profile patch。只选取目标 provider，不加载原 Web profile 的其他插件。
-
-### Host 兼容性实验（不是生产 Worker）
-
-先在根目录安装锁定依赖并准备 Contract，再构建实验 Host：
-
-```bash
-export PATH="$PWD/web/worker/node_modules/node/bin:$PATH"
-corepack pnpm install --frozen-lockfile
-node scripts/prepare-presentation-contract-runtime-assets.mjs
+pnpm install --frozen-lockfile
+pnpm build
 node web/worker/build-host-probe.mjs
 ```
 
-在上述 Astra 重跑命令前增加 `PRE_DSH_HOST=1`。实验 bundle 将 DSH 导入外置，从 Worker 的新版 node_modules 解析；不会把旧 DSH 实现打进 bundle。探针只在隔离运行中装配，提供临时 `p0_create_project` 工具调用真实 `preplan-new` 命令，随后要求模型调用 `preplanning_get_context` 和 `preplanning_read_material`。重启时验证项目记录仍在，再检查无工具的历史回答。成果根目录强制位于当前 runRoot 下，不继承外部成果目录。
+## 接入配置
 
-通过结果标为 `host-load-probe-passed-not-full-P0-B`，因为根项目的正式依赖与专业流程尚未全面迁移。不要把该 bundle 或测试建项目工具作为生产接口发布。
+`settings.example.yaml` 仅为格式示例，地址不可调用，不能作为“已验证”证据。支持传统 `llm-pi-ai.providers` 格式，或含 `id: llm-pi-ai` 的 profile patch。只投影任务快照允许的模型、预算、兼容参数和凭据引用，其他原 profile 插件不会加载。
 
-新版类型差异可复现检查：
+私有凭据文件采用 DSH 的 `refs` 结构，例如键为 `SENSENOVA_API_KEY`；内容只在服务器本地配置，不能提交 Git。管理员策略中的 `credential:SENSENOVA_API_KEY` 必须与 provider 配置的 `apiKeyEnv` 对应。Web 私有配置只记录这两个文件路径。
+
+`model-runtime.mjs` 固定本任务的主备链；`project-boundary.mjs` 约束父子 Agent 的工具、工作目录和公共网页访问。没有策略的只读 Worker 仍可打开项目、查询目录和恢复原会话，但模型调用会被拒绝。
+
+## 本地验证
 
 ```bash
-node web/worker/audit-host-types.mjs
+node web/worker/probe-research.mjs
+node --test web/app/tests/research*.test.mjs
 ```
 
-此命令以配置覆盖的方式对照新版 DSH 类型检查 src，不修改根 manifest。当前预期退出 2（存在尚未迁移的旧 Subagent 接口等），与旧依赖下通过的常规 `typecheck` 是两种检查。
+探针验证实际 DSH 进程、62 项目录、会话恢复、请求协议和执行轨迹。使用本机模拟 HTTP 提供方，不调用真实收费模型；本地 401 回执与路由守卫通过不能替代实际模型或图像能力验证。
+
+`smoke.mjs`、`audit-host-types.mjs` 等为保留的早期诊断工具，不是 Web 用户入口，也不作为当前候选版本的成功证据。
+
+## 已知边界
+
+- 14 项目录的验证状态由管理员如实记录。图像适配器尚未装配，图像任务明确拒绝，不能落到被排除的服务。
+- DSH 默认搜索会额外使用自己的模型凭据。当前未交接这条策略内的搜索接入，因此关闭独立搜索，保留受控网页原文抓取。
+- 研究、部分完成、失败和取消以 Core 真实状态为准。研究结果汇编标记未经报告审查。
+- 章节准备只能保存真实用户要求及当前项目上传图片；计划和审批哈希由原生流程生成，Web 不伪造专业成果。
+- 原始资料/任务变化后不会强行续用旧快照，也不会自动扩大用户选定范围。

@@ -2,7 +2,7 @@ import type { ImageAnalysisScale, ImageQualityMetadata, OriginalImageIdentity } 
 import type { ImageLegendLocalization } from '../../visual/image-legend-localization.ts'
 
 export const CASE_STUDIES_SCHEMA_VERSION = 'pre-design.report-case-studies.v2' as const
-export const CASE_STUDIES_CATALOG_VERSION = 'verified-built-projects-2026-09-21.1'
+export const CASE_STUDIES_CATALOG_VERSION = 'project-provided-cases-2026-11-03.1'
 
 export type CaseStudyFeatureId = 'tea-landscape' | 'tea-experience' | 'slow-travel' | 'waterfront' | 'viewing' | 'adaptive-reuse' | 'visitor-service'
 export type CaseStudyDimension = 'function' | 'scene' | 'environment' | 'operation'
@@ -137,6 +137,8 @@ export interface SelectedCaseStudy extends VerifiedCaseStudy {
 export interface ReportCaseStudies {
   readonly schemaVersion: typeof CASE_STUDIES_SCHEMA_VERSION
   readonly catalogVersion: string
+  /** Explicit project source catalog retained separately from selected/application copy. */
+  readonly catalog: readonly VerifiedCaseStudy[]
   readonly projectId: string
   readonly sourceRevision: number
   /** This is recorded separately and never changes the source manuscript identity. */

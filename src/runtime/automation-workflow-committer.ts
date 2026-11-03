@@ -1,16 +1,18 @@
 import { randomUUID } from 'node:crypto'
+import { isDeepStrictEqual } from 'node:util'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ContractRegistry } from '../contracts/registry.ts'
 import type { WorkflowDescriptor } from '../contracts/types.ts'
 import type { GovernanceRepository } from '../governance/repository.ts'
-import type { EvidenceRecord } from '../research/types.ts'
 import { researchAllowsAnalysis } from '../research/execution-service.ts'
-import { validateCandidateStateProvenance } from '../research/project-state-provenance.ts'
+import { validateCandidateStateProvenance, validatePublishedClaimClasses } from '../research/project-state-provenance.ts'
+import { validateCandidateWorkspaceProvenance } from '../research/workspace-provenance.ts'
 import type { ProposalGateway } from '../proposals/gateway.ts'
 import type { ProjectRepository } from '../state/repository.ts'
 import type { JSONType } from 'zod'
 import type { WorkflowAnalysisCandidate } from './subagent-workflow-analyzer.ts'
 import type { WorkflowQualityReport } from './workflow-quality.ts'
+import { replayWorkflowAuthorProjection, workflowResearchEvidenceRef } from './workflow-author-projection.ts'
 
 interface AutomationWorkflowCommitterDependencies {
   readonly repository: Pick<ProjectRepository, 'readContext' | 'putAuditEvent'>
@@ -44,29 +46,6 @@ function stringArray(value: unknown, fallback: readonly string[] = []): string[]
 
 function jsonValue(value: unknown): JSONType {
   return JSON.parse(JSON.stringify(value)) as JSONType
-}
-
-function evidenceRef(record: EvidenceRecord): Readonly<Record<string, unknown>> {
-  // Research locators carry provider-specific fields. The v0.6 contract is
-  // closed: use its section field for a source locator and retain the complete
-  // EvidenceRecord in the research audit event, not as undeclared properties.
-  const pointer = record.locator.jsonPointer ?? record.locator.selector
-  const detail = typeof pointer === 'string'
-    ? `JSON Pointer ${pointer}`
-    : typeof record.locator.startLine === 'number' && typeof record.locator.endLine === 'number'
-      ? `lines ${record.locator.startLine}-${record.locator.endLine}`
-      : undefined
-  return Object.freeze({
-    evidence_id: record.evidenceId,
-    asset_id: `research:${record.sourceId}`,
-    version_id: record.contentHash,
-    claim_class: record.claimClass,
-    locator: { section: [record.sourceUri, detail].filter(value => value !== undefined).join(' | ') },
-    quote_hash: stringValue(record.locator.fragmentHash, record.contentHash),
-    captured_at: record.capturedAt,
-    reliability: record.reliability === 'inference' ? 'unknown' : record.reliability,
-    notes: `${record.sourceTitle} — ${record.publisher}`,
-  })
 }
 
 function requireTrustedQuality(
@@ -111,9 +90,38 @@ export class AutomationWorkflowCommitter {
     for (const journal of governed.workflowRevisions ?? []) {
       if (journal.status === 'pending') journal.affectedObjectIds.forEach(objectId => unresolvedObjectIds.add(objectId))
     }
-    return validateCandidateStateProvenance(prepared.payload, {
+    if (candidate.authorProjection !== undefined) {
+      try {
+        const audit = candidate.authorProjection
+        if (Date.parse(audit.context.capturedAt) > Date.parse(prepared.timestamp)) throw new Error('WORKFLOW_AUTHOR_FUTURE_CAPTURE')
+        const upstream = descriptor.requiredUpstream.filter(id => id !== 'ProjectSeed').map(objectId => {
+          const source = prepared.stateObjects.find(row => row.objectId === objectId)
+          if (source === undefined) throw new Error(`WORKFLOW_AUTHOR_MISSING_UPSTREAM: ${objectId}`)
+          return { objectId, revision: source.revision, value: source.value }
+        })
+        const replayed = replayWorkflowAuthorProjection(audit, { childId: audit.childId, raw: audit.raw }, {
+          projectId, targetObjectId: descriptor.targetObjectId, upstream, unresolvedObjectIds,
+          availableStates: prepared.stateObjects,
+          researchEvidence: candidate.researchEvidence, acceptedEvidenceIds: candidate.researchValidation?.acceptedEvidenceIds,
+        })
+        const expectedQuality = candidate.researchContinuation === undefined ? replayed.qualityEvidence : {
+          ...replayed.qualityEvidence,
+          assumptions: [...new Set([...(replayed.qualityEvidence.assumptions as readonly string[]), ...candidate.researchContinuation.limitations])],
+        }
+        if (!isDeepStrictEqual(replayed.payload, candidate.payload)
+          || !isDeepStrictEqual(expectedQuality, candidate.qualityEvidence)) throw new Error('WORKFLOW_AUTHOR_CANDIDATE_MISMATCH')
+      } catch (error) {
+        return { valid: false, errors: [error instanceof Error ? error.message : 'WORKFLOW_AUTHOR_AUDIT_INVALID'] }
+      }
+    }
+    const state = validateCandidateStateProvenance(prepared.payload, {
       projectId, stateObjects: prepared.stateObjects, researchEvidence: candidate.researchEvidence, unresolvedObjectIds,
     })
+    const workspace = validateCandidateWorkspaceProvenance(prepared.payload, {
+      researchEvidence: candidate.researchEvidence, acceptedEvidenceIds: candidate.researchValidation?.acceptedEvidenceIds,
+    })
+    const published = validatePublishedClaimClasses(prepared.payload)
+    return { valid: state.valid && workspace.valid && published.valid, errors: [...state.errors, ...workspace.errors, ...published.errors] }
   }
 
   private prepareCandidate(
@@ -233,7 +241,7 @@ export class AutomationWorkflowCommitter {
         semantic_paths: [`/${descriptor.targetObjectId}`],
         editorial_only: false,
       },
-      evidence_refs: researchEvidence.map(evidenceRef),
+      evidence_refs: researchEvidence.map(workflowResearchEvidenceRef),
       assumptions: trustedQuality.assumptions.map((assumption, index) => ({
         id: `quality-assumption-${index + 1}`,
         name: `自动分析假设 ${index + 1}`,
@@ -257,7 +265,7 @@ export class AutomationWorkflowCommitter {
       },
     }, sessionId)
 
-    if (candidate.analysisTrace !== undefined || researchEvidence.length > 0 || candidate.researchValidation !== undefined) {
+    if (candidate.analysisTrace !== undefined || researchEvidence.length > 0 || candidate.researchValidation !== undefined || candidate.authorProjection !== undefined) {
       await this.dependencies.repository.putAuditEvent({
         eventId: `${committed.proposalId}:research-trace`,
         projectId,
@@ -277,6 +285,7 @@ export class AutomationWorkflowCommitter {
           ...(candidate.researchValidation === undefined ? {} : { researchValidation: candidate.researchValidation }),
           ...(candidate.researchContinuation === undefined ? {} : { researchContinuation: candidate.researchContinuation }),
           ...(candidate.analysisTrace === undefined ? {} : { analysisTrace: candidate.analysisTrace }),
+          ...(candidate.authorProjection === undefined ? {} : { authorProjection: candidate.authorProjection }),
         }),
       })
     }

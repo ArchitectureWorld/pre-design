@@ -6,6 +6,7 @@ import type { DraftPageDocument, PageManifest } from '@architectureworld/present
 import type { GovernanceRepository } from '../governance/repository.ts'
 import type { VisualAssetRecord } from '../governance/types.ts'
 import { verifiedRasterImageDimensions } from '../governance/site-boundary-asset-store.ts'
+import { verifiedSourceImageDimensions } from '../materials/source-image-validation.ts'
 import type { FrozenProjectInput } from '../report/types.ts'
 import { VisualAgentError, type VisualAgentService, type VisualDispatchGuard } from '../visual/agent.ts'
 import { sha256CanonicalJson } from './canonical-json.ts'
@@ -132,7 +133,7 @@ async function verifyPageImage(asset: PresentationAdoptedAssetInput): Promise<vo
   const mime = asset.mimeType.toLowerCase()
   let dimensions: { width: number; height: number }
   if (mime === 'image/png' || mime === 'image/jpeg' || mime === 'image/webp') {
-    dimensions = verifiedRasterImageDimensions(mime, bytes)
+    dimensions = asset.origin.type === 'source_material' ? await verifiedSourceImageDimensions(mime, bytes) : verifiedRasterImageDimensions(mime, bytes)
   } else if (mime === 'image/svg+xml') {
     const svg = bytes.toString('utf8').replace(/^\uFEFF/u, '').replace(/^\s*<\?xml[^>]*\?>/u, '').trim()
     const document = /^<svg\b([^>]*?)(?:\/>|>[\s\S]*<\/svg>)$/u.exec(svg)

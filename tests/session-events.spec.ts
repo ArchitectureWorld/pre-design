@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { buildPreplanningStatus, formatPreplanningStatus, normalizePreplanningStatus, parsePreplanningStatus } from '../src/session/events.ts'
 
 describe('preplanning status snapshot', () => {
+  it('roundtrips delivery acceptance without turning old packages into accepted results',()=>{
+    const status=buildPreplanningStatus({project:{projectId:'p',name:'项目',currentRevision:1,currentStage:'08-08'},proposals:[],questions:[]} as never)
+    const delivery={projectId:'p',revision:1,contractVersion:'complete-planning-html.v1',status:'failed' as const,message:'空间图文不一致',updatedAt:'2026-09-27'}
+    const value={...status,reportDelivery:delivery,reportPackage:{id:'old',sourceRevision:1,html:'/preplan-export/old/html/index.html'}}
+    expect(parsePreplanningStatus(formatPreplanningStatus(value))?.reportDelivery).toEqual(delivery)
+    expect(normalizePreplanningStatus(value)?.reportDelivery).toEqual(delivery)
+    expect(normalizePreplanningStatus(value)?.reportPackage?.acceptanceState).toBeUndefined()
+  })
   it('roundtrips conditional artifact links, source revision and a later generation failure', () => {
     const status = buildPreplanningStatus({ project: { projectId: 'p', name: '少潭河', currentRevision: 104, currentStage: '08-08' }, proposals: [], questions: [] } as never, {
       governance: { readProject: () => ({ gateDecisions: [], visualAssets: [], visualTasks: [], siteBoundaries: [], reportPackages: [

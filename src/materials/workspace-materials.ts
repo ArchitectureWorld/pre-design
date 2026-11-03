@@ -2,11 +2,12 @@ import { createHash } from 'node:crypto'
 import { open, readdir, realpath, stat } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { readSourceImageMetadata, SOURCE_IMAGE_EXTENSIONS, type SourceImageIdentity } from './source-image.ts'
 
 const TEXT_EXTENSIONS = new Set(['.txt', '.md', '.json', '.geojson', '.csv', '.yaml', '.yml', '.xml'])
 const SOURCE_DIRECTORIES = new Set(['原始资料', 'source-materials'])
 const GENERATED_FILES = new Set(['project.json', 'rules.json', 'outline.json', 'manifest.json'])
-const MAX_FILES = 64
+const MAX_FILES = 256
 const MAX_DEPTH = 4
 
 export interface MaterialReadInput {
@@ -23,6 +24,7 @@ export interface MaterialInventory {
 }
 
 export interface MaterialReadResult {
+  readonly image?: SourceImageIdentity
   readonly path: string
   readonly contentHash: string
   readonly byteLength: number
@@ -83,7 +85,7 @@ export class WorkspaceMaterialReader {
         if (!inside(root, target)) continue
         const info = await stat(target)
         files.push({ path: relative(root, target).split(sep).join('/'), byteLength: info.size,
-          readable: (extension === '.pdf' || TEXT_EXTENSIONS.has(extension)) && info.size <= this.maxBytes,
+          readable: (extension === '.pdf' || TEXT_EXTENSIONS.has(extension) || SOURCE_IMAGE_EXTENSIONS.has(extension)) && info.size <= this.maxBytes,
           format: extension.slice(1) || 'unknown' })
       }
     }
@@ -99,7 +101,7 @@ export class WorkspaceMaterialReader {
     const target = await realpath(requested)
     if (!inside(root, target)) throw new Error('material resolves outside the bound workspace')
     const extension = extname(target).toLowerCase()
-    if (extension !== '.pdf' && !TEXT_EXTENSIONS.has(extension)) {
+    if (extension !== '.pdf' && !TEXT_EXTENSIONS.has(extension) && !SOURCE_IMAGE_EXTENSIONS.has(extension)) {
       throw new Error(`unsupported material format '${extension}'; CAD/Office/images/archives require a dedicated extractor; no content was read`)
     }
     const file = await open(target, 'r')
@@ -124,6 +126,12 @@ export class WorkspaceMaterialReader {
     const source = { path: relative(root, target).split(sep).join('/'), byteLength: bytes.length,
       contentHash: createHash('sha256').update(bytes).digest('hex') }
     if (extension === '.pdf') return { ...source, ...await this.pdf(bytes, input, signal) }
+    if (SOURCE_IMAGE_EXTENSIONS.has(extension)) {
+      const result = await readSourceImageMetadata(bytes)
+      signal?.throwIfAborted()
+      return { ...source, ...result, status: 'ok', truncated: result.text.length > this.maxChars,
+        text: result.text.slice(0, this.maxChars), nextLine: null }
+    }
 
     const startLine = positiveInteger('startLine', input.startLine ?? 1, 10_000_000)
     const maxLines = positiveInteger('maxLines', input.maxLines ?? 200, 1_000)

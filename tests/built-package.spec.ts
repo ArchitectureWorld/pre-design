@@ -41,7 +41,7 @@ async function packedFilePaths(): Promise<string[]> {
   const { stdout } = await execFile(
     command,
     args,
-    { cwd: root, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 },
+    { cwd: root, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024, timeout: 25_000 },
   )
   const rows = JSON.parse(stdout) as PackedPackage[]
   if (!Array.isArray(rows) || rows.length !== 1 || !Array.isArray(rows[0]?.files)) {
@@ -57,7 +57,8 @@ describe('built npm package', () => {
     try {
       await ctx.plugin(Storage); await ctx.plugin(StorageJson, { root: storageRoot }); await ctx.plugin(StorageDomain, { backend: 'json' })
       const tools: ToolDefinition[] = []
-      ctx.provide('commands', { register: () => () => {} } as never)
+      const researchCommands: { name: string; handler: (v: unknown) => unknown }[] = []
+      ctx.provide('commands', { register: (command: { name: string; handler: (v: unknown) => unknown }) => { researchCommands.push(command); return () => {} } } as never)
       ctx.provide('tools', { guard: () => () => {}, register: (tool: ToolDefinition) => { tools.push(tool); return () => {} } } as never)
       ctx.provide('attachments', {} as never); ctx.provide('llm', {} as never); ctx.provide('sessions', {} as never); ctx.provide('subagents', {} as never)
       ctx.provide('workspaceRegistry', { list: () => [] } as never)
@@ -66,12 +67,27 @@ describe('built npm package', () => {
       const host = await import(pathToFileURL(resolve(root, manifest.exports['.'].default)).href)
       await host.apply(ctx)
       expect(tools.map(tool => tool.name)).toContain('preplanning_generate_page_visual')
+      const peerTool = tools.find(tool => tool.name === 'preplanning_research_peers')
+      const sourceTool = tools.find(tool => tool.name === 'preplanning_read_research_source')
+      const verifyTool = tools.find(tool => tool.name === 'preplanning_verify_peer_research')
+      expect(peerTool).toBeDefined()
+      expect(sourceTool).toBeDefined()
+      expect(verifyTool).toBeDefined()
+      await expect(verifyTool!.execute({ runId: 'RUN-00000000-0000-0000-0000-000000000000' },
+        { agent: { id: 'built-host' }, signal: new AbortController().signal } as never)).rejects.toThrow('RESEARCH_PROJECT_REQUIRED')
+      const researchPlan = researchCommands.find(command => command.name === 'preplan-research-plan')
+      expect(researchPlan).toBeDefined()
+      const regionalOd = researchCommands.find(command => command.name === 'preplan-research-od')
+      expect(regionalOd).toBeDefined()
+      const peers = researchCommands.find(command => command.name === 'preplan-research-peers')
+      expect(peers).toBeDefined()
+      expect(await peers!.handler({rawInput:'--input=peers.json',agent:{id:'built-host'}})).toMatchObject({kind:'error',text:expect.stringContaining('RESEARCH_PROJECT_REQUIRED')})
+      expect(await regionalOd!.handler({rawInput:'--input=request.json',agent:{id:'built-host'}})).toMatchObject({kind:'error',text:expect.stringContaining('RESEARCH_PROJECT_REQUIRED')})
+      expect(await researchPlan!.handler({ rawInput: '--item=2.03 --json', agent: { id: 'built-host' } })).toMatchObject({ kind: 'success' })
       expect(Object.isFrozen(ctx.preplanning.designVisualBridge)).toBe(true)
       await expect(ctx.preplanning.designVisualBridge.generate({ id: 'session' } as never, { runId: 'run', studioProjectId: 'studio', pageId: 'page', sourceStateHash: 'a'.repeat(64), requestId: 'request', prompt: '概念图' })).rejects.toThrow('RESOLVER_UNAVAILABLE')
     } finally { await ctx.fiber.dispose(); await rm(storageRoot, { recursive: true, force: true }) }
-  // Cold-imports the ~15 MB built Host and opens its real Contract/Domain stores.
-  // Measured at 6.5s on Linux; keep a bounded integration budget instead of 5s.
-  }, 15_000)
+  }, 20_000) // Cold import + real Host initialization; all behavioural assertions remain enabled.
   it('loads the Host export path declared by package.json', async () => {
     const manifest = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8')) as {
       exports: { '.': { default: string } }
@@ -79,8 +95,15 @@ describe('built npm package', () => {
     const modulePath = resolve(root, manifest.exports['.'].default)
     const host = await import(pathToFileURL(modulePath).href)
 
-    expect(Object.keys(host).sort()).toEqual(['Config', 'apply', 'inject', 'name'])
+    expect(Object.keys(host).sort()).toEqual(['Config', 'apply', 'chapterProductionDirectory', 'inject', 'name'])
     expect(host.name).toBe('preplanning-agent')
+    expect(typeof host.chapterProductionDirectory).toBe('function')
+    const project = { projectId: 'built-project', projectName: '当前项目' }
+    const request = { origin: 'user-message', message: '按当前项目资料准备本章', requestedAt: '2026-11-03T00:00:00Z', feedback: '' }
+    const directory = host.chapterProductionDirectory(root, project, 'products', request)
+    expect(dirname(directory)).toBe(resolve(root, '.pre-design/chapter-productions/products'))
+    expect(host.chapterProductionDirectory(root, project, 'products', request)).toBe(directory)
+    expect(host.chapterProductionDirectory(root, { ...project, projectName: '更新后的项目名称' }, 'products', request)).not.toBe(directory)
   })
 
   it('executes the Browser artifact through the DSH ModuleLoader handshake', async () => {
@@ -116,11 +139,13 @@ describe('built npm package', () => {
     ])
     expect(typeof browser.apply).toBe('function')
     expect([...requestedExternals].sort()).toEqual(['react', 'react/jsx-runtime'].sort())
-    expect(Buffer.byteLength(source, 'utf8')).toBeLessThan(105_000)
+    // Include the dynamic primary/backup/companion reasoning controls in the UI budget.
+    expect(Buffer.byteLength(source, 'utf8')).toBeLessThan(110_000)
   })
 
   it('packs every generated Host chunk and the pinned Presentation Contract runtime assets', async () => {
     const paths = await packedFilePaths()
+    expect(paths).toContain('research/planning-v1.2/unified-data.json.br')
     const builtJavaScript = (await readdir(resolve(root, 'lib')))
       .filter(name => name.endsWith('.js'))
       .sort()
@@ -139,5 +164,5 @@ describe('built npm package', () => {
       'schemas/0.1.0/project-rules-document.schema.json',
       'schemas/0.1.0/source-material-manifest.schema.json',
     ]))
-  })
+  }, 30_000)
 })

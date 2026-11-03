@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { decode } from 'jpeg-js'
 import { describe, expect, it } from 'vitest'
-import { BUNDLED_CASE_STUDY_IMAGES } from '../src/report/case-studies/catalog-images.ts'
+import { BUNDLED_CASE_STUDY_IMAGES } from './fixtures/case-studies/catalog-images.ts'
 import { ImageIdentityIndex, type ImageIdentityInput } from '../src/visual/image-identity.ts'
 import { annotated, crop, jpeg, noise, png, resize, scene, solid } from './support/image-identity/fixtures.ts'
 

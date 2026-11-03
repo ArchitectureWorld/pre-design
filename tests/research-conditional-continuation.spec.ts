@@ -55,7 +55,7 @@ describe('conditional research in automatic planning', () => {
       stateObjects: [{ objectId: 'PS01', revision: 1, value: { data: { canonical_name: '少潭河' } } }] }
     const start = vi.fn(async () => ({ id: 'child', dispose: vi.fn(), result: Promise.resolve({
       stopReason: 'completed', structured: {
-        payload: { data: { decision_question: '文旅休闲开发可行性、定位与招商' } },
+        projectionVersion: 'legacy-workflow-author-v1', data: { decision_question: '文旅休闲开发可行性、定位与招商' },
         qualityEvidence: {
           completionChecks: descriptor.completionCriteria!.map(criterion => ({ criterion, status: 'pass', rationale: '输入明确且未知项已保留' })),
           evidenceChecks: descriptor.evidencePolicy!.map(policy => ({ policy, status: 'pass', rationale: '有据分类' })),

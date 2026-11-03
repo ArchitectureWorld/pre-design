@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import sharp from 'sharp'
 import Ajv from 'ajv'
 import { assertObjectJsonSchema } from '@deepseek-ai/dsh-tools'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -350,6 +351,18 @@ describe('explicit source-page material binding', () => {
     value.visual.caption = '库区现场影像'
     return value
   }
+  it('binds a decoded source JPEG with camera trailer to its exact page and retains the full original hash', async () => {
+    const root = await workspace(), path = join(root, 'original-camera.jpg')
+    const bytes = Buffer.concat([await sharp({ create: { width: 40, height: 30, channels: 3, background: '#abc' } }).jpeg().toBuffer(), Buffer.from('camera-private-data')])
+    await writeFile(path, bytes)
+    const source = { sourceKey, sourcePath: path, originalFileName: 'original-camera.jpg', mimeType: 'image/jpeg', importedAt: input.generatedAt }
+    const result = await prepareClientVisuals({ frozenProject: frozen([sourcePage()]), workspaceRoot: root, sources: [source], assets: [] })
+    expect(result.warnings).toEqual([])
+    expect(result.assets).toHaveLength(1)
+    expect(result.assets[0]).toMatchObject({ sourcePath: path, widthPx: 40, heightPx: 30, pageBindings: [{ findingId: 'manuscript:launch-source', role: 'primary' }] })
+    expect(await readFile(path)).toEqual(bytes)
+    expect(result.assets[0]!.origin.method).toContain(createHash('sha256').update(bytes).digest('hex'))
+  })
   it('preserves a nonblank source key only on a source visual', () => {
     expect(validatePlanningChapter(chapter([sourcePage()]), 'launch', sources).pages[0]!.visual).toHaveProperty('sourceMaterialKey', sourceKey)
     const value = page(); value.visual.sourceMaterialKey = sourceKey

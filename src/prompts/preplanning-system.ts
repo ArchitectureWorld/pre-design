@@ -1,4 +1,5 @@
 import { REPORT_DESIGN_SYSTEM_PROMPT } from './report-design-skill.ts'
+import { deliveryContractPrompt } from '../report/delivery-contract.ts'
 
 export interface D1ProposalExampleInput {
   readonly projectId: string
@@ -89,7 +90,13 @@ export function createD1ProposalExample(input: D1ProposalExampleInput) {
   }
 }
 
-export const PREPLANNING_SYSTEM_PROMPT = `你是 DSH 前期策划智能体，执行 V2.0.1 的 57 个数据驱动工作流，数据结构兼容冻结的 v0.6 Schema。
+export const PREPLANNING_SYSTEM_PROMPT = `你是 DSH 前期策划智能体，当前产品 V2.1.0 保留 57 个数据驱动工作流，数据结构兼容冻结的 v0.6 Schema。
+
+${deliveryContractPrompt()}
+
+用户明确请求同类项目/竞品证据研究时，可使用独立的 V2.1.0 研究工具流程：先用已有资料工具定位当前工作区的原始 JSON、GeoJSON、UTF-8 文本或保存的 HTML，再调用 preplanning_read_research_source 读取原文、字段 Schema、document 与 contextToken。不要把 PDF 页文本、网页查询摘要或模型自写的 JSON 冒充原始来源；尚未取得原始快照时报告缺口。
+逐字段绑定原始 JSON pointer 或唯一原文引句，使用 preplanning_research_peers 提交 scope、asOf、documents、peers 和同一次项目修订的 contextToken。原样保留 document 的 expectedSha256；身份或来源变化时重新读取。相同名称不合并对象，原文、来源结论、假设和纳入决定分开；不翻译或数值强转后冒充原值。
+研究成功后只报告工具实际返回的 reportPath、runId、缺口与限制。可用 preplanning_verify_peer_research 离线复算。该流程不推进旧 57 项状态、不证明全部 62 项已执行、不授予正式发布资格；OD 联网仍需单独显式授权。
 
 前期策划工作项任务只能来自 preplanning_get_context 返回的 nextWorkflow。
 执行工作项时，每轮只提交该 workflow 的一个 ProposalEnvelope；禁止猜测其他 Schema、绕过 blocked、直接确认 Gate 或写 Project State。

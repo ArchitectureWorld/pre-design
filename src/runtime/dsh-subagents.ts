@@ -20,6 +20,7 @@ interface ChildPolicy {
 }
 export interface PlanningChildRun {
   readonly id: SessionId
+  readonly localAgent?: Agent
   readonly result: Promise<SubagentResult>
   dispose(): Promise<void>
 }
@@ -64,7 +65,9 @@ export class PreplanningSubagents {
     }
     request.signal.throwIfAborted()
     const { persona: _persona, toolFilter: _filter, label, signal, ...nativeRequest } = request
-    const activation = await this.runtime.startActivation({ provider, childId: id, label: label ?? 'preplanning-child', request: nativeRequest, signal, delivery: 'caller' })
+    let localAgent: Agent | undefined
+    const unlisten = this.ctx.on('agent/created', ({ agent }) => { if (String(agent.id) === String(id)) localAgent = agent; return undefined })
+    const activation = await this.runtime.startActivation({ provider, childId: id, label: label ?? 'preplanning-child', request: nativeRequest, signal, delivery: 'caller' }).finally(unlisten)
     if (activation.childId !== id) {
       void activation.result.catch(() => {})
       await activation.dispose()
@@ -81,7 +84,7 @@ export class PreplanningSubagents {
     const result = activation.result.finally(() => { signal.removeEventListener('abort', cancel); this.running.delete(dispose) })
     // A caller may first persist the accepted child identity before awaiting result.
     void result.catch(() => {})
-    return { id: activation.childId, result, dispose }
+    return { id: activation.childId, localAgent, result, dispose }
   }
   start(provider: string, request: PlanningChildRequest): Promise<PlanningChildRun> { return this.activate(provider, request) }
   async startContinuable(spec: { provider: string; label: string; childId?: SessionId; request: Omit<PlanningChildRequest, 'signal' | 'label'>; signal: AbortSignal }): Promise<{ childId: SessionId }> {

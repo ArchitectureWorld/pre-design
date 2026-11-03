@@ -15,6 +15,7 @@ import { ReportPackageService } from '../src/report/package-service.ts'
 import { assertRegularPagePlan } from '../src/report/regular/plan.ts'
 import type { FrozenProjectInput, ReportAsset } from '../src/report/types.ts'
 import { CLIENT_PROFILE, REPORT_INPUT } from './client-report-fixture.ts'
+import { VERIFIED_CASE_STUDIES } from './fixtures/case-studies/catalog.ts'
 
 const roots: string[] = []
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))) })
@@ -42,7 +43,7 @@ function fixture(architectural = true) {
     chapterId: 'chapter-02', sha256: asset.sha256!, width: 1200, height: 800, provenance,
     ...(i < analysisKinds.length ? { analysisKind: analysisKinds[i], cartography: { boundary: 'not-applicable' as const, legend: 'present' as const, northArrow: 'present' as const, scale: { kind: 'nts' as const } } }
       : { chartTopic: chartTopics[i - analysisKinds.length], chartContract: { unit: '人次/日', methodology: '按场地承载和日间开放时间测算' } }) }))
-  const input: FrozenProjectInput = { ...REPORT_INPUT,
+  const input: FrozenProjectInput = { ...REPORT_INPUT, caseStudyCatalog: VERIFIED_CASE_STUDIES,
     stateObjects: REPORT_INPUT.stateObjects.map((object, i) => i ? object : { ...object,
       facts: [{ label: '场地资源', value: '现状茶园、水库和存量建筑构成场地资源。建议以茶饮品茶、茶园慢行步道、观景平台形成日间休闲，并在既有建筑配置游客中心和集散接待。', basis: 'Gate G1，现场资料 C:/private/source.png' }] }),
     siteBoundary: { status: 'confirmed', boundaryId: 'boundary-1', assetId: boundaryAsset.assetId, confirmedRevision: 3,

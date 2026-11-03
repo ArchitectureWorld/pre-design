@@ -5,6 +5,7 @@ import { createConditionalReportBundle, type ConditionalReportMaterial } from '.
 import { clientCopyText } from './manuscript/client-copy.ts'
 import { manuscriptSourceFingerprint } from './manuscript/source.ts'
 import { createClientTheme } from './theme.ts'
+import { researchCompilationNote } from './research-note.ts'
 import type {
   ClientAssetBinding,
   ClientChapter,
@@ -287,6 +288,7 @@ function authoredFormalReport(
   }
   const report: ClientReport = {
     ...authored,
+    ...(legacy.report.compilationNote ? { compilationNote: legacy.report.compilationNote } : {}),
     chapters: authored.chapters.flatMap(chapter => [chapter, ...additions.get(chapter.id) ?? []]),
     products, evidence, assets, theme: legacy.report.theme,
     ...(legacy.report.visualContractVersion === undefined ? {} : { visualContractVersion: legacy.report.visualContractVersion }),
@@ -399,6 +401,7 @@ function createClientReportBundleFromProfile(
   return deepFreeze({
     report: {
       schemaVersion: 'preplan.client-report.v1',
+      ...(input.moduleResearch ? { compilationNote: researchCompilationNote(input, '成果用途：前期策划汇报；研究范围不替代法定边界及专项核定。') } : {}),
       identity: governedProfile.identity,
       proposition: governedProfile.proposition,
       chapters: clientChapters(governedProfile),

@@ -1,0 +1,641 @@
+{
+  "schemaVersion": 1,
+  "version": "2.1.0",
+  "checkedAt": "2026-10-09T00:36:15.304Z",
+  "developmentAsOf": "2026-10-09T00:36:15.304Z",
+  "project": "少潭河",
+  "environment": "v2.1.0 · 3081隔离环境 · PID44328 · revision37",
+  "status": "新版62项独审通过0/62；1.06已停止：MODULE_SOURCE_VALUE_TEXT；依赖研究受阻；3081入口、进度及报告条件已切换新版。",
+  "metrics": [
+    {
+      "label": "当前资料快照研究通过",
+      "value": "0 / 62",
+      "note": "只计当前冻结快照、完整严格结果与真实独立pass；旧57项不计。"
+    },
+    {
+      "label": "可保留作者组",
+      "value": "43",
+      "note": "6项严格作者组与原生回执保留，作者完成不等于研究验收。"
+    },
+    {
+      "label": "当前原生任务",
+      "value": "partial",
+      "note": "1.06已停止：MODULE_SOURCE_VALUE_TEXT；依赖研究受阻"
+    },
+    {
+      "label": "合格客户 HTML",
+      "value": "0",
+      "note": "原生客户HTML及独立逐页验收尚未通过。"
+    }
+  ],
+  "blocker": {
+    "title": "新版62项独审通过0/62；1.06已停止：MODULE_SOURCE_VALUE_TEXT；依赖研究受阻；3081入口、进度及报告条件已切换新版。",
+    "detail": "1.05拆分和真实核验任务证据已验证，五组完整候选经新独审仍limited：缺可核边界、原始测绘/DEM、站点及统计期观测、图件和交接。前3组原稿保持，原引用与缺证错误已由原生作者修订闭合，不作当前阻断。1.06已停止：MODULE_SOURCE_VALUE_TEXT；依赖研究受阻；期限及研究边界问题仍已问未答，不无变化重跑。",
+    "probe": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-resource-revision-stopped-20261009t0037-progress-proof.json"
+  },
+  "milestones": [
+    {
+      "title": "每30分钟自动排障与恢复",
+      "state": "已批准、已安装并从真实检查点续跑",
+      "detail": "PID44328；revision37不变；1.06已停止：MODULE_SOURCE_VALUE_TEXT；依赖研究受阻。新版入口与报告条件运行核验已通过，旧57项和旧Gate只读。恢复记录见 supervisor-unified-resume-current.json。"
+    },
+    {
+      "title": "模型思考深度与并行实测",
+      "state": "已安装，回归与浏览器检查通过",
+      "detail": "按原生模型能力显示档位；支持主模型、备用模型和ComfyUI配套LLM。保存值随原生请求传递，并校验实际深度。统一20分钟任务上限，保留取消及失败保护。开发验证与真实产品测试并行。 界面已改为模型与深度同排；主备和生图配套LLM一致，窄面板无横向溢出。仅更新前端资源，未中断原生任务。 控件尺寸和整体密度已统一：主行36px，备用操作28px；宽面板卡片144→95px，窄面板211→139px。31项界面回归、类型检查、5项构建包检查及浏览器宽窄布局检查通过。 2026-10-04按模型与实际通道配置额度，清除父输出预算继承；31选项运行时核对，未确认容量不虚报。 2026-10-05更新后再次核对31选项的逐模型预算；SenseNova上下文262144、输出65536，备用Gemini别名上下文声明1048576、输出65536，网关满窗压力接受尚未证明。 用户已选择GPT-6 Luna作者路由revision37；原生请求maxTokens=128000，通道目录contextWindow=872000，Gemini备用和独立Luna/xhigh审查保持。后端满额生成极限未实测。"
+    },
+    {
+      "title": "完整图文 HTML 默认交付",
+      "state": "已实现，待项目验收",
+      "detail": "版本化 ReportDeliveryContract 贯穿研究、文稿、配图、导出、验收和缓存；新增产业规划独立验收，要求产业链及项目组合与产品、空间、运营和分期相互对应。产业规划与产品体系为主报告核心章节。"
+    },
+    {
+      "title": "62 项研究与真实资料采集",
+      "state": "完整62项仍待通过，作者组完成不计整项验收",
+      "detail": "接入 121 条公开查询声明；原生网页工具发现来源，主程序抓取并冻结原始响应，保留引用、时效、哈希与执行回执。缺失、过期或受限研究不计完成。"
+    },
+    {
+      "title": "地形参与空间方案",
+      "state": "组件验证完成，待报告实跑",
+      "detail": "真实地形进入分区、产品节点、游线与后勤路径推敲，并保留坡度和路径计算依据；公开 DEM 不作为测绘或法定边界证明。"
+    },
+    {
+      "title": "内容与 HTML 双重验收",
+      "state": "已实现，待项目验收",
+      "detail": "确定性校验、独立原生内容审查、浏览器逐页检查与截图审查共用验收入口；问题定向返修，超时与审查失败保持真实状态。"
+    },
+    {
+      "title": "成果状态与历史兼容",
+      "state": "已实现，待项目验收",
+      "detail": "界面区分生成中、待验收、验收未通过和验收通过；本轮默认仅提供 HTML，旧缓存和无新回执的历史报告不能自动变成合格成果。"
+    },
+    {
+      "title": "代码回归与独立审查",
+      "state": "环境拆分及五组原稿已核验；新独审仍limited",
+      "detail": "环境核验任务拆分：本包322项相关回归、类型检查、构建及5项成品包检查通过；本轮完整测试3829通过、6跳过。程序回归不计新版62项独审通过；实际新原生提交及独审另行核验。"
+    }
+  ],
+  "remaining": [
+    "新版严格独审通过0/62；旧57项和旧Gate仅保留兼容历史，不计新版完成。",
+    "主入口和项目进度已进入新版62项；旧流程只读，报告还须通过所有适用研究及逐页验收。",
+    "1.05五组原稿及新独审已实际完成，仍limited：可核研究边界、原始测绘/DEM、带站点和统计期的观测、图件及交接仍缺；保留原包和回执，不无变化重跑，不计通过。",
+    "1.03最近九组完整候选已独审limited；完整条款/例外、适用性、控制线叠合与矩阵仍缺，保留原包及新独审，不计通过。",
+    "1.04六组字段稿已严格回放，但专业字段均为空，整项被MODULE_EMPTY_PROFESSIONAL_CONCLUSION拒绝，尚未独审；原失败保留，不能当作limited研究通过或用于权属下游。",
+    "1.01真实交接已由新独审确认，仍因时间要求缺失而limited。已询问用户；不得把预选项当回答，不无变化重跑1.01。",
+    "1.01独审limited：抽查任意任务要求，可定位到委托原文或明确用户陈述。；完整诊断见本次审计证据。",
+    "1.02独审limited：故意交换经纬度，必须通过范围/地址合理性校验发现异常。、修改边界一个顶点，面积与依赖成果应标记需复算，不覆盖旧结果。、边界面积的来源、计算方法和适用范围必须一致；图幅、管理范围与项目实施范围不得混用，差异需逐项说明。；完整诊断见本次审计证据。",
+    "1.06已停止：MODULE_SOURCE_VALUE_TEXT；依赖研究受阻；协调器partial，不得把停止或limited记录成正常完成。后续新版模块仍须完成来源、图表、交接与独立核验。",
+    "使用明确修订反馈和逐项输入复用证明；按依赖继续剩余研究。",
+    "程序原生客户HTML与独立逐页验收尚未通过，complete=false。"
+  ],
+  "evidence": [
+    "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-applied-environment-verification-split-20261008t2348.json",
+    "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-environment-verification-split-20261008t2348-runtime.json",
+    "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-environment-verification-split-20261008t2348-root-cause.json",
+    "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-environment-split-verified-20261009t0021-native-proof.json",
+    "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-asset-after-policy-20261008t2321-root-cause.json",
+    "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-environment-after-assets-20261008t2334-root-cause.json",
+    "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-resource-after-environment-20261009t0022-root-cause.json",
+    "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-resource-after-environment-20261009t0022-dispatch.json",
+    "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-resource-heartbeat-20261009t0025-progress-proof.json",
+    "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-resource-close-20261009t0029-progress-proof.json",
+    "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-policy-date-review-resume-20261008t2051-native-proof.json",
+    "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-calendar-date-native-20261008t213403-native-proof.json",
+    "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-policy-missing-field-evidence-accepted-20261008t2254-native-proof.json",
+    "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-resource-audit-20261009t002931-progress-proof.json",
+    "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-resource-revision-live-20261009t0035-progress-proof.json",
+    "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-resource-revision-stopped-20261009t0037-progress-proof.json"
+  ],
+  "migration": {
+    "target": "62-replaces-57",
+    "legacyWorkflowCountsTowardAcceptance": false,
+    "legacyGateCountsTowardAcceptance": false,
+    "executionEntryMigrated": true,
+    "reportPrerequisitesMigrated": true,
+    "acceptanceAccountingCorrected": true,
+    "evidence": [
+      "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-applied-environment-verification-split-20261008t2348.json",
+      "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-environment-verification-split-20261008t2348-runtime.json"
+    ],
+    "planStatus": "installed-and-resumed",
+    "approvalStatus": "approved-by-direct-user-message",
+    "planPath": "work/v210-shaotanhe-full/unified-62-migration-and-input-freeze-plan.md",
+    "planSha256": "6c63c5b3ba602a5b281c87335ff1bf90b19de05eedf2d300994697a28f2cc47c",
+    "sourceRecoveryImpactMechanismVerified": true,
+    "affectedRecoveryClosure": 6,
+    "progressMigrated": true
+  },
+  "recovery": {
+    "rootCause": "1.06首轮七组原稿和新独审真实完成但limited；新独审指出分类claim的inputRefs指向工作资源ID，以及资源—体验对应和交接未完成。此次仅针对这份尚未派发的新反馈正常修订，由原生作者自行核对真实来源和分类依据，宿主不改稿、不补授权或现状。不改变asOf、研究边界等限制。1.07还依赖1.04有效资产结果，整项空专业字段失败不能作为上游。1.03九组及1.05五组limited独审、1.04六组整项失败保留，当前0/62。",
+    "checkpoint": "RUN-9fa43c80-6231-4c6b-87cb-4bcbdf481696",
+    "unifiedResume": {
+      "at": "2026-10-09T00:32:35.234Z",
+      "checkpoint": "RUN-676b1134-c7ad-478f-af87-06443652519b",
+      "command": "/preplan-run --all-modules --item=1.06 --resume=RUN-676b1134-c7ad-478f-af87-06443652519b",
+      "targetItem": "1.06",
+      "response": {
+        "kind": "success",
+        "text": "已启动新版研究实际执行；检索和原文快照准备完成后进入模块分析。\n目标 1.06 及其依赖。\n条件只界定本次研究分支，不能证明现状事实或项目审批。\n/preplan-research-status 查看进度；/preplan-research-cancel 取消。"
+      },
+      "rootCauseProof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-resource-review-feedback-20261009t0034-root-cause.json",
+      "retainedInputs": [
+        {
+          "itemId": "1.01",
+          "bundleRunId": "RUN-a85695d2-7b2a-439e-8d7b-0c250bd0f0e6",
+          "resultHash": "02447e1ec73f4a5132acfe1c49d03405ffa06c2bf805d9cdb64cf70e40dc0169",
+          "status": "limited",
+          "countsTowardAcceptance": false
+        },
+        {
+          "itemId": "1.02",
+          "bundleRunId": "RUN-5db94f74-a546-44d2-affa-2a1308b7763d",
+          "resultHash": "253b8e888f484eecb4525377eed48799f3b1b4a91b5e8ef836a7e1a80f6c41c0",
+          "status": "limited",
+          "countsTowardAcceptance": false
+        },
+        {
+          "itemId": "1.03",
+          "bundleRunId": "RUN-7a7e867a-8df4-4c56-a0f2-4dbb544cbb0d",
+          "resultHash": "18d95152c2cb09b52d2210cef7bc1c0410624095af056af020b0a5e13319862d",
+          "status": "limited",
+          "countsTowardAcceptance": false
+        }
+      ],
+      "nativeRevisionReason": "1.06首轮七组原稿和新独审真实完成但limited；新独审指出分类claim的inputRefs指向工作资源ID，以及资源—体验对应和交接未完成。此次仅针对这份尚未派发的新反馈正常修订，由原生作者自行核对真实来源和分类依据，宿主不改稿、不补授权或现状。不改变asOf、研究边界等限制。1.07还依赖1.04有效资产结果，整项空专业字段失败不能作为上游。1.03九组及1.05五组limited独审、1.04六组整项失败保留，当前0/62。",
+      "policyCompleteAcquiredSourceInstalled": true,
+      "policyCompleteSourceNativeVerified": true,
+      "policyCompleteSourceNativeProof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-policy-missing-field-evidence-accepted-20261008t2254-native-proof.json",
+      "nativeActivityVerified": true,
+      "heartbeatTrigger": "2026-10-09T00:29:31.323Z",
+      "heartbeatDispatchCount": 1,
+      "newDispatchCount": 1,
+      "heartbeatDispatches": [
+        {
+          "at": "2026-10-08T22:40:19.715Z",
+          "proof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-policy-complete-source-20261008t2240-dispatch.json",
+          "checkpoint": "RUN-9267f927-2c71-462a-a7f9-22ed1d8bd1d4",
+          "reason": "Installed complete acquired-policy source context; bound new independent-review feedback."
+        },
+        {
+          "at": "2026-10-08T22:48:12.820Z",
+          "proof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-policy-missing-field-evidence-20261008t2248-dispatch.json",
+          "checkpoint": "RUN-386072a4-19ab-45de-8067-c8028465844a",
+          "reason": "New exact missing/null field evidence attachment rejection."
+        },
+        {
+          "at": "2026-10-08T23:02:58.164Z",
+          "proof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-policy-constraint-literal-20261008t2304-dispatch.json",
+          "checkpoint": "RUN-162e285f-916f-4f5f-9801-762a9ea3601a",
+          "reason": "New constraintObject literal value/quote mismatch after a different prior claim-class rejection."
+        },
+        {
+          "at": "2026-10-08T23:16:34.540Z",
+          "proof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-policy-response-evidence-20261008t2316-dispatch.json",
+          "checkpoint": "RUN-ef7e0b4a-daa4-4812-bca0-66632bf59607",
+          "reason": "New exact non-null response decision evidence coverage failure; seven accepted original groups preserved."
+        },
+        {
+          "at": "2026-10-08T23:20:52.200Z",
+          "proof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-asset-after-policy-20261008t2321-dispatch.json",
+          "checkpoint": "RUN-338d4277-2717-4b61-8f96-ab7dd76a51a2",
+          "reason": "New nine-group independent policy review is limited; continue 1.04 under its explicit limited draft dependency."
+        },
+        {
+          "at": "2026-10-08T23:27:04.802Z",
+          "proof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-asset-transport-resume-20261008t2328-dispatch.json",
+          "checkpoint": "RUN-c9c1759b-6d14-4e68-8c11-6289bb65ad87",
+          "reason": "Both configured routes failed with TRANSPORT; fresh HTTP reachability verified, retain three strictly accepted asset groups and resume rights_context:1."
+        },
+        {
+          "at": "2026-10-08T23:33:28.719Z",
+          "proof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-environment-after-assets-20261008t2334-dispatch.json",
+          "checkpoint": "RUN-f6839807-31c2-4a3d-86c1-6a7df6266df2",
+          "reason": "Strict complete asset candidate is empty and rejected; proceed to independent environment module under explicit limited boundary dependency."
+        },
+        {
+          "at": "2026-10-09T00:05:29.965Z",
+          "proof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-environment-verification-split-20261009t0005-dispatch.json",
+          "checkpoint": "RUN-daf9ad1e-75f8-42e6-ad29-6610010f174a",
+          "reason": "Same precise task evidence feedback failed again; installed actual task split and narrower context, preserving three original strict author groups."
+        },
+        {
+          "at": "2026-10-09T00:12:45.556Z",
+          "proof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-environment-literal-value-20261009t0011-dispatch.json",
+          "checkpoint": "RUN-ad56ef7d-6dfa-4076-b614-deb7a4de7746",
+          "reason": "New exact combined source-value rejection from environment:4.1; final bound rejection not previously delivered. Task-only split has not yet been reached."
+        },
+        {
+          "at": "2026-10-09T00:21:58.062Z",
+          "proof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-resource-after-environment-20261009t0022-dispatch.json",
+          "checkpoint": "RUN-96662ddb-1f64-4589-a4a6-936aa52602f5",
+          "reason": "New actual environment independent review is limited with real input/analysis gaps; retain its five strict groups and proceed to independent resource/cultural research under explicit limited boundary dependency."
+        },
+        {
+          "at": "2026-10-09T00:32:35.234Z",
+          "proof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-resource-review-feedback-20261009t0034-dispatch.json",
+          "checkpoint": "RUN-676b1134-c7ad-478f-af87-06443652519b",
+          "reason": "First new seven-group resource independent review: correct explicit classification inputRefs and incomplete resource-to-experience/transfer coverage; retain factual input limitations."
+        }
+      ],
+      "sourceCalendarDateNativeVerified": true,
+      "publicationDateNativeRepairVerified": true,
+      "currentNativeAuthorGroupsStrictlyVerified": 0,
+      "globalNativeIdleVerifiedBeforeDispatch": true,
+      "settingsRevision": 37,
+      "settingsUnchanged": true,
+      "applicationCodeChanged": false,
+      "serviceRestarted": false,
+      "qualifiedResearch": 0,
+      "complete": false,
+      "noCredentialsOrNativeThoughtSaved": true,
+      "proof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-resource-review-feedback-20261009t0034-dispatch.json",
+      "nativeExecutions": [
+        {
+          "id": "5e79fe01-0efb-4e05-a062-af638df7d610",
+          "childId": "571d46c2-94b4-44d9-8a2e-f74ef67bd751",
+          "classId": "text",
+          "lastSeq": 17,
+          "lastEventAt": "2026-10-09T00:33:25.771Z"
+        },
+        {
+          "id": "2cc9632f-f166-4194-a15e-28084fb2333e",
+          "childId": "c8269993-e515-4dbc-a625-4632169b9097",
+          "classId": "text",
+          "lastSeq": 17,
+          "lastEventAt": "2026-10-09T00:33:41.701Z"
+        },
+        {
+          "id": "92dba1e6-30b7-4089-8bd2-5d1b8ab84b89",
+          "childId": "d19065e1-f119-4241-8d8b-0a4e98babd5f",
+          "classId": "text",
+          "lastSeq": 22,
+          "lastEventAt": "2026-10-09T00:34:04.981Z"
+        }
+      ],
+      "missingFieldEvidenceNativeRepairVerified": true,
+      "missingFieldEvidenceNativeProof": "work/v210-shaotanhe-full/supervisor-policy-missing-field-evidence-accepted-20261008t2254-native-proof.json",
+      "constraintObjectLiteralNativeRepairVerified": true,
+      "constraintObjectLiteralNativeProof": "work/v210-shaotanhe-full/supervisor-policy-constraint-literal-accepted-20261008t2312-native-proof.json",
+      "responseEvidenceNativeRepairVerified": true,
+      "responseEvidenceNativeProof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-policy-response-activity-20261008t2319-native-proof.json",
+      "lastPolicyIndependentReview": {
+        "bundleRunId": "RUN-7a7e867a-8df4-4c56-a0f2-4dbb544cbb0d",
+        "resultHash": "18d95152c2cb09b52d2210cef7bc1c0410624095af056af020b0a5e13319862d",
+        "verdict": "limited",
+        "proof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-asset-after-policy-20261008t2321-root-cause.json",
+        "executionId": "87001998-1c08-49a7-a7b4-586d37da6e42",
+        "childId": "00391e72-38c6-47f7-9578-ef294b69aa66",
+        "actualModel": {
+          "provider": "openai-codex",
+          "model": "gpt-6-luna",
+          "reasoningEffort": "xhigh"
+        },
+        "nativeSubmissionAndReceiptVerified": true,
+        "lastSeq": 17,
+        "lastEventAt": "2026-10-08T23:18:19.274Z"
+      },
+      "policyNativeAuthorGroupsStrictlyVerified": 9,
+      "policyNativeAuthorPrefixProof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-asset-after-policy-20261008t2321-root-cause.json",
+      "lastAssetFailure": {
+        "checkpoint": "RUN-f6839807-31c2-4a3d-86c1-6a7df6266df2",
+        "error": "MODULE_EMPTY_PROFESSIONAL_CONCLUSION: apply the module fallback with a concrete limited conclusion, never an all-null form",
+        "strictAuthorGroups": 6,
+        "independentReviewPerformed": false,
+        "proof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-environment-after-assets-20261008t2334-root-cause.json",
+        "countsTowardAcceptance": false
+      },
+      "environmentVerificationSplitInstalled": true,
+      "environmentVerificationSplitNativeVerified": true,
+      "lastEnvironmentIndependentReview": {
+        "bundleRunId": "RUN-2acb0ba5-20f9-419e-8b69-bdf0f5a9ba21",
+        "resultHash": "535f460d50de8caa411081dcf5b4a42275a42f8d88e7421995915e2c498b844b",
+        "verdict": "limited",
+        "authorGroups": 5,
+        "proof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-environment-split-verified-20261009t0021-native-proof.json",
+        "executionId": "20a11442-eaf5-4197-81d7-1ab7d69b0f94",
+        "childId": "7ae5acfe-97f4-4090-bbe4-ac1bd920555c",
+        "actualModel": {
+          "provider": "openai-codex",
+          "model": "gpt-6-luna",
+          "reasoningEffort": "xhigh"
+        },
+        "nativeSubmissionAndReceiptVerified": true,
+        "lastSeq": 17,
+        "lastEventAt": "2026-10-09T00:19:00.312Z",
+        "remainingChecks": [
+          {
+            "criterion": "图示水系和原始测绘不一致时，以有来源原始数据核对而非凭美观调整。",
+            "status": "limited",
+            "rationale": "候选未形成可核验的自然本底图或水系边界比对结果，也未发现其声称已解决图示与测绘冲突；原始地形DWG/测绘高程未提取，DEM原始栅格及研究范围几何不可核。故未见凭美观改线的事实，但也不能核验该项已执行。跨字段四步：步骤1仅归集说明和历史资料；步骤2未核覆盖、基期及原始测绘；步骤3未作水系叠加/GIS核对；步骤4未形成图件或已完成的下游交接。作者组自述步骤状态不构成通过证据。",
+            "claimRefs": [
+              "claim-d68fc860d7a59af6479f55242989f069",
+              "claim-d93a55f9f627ab747078e98a1fd6c7b2",
+              "claim-bd14fef444fbc7aa76ac9816ddc6201e",
+              "claim-97a44acdc3bc69198dfcdc91c3f093f0"
+            ]
+          },
+          {
+            "criterion": "抽一项气象结论能找到站点与时间覆盖。",
+            "status": "limited",
+            "rationale": "候选没有气象结论或气候季节图可供抽查；站点位置、观测期及实测值字段均为missing，不能证明站点与时间覆盖。冻结来源确有CMA新洲站（57492）目录坐标及月降水数组，但该次采集时间为2026-09-29，晚于候选asOf 2026-09-26；所给数组未显示可核的统计期，不能据此补成候选结论。步骤1有资料线索但未绑定本轮测点/序列；步骤2代表性、时段未核；步骤3未作统计；步骤4仅提出后续任务，故研究缺口仍在。",
+            "claimRefs": [
+              "claim-6fa8967c2a37056684a3b36efbd36bb8",
+              "claim-97a44acdc3bc69198dfcdc91c3f093f0",
+              "claim-d68fc860d7a59af6479f55242989f069"
+            ]
+          }
+        ],
+        "limitations": [
+          "缺可核研究范围几何、原始测绘/DEM栅格、当前水文与环境观测序列、现行保护区划边界及GIS分析；自然本底图、活动限制清单和下游交接未完成。",
+          "气象站资料线索未提供可核统计期，且采集晚于候选asOf；候选无可抽查的气象结论。",
+          "公开区域资料、历史《一库一策》方案及照片只能在各自时点与范围内使用，不能替代本轮现场检测、洪水模型或法定区划核验。acquisition的acquired状态不证明检索覆盖充分；其中MODULE_WEB_TOO_LARGE也不等于没有可读原文。"
+        ],
+        "countsTowardAcceptance": false
+      },
+      "environmentNativeAuthorGroupsStrictlyVerified": 5,
+      "environmentNativeAuthorPrefixProof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-environment-split-verified-20261009t0021-native-proof.json",
+      "lastResourceIndependentReview": {
+        "bundleRunId": "RUN-8c89c89e-fd94-4f21-a04d-9d0a5ca50fa8",
+        "resultHash": "c39bfb224b2ef861af69440b7bae31015c93b92de25c94d3a77d259d9650479e",
+        "verdict": "limited",
+        "authorGroups": 7,
+        "proof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-resource-audit-20261009t002931-progress-proof.json",
+        "executionId": "8a5bc100-78af-4a04-8ef5-4bb318cadff8",
+        "childId": "8bf2ab8b-4f2f-4a91-b824-624d7d9a3b09",
+        "actualModel": {
+          "provider": "openai-codex",
+          "model": "gpt-6-luna",
+          "reasoningEffort": "xhigh"
+        },
+        "nativeSubmissionAndReceiptVerified": true,
+        "lastSeq": 17,
+        "lastEventAt": "2026-10-09T00:27:14.203Z",
+        "remainingChecks": [
+          {
+            "criterion": "抽查资源对应产品时，能解释实际使用的是哪项资源而非贴标签。",
+            "status": "limited",
+            "rationale": "未能完成该项抽查：候选仅有历史景观线索记录及生计资源缺证记录，没有产品记录、产品引用或资源—产品/体验对应关系，也未说明任何产品实际使用哪项资源。候选及作者组步骤4均将对应和下游交接列为未完成；因此不能以资源类别标签代替对应证明，也不能判为通过。",
+            "claimRefs": [
+              "claim-1d6e592a926048481f7356bcadc5ea27",
+              "claim-42250166638b8876894d60d533cfbc1d",
+              "claim-07fcd593134e289a42847b7e0a4f70b0",
+              "claim-519217d61b19d2338d3bd9e65289386b",
+              "claim-7ba05608a9d713426d2f0abcc2e95e95",
+              "claim-c5e08be07d1a371e15e6222a4367bd2e",
+              "claim-eee9dfbac22d34e0ef2528e55e621ee8",
+              "claim-1fa7449e4d1acc8f373201d9c04ad1e4",
+              "claim-e73d4df18843c4f256a9c6c9fdc99ea0",
+              "claim-6dcbbc9a06c1a7440217137897757166",
+              "claim-19daccf51e205225225bc96c22fadeca",
+              "claim-57ffe897f4051c7e2ee1658dac731050"
+            ]
+          }
+        ],
+        "limitations": [
+          "跨字段四步覆盖未完成：第1步仅整理部分可见史料，现场/机构/授权核验及本地生计资源证据缺失；第2步未取得《黄州府志》原件或卷页，完整地域消歧和材料覆盖未闭合；第3步未核现状、主体、保护级别、使用权、季节与承载条件，真实性、可用性及转化评估不足；第4步没有资源—产品/体验对应、完整转化清单或可核验下游交接。四步均为limited，不能按作者组状态或汇合本身计为完成。",
+          "可见来源中还包括地方政府网站所载的其他文化与旅游资源线索；候选未逐项说明是否与本轮范围相符、纳入或排除的依据。因研究边界未核，不能据此直接把这些点位归入本项目，但资源筛选完整性仍有限。",
+          "采集记录1.06:2虽标记acquired并有MODULE_WEB_QUOTE_UNVERIFIED错误，实际提供的页面正文仍已核阅；该错误不等于没有原文。相关网页采集时间为2026-09-28，晚于候选asOf 2026-09-26，未将其作为基准日现状证明。候选引用的水利方案保留为历史方案转述，不作为现状核验。",
+          "候选分类claim-42250166638b8876894d60d533cfbc1d的inputRefs指向同候选的工作资源ID claim-1d6e592a926048481f7356bcadc5ea27，而非来源证据，依赖追溯不严谨；原文source claims虽能支持部分历史记载，完整溯源仍应修正。",
+          "整体判定limited：资源—产品抽查和关键现状/授权研究缺失，且四步研究链未闭合；本结论仅为本项研究QA，不构成建设、改造或商业使用批准。"
+        ],
+        "countsTowardAcceptance": false
+      },
+      "resourceNativeAuthorGroupsStrictlyVerified": 7,
+      "resourceNativeAuthorPrefixProof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-resource-audit-20261009t002931-progress-proof.json",
+      "nativeActivityVerifiedAt": "2026-10-09T00:35:59.290Z",
+      "activityProof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-resource-review-feedback-20261009t0036-native-proof.json",
+      "resourceReviewFeedbackNativeVerified": true,
+      "resourceReviewFeedbackNativeProof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-resource-review-feedback-20261009t0036-native-proof.json"
+    },
+    "runtimeProof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-environment-verification-split-20261008t2348-runtime.json",
+    "rootCauseProof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-environment-verification-split-20261008t2348-root-cause.json",
+    "nativeSourceSubmissionVerified": true,
+    "nativeSourceSubmissionProof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-mixed-correction-success-20261008t1357-native-proof.json",
+    "sourceAcceptanceQualified": false,
+    "targetedQuoteCorrectionClosedLoopVerified": true,
+    "sourceQueryProof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-mixed-correction-success-20261008t1357-native-proof.json",
+    "preservedCompletedAuthorGroups": 43,
+    "currentProjectNativeExecutions": 0,
+    "nativeGlobalIdleVerified": false,
+    "nextAction": "diagnose-latest-result-and-continue-applicable-research",
+    "sourceAcceptanceRulesUnchanged": true,
+    "complete": false,
+    "actualTaskRequestMappingVerified": false,
+    "actualTaskIdentityProbeVerified": false,
+    "taskAuditNativeProof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-task-handoff-actual-20261008t1805-native-context.json",
+    "nativeBoundaryVersionRepairVerified": true,
+    "nativeBoundaryVersionProof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-boundary-version-effective-20261008t1847-native-proof.json",
+    "boundaryAuthorGroupsPreserved": 2,
+    "pendingCommonInputs": {
+      "deliveryTime": "User has not answered the existing delivery-time question; keep original missing/null.",
+      "researchBoundary": "User was asked which existing source or explicit scope defines this study boundary; image frames and management limits cannot be silently substituted.",
+      "unresolvedBoundaryCitation": "Native independent review still requires the management-area reference in limitations to be traced to exact original source."
+    },
+    "currentIndependentReview": {
+      "bundleRunId": "RUN-a85695d2-7b2a-439e-8d7b-0c250bd0f0e6",
+      "verdict": "limited",
+      "reviewExecutionId": "d328463c-c999-44e8-bcfb-ae2d38c166a1",
+      "reviewChildId": "1f632379-37a4-49ab-ae6b-4c5ab42960ce",
+      "issues": [
+        {
+          "criterion": "抽查任意任务要求，可定位到委托原文或明确用户陈述。",
+          "status": "limited",
+          "rationale": "抽查的研究对象、测试目的、汇报文案及候选定位/空间/产品/比较/分期/运营/测算要求，均能在绑定的真实任务消息中定位；任务消息支持研究任务，不证明正式委托。跨字段步骤1提取任务，步骤3组织待支持决定—所需分析—交付用途；步骤4的M01配置回执确实存在，绑定任务字段、快照及模块清单，故不采信作者组“未交接”的自述。但步骤3所需的交付时间在原任务中未约定，候选正确保持missing，因而时间要素不能闭合；M01配置也不证明研究已完成。",
+          "claimRefs": [
+            "claim-159242b10ddb5c50814498520efa21d2",
+            "claim-2a061784a342e8e5ab398d7a915ab0f8",
+            "claim-2cbe4885c328d0c272441bedb5ab1302",
+            "claim-ee439fb0a82c44300ba9e9adbd03fb06",
+            "claim-f06fc3604ea9417893caf7cf2f652721",
+            "claim-dfa5f0a55a7ca6cb6e4de86fd09bf09b",
+            "claim-d6024aeffaf38182afc2e129fea9d1d5",
+            "claim-8aa3bf4728b0469da99f88e422df2a6a"
+          ]
+        }
+      ],
+      "limitations": [
+        "正式名称、委托/实施主体、已核实地点与边界、行政区代码均无当前项目原件支持；只能按fallback保留临时研究对象，不能据此发布正式身份结论。",
+        "任务未约定交付期限，timeRequirements保持missing；决策—分析—交付的时间要素因此未闭合。M01交接回执只证明内部任务配置，不证明模块研究完成。",
+        "网页来源采集时间为2026-09-28，晚于候选asOf 2026-09-26；所引历史原件可保留原有年代，但不得据采集时间倒推基准日已掌握。"
+      ],
+      "projectTaskAuditHash": "7625f5b19a832b483721fab584adce327e576b42c7b8ddca8d76dfe851061053"
+    },
+    "taskHandoffIndependentProof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-task-handoff-independent-limited-20261008t1816-proof.json",
+    "taskHandoffProgramGapResolved": true,
+    "pendingUserInputs": [
+      {
+        "itemId": "1.01",
+        "field": "timeRequirements",
+        "questionPending": true,
+        "answerNotAssumed": true,
+        "reason": "已问未答；真实M01交接已闭合，交付期限仍缺。"
+      },
+      {
+        "itemId": "1.02",
+        "field": "researchBoundary",
+        "questionPending": true,
+        "answerNotAssumed": true,
+        "reason": "已问未答；须明确研究范围及其geometry、CRS、axisOrder，图幅和管理范围不能替代。"
+      }
+    ],
+    "sourcePageBinding": {
+      "installed": true,
+      "verifiedInRealNativeAuthor": true,
+      "proof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-policy-date-review-resume-20261008t2051-native-proof.json",
+      "applicationRootCause": "原生Schema允许网页填写任意整数页码，与冻结原件的物理分页规则不一致。已按真实path/page约束原生提交，网页必须省略page；中央来源校验及独审不变。"
+    },
+    "nativeNestedSourcePathDiagnostic": {
+      "installed": true,
+      "rootCauseProof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-environment-verification-split-20261008t2348-root-cause.json",
+      "actualSchemaAndRejectedPayloadReplayed": true,
+      "verifiedInNewNativeRequest": true,
+      "nativeProof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-nested-source-path-native-20261008t2211-native-proof.json",
+      "firstGroupStrictlyAccepted": true,
+      "unknownPathNotRewritten": true,
+      "nativeSchemaAndSourceValidationUnchanged": true
+    },
+    "sourceCalendarDateMapping": {
+      "installed": true,
+      "verifiedInRealNativeAuthor": true,
+      "rootCauseProof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-source-calendar-date-20261008t2120-root-cause.json",
+      "nativeProof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-calendar-date-native-20261008t213403-native-proof.json",
+      "representation": "Explicit author declaration of a complete original Chinese policy date; exact original path/hash/page/quote and date-field target still required.",
+      "automaticDateFillOrDraftRewrite": false
+    },
+    "latestFirstGroupDuplicateStrictlyResolved": true,
+    "currentPolicyAuthorPrefix": {
+      "strictlyVerified": 9,
+      "proof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-asset-after-policy-20261008t2321-root-cause.json",
+      "countsTowardAcceptance": false
+    },
+    "policyCompleteSourceContext": {
+      "installed": true,
+      "rootCauseProof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-policy-complete-source-20261008t2235-root-cause.json",
+      "exactFrozenSourceCount": 7,
+      "materialBudgetUnchanged": 104588,
+      "fullSourceContextReplayed": true,
+      "nativeRequestVerified": true,
+      "nativeProof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-policy-missing-field-evidence-accepted-20261008t2254-native-proof.json",
+      "newIndependentReviewRequired": true,
+      "countsTowardAcceptance": false
+    },
+    "retainedLastPolicyIndependentReview": {
+      "bundleRunId": "RUN-7a7e867a-8df4-4c56-a0f2-4dbb544cbb0d",
+      "resultHash": "18d95152c2cb09b52d2210cef7bc1c0410624095af056af020b0a5e13319862d",
+      "verdict": "limited",
+      "proof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-asset-after-policy-20261008t2321-root-cause.json",
+      "executionId": "87001998-1c08-49a7-a7b4-586d37da6e42",
+      "childId": "00391e72-38c6-47f7-9578-ef294b69aa66",
+      "actualModel": {
+        "provider": "openai-codex",
+        "model": "gpt-6-luna",
+        "reasoningEffort": "xhigh"
+      },
+      "nativeSubmissionAndReceiptVerified": true,
+      "lastSeq": 17,
+      "lastEventAt": "2026-10-08T23:18:19.274Z",
+      "scope": "retained-last-policy-review; not qualification of the current selected module",
+      "countsTowardAcceptance": false
+    },
+    "retainedAssetFailure": {
+      "checkpoint": "RUN-f6839807-31c2-4a3d-86c1-6a7df6266df2",
+      "error": "MODULE_EMPTY_PROFESSIONAL_CONCLUSION: apply the module fallback with a concrete limited conclusion, never an all-null form",
+      "strictAuthorGroups": 6,
+      "independentReviewPerformed": false,
+      "proof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-environment-after-assets-20261008t2334-root-cause.json",
+      "countsTowardAcceptance": false
+    },
+    "environmentVerificationSplit": {
+      "installed": true,
+      "rootCauseProof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-environment-verification-split-20261008t2348-root-cause.json",
+      "nativeVerified": true,
+      "nativeProof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-environment-split-verified-20261009t0021-native-proof.json",
+      "preservedOriginalAuthors": 3,
+      "fullFrozenSourceAndIndependentReviewRulesUnchanged": true,
+      "countsTowardAcceptance": false
+    },
+    "retainedEnvironmentReview": {
+      "bundleRunId": "RUN-2acb0ba5-20f9-419e-8b69-bdf0f5a9ba21",
+      "resultHash": "535f460d50de8caa411081dcf5b4a42275a42f8d88e7421995915e2c498b844b",
+      "verdict": "limited",
+      "authorGroups": 5,
+      "proof": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-environment-split-verified-20261009t0021-native-proof.json",
+      "executionId": "20a11442-eaf5-4197-81d7-1ab7d69b0f94",
+      "childId": "7ae5acfe-97f4-4090-bbe4-ac1bd920555c",
+      "actualModel": {
+        "provider": "openai-codex",
+        "model": "gpt-6-luna",
+        "reasoningEffort": "xhigh"
+      },
+      "nativeSubmissionAndReceiptVerified": true,
+      "lastSeq": 17,
+      "lastEventAt": "2026-10-09T00:19:00.312Z",
+      "remainingChecks": [
+        {
+          "criterion": "图示水系和原始测绘不一致时，以有来源原始数据核对而非凭美观调整。",
+          "status": "limited",
+          "rationale": "候选未形成可核验的自然本底图或水系边界比对结果，也未发现其声称已解决图示与测绘冲突；原始地形DWG/测绘高程未提取，DEM原始栅格及研究范围几何不可核。故未见凭美观改线的事实，但也不能核验该项已执行。跨字段四步：步骤1仅归集说明和历史资料；步骤2未核覆盖、基期及原始测绘；步骤3未作水系叠加/GIS核对；步骤4未形成图件或已完成的下游交接。作者组自述步骤状态不构成通过证据。",
+          "claimRefs": [
+            "claim-d68fc860d7a59af6479f55242989f069",
+            "claim-d93a55f9f627ab747078e98a1fd6c7b2",
+            "claim-bd14fef444fbc7aa76ac9816ddc6201e",
+            "claim-97a44acdc3bc69198dfcdc91c3f093f0"
+          ]
+        },
+        {
+          "criterion": "抽一项气象结论能找到站点与时间覆盖。",
+          "status": "limited",
+          "rationale": "候选没有气象结论或气候季节图可供抽查；站点位置、观测期及实测值字段均为missing，不能证明站点与时间覆盖。冻结来源确有CMA新洲站（57492）目录坐标及月降水数组，但该次采集时间为2026-09-29，晚于候选asOf 2026-09-26；所给数组未显示可核的统计期，不能据此补成候选结论。步骤1有资料线索但未绑定本轮测点/序列；步骤2代表性、时段未核；步骤3未作统计；步骤4仅提出后续任务，故研究缺口仍在。",
+          "claimRefs": [
+            "claim-6fa8967c2a37056684a3b36efbd36bb8",
+            "claim-97a44acdc3bc69198dfcdc91c3f093f0",
+            "claim-d68fc860d7a59af6479f55242989f069"
+          ]
+        }
+      ],
+      "limitations": [
+        "缺可核研究范围几何、原始测绘/DEM栅格、当前水文与环境观测序列、现行保护区划边界及GIS分析；自然本底图、活动限制清单和下游交接未完成。",
+        "气象站资料线索未提供可核统计期，且采集晚于候选asOf；候选无可抽查的气象结论。",
+        "公开区域资料、历史《一库一策》方案及照片只能在各自时点与范围内使用，不能替代本轮现场检测、洪水模型或法定区划核验。acquisition的acquired状态不证明检索覆盖充分；其中MODULE_WEB_TOO_LARGE也不等于没有可读原文。"
+      ],
+      "countsTowardAcceptance": false
+    }
+  },
+  "compatibilityHistory": {
+    "workflow": {
+      "confirmed": 57,
+      "total": 57,
+      "scope": "legacy-compatibility-history",
+      "countsTowardAcceptance": false
+    },
+    "gates": {
+      "approved": 8,
+      "total": 8,
+      "scope": "legacy-compatibility-history",
+      "countsTowardAcceptance": false
+    },
+    "countsTowardAcceptance": false
+  },
+  "lastObservedAt": "2026-10-08T21:40:26.992Z",
+  "monitoring": {
+    "boundedStatusRequestsMs": 10000,
+    "persistedNativeReceiptsVerified": true,
+    "rootCatalogRead": "available",
+    "lastBoundedProof": "E:/前期策划开发/work/v210-shaotanhe-full/supervisor-calendar-date-close-20261008t214020-progress-proof.json",
+    "lastCoordinatorStatus": "running",
+    "lastNativeActivity": [
+      {
+        "id": "92464974-1433-4068-a466-004d4288e030",
+        "childId": "6a9a4155-9141-4c6c-abf4-678fdbf1abf6",
+        "lastSeq": 26,
+        "lastEventAt": "2026-10-08T21:40:25.845Z",
+        "modelRequestObserved": true,
+        "nativeSessionPending": false
+      }
+    ]
+  },
+  "evidenceArchive": {
+    "path": "E:\\前期策划开发\\work\\v210-shaotanhe-full\\supervisor-resource-finish-20261009t0029-board-before-compact.json",
+    "scope": "Complete prior development board and evidence index retained read-only"
+  }
+}

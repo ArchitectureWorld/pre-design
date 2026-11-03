@@ -6,6 +6,7 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { afterEach, expect, it, vi } from 'vitest'
 import { registerPreplanningExecutionGuard } from '../src/runtime/preplanning-execution-guard.ts'
+import { PLANNING_PURPOSE_INSTRUCTION } from '../src/research-v2/planning-purpose.ts'
 
 // Use the exact scope module used by the real tool registry, without adding a
 // direct production dependency on this transitive native runtime package.
@@ -15,16 +16,17 @@ const { createScope } = await import(pathToFileURL(toolsRequire.resolve('@deepse
 const contexts: Context[] = []
 afterEach(async () => { for (const ctx of contexts.splice(0)) await ctx.fiber.dispose() })
 const webTools = ['web_search', 'web_fetch']
+const structuredRoles = ['material_intake', 'workflow', 'module_text', 'module_review', 'manuscript', 'report_plan', 'report_review', 'report_acceptance', 'report_html_review']
 const localTools = ['subagent', 'fork_subagent', 'send_message', 'pwsh']
 
-function fixture(role = 'web', guarded = true, composed = true) {
+function fixture(role = 'web', guarded = true, composed = true, fetchText?: string, structuredSchema?: any) {
   const ctx = new Context(); contexts.push(ctx)
   const prompt = new SystemPrompt(ctx, { includeHarnessIdentity: false })
   const tools = new ToolRuntime(ctx)
   const executed: string[] = []
-  const definition = (name: string) => ({ name, description: `fixture ${name}`, parameters: {},
+  const definition = (name: string) => ({ name, description: `fixture ${name}`, parameters: name==='structured_output'&&structuredSchema?structuredSchema:{},
     output: { schema: { type: 'string' as const }, render: (_args: unknown, value: unknown) => [{ type: 'text' as const, text: String(value) }] },
-    execute: async () => { executed.push(name); return name },
+    execute: async () => { executed.push(name); return name === 'web_fetch' && fetchText !== undefined ? fetchText : name },
   })
   for (const name of [...webTools, ...localTools]) tools.register(definition(name))
   if (role === 'visual_tool_task') tools.register(definition('comfyui_pic'))
@@ -42,12 +44,27 @@ function fixture(role = 'web', guarded = true, composed = true) {
   // This is the installed tool-subagent's agent/created behavior: registrations
   // in the child layer remain visible despite the inherited-tool restriction.
   for (const name of localTools) child.ctx.tools.register(definition(name))
+  if (structuredRoles.includes(role)||role.startsWith('chapter_')) child.ctx.tools.register(definition('structured_output'))
   child.ctx.systemPrompt.section({ name: 'tool:subagent', order: 2800, text: 'Use subagent in the background.' })
   if (guarded) registerPreplanningExecutionGuard(ctx, () => false)
   const call = (name: string, agent = child) => tools.execute({ name, callId: `call-${name}` as never, arguments: {},
     signal: AbortSignal.timeout(1000), agent: agent as never })
   return { ctx, prompt, tools, parent, parentEvents, child, events, executed, call, definition }
 }
+
+it('provides exact field feedback to the next chapter request after native schema rejection',async()=>{
+ const schema={type:'object',required:['pages'],properties:{pages:{type:'array',items:{
+  type:'object',required:['pageId','overlays'],properties:{pageId:{type:'string'},overlays:{type:'array'}}
+ }}}}
+ const f=fixture('chapter_layout-revision-test',true,true,undefined,schema)
+ ;(f.events as {type:string;data:unknown}[]).push(
+  {type:'tool/call',data:{name:'structured_output',callId:'rejected',arguments:JSON.stringify({pages:[{pageId:'p1'}]})}},
+  {type:'tool/result',data:{error:{code:'INVALID_ARGS'},message:{source:{callId:'rejected'}}}})
+ const assembled=await f.prompt.assemble({scope:f.child,agent:f.child as never})
+ expect(assembled.tools.map(t=>t.name)).toEqual(['structured_output'])
+ expect(assembled.sections.find(s=>s.name==='preplanning:chapter-schema-feedback')?.text).toContain('value.pages[0].overlays')
+ expect((await f.prompt.assemble({scope:f.parent,agent:f.parent as never})).sections.some(s=>s.name==='preplanning:chapter-schema-feedback')).toBe(false)
+})
 
 it('permits only the existing ComfyUI tool in a paired image child and masks further calls after submission', async () => {
   const f = fixture('visual_tool_task')
@@ -96,6 +113,134 @@ it('keeps actual web retrieval executable and does not restrict its parent', asy
   expect(result.isError).not.toBe(true)
   expect(f.executed).toEqual([...webTools, 'subagent'])
 })
+it('keeps native source submission available after closing exhausted network tools', async () => {
+  const f = fixture('web')
+  f.child.ctx.tools.register(f.definition('structured_output'))
+  f.events[0]!.data.label += ':retrieval=1'
+  f.events.push({ type: 'turn/start', data: {} } as never,
+    { type: 'tool/call', data: { name: 'web_fetch', callId: 'fetched-source' } } as never)
+  const assembled = await f.prompt.assemble({ scope: f.child, agent: f.child as never })
+  expect(assembled.tools.map(tool => tool.name)).toEqual(['structured_output'])
+  expect((await f.call('structured_output')).isError).not.toBe(true)
+  expect((await f.call('web_fetch')).isError).toBe(true)
+  expect((await f.call('subagent')).isError).toBe(true)
+  expect(f.executed).toEqual(['structured_output'])
+})
+
+it('keeps source intake on structured extraction without inheriting parent report/proposal orchestration', async () => {
+  const f = fixture('material_intake')
+  f.ctx.systemPrompt.section({ name: 'preplanning-agent', order: 120, text: 'PARENT_REPORT_INSTRUCTIONS: call preplanning_get_context and submit ProposalEnvelope' })
+  f.ctx.systemPrompt.section({ name: 'unrelated-policy', order: 100, text: 'Keep unrelated host policy.' })
+  const assembled = await f.prompt.assemble({ scope: f.child, agent: f.child as never })
+  expect(assembled.tools.map(tool => tool.name)).toEqual(['structured_output'])
+  expect(assembled.sections.some(section => section.text.includes('PARENT_REPORT_INSTRUCTIONS'))).toBe(false)
+  expect(assembled.sections.find(section => section.name === 'preplanning-agent')?.text).toContain('逐字')
+  expect(assembled.sections.find(section => section.name === 'unrelated-policy')?.text).toBe('Keep unrelated host policy.')
+  expect((await f.call('structured_output')).isError).not.toBe(true)
+  expect((await f.call('subagent')).isError).toBe(true)
+  expect((await f.call('web_fetch')).isError).toBe(true)
+  const parent = await f.prompt.assemble({ scope: f.parent, agent: f.parent as never })
+  expect(parent.sections.find(section => section.name === 'preplanning-agent')?.text).toContain('PARENT_REPORT_INSTRUCTIONS')
+})
+
+it.each(['workflow', 'module_text', 'module_review'])('restricts the %s native child to its own structured submission tool', async role => {
+  const f = fixture(role)
+  f.ctx.systemPrompt.section({ name: 'preplanning-agent', order: 120, text: 'PARENT_REPORT_INSTRUCTIONS: submit proposals and delegate report work' })
+  const assembled = await f.prompt.assemble({ scope: f.child, agent: f.child as never })
+  expect(assembled.tools.map(tool => tool.name)).toEqual(['structured_output'])
+  expect(assembled.sections.some(section => section.text.includes('PARENT_REPORT_INSTRUCTIONS'))).toBe(false)
+  expect(assembled.sections.find(section => section.name === 'preplanning-agent')?.text).toContain('structured_output')
+  for (const name of [...localTools, ...webTools]) expect((await f.call(name)).isError).toBe(true)
+  expect((await f.call('structured_output')).isError).not.toBe(true)
+  expect(f.executed).toEqual(['structured_output'])
+  expect((await f.tools.execute({ name: 'subagent', callId: 'parent-stays-unrestricted' as never, arguments: {},
+    signal: AbortSignal.timeout(1000), agent: f.parent as never })).isError).not.toBe(true)
+})
+it.each(['chapter_layout-revision-abcd','chapter_visual-review-0','chapter_scene-briefs-v1','chapter_content-table-correction-abcd'])('keeps %s on report submission and blocks inherited coding or delegation',async role=>{
+  const f=fixture(role)
+  f.ctx.systemPrompt.section({name:'preplanning-agent',order:120,text:'PARENT_REPORT_INSTRUCTIONS: delegate work and inspect code'})
+  const assembled=await f.prompt.assemble({scope:f.child,agent:f.child as never})
+  expect(assembled.tools.map(t=>t.name)).toEqual(['structured_output'])
+  expect(assembled.sections.some(s=>s.text.includes('PARENT_REPORT_INSTRUCTIONS'))).toBe(false)
+  for(const name of localTools)expect((await f.call(name)).isError).toBe(true)
+  expect((await f.call('structured_output')).isError).not.toBe(true)
+})
+
+it.each(['module_text', 'module_review'])('puts the approved planning purpose in the %s native system role instead of relying on source packets', async role => {
+  const f = fixture(role)
+  f.ctx.systemPrompt.section({ name: 'preplanning-agent', order: 120, text: 'PARENT_REPORT_INSTRUCTIONS' })
+  f.ctx.systemPrompt.section({ name: 'unrelated-policy', order: 100, text: 'Keep host policy.' })
+  const assembled = await f.prompt.assemble({ scope: f.child, agent: f.child as never })
+  const roleText = assembled.sections.find(section => section.name === 'preplanning-agent')!.text
+  expect(roleText).toContain(PLANNING_PURPOSE_INSTRUCTION)
+  expect(roleText).toContain('研究选择必须写入对应专业字段和evidence')
+  expect(roleText).toContain('structured_output')
+  expect(roleText).toContain('审查角色不得替作者补写事实或绕过检查')
+  expect(assembled.sections.find(section => section.name === 'unrelated-policy')?.text).toBe('Keep host policy.')
+  expect(assembled.tools.map(tool => tool.name)).toEqual(['structured_output'])
+  const parentAssembly = await f.prompt.assemble({ scope: f.parent, agent: f.parent as never })
+  expect(parentAssembly.sections.find(section => section.name === 'preplanning-agent')?.text).toBe('PARENT_REPORT_INSTRUCTIONS')
+})
+
+it.each(['web', 'material_intake', 'workflow'])('does not grant scheme-authoring duties to a %s child', async role => {
+  const f = fixture(role)
+  f.ctx.systemPrompt.section({ name: 'preplanning-agent', order: 120, text: 'PARENT_REPORT_INSTRUCTIONS' })
+  const assembled = await f.prompt.assemble({ scope: f.child, agent: f.child as never })
+  expect(assembled.sections.find(section => section.name === 'preplanning-agent')?.text).not.toContain(PLANNING_PURPOSE_INSTRUCTION)
+})
+
+it('keeps inline webpage image bytes as inert text only in the native research child without changing the canonical fetched value', async () => {
+  const source = '原文结论：数据需申请。\n![二维码](data:image/png;base64,AA\nBB==)\n来源日期 2025-01-01'
+  const f = fixture('web', true, true, source)
+  const childResult = await f.call('web_fetch')
+  expect(childResult).toMatchObject({ isError: false, value: source })
+  expect(childResult.content).toEqual([{ type: 'text', text: expect.stringContaining('![二维码](data&#58;image/png;base64,AA\nBB==)') }])
+  const rendered = (childResult.content[0] as { text: string }).text
+  expect(rendered).toContain('图像内容尚未识别')
+  expect(rendered).toContain('原文结论：数据需申请。')
+  expect(rendered).toContain('来源日期 2025-01-01')
+  expect(rendered).not.toContain('data:image/')
+  const parentResult = await f.call('web_fetch', f.parent as never)
+  expect(parentResult.content).toEqual([{ type: 'text', text: source }])
+})
+
+it('does not override a later tool policy block when rendering webpage text', async () => {
+  const f = fixture('web', true, true, '![x](data:image/png;base64,AAAA)')
+  f.ctx.on('tools/post-execute', async () => ({ kind: 'block', feedback: [{ type: 'text', text: 'policy refused' }] }))
+  const result = await f.call('web_fetch')
+  expect(result.isError).toBe(true)
+  expect(result.content).toEqual([{ type: 'text', text: 'policy refused' }])
+})
+
+it('preserves a later canonical replacement instead of projecting the superseded fetched value', async () => {
+  const f = fixture('web', true, true, '![x](data:image/png;base64,AAAA)')
+  f.ctx.on('tools/post-execute', async () => ({ kind: 'accept', value: 'redacted by policy' }))
+  const result = await f.call('web_fetch')
+  expect(result).toMatchObject({ isError: false, value: 'redacted by policy', content: [{ type: 'text', text: 'redacted by policy' }] })
+})
+
+it('projects the composed content while retaining its canonical source and non-text blocks', async () => {
+  const f = fixture('web', true, true, 'canonical fetched text')
+  const image = { type: 'image' as const, attachment: { attachmentId: 'fixture-image' as never,
+    mediaType: 'image/png' as const, bytes: 4, width: 1, height: 1 } }
+  f.ctx.on('tools/post-execute', async () => ({ kind: 'accept', content: [
+    { type: 'text', text: 'hook annotation ![map](DATA:IMAGE/png;base64,BBBB)' }, image,
+  ] }))
+  const result = await f.call('web_fetch')
+  expect(result.value).toBe('canonical fetched text')
+  expect(result.content[0]).toMatchObject({ text: expect.stringContaining('hook annotation ![map](DATA&#58;IMAGE/png;base64,BBBB)') })
+  expect(result.content[1]).toEqual(image)
+})
+
+it('leaves ordinary webpage text, remote image links and failed tool results unchanged', async () => {
+  const source = '普通资料 ![图](https://example.test/image.png)'
+  const f = fixture('web', true, true, source)
+  expect((await f.call('web_fetch')).content).toEqual([{ type: 'text', text: source }])
+  f.ctx.on('tools/execute', async () => { throw new Error('error data:image/png;base64,AAAA') })
+  const failure = await f.call('web_fetch')
+  expect(failure.isError).toBe(true)
+  expect(failure.content).toEqual([{ type: 'text', text: expect.stringContaining('error data:image/png;base64,AAAA') }])
+})
 
 it('also blocks a forbidden local capability registered after the child boundary', async () => {
   const f = fixture()
@@ -130,8 +275,9 @@ it('does not let a later descriptor change the establishing native child policy'
   expect(f.executed).toEqual([])
 })
 
-it.each(['web', 'review'])('filters the first %s request when the native one-shot descriptor arrives in pre-step', async role => {
+it.each(['web', 'review', ...structuredRoles])('filters the first %s request when the native one-shot descriptor arrives in pre-step', async role => {
   const f = fixture(role)
+  f.ctx.systemPrompt.section({ name: 'preplanning-agent', order: 120, text: 'PARENT_REPORT_INSTRUCTIONS' })
   const descriptor = f.events.shift()!
   // Native dsh-subagent-in-process-driver.attachDescriptorAppend appends after
   // next() in pre-step; dsh-agent-loop assembles before dispatching that hook.
@@ -146,13 +292,14 @@ it.each(['web', 'review'])('filters the first %s request when the native one-sho
   await agentEvents(f.ctx, f.child as never).waterfall('agent/pre-step', {
     messages: [], turn: 1 as never, step: 1 as never, signal: AbortSignal.timeout(1000),
   }, async () => ({ kind: 'enter' as const, messages: [] }))
-  expect(assembled.tools.map(tool => tool.name)).toEqual(role === 'web' ? ['web_fetch', 'web_search'] : [])
+  expect(assembled.tools.map(tool => tool.name)).toEqual(role === 'web' ? ['web_fetch', 'web_search'] : structuredRoles.includes(role) ? ['structured_output'] : [])
   expect(assembled.sections.some(section => section.name === 'tool:subagent')).toBe(false)
+  expect(assembled.sections.find(section => section.name === 'preplanning-agent')?.text.includes('PARENT_REPORT_INSTRUCTIONS')).toBe(!structuredRoles.includes(role))
 })
 
 // Optional local integration probe against the deployed native driver itself.
 // No model adapter is installed: the fake factory drives only SDK assembly/hooks.
-it.runIf(process.env.PREPLANNING_NATIVE_DSH_ROOT).each(['review', 'web'])('uses the installed one-shot %s driver descriptor lifecycle for its first request', async role => {
+it.runIf(process.env.PREPLANNING_NATIVE_DSH_ROOT).each(['review', 'web', ...structuredRoles])('uses the installed one-shot %s driver descriptor lifecycle for its first request', async role => {
   const { join } = await import('node:path')
   const nativeRoot = process.env.PREPLANNING_NATIVE_DSH_ROOT!
   const { startInProcessRun } = await import(pathToFileURL(join(nativeRoot,
@@ -189,7 +336,7 @@ it.runIf(process.env.PREPLANNING_NATIVE_DSH_ROOT).each(['review', 'web'])('uses 
   const run = await startInProcessRun({ parent, maxDepth: 1, signal: AbortSignal.timeout(1000),
     prompt: 'fixture only', descriptor, toolFilter: { allow: role === 'web' ? webTools : [] } }, {})
   await run.result
-  expect(firstTools).toEqual(role === 'web' ? ['web_fetch', 'web_search'] : [])
+  expect(firstTools).toEqual(role === 'web' ? ['web_fetch', 'web_search'] : structuredRoles.includes(role) ? ['structured_output'] : [])
   expect(f.events.filter(event => event.type === 'subagent/descriptor')).toHaveLength(1)
   await run.dispose()
 })
@@ -242,4 +389,22 @@ it('cannot reuse an earlier callId or a later descriptor to extend the native bu
   // A parent with the same descriptor-shaped records remains unrestricted.
   f.parentEvents.push(...f.events)
   expect((await f.call('web_fetch', f.parent as never)).isError).not.toBe(true)
+})
+
+it.each(['module_text', 'module_review', 'chapter_layout-revision-test', 'web'])('applies the %s boundary to rc.5 continuable descriptors', async role => {
+  const f = fixture(role)
+  f.events[0]!.data.mode = 'continuable'
+  expect((await f.call('subagent')).isError).toBe(true)
+  const tools = (await f.prompt.assemble({ scope: f.child, agent: f.child as never })).tools.map(tool => tool.name)
+  expect(tools).not.toContain('subagent')
+  expect(tools).not.toContain('pwsh')
+})
+
+it.each(['manuscript', 'report_plan', 'report_review', 'report_acceptance', 'report_html_review'])('keeps %s report production children inside native structured output', async role => {
+  const f = fixture(role)
+  f.events[0]!.data.mode = 'continuable'
+  expect((await f.prompt.assemble({ scope: f.child, agent: f.child as never })).tools.map(tool => tool.name)).toEqual(['structured_output'])
+  expect((await f.call('subagent')).isError).toBe(true)
+  expect((await f.call('pwsh')).isError).toBe(true)
+  expect((await f.call('structured_output')).isError).not.toBe(true)
 })

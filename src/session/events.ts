@@ -6,6 +6,7 @@ import type { PresentationAutoSyncService, PresentationAutoSyncState } from '../
 import type { WorkflowRuntime } from '../runtime/workflow-runtime.ts'
 import type { ProjectContext } from '../state/types.ts'
 import { reportLinkFormats, reportLinks, type ReportPackageLinks } from '../client/report-links.ts'
+import type { ReportDeliveryState } from '../report/delivery-state.ts'
 
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
@@ -41,6 +42,8 @@ export interface PreplanningPresentationStatus {
 }
 
 export interface PreplanningStatusEventData {
+  readonly researchProgress?: { readonly scheme: 'research-v210'; readonly status: string; readonly total: number; readonly qualified: number; readonly chapters: readonly PreplanningChapterStatus[]; readonly stage?: string; readonly blockers?: readonly PreplanningBlockerStatus[] }
+  readonly reportDelivery?: ReportDeliveryState
   readonly projectId: string
   readonly projectName: string
   readonly revision: number
@@ -63,6 +66,8 @@ export interface PreplanningStatusEventData {
 }
 
 export interface PreplanningStatusDependencies {
+  readonly researchProgress?: (projectId: string) => PreplanningStatusEventData['researchProgress']
+  readonly reportDelivery?:(projectId:string)=>ReportDeliveryState|undefined
   readonly reportErrors?: ReadonlyMap<string, string>
   readonly reportFormats?: (record: ReportPackageRecord) => readonly ArtifactRecord['format'][] | undefined
   readonly governance: Pick<GovernanceRepository, 'readProject'>
@@ -175,29 +180,32 @@ export function buildPreplanningStatus(
   let manifestError: string | undefined
   if (latestPackage !== undefined) {
     const metadata = { deliveryMode: latestPackage.status === 'generated_conditional' ? 'conditional' as const : 'formal' as const,
-      sourceRevision: latestPackage.sourceRevision }
+      sourceRevision: latestPackage.sourceRevision,...(latestPackage.acceptanceState==='passed'&&latestPackage.acceptanceHash?{acceptanceState:'passed' as const}:{}) }
     reportPackage = { id: latestPackage.packageId, ...metadata }
     try {
       const formats = dependencies.reportFormats?.(latestPackage)
       if (formats === undefined || formats.length === 0) throw new Error('REPORT_MANIFEST_UNAVAILABLE')
       reportPackage = reportLinks(latestPackage.packageId, metadata, formats)
     } catch {
+      reportPackage={id:latestPackage.packageId,...metadata,...(latestPackage.acceptanceState?{acceptanceState:'unverified' as const}:{})}
       manifestError = '成果清单缺失或校验失败，暂不提供下载链接；请重新生成成果。'
     }
   }
+  const researchProgress = dependencies.researchProgress?.(context.project.projectId)
   return {
     ...base,
-    stage,
+    stage: researchProgress?.stage ?? stage,
     mode: governed.policy?.mode ?? 'manual',
     reportDepth: governed.policy?.reportDepth ?? 'standard',
-    chapters: workflow.chapters.map(chapter => ({
+    ...(researchProgress ? { researchProgress } : {}),
+    chapters: researchProgress?.chapters ?? workflow.chapters.map(chapter => ({
       id: chapter.chapterId,
       completed: chapter.completed,
       total: chapter.total,
       gateStatus: chapter.completed === chapter.total ? gateByChapter.get(chapter.chapterId)?.decision ?? 'pending' : 'pending',
     })),
-    blocked: workflow.blocked.length,
-    blockers: workflow.blocked.map(run => ({
+    blocked: researchProgress ? researchProgress.blockers?.length ?? 0 : workflow.blocked.length,
+    blockers: researchProgress ? researchProgress.blockers ?? [] : workflow.blocked.map(run => ({
       workflowId: run.workflowId,
       workItemId: run.workItemId,
       reason: run.blockedReason ?? '工作项受阻，原因未记录。',
@@ -211,6 +219,7 @@ export function buildPreplanningStatus(
     modelRoute: { primary: PRIMARY_MODEL_ROUTE, visual: VISUAL_MODEL_ROUTE },
     ...(presentation === undefined ? {} : { presentation }),
     ...(reportPackage === undefined ? {} : { reportPackage }),
+    ...(dependencies.reportDelivery?.(context.project.projectId)?.revision===context.project.currentRevision?{reportDelivery:manifestError?{...dependencies.reportDelivery(context.project.projectId)!,status:'failed' as const,message:manifestError}:dependencies.reportDelivery(context.project.projectId)}:{}),
     ...(dependencies.reportErrors?.has(context.project.projectId)
       ? { reportError: dependencies.reportErrors.get(context.project.projectId)! }
       : latestReportAttempt?.status === 'failed' ? { reportError: latestReportAttempt.warnings.join('；') || '报告生成失败。' }
@@ -236,9 +245,17 @@ export function formatPreplanningStatus(status: PreplanningStatusEventData): str
     : `\n前期策划 Presentation：${JSON.stringify(status.presentation)}。`
   const reportDetails = status.reportPackage === undefined ? ''
     : `\n前期策划成果信息：${JSON.stringify({ id: status.reportPackage.id, sourceRevision: status.reportPackage.sourceRevision,
-      deliveryMode: status.reportPackage.deliveryMode, formats: reportLinkFormats(status.reportPackage) })}。`
+      deliveryMode: status.reportPackage.deliveryMode, acceptanceState:status.reportPackage.acceptanceState, formats: reportLinkFormats(status.reportPackage) })}。`
   const reportError = status.reportError === undefined ? '' : `\n前期策划成果错误：${JSON.stringify(status.reportError)}。`
-  return `${base}\n${detail}${blockers}${presentation}${reportDetails}${reportError}`
+  const delivery=status.reportDelivery===undefined?'':`\n前期策划质量验收：${JSON.stringify(status.reportDelivery)}。`
+  const research = status.researchProgress ? `\n新版研究执行：${JSON.stringify(status.researchProgress)}。` : ''
+  return `${base}\n${detail}${blockers}${presentation}${reportDetails}${reportError}${delivery}${research}`
+}
+const DELIVERY_PATTERN=/(?:^|\n)前期策划质量验收：(\{[^\n]*\})。(?:$|\n)/u
+function normalizedDelivery(value:unknown,projectId:string,revision:number):ReportDeliveryState|undefined{
+  if(!value||typeof value!=='object')return undefined
+  const r=value as ReportDeliveryState
+  return r.projectId===projectId&&r.revision===revision&&typeof r.contractVersion==='string'&&['generating','pending','failed','passed'].includes(r.status)&&typeof r.message==='string'&&typeof r.updatedAt==='string'?r:undefined
 }
 
 const STATUS_PATTERN = /(?:^|\n)前期策划状态：项目 ("(?:\\.|[^"\\])*")（([^）\r\n]+)），revision (\d+)，阶段 ([^，\r\n]+)，(?:待确认|自动处理) (\d+) 项，开放问题 (\d+) 项(?:，(?:待确认|自动处理)提案 ("(?:\\.|[^"\\])*"))?。(?:$|\n)/u
@@ -369,8 +386,11 @@ export function parsePreplanningStatus(text: string): PreplanningStatusEventData
   if (![revision, pendingProposalCount, openQuestionCount].every(Number.isSafeInteger)) return undefined
   const blockers = blockersFromText(text)
   if (blockers === undefined) return undefined
+  let researchProgress: PreplanningStatusEventData['researchProgress']
+  try {const raw=/(?:^|\n)新版研究执行：(\{[^\n]*\})。/u.exec(text)?.[1];if(raw){researchProgress=normalizedResearchProgress(JSON.parse(raw));if(!researchProgress)return undefined}} catch{return undefined}
   const presentation = presentationFromText(text)
   const base = {
+    ...(researchProgress ? {researchProgress} : {}),
     projectId,
     projectName: JSON.parse(encodedName) as string,
     revision,
@@ -406,12 +426,13 @@ export function parsePreplanningStatus(text: string): PreplanningStatusEventData
         || (row.sourceRevision !== undefined && (!Number.isSafeInteger(row.sourceRevision) || row.sourceRevision < 0 || row.sourceRevision > revision))
         || (row.deliveryMode !== undefined && row.deliveryMode !== 'formal' && row.deliveryMode !== 'conditional')) return undefined
       packageLinks = reportLinks(packageId, {
-        ...(row.sourceRevision === undefined ? {} : { sourceRevision: row.sourceRevision }),
-        ...(row.deliveryMode === undefined ? {} : { deliveryMode: row.deliveryMode }),
+        acceptanceState:row.acceptanceState, sourceRevision:row.sourceRevision, deliveryMode:row.deliveryMode,
       }, row.formats === undefined ? [] : row.formats)
     }
   } catch { return undefined }
   const reportError = REPORT_ERROR_PATTERN.exec(text)?.[1]
+  let delivery:ReportDeliveryState|undefined
+  try{const encoded=DELIVERY_PATTERN.exec(text)?.[1];if(encoded){delivery=normalizedDelivery(JSON.parse(encoded),projectId,revision);if(!delivery)return undefined}}catch{return undefined}
   return {
     ...base,
     mode: detail[1] as PreplanningStatusEventData['mode'],
@@ -422,6 +443,7 @@ export function parsePreplanningStatus(text: string): PreplanningStatusEventData
     modelRoute: { primary: JSON.parse(detail[9]!) as string, visual: JSON.parse(detail[10]!) as string },
     boundary,
     ...(packageLinks === undefined ? {} : { reportPackage: packageLinks }),
+    ...(delivery?{reportDelivery:delivery}:{}),
     ...(reportError === undefined ? {} : { reportError: JSON.parse(reportError) as string }),
   }
 }
@@ -429,6 +451,8 @@ export function parsePreplanningStatus(text: string): PreplanningStatusEventData
 export function normalizePreplanningStatus(value: unknown): PreplanningStatusEventData | undefined {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return undefined
   const record = value as Record<string, unknown>
+  if(record.researchProgress!==undefined&&!normalizedResearchProgress(record.researchProgress))return undefined
+  if(record.reportDelivery!==undefined&&!normalizedDelivery(record.reportDelivery,String(record.projectId),Number(record.revision)))return undefined
   if (record.reportError !== undefined && typeof record.reportError !== 'string') return undefined
   if (typeof record.projectId !== 'string' || typeof record.projectName !== 'string'
     || typeof record.revision !== 'number' || !Number.isSafeInteger(record.revision) || record.revision < 0
@@ -448,8 +472,7 @@ export function normalizePreplanningStatus(value: unknown): PreplanningStatusEve
       || (report.deliveryMode !== undefined && report.deliveryMode !== 'formal' && report.deliveryMode !== 'conditional')
       || (report.sourceRevision !== undefined && (!Number.isSafeInteger(report.sourceRevision) || report.sourceRevision < 0 || report.sourceRevision > record.revision))) return undefined
     try { normalizedReport = reportLinks(report.id, {
-      ...(report.deliveryMode === undefined ? {} : { deliveryMode: report.deliveryMode }),
-      ...(report.sourceRevision === undefined ? {} : { sourceRevision: report.sourceRevision }),
+      acceptanceState:report.acceptanceState, deliveryMode:report.deliveryMode, sourceRevision:report.sourceRevision,
     }, reportLinkFormats(report as ReportPackageLinks)) } catch { return undefined }
   }
   const base = record as unknown as Omit<PreplanningStatusEventData, 'mode' | 'reportDepth' | 'chapters' | 'blocked' | 'blockers' | 'visual' | 'modelRoute' | 'boundary' | 'presentation'>
@@ -469,4 +492,16 @@ export function normalizePreplanningStatus(value: unknown): PreplanningStatusEve
     boundary: normalizedBoundary(record.boundary, record.revision),
     ...(presentation === undefined ? {} : { presentation }),
   }
+}
+
+function normalizedResearchProgress(value: unknown): PreplanningStatusEventData['researchProgress'] {
+  if(!value||typeof value!=='object'||Array.isArray(value))return undefined
+  const row=value as PreplanningStatusEventData['researchProgress']
+  if(row!.scheme!=='research-v210'||typeof row!.status!=='string'||!Number.isSafeInteger(row!.total)||!Number.isSafeInteger(row!.qualified)
+    ||row!.qualified<0||row!.qualified>row!.total||!Array.isArray(row!.chapters)||row!.chapters.length!==8
+    ||row!.stage!==undefined&&typeof row!.stage!=='string'||normalizedBlockers(row!.blockers)===undefined)return undefined
+  if(row!.chapters.some(c=>!c||!/^0[1-8]$/u.test(c.id)||!Number.isSafeInteger(c.completed)||!Number.isSafeInteger(c.total)||c.completed<0||c.completed>c.total||typeof c.gateStatus!=='string')
+    ||new Set(row!.chapters.map(c=>c.id)).size!==8
+    ||row!.chapters.reduce((sum,c)=>sum+c.total,0)!==row!.total||row!.chapters.reduce((sum,c)=>sum+c.completed,0)!==row!.qualified)return undefined
+  return row
 }

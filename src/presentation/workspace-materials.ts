@@ -1,5 +1,6 @@
 import {
   preparePresentationMaterials,
+  presentationMaterialReferenceWarnings,
   type PreparedPresentationMaterials,
   type PreparePresentationMaterialsInput,
 } from './material-registry.ts'
@@ -19,7 +20,7 @@ export interface PreparedWorkspacePresentationMaterials extends PreparedPresenta
 export async function prepareWorkspacePresentationMaterials(
   input: PreparePresentationMaterialsInput & { readonly diagrams?: boolean },
 ): Promise<PreparedWorkspacePresentationMaterials> {
-  const prepared = await preparePresentationMaterials(input)
+  const prepared = await preparePresentationMaterials({ ...input, deferReferenceValidation: input.workspaceRoot !== undefined })
   if (input.workspaceRoot === undefined) {
     return Object.freeze({ ...prepared, sourceInboxFileCount: 0 })
   }
@@ -33,12 +34,14 @@ export async function prepareWorkspacePresentationMaterials(
   const materialWarnings = [...prepared.materialWarnings, ...inbox.warnings]
   const visuals = await prepareClientVisuals({ frozenProject: input.frozenProject, workspaceRoot: input.workspaceRoot,
     sources: sourceMaterials, assets: prepared.assets, diagrams: input.diagrams })
+  const referenceWarnings = await presentationMaterialReferenceWarnings({ frozenProject: input.frozenProject,
+    workspaceRoot: input.workspaceRoot, sourceMaterials, assets: visuals.assets })
 
   return Object.freeze({
     ...prepared,
     assets: Object.freeze(visuals.assets),
     sourceMaterials: Object.freeze(sourceMaterials),
-    materialWarnings: Object.freeze([...materialWarnings, ...visuals.warnings]),
+    materialWarnings: Object.freeze([...materialWarnings, ...visuals.warnings, ...referenceWarnings]),
     sourceInboxFileCount: inbox.sourceMaterials.length,
     sourceInboxRoot: inbox.inboxRoot,
   })

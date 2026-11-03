@@ -21,6 +21,8 @@ import { ImageIdentityIndex } from '../visual/image-identity.ts'
 import { verifyLocalizedLegendMaterial } from '../visual/image-legend-localization.ts'
 import { normalizeReportRaster } from '../visual/report-raster.ts'
 import { projectImageSourceContext } from './project-image-provenance.ts'
+import { sha256CanonicalJson } from './canonical-json.ts'
+import { ReportPageRejected } from '../report/page-rejection.ts'
 import { validateCachedWebImage, type CasePublicationSource } from '../visual/web-image-source.ts'
 import { ImageInspectionAgent, ImageInspectionFailure, readImageInspection, saveImageInspection, imageSourceContextHash, type ImageInspectionSourceContext } from '../visual/image-inspection.ts'
 import { imageBriefHash, imagePlacementHash, permitsInternationalImages, MAX_ORIGINAL_IMAGE_USES, REPORT_IMAGE_POLICY_VERSION, type ImageInspection, type ImageSlotBrief } from '../visual/image-policy.ts'
@@ -43,6 +45,11 @@ function reportBaseImageDemands(input: FrozenProjectInput): ReportImageDemand[] 
     if (!page) continue
     const sourcePage = input.manuscript?.chapters.flatMap(chapter => chapter.pages).find(original => original.id === page.id) ?? page
     const task = inferPlanningPageTask(page)
+    if(page.terrainPlan){
+      demands.push({findingId:finding.findingId,analysis:{kind:'site-analysis',title:page.title,scale:'site',requiredEvidence:['terrain','proposed-zones','proposed-routes']},
+        brief:{id:`${page.id}:main`,pageId:page.id,version:REPORT_IMAGE_POLICY_VERSION,conclusion:page.claim,subjects:page.terrainPlan.zones.map(z=>z.name),activities:['地形依据上的拟定分区、节点、游览与后勤廊道'],environment:page.title,scale:'area',allowedKinds:['map','plan'],allowedSources:['project'],locale}})
+      continue
+    }
     if (isGeographicTask(task)) {
       demands.push({ findingId: finding.findingId, analysis: { kind: task.kind as PlanningAnalysisKind, title: page.title, scale: task.scale, requiredEvidence: task.requiredEvidence },
         brief: { id: `${page.id}:main`, pageId: page.id, version: REPORT_IMAGE_POLICY_VERSION, conclusion: page.claim,
@@ -111,15 +118,24 @@ export function reportImageInspectionSource(asset: PresentationAdoptedAssetInput
   let method: Record<string, any> = {}
   try { method = JSON.parse(asset.origin.method) } catch { /* old provenance is not location proof */ }
   const location = asset.imageQuality?.sourceLocation
-  const verified = !!location && ((method.kind === 'case-reference' && Array.isArray(method.locationEvidence) && method.locationEvidence.length > 0)
+  const terrain = project.terrain
+  const terrainPlan = project.manuscript?.chapters.flatMap(c=>c.pages).find(p=>p.id===method.pageId)?.terrainPlan
+  const terrainVerified = method.kind === 'terrain-study' && !!terrain && !!terrainPlan
+    && method.projectId === project.projectId && method.terrainId === terrain.id && method.terrainFingerprint === terrain.fingerprint
+    && method.georeferenceHash === terrain.files.find(f=>f.path===terrain.georeferencePath)?.sha256 && !!method.georeferenceHash
+    && method.planHash === sha256CanonicalJson(terrainPlan) && method.sourceSha256 === (asset.imagePreparation?.sourceSha256 ?? asset.sha256) && !!method.sourceSha256
+    && location === project.projectName && asset.imageQuality?.contentKind === 'map'
+  const verified = !!location && (method.kind === 'terrain-study' ? terrainVerified :
+    (method.kind === 'case-reference' && Array.isArray(method.locationEvidence) && method.locationEvidence.length > 0)
     || (method.sourceClaims?.sourceLocation?.status === 'supported' && method.sourceClaims.sourceLocation.value === location))
   const projectSource = projectImageSourceContext(asset, project)
   return { sourceType: sourceKind(asset), sourceLocation: projectSource?.sourceLocation ?? location,
     sourceLocationVerified: projectSource?.sourceLocationVerified ?? verified,
-    ...(verified && ['verified-geographic-analysis', 'case-reference'].includes(method.kind)
+    ...(verified && ['verified-geographic-analysis', 'case-reference', 'terrain-study'].includes(method.kind)
       && ['map', 'plan'].includes(asset.imageQuality?.contentKind ?? '')
       ? { textPolicy: 'cartographic-language-v1' as const } : {}),
-    sourceEvidenceHash: sha(asset.imagePreparation ? JSON.stringify([asset.origin.method, asset.imagePreparation]) : asset.origin.method) }
+    sourceEvidenceHash: sha(asset.analysisEvidence?.length ? JSON.stringify([asset.origin.method,asset.imagePreparation??null,asset.analysisEvidence])
+      : asset.imagePreparation ? JSON.stringify([asset.origin.method, asset.imagePreparation]) : asset.origin.method) }
 }
 const inspectionSource = reportImageInspectionSource
 function explicitlyBound(asset: PresentationAdoptedAssetInput, demand: ReportImageDemand): boolean {
@@ -160,7 +176,7 @@ async function atomicJson(path: string, value: unknown) { const temp = `${path}.
 
 /** Recover first, then replenish missing positions and validate actual physical pages. */
 export class ReportImagePipeline {
-  private readonly running = new Map<string, Promise<readonly ConditionalReportMaterial[]>>()
+  private readonly running = new Map<string, {promise:Promise<readonly ConditionalReportMaterial[]>;maxGenerations:number}>()
   constructor(private readonly dependencies: PipelineDependencies) {}
   async load(input: FrozenProjectInput, root: string, signal: AbortSignal = AbortSignal.timeout(30_000)): Promise<readonly ConditionalReportMaterial[] | undefined> {
     try {
@@ -187,9 +203,11 @@ export class ReportImagePipeline {
   }
   prepare(input: FrozenProjectInput, root: string, parent: Agent, signal: AbortSignal, assertCurrent: () => void, options: { readonly maxGenerations?: number } = {}): Promise<readonly ConditionalReportMaterial[]> {
     const key = `${root}\0${fingerprint(input)}`
-    const existing = this.running.get(key); if (existing) return existing
-    const operation = this.prepareOnce(input, root, parent, signal, assertCurrent, options.maxGenerations ?? Infinity).finally(() => this.running.delete(key))
-    this.running.set(key, operation); return operation
+    const maxGenerations=options.maxGenerations??Infinity
+    const existing = this.running.get(key)
+    if(existing)return existing.maxGenerations===maxGenerations?existing.promise:Promise.reject(new Error('REPORT_IMAGE_GENERATION_OPTIONS_CONFLICT: 已有不同生图限制的图文准备正在运行。'))
+    const operation = this.prepareOnce(input, root, parent, signal, assertCurrent, maxGenerations).finally(() => this.running.delete(key))
+    this.running.set(key, {promise:operation,maxGenerations}); return operation
   }
   private async prepareOnce(input: FrozenProjectInput, root: string, parent: Agent, signal: AbortSignal, assertCurrent: () => void, maxGenerations: number): Promise<readonly ConditionalReportMaterial[]> {
     assertCurrent(); signal.throwIfAborted()
@@ -272,6 +290,8 @@ export class ReportImagePipeline {
         await ingest(await this.dependencies.analysis(demand, input, root, signal))
       } catch (error) { await recordError('analysis', [demand.brief.id], error) }
     }
+    const terrainFailures=errors.filter(error=>error.stage==='analysis'&&/^TERRAIN_(?:ROUTE_BLOCKED|PLAN_TOO_DENSE):/u.test(error.message))
+    if(terrainFailures.length)throw new ReportPageRejected(terrainFailures.flatMap(error=>error.usageIds.map(id=>({code:'TERRAIN_PLAN_REJECTED',pageId:demands.find(d=>d.brief.id===id)!.brief.pageId,message:error.message}))),'REPORT_IMAGE_GAPS')
     const unavailable = resolvedDemands.filter(demand => demand.unavailableReason)
       .map(demand => ({ id: demand.brief.id, reason: demand.unavailableReason! }))
     const gaps: { id: string; reason: string }[] = [...unavailable]

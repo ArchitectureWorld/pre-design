@@ -63,6 +63,28 @@ describe('automatic candidate schema revision', () => {
     expect(h.transition).toHaveBeenLastCalledWith('project', h.descriptor.workflowId, expect.objectContaining({ to: 'blocked', reason: expect.stringContaining('reasoning'), quality: expect.objectContaining({ disposition: 'quality_unresolved' }) }))
   })
 
+  it('returns mixed business authority to the author before writing and rechecks its corrected classification', async () => {
+    const h = await harness()
+    const original = h.analyze.getMockImplementation()!
+    h.analyze.mockImplementation(async (...args) => {
+      const candidate = await original(...args)
+      delete (candidate.payload as any).reasoning
+      const data = (candidate.payload as any).data
+      data.excluded_decisions = [{ id: 'scope-gap', name: '综合判断',
+        ...(h.analyze.mock.calls.length > 1 ? { claim_class: 'agent_inference' } : {}),
+        evidence_refs: ['source_conclusion', 'user_statement'].map(claim_class => ({
+          evidence_id: claim_class, asset_id: `original-${claim_class}`, version_id: 'v1', claim_class, locator: {},
+        })) }]
+      return candidate
+    })
+    expect(await h.executor.runReadyBatch({ id: 'parent' }, 'project')).toMatchObject({ completed: 1, blocked: 0, revised: 1 })
+    expect(h.analyze).toHaveBeenCalledTimes(2)
+    expect(h.analyze.mock.calls[1]![6]).toMatchObject({ errors: [expect.stringContaining('PUBLISHED_CLAIM_CLASS_AMBIGUOUS /data/excluded_decisions/0')] })
+    expect(h.submitProposal).toHaveBeenCalledOnce()
+    expect(h.transition).toHaveBeenLastCalledWith('project', h.descriptor.workflowId,
+      expect.objectContaining({ to: 'confirmed', quality: expect.objectContaining({ attempt: 2 }) }))
+  })
+
   it('preserves external blockers instead of treating them as schema corrections', async () => {
     const h = await harness(false, true)
     expect(await h.executor.runReadyBatch({ id: 'parent' }, 'project')).toMatchObject({ completed: 0, blocked: 1, revised: 0 })
@@ -99,10 +121,17 @@ describe('automatic candidate schema revision', () => {
     const h = await harness()
     const start = vi.fn(async (_provider: string, _request: any) => ({
       id: 'child', dispose: async () => undefined,
-      result: Promise.resolve({ stopReason: 'completed', structured: await h.analyze() }),
+      result: Promise.resolve({ stopReason: 'completed', structured: {
+        projectionVersion: 'legacy-workflow-author-v1', data: { decision_question: '用于独立候选的业务判断，不从示例复制来源' },
+        qualityEvidence: (await h.analyze()).qualityEvidence,
+      } }),
     }))
     const analyzer = new DshSubagentWorkflowAnalyzer({
       revisionRequest: () => ({ requestId: 'audit-source', reason: 'Dam distance lacks cited support; preserve unknown.', rootObjectIds: ['BL01'], createdAt: '2026-09-17T00:00:00Z', actor: { actorId: 'u', name: 'u', role: 'decision_owner' } }),
+      revisionHistory: () => [
+        { requestId: 'earlier-target-repair', reason: 'Keep the original 2020 baseline year; do not manufacture CAPEX or a payback period.', rootObjectIds: ['PS02'], createdAt: '2026-09-16T00:00:00Z', actor: { actorId: 'u', name: 'u', role: 'decision_owner' } },
+        { requestId: 'audit-source', reason: 'STALE_DUPLICATE_MUST_NOT_OVERRIDE_CURRENT', rootObjectIds: ['PS02'], createdAt: '2026-09-17T00:00:00Z', actor: { actorId: 'u', name: 'u', role: 'decision_owner' } },
+      ],
       registry: h.registry, subagents: { getProvider: () => ({}), start },
       repository: { readContext: () => ({ project: { projectId: 'project', name: 'schema repair', currentRevision: 1 }, stateObjects: [{ objectId: 'PS01', revision: 1, value: {} }] }) },
     } as never)
@@ -114,5 +143,9 @@ describe('automatic candidate schema revision', () => {
     expect(prompt).toContain('must NOT have additional properties')
     expect(prompt).toContain('audit-source')
     expect(prompt).toContain('Dam distance lacks cited support; preserve unknown.')
+    expect(prompt).toContain('Keep the original 2020 baseline year; do not manufacture CAPEX or a payback period.')
+    expect(prompt.indexOf('earlier-target-repair')).toBeLessThan(prompt.indexOf('audit-source'))
+    expect(prompt.match(/audit-source/g)).toHaveLength(1)
+    expect(prompt).not.toContain('STALE_DUPLICATE_MUST_NOT_OVERRIDE_CURRENT')
   })
 })

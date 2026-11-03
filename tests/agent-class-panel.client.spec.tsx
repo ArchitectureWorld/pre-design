@@ -4,6 +4,23 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { AgentClassPanel } from '../src/client/AgentClassPanel.tsx'
 import type { AgentClassView } from '../src/agent-classes/types.ts'
 afterEach(cleanup)
+it('edits independent reasoning depths for the main, backup and image companion models', async () => {
+  const data = snapshot()
+  const reasoning = { efforts: [{ id: 'high', name: 'High' }, { id: 'custom-max', name: 'Maximum' }], defaultEffort: 'high' }
+  const catalog = [{ ...data.catalog[0]!, models: data.catalog[0]!.models.map(m => ({ ...m, reasoning })) },
+    { provider: 'Comfyui-PIC', name: 'ComfyUI', available: true, models: [{ id: 'Klein', name: 'Klein', imageTool: 'comfyui_pic' }] }]
+  const settings = { ...data.settings, routes: { ...data.settings.routes, image: { provider: 'Comfyui-PIC', model: 'Klein', llm: a } }, fallbacks: { text: [b] } }
+  const request = vi.fn(async (payload: any) => ({ ...data, catalog, settings: payload.action === 'save' ? { revision: 1, routes: payload.routes, fallbacks: payload.fallbacks } : settings }))
+  const view = render(<AgentClassPanel request={request} />)
+  await view.findByLabelText('文本生成思考深度')
+  fireEvent.change(view.getByLabelText('文本生成思考深度'), { target: { value: 'high' } })
+  fireEvent.change(view.getByLabelText('文本生成备用模型1思考深度'), { target: { value: 'custom-max' } })
+  fireEvent.change(view.getByLabelText('生成图像配套 LLM 思考深度'), { target: { value: 'custom-max' } })
+  fireEvent.click(view.getByRole('button', { name: '保存配置' }))
+  await waitFor(() => expect(request.mock.calls.at(-1)?.[0]).toMatchObject({ routes: { text: { ...a, reasoningEffort: 'high' }, image: { llm: { ...a, reasoningEffort: 'custom-max' } } }, fallbacks: { text: [{ ...b, reasoningEffort: 'custom-max' }] } }))
+  fireEvent.change(view.getByLabelText('文本生成模型'), { target: { value: JSON.stringify(['p', 'b']) } })
+  expect((view.getByLabelText('文本生成思考深度') as HTMLSelectElement).value).toBe('custom-max')
+})
 it.each(['primary', 'backup'])('requires a separate DSH LLM selection for a ComfyUI %s route', async placement => {
   const data = snapshot()
   const catalog = [...data.catalog, { provider: 'Comfyui-PIC', name: 'ComfyUI', available: true,

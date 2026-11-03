@@ -24,6 +24,30 @@ function commandDependencies(overrides: Record<string, unknown> = {}) {
 }
 
 describe('preplanning commands', () => {
+  it('routes each native chapter production phase without starting full-report generation', async () => {
+    const definitions:CommandDefinition[]=[],calls:string[]=[]
+    const ctx={commands:{register:(d:CommandDefinition)=>definitions.push(d)}} as unknown as Context
+    registerPreplanningCommands(ctx,commandDependencies({repository:{readContext:()=>({project:{projectId:'p',currentRevision:4}})},
+      prepareManuscript:async()=>{throw new Error('whole report must not run')},
+      prepareChapter:async(_p:string,_r:number,_a:unknown,_s:unknown,id:string,stage:string)=>{calls.push(`${id}:${stage}`);return stage},
+    }) as never)
+    for(const phase of ['plan','research','write','layout','export','review']){
+      const r=await definitions.find(d=>d.name==='preplan-manuscript')!.handler({agent:{id:'s'},rawInput:`--chapter site --production ${phase}`} as never)
+      expect(r.kind).toBe('success')
+    }
+    expect(calls).toEqual(['site:production-plan','site:production-research','site:production-write','site:production-layout','site:production-export','site:production-review'])
+  })
+  it('routes chapter writing to the scoped native service without starting whole-report generation', async () => {
+    const definitions: CommandDefinition[] = [], calls: string[] = []
+    const ctx = { commands: { register: (d: CommandDefinition) => definitions.push(d) } } as unknown as Context
+    registerPreplanningCommands(ctx, commandDependencies({ repository: { readContext: () => ({ project: { projectId: 'p', currentRevision: 4 } }) },
+      prepareManuscript: async () => { throw new Error('whole report must not run') },
+      prepareChapter: async (_p: string, _r: number, _a: unknown, _s: unknown, id: string, stage: string) => { calls.push(`${id}:${stage}`); return '章节草稿已保存，尚未导出。' },
+    }) as never)
+    const result = await definitions.find(d => d.name === 'preplan-manuscript')!.handler({ agent: { id: 's' }, rawInput: '--chapter opportunity' } as never)
+    expect(result).toEqual({ kind: 'success', text: '章节草稿已保存，尚未导出。' })
+    expect(calls).toEqual(['opportunity:write'])
+  })
   it('allows export to recover existing images without new generation while retaining the visual gate', async () => {
     const definitions: CommandDefinition[] = [], prepareVisuals = vi.fn(async () => { throw new Error('REPORT_IMAGE_GAPS') }), publish = vi.fn()
     const ctx = { commands: { register: (d: CommandDefinition) => definitions.push(d) } } as unknown as Context
@@ -175,6 +199,9 @@ describe('preplanning commands', () => {
     registerPreplanningCommands(ctx, commandDependencies() as never)
 
     expect(definitions.map(definition => definition.name)).toEqual([
+      'preplan-research-plan',
+      'preplan-research-peers',
+      'preplan-research-od',
       'preplan-new', 'preplan-open', 'preplan-list', 'preplan-status', 'preplan-confirm',
       'preplan-mode', 'preplan-run', 'preplan-pause', 'preplan-gate', 'preplan-revise',
       'preplan-visual-fill', 'preplan-visual-budget', 'preplan-visual-reject', 'preplan-visual', 'preplan-visual-adopt', 'preplan-visual-replace',
@@ -248,7 +275,7 @@ describe('preplanning commands', () => {
 
   it('preplan-mode automatic 由当前 decision_owner 签署完整授权', async () => {
     const definitions: CommandDefinition[] = []
-    const authorize = vi.fn(async () => ({ authorizationId: 'authorization-1' }))
+    const authorize = vi.fn(async (_projectId: string, scope: { maxModelTurns: number | null }) => ({ authorizationId: 'authorization-1', scope }))
     const workflows = Array.from({ length: 57 }, (_, index) => ({ workflowId: `wf-${index + 1}` }))
     const gates = Array.from({ length: 8 }, (_, index) => ({ gateId: `G${index + 1}` }))
     const ctx = {
@@ -282,11 +309,12 @@ describe('preplanning commands', () => {
       reportDepth: 'extended',
     }, { actorId: 'dsh-user:session-1', name: 'DSH 用户', role: 'decision_owner' })
     expect(result).toMatchObject({ kind: 'success', text: expect.stringContaining('全自动模式') })
+    expect(result?.text).toContain('模型轮次不限')
   })
 
   it('preplan-mode 持久化用户选择的生图预算与报告深度', async () => {
     const definitions: CommandDefinition[] = []
-    const authorize = vi.fn(async () => ({ authorizationId: 'authorization-1' }))
+    const authorize = vi.fn(async (_projectId: string, scope: { maxModelTurns: number | null }) => ({ authorizationId: 'authorization-1', scope }))
     const putVisualPolicy = vi.fn(async record => record)
     const workflows = Array.from({ length: 57 }, (_, index) => ({ workflowId: `wf-${index + 1}` }))
     const gates = Array.from({ length: 8 }, (_, index) => ({ gateId: `G${index + 1}` }))

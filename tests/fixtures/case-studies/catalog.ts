@@ -1,4 +1,4 @@
-import type { VerifiedCaseStudy } from './types.ts'
+import type { VerifiedCaseStudy } from '../../../src/report/case-studies/types.ts'
 
 /** Public source responses and source-image hashes captured on 2026-09-18/19.
  * This is a bounded built-project catalog, not a pretend live web-search provider.

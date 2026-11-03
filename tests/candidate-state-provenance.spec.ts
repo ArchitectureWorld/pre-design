@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { AutomationWorkflowCommitter } from '../src/runtime/automation-workflow-committer.ts'
+import { projectStateClaimClass } from '../src/research/project-state-provenance.ts'
 
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex')
 const descriptor = { workflowId: 'preplan.wf.06.06', targetObjectId: 'PG06', requiredUpstream: ['PG03'], chapterId: '06', workItemId: '06-06' } as never
@@ -25,6 +26,70 @@ function harness(ref: unknown, options: { state?: typeof source; workflowRuns?: 
 }
 
 describe('candidate project-state provenance at the central commit boundary', () => {
+  it('rejects an unclassified mixed-source business judgment before committing an unreadable upstream', async () => {
+    const h = harness(reference())
+    const data = (h.candidate as any).payload.data
+    data.gaps = [{ description: '地形精度与用户研究边界共同形成的缺口判断', evidence_refs: [
+      { asset_id: 'original-terrain-guide', claim_class: 'source_conclusion' },
+      { asset_id: 'user-scope', claim_class: 'user_statement' },
+    ] }]
+    const before = structuredClone(h.candidate)
+    const result = h.validate()
+    expect(result.valid).toBe(false)
+    expect(result.errors.join(' ')).toContain('PUBLISHED_CLAIM_CLASS_AMBIGUOUS /data/gaps/0')
+    await expect(h.committer.commit(parent, 'project-1', descriptor, h.candidate, {
+      workflowId: 'preplan.wf.06.06', targetObjectId: 'PG06', disposition: 'auto_pass', assumptions: [],
+    } as never)).rejects.toThrow('PUBLISHED_CLAIM_CLASS_AMBIGUOUS')
+    expect(h.submitProposal).not.toHaveBeenCalled()
+    expect(h.candidate).toEqual(before)
+    data.gaps[0].claim_class = 'agent_inference'
+    expect(h.validate()).toEqual({ valid: true, errors: [] })
+    expect(data.gaps[0].evidence_refs.map((r: any) => r.claim_class)).toEqual(['source_conclusion', 'user_statement'])
+  })
+
+  it('permits separate complete assertions and top-level source registers with different authorities', () => {
+    const h = harness(reference())
+    const data = (h.candidate as any).payload.data
+    const historical = { asset_id: 'original-terrain-guide', claim_class: 'source_conclusion' }
+    const stated = { asset_id: 'user-scope', claim_class: 'user_statement' }
+    data.evidence_refs = [historical, stated]
+    data.gaps = [{ description: '资料声明精度限制', evidence_refs: [historical] },
+      { description: '用户限定本次范围', evidence_refs: [stated] }]
+    expect(h.validate()).toEqual({ valid: true, errors: [] })
+  })
+
+  it.each(['OBJECT@PG03@70', 'current', '', 'PG03@0070'])('rejects malformed state version %s when asset_id names a known upstream object', async (version_id) => {
+    const h = harness(reference({ asset_id: 'PG03', version_id }))
+    expect(h.validate().valid).toBe(false)
+    expect(h.validate().errors.join(' ')).toContain('identity')
+    await expect(h.committer.commit(parent, 'project-1', descriptor, h.candidate, {
+      workflowId: 'preplan.wf.06.06', targetObjectId: 'PG06', disposition: 'auto_pass', assumptions: [],
+    } as never)).rejects.toThrow('PROVENANCE')
+    expect(h.submitProposal).not.toHaveBeenCalled()
+  })
+  it('accepts a known object asset with its normal exact revision', () => {
+    expect(harness(reference({ asset_id: 'PG03', version_id: 'PG03@70' })).validate()).toEqual({ valid: true, errors: [] })
+  })
+  it.each(['local-original', 'PS99'])('does not reinterpret unregistered original asset %s from malformed version text alone', (asset_id) => {
+    expect(harness(reference({ asset_id, version_id: 'OBJECT@PG03@70', locator: { section: 'Chapter 3' } })).validate().valid).toBe(true)
+  })
+  it.each(['state://project-1/PG03?revision=70', 'project-state://project-1/PG03/70'])('recognizes the state identity in asset URI %s even when version_id is malformed', (asset_id) => {
+    expect(harness(reference({ asset_id, version_id: 'OBJECT@PG03@70' })).validate().valid).toBe(false)
+    expect(harness(reference({ asset_id, version_id: 'PG03@70' })).validate().valid).toBe(true)
+    expect(harness(reference({ asset_id, version_id: hash(source.value) })).validate().valid).toBe(true)
+  })
+  it.each([
+    ['state://other-project/PG03?revision=70', 'project'],
+    ['project-state://project-1/PG03/69', 'revision'],
+    ['state://project-1/PG03', 'revision'],
+  ])('rejects conflicting or incomplete state asset URI %s', (asset_id, error) => {
+    expect(harness(reference({ asset_id })).validate().errors.join(' ')).toContain(error)
+  })
+  it('does not let a valid section URI mask a conflicting state asset URI', () => {
+    const ref = reference({ asset_id: 'state://other-project/PG03?revision=70',
+      locator: { section: 'state://project-1/PG03?revision=70 | JSON Pointer /data/rows/0' } })
+    expect(harness(ref).validate().errors.join(' ')).toContain('project')
+  })
   it('accepts an existing pointer and exact fragment hash, without claiming semantic support', () => {
     expect(harness(reference({ quote_hash: hash(source.value.data.rows[0]) })).validate()).toEqual({ valid: true, errors: [] })
   })
@@ -53,6 +118,42 @@ describe('candidate project-state provenance at the central commit boundary', ()
     expect(harness(reference({ locator })).validate().errors.join(' ')).toContain('agent_inference')
     expect(harness(reference({ locator, claim_class: 'agent_inference' })).validate().valid).toBe(true)
   })
+  it.each(['user_statement', 'decision'])('preserves the selected source authority class %s at central validation', (claim_class) => {
+    const state = structuredClone(source)
+    state.value.data.design.evidence_refs[0]!.claim_class = claim_class
+    const locator = { section: '/data/design/amount' }
+    expect(harness(reference({ locator, claim_class }), { state }).validate().valid).toBe(true)
+    for (const upgrade of ['source_conclusion', 'fact']) {
+      expect(harness(reference({ locator, claim_class: upgrade }), { state }).validate().errors.join(' ')).toContain(claim_class)
+    }
+  })
+  it('does not let mixed root/data evidence registers classify an otherwise unqualified historical field', () => {
+    const evidence_refs = [{ claim_class: 'source_conclusion' }, { claim_class: 'user_statement' }, { claim_class: 'decision' }]
+    const value = { evidence_refs, data: { evidence_refs,
+      time_constraints: [{ name: '历史方案周期', deadline: '2025-12-31', source: '原始方案第6页' }] } }
+    expect(projectStateClaimClass(value, '/data/time_constraints/0')).toBe('source_conclusion')
+    expect(projectStateClaimClass(value, '/data/time_constraints/0/deadline')).toBe('source_conclusion')
+  })
+  it.each(['user_statement', 'decision'])('keeps a homogeneous directly owning business envelope class %s', (claim_class) => {
+    const value = { data: { evidence_refs: [{ claim_class: 'source_conclusion' }, { claim_class: 'decision' }],
+      scope: { value: '只代表原有性质', evidence_refs: [{ claim_class }, { claim_class }] } } }
+    expect(projectStateClaimClass(value, '/data/scope/value')).toBe(claim_class)
+  })
+  it.each(['user_statement', 'decision'])('keeps direct ancestor class %s regardless of shared source registers', (claim_class) => {
+    const value = { claim_class, data: { evidence_refs: [{ claim_class: 'source_conclusion' }], scope: { nested: { value: '原有性质' } } } }
+    expect(projectStateClaimClass(value, '/data/scope/nested/value')).toBe(claim_class)
+  })
+  it.each(['missing', 'assumption', 'agent_inference'])('retains conservative %s inherited from a shared ancestor register', (claim_class) => {
+    const value = { data: { evidence_refs: [{ claim_class: 'source_conclusion' }, { claim_class }], scope: { value: '不确定' } } }
+    expect(projectStateClaimClass(value, '/data/scope/value')).toBe(claim_class)
+  })
+  it.each([['user_statement', 'decision'], ['user_statement', 'source_conclusion'], ['decision', 'fact']])
+    ('requires a precise pointer for a selected field mixing %s and %s', (first, second) => {
+      const value = { data: { scope: { value: '混合性质', evidence_refs: [{ claim_class: first }, { claim_class: second }] } } }
+      expect(() => projectStateClaimClass(value, '/data/scope')).toThrow(/AMBIGUOUS.*precise.*Pointer/u)
+      expect(() => projectStateClaimClass(value, '/data/scope/value')).toThrow(/AMBIGUOUS.*precise.*Pointer/u)
+      expect(projectStateClaimClass(value, '/data/scope/evidence_refs/0')).toBe(first === 'fact' ? 'source_conclusion' : first)
+    })
   const mixedEvidenceSource = { ...source, value: { data: { ...source.value.data,
     evidence_refs: [{ claim_class: 'fact' }, { claim_class: 'missing' }, { claim_class: 'agent_inference' }],
   } } }

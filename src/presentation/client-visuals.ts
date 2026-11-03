@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { verifiedRasterImageDimensions } from '../governance/site-boundary-asset-store.ts'
+import { verifiedSourceImageDimensions } from '../materials/source-image-validation.ts'
 import type { FrozenProjectInput } from '../report/types.ts'
 import { compileClientReportOutline, CLIENT_COMPOSITION_VERSION, summaryStatement } from './projector/client-outline.ts'
 import type { PresentationAdoptedAssetInput, PresentationSourceMaterialInput } from './standard-project-types.ts'
@@ -62,7 +62,7 @@ export async function prepareClientVisuals(input: {
       if (!source || ['missing', 'quarantined'].includes(source.status ?? '') || !['image/jpeg', 'image/png', 'image/webp'].includes(source.mimeType)) { unavailable(); continue }
       try {
         const bytes = await readFile(source.sourcePath)
-        const dimensions = verifiedRasterImageDimensions(source.mimeType as 'image/jpeg' | 'image/png' | 'image/webp', bytes)
+        const dimensions = await verifiedSourceImageDimensions(source.mimeType as 'image/jpeg' | 'image/png' | 'image/webp', bytes)
         const provenance = createProjectImageProvenance(input.frozenProject, page, source, createHash('sha256').update(bytes).digest('hex'))
         assets.push({ sourceKey: `client-source:${source.sourceKey}:${page.id}`, sourcePath: source.sourcePath, originalFileName: source.originalFileName,
           aliases: [source.sourceKey, `client-source:${source.sourceKey}`],
@@ -87,7 +87,7 @@ export async function prepareClientVisuals(input: {
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(source.mimeType) || source.status === 'missing') continue
     if (assets.some(a => a.origin.sourceMaterialKeys.includes(source.sourceKey))) continue
     try {
-      const dimensions = verifiedRasterImageDimensions(source.mimeType as 'image/jpeg' | 'image/png' | 'image/webp', await readFile(source.sourcePath))
+      const dimensions = await verifiedSourceImageDimensions(source.mimeType as 'image/jpeg' | 'image/png' | 'image/webp', await readFile(source.sourcePath))
       // Authored source pages need explicit source-to-page selection. A random site
       // photo cannot stand in for every page asking for a boundary or access map.
       const pages = input.frozenProject.manuscript ? [] : findings.filter(f => f.sectionKey === 'site-baseline' || f.findingId === 'pre-design:diagnosis')
