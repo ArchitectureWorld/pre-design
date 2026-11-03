@@ -5,7 +5,7 @@
 ## 本机候选环境
 
 - 代码：`Development/pre-design-web-v210`，分支 `codex/web-v210`。
-- 页面：`http://127.0.0.1:4320`；旧环境的 4318/3080 服务独立运行。
+- Linux 本机页面：`http://127.0.0.1:4320`。另一台电脑须使用 `http://Linux局域网IP:4320`，`127.0.0.1` 始终指向打开浏览器的电脑。
 - 私有配置：`.local/web/config.json`。管理员和两个普通用户的访问令牌见 `.local/web/access.txt`，文件权限 600。
 - 数据库：`pre_design_web_v210`；项目和独立 Worker 会话分别在 `.local/web/projects/`、`.local/web/workers/`。
 - 模型初始状态均为待验证。没有配置接入、凭据和所需能力时，收费任务不会入队。
@@ -34,6 +34,8 @@ web/app/start-local.sh
 ```
 
 初始化脚本仅在配置不存在时创建数据库和三个随机令牌，不覆盖已有配置。可使用 `PRE_WEB_DATABASE`、`PRE_WEB_PG_HOST`、`PRE_WEB_PG_PORT`、`PRE_WEB_HOST`、`PRE_WEB_PORT` 指定本地环境。正式部署可按 `config.example.json` 使用其他数据库和身份配置；API 只接受服务端验证的 Bearer 令牌，角色不能由请求自行声明。
+
+同一局域网访问已有环境时，将私有 `.local/web/config.json` 中的 `host` 设置为 `0.0.0.0`，然后重启服务。初始默认 `127.0.0.1` 仅允许 Linux 本机访问；修改初始化环境变量不会覆盖已有配置。浏览器使用 Linux 的实际局域网 IP 和 `http://`，不要使用 `0.0.0.0` 或另一台电脑自己的 `localhost`。
 
 ## 使用流程
 
