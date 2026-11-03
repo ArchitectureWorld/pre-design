@@ -8,7 +8,7 @@ import { VISUAL_MODEL_ID, VISUAL_MODEL_PROVIDER } from '../visual/types.ts'
 import { preplanningCancellationReason } from '../runtime/preplanning-execution-guard.ts'
 import { verifyOwnedModelCallDeadline, type OwnedModelCallDeadline } from './model-call-deadline.ts'
 import { retryDurableWrite } from '../state/durable-write.ts'
-import { imageToolForRoute } from './image-tools.ts'
+import { COMFYUI_IMAGE_TOOL, imageToolForRoute } from './image-tools.ts'
 import { matchesModelRoute } from './model-options.ts'
 
 export interface ExecutionSession {
@@ -131,7 +131,7 @@ export class AgentClassService {
     for (const row of declared) {
       if (!providers.has(row.provider)) providers.set(row.provider, { provider: row.provider, name: row.displayName, available: false })
     }
-    return Promise.all([...providers.values()].map(async provider => {
+    const catalog: CatalogProvider[] = await Promise.all([...providers.values()].map(async provider => {
       if (!provider.available) return { ...provider, models: [], error: '请先在 DSH 设置中启用此 Provider。' }
       try {
         const models = await this.dependencies.llm.listModels(provider.provider)
@@ -149,6 +149,12 @@ export class AgentClassService {
         return { ...provider, available: false, models: [], error: '模型目录读取失败，请检查 DSH 设置。' }
       }
     }))
+    if (this.dependencies.tools?.schemas().some(row => row.name === COMFYUI_IMAGE_TOOL)
+      && !catalog.some(row => row.provider === 'Comfyui-PIC')) {
+      catalog.push({ provider: 'Comfyui-PIC', name: 'ComfyUI', available: true,
+        models: [{ id: 'Klein', name: 'Flux3 Klein', imageTool: COMFYUI_IMAGE_TOOL }] })
+    }
+    return catalog
   }
   private async validate(route: ModelRoute, classId: AgentClassId): Promise<void> {
     const tool = imageToolForRoute(route)
@@ -159,6 +165,7 @@ export class AgentClassService {
       if (imageToolForRoute(route.llm)) throw new Error('MODEL_COMPANION_INVALID: 配套 LLM 不能选择 ComfyUI 工具自身。')
       await this.validate(route.llm, 'text')
       if (!this.dependencies.tools?.schemas().some(row => row.name === tool)) throw new Error('MODEL_UNAVAILABLE: ComfyUI 生图工具未加载，请检查 DSH 插件设置。')
+      return
     } else if (route.llm) throw new Error('MODEL_COMPANION_INVALID: 只有工具型生图选项可以配置配套 LLM。')
     const live = this.dependencies.llm.listProviders().some(row => row.id === route.provider)
     const models = live ? await this.dependencies.llm.listModels(route.provider).catch(() => []) : []

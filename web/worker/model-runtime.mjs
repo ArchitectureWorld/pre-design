@@ -1,5 +1,6 @@
 import { validateSnapshot } from '../app/src/model-policy.mjs'
 import { researchError } from '../app/src/research-contract.mjs'
+import { materializeImageRuntime } from './image-runtime.mjs'
 
 const keyOf = row => `${row.provider}\0${row.model}`
 const classRoles = { text: 'text', web: 'web', review: 'vision' }
@@ -8,10 +9,14 @@ export function isolatedEnvironment(source = process.env) {
 }
 export function materializeModelRuntime(snapshot, settings = {}, credentials = {}, requiredRoles = ['parent']) {
   const result = { providers: {}, env: {}, parent: null, classRoutes: { text: null, web: null, review: null, image: null },
-    classFallbacks: { text: [], web: [], review: [], image: [] }, imageAvailability: { status: 'unavailable', code: 'IMAGE_BACKEND_UNAVAILABLE', reason: '候选 Worker 尚未装配交接图像后端适配器。' } }
+    classFallbacks: { text: [], web: [], review: [], image: [] }, imageAvailability: { status: 'not_ready', code: 'IMAGE_POLICY_NOT_READY', reason: '本次任务未配置图像服务。' }, imageBackend: null }
   if (!snapshot) return result
   const policy = validateSnapshot(snapshot, requiredRoles)
-  if (requiredRoles.includes('image')) throw researchError('IMAGE_BACKEND_UNAVAILABLE', '图像后端适配器尚未装配；未发起图像生成。', 503)
+  if (requiredRoles.includes('image')) {
+    const image = materializeImageRuntime(policy, credentials, { required: true })
+    result.imageAvailability = image.imageAvailability; result.imageBackend = image.imageBackend
+    Object.assign(result.env, image.env)
+  }
   const models = new Map(policy.models.map(row => [keyOf(row), row]))
   const configured = Array.isArray(settings) ? settings.find(row => row.id === 'llm-pi-ai')?.config?.providers : settings?.['llm-pi-ai']?.providers
   const active = new Map()
@@ -26,6 +31,10 @@ export function materializeModelRuntime(snapshot, settings = {}, credentials = {
   for (const [classId, role] of Object.entries(classRoles)) {
     const routes = requiredRoles.includes(role) ? chain(role) : []
     result.classRoutes[classId] = routes[0] ?? null; result.classFallbacks[classId] = routes.slice(1)
+  }
+  if (requiredRoles.includes('image')) {
+    const companions = chain('imageLlm')
+    result.classRoutes.image = { provider: 'Comfyui-PIC', model: 'Klein', llm: companions[0] }
   }
   let credentialIndex = 0
   const runtimeIdentities = new Set()
@@ -63,11 +72,11 @@ export async function installModelBoundary(ctx, { sessionId, snapshot, classRout
   const models = new Map(policy?.models.map(row => [keyOf(row), row]) ?? [])
   const allowed = new Map()
   const classReferences = Object.entries(classRoutes ?? {}).flatMap(([classId, route]) => route ? [route, ...(classFallbacks?.[classId] ?? [])] : [])
-  const activeIdentities = new Set(classReferences.map(row => `${row.provider}\0${row.model}`))
+  const activeIdentities = new Set(classReferences.map(row => row.llm ?? row).map(row => `${row.provider}\0${row.model}`))
   for (const ref of policy ? [policy.routes.parent.primary, ...policy.routes.parent.fallbacks] : []) {
     const row = models.get(keyOf(ref)); activeIdentities.add(`${row.runtimeProvider}\0${row.model}`)
   }
-  for (const role of ['parent', 'text', 'web', 'vision']) {
+  for (const role of ['parent', 'text', 'web', 'vision', 'imageLlm']) {
     const route = policy?.routes[role]
     if (!route?.primary) continue
     const rows = [route.primary, ...route.fallbacks].map(ref => models.get(keyOf(ref)))

@@ -171,3 +171,19 @@ test('concurrent initialization creates a single initial version and audit event
   assert.equal((await db.query('SELECT count(*)::int AS count FROM platform_policy_versions')).rows[0].count, 1)
   assert.equal((await db.query('SELECT count(*)::int AS count FROM platform_policy_audit')).rows[0].count, 1)
 })
+
+test('旧 Flux2 配置迁移为独立 Flux3 修订，保留历史与其他模型设置且重启不重复迁移', async t => {
+  const db=await database(t),users=accounts(),store=await createPlatformStore(db,users)
+  const old=await store.getPolicy();delete old.search
+  old.models[10].imageConfig={modelFile:'Flux2-Klein-9B-True-v2-bf16.safetensors',textToImageWorkflow:'old.json'}
+  old.models[10].status='verified';old.limits.globalConcurrency=7
+  await db.query('UPDATE platform_policy_versions SET policy=$1 WHERE revision=1',[old])
+  const stores=await Promise.all([createPlatformStore(db,users),createPlatformStore(db,users)])
+  const migrated=await stores[0].getPolicy()
+  assert.equal(migrated.revision,2);assert.equal(migrated.models[10].status,'unverified')
+  assert.equal(migrated.models[10].imageConfig.modelFile,'flux3-image-klein-bf16.safetensors')
+  assert.equal(migrated.limits.globalConcurrency,7);assert.equal(migrated.search.enabled,false)
+  assert.deepEqual((await db.query('SELECT policy FROM platform_policy_versions WHERE revision=1')).rows[0].policy,old)
+  assert.equal((await (await createPlatformStore(db,users)).getPolicy()).revision,2)
+  assert.equal((await db.query('SELECT count(*)::int AS count FROM platform_policy_audit')).rows[0].count,2)
+})

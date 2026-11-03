@@ -345,6 +345,18 @@ async function comfyFixture() {
   return f
 }
 const comfy = { provider: 'Comfyui-PIC', model: 'Klein' }
+it('accepts a loaded image tool with its real companion without a fictitious LLM provider', async () => {
+  const { service, deps, llm } = await fixture()
+  Object.assign(deps, { tools: { schemas: () => [{ name: 'comfyui_pic' }] } })
+  expect(llm.listProviders().some(row => row.id === 'Comfyui-PIC')).toBe(false)
+  await service.save(0, { image: { ...comfy, llm: a }, text: a, web: a })
+  const run = await service.begin('project', 'image', 'concept', parent)
+  expect(run.selected).toEqual({ ...comfy, llm: a })
+  expect(await service.catalog()).toContainEqual(expect.objectContaining({ provider: 'Comfyui-PIC', available: true,
+    models: [expect.objectContaining({ id: 'Klein', imageTool: 'comfyui_pic' })] }))
+  Object.assign(deps, { tools: { schemas: () => [] } })
+  await expect(service.save(1, { image: { ...comfy, llm: a }, text: a, web: a })).rejects.toThrow('MODEL_UNAVAILABLE')
+})
 it('recovers legacy adapter-owned Klein requests from their original persisted route', async () => {
   const { service, deps } = await comfyFixture()
   await service.save(0, { image: { ...comfy, llm: a }, text: a, web: a })

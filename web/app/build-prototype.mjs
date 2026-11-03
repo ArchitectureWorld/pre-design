@@ -54,5 +54,5 @@ globalThis.prePlatform = mountPlatform({
 });
 `
 await writeFile(resolve(root, 'dist/prototype.js'), `${overrides}\n${script}\n${bootstrap}`)
-for (const name of ['platform-ui.js', 'platform-ui.css', 'admin-ui.js', 'admin-ui.css']) await writeFile(resolve(root, 'dist', name), await readFile(resolve(root, 'src', name)))
+for (const name of ['platform-ui.js', 'platform-ui.css', 'admin-ui.js', 'admin-ui.css', 'service-defaults.mjs']) await writeFile(resolve(root, 'dist', name), await readFile(resolve(root, 'src', name)))
 console.log('Built from web/index.html: original CSS and page structure preserved; API adapter replaces simulated operations.')

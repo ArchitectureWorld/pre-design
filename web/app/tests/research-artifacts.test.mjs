@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import { mkdtemp, mkdir, writeFile, readFile, symlink, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { createHash } from 'node:crypto'
+import sharp from 'sharp'
 const artifacts = await import('../../worker/research-artifacts.mjs').catch(() => ({}))
 const runId = 'RUN-11111111-1111-4111-8111-111111111111'
 
@@ -46,4 +48,22 @@ test('真实原生章节 export 目录列出 HTML/PDF，符号链接及内部审
   assert.deepEqual(list.map(row => row.filename).sort(), ['章节.html', '章节.pdf'])
   assert(list.every(row => row.kind === 'chapter-report'))
   assert.match((await artifacts.readProjectArtifact(workspace, list.find(row => row.filename.endsWith('.html')).id)).data.toString(), /真实原生导出/)
+})
+
+test('任务成果只下载有完成收执且像素校验通过的概念图，图片改变后撤回下载',async t=>{
+  const workspace=await mkdtemp(join(tmpdir(),'generated-artifacts-'));t.after(()=>rm(workspace,{recursive:true,force:true}))
+  const requestId='a'.repeat(64),relative=`.pre-design/image-requests/receipts/${requestId}/output.png`,folder=join(workspace,'.pre-design/image-requests/receipts',requestId)
+  await mkdir(folder,{recursive:true})
+  const data=await sharp({create:{width:32,height:16,channels:3,background:'#334455'}}).png().toBuffer()
+  await writeFile(join(workspace,relative),data)
+  await writeFile(join(folder,'receipt.json'),JSON.stringify({version:1,requestId,promptId:'prompt-1',mode:'generate',state:'completed',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),
+    output:{path:relative,sha256:createHash('sha256').update(data).digest('hex'),mediaType:'image/png',width:32,height:16,bytes:data.length}}))
+  const list=await artifacts.listProjectArtifacts(workspace)
+  assert.equal(list.length,1);assert.equal(list[0].kind,'generated-concept');assert.equal(list[0].status,'unreviewed')
+  assert.match(list[0].limitations[0],/概念图/);assert.ok(!JSON.stringify(list).includes('receipt.json'))
+  const downloaded=await artifacts.readProjectArtifact(workspace,list[0].id)
+  assert.equal(downloaded.contentType,'image/png');assert.deepEqual(downloaded.data,data)
+  await writeFile(join(workspace,relative),Buffer.from('changed'))
+  assert.deepEqual(await artifacts.listProjectArtifacts(workspace),[])
+  await assert.rejects(artifacts.readProjectArtifact(workspace,list[0].id),e=>e.code==='ARTIFACT_NOT_FOUND')
 })

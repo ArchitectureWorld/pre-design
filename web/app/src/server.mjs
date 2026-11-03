@@ -6,7 +6,7 @@ import { constants } from 'node:fs'
 import { resolve, join, basename, extname, relative, isAbsolute } from 'node:path'
 import { createPlatformStore } from './platform-store.mjs'
 import { createJobScheduler } from './job-scheduler.mjs'
-import { validateResearchSelection, reportModelRoles, validateReportSnapshot } from './research-contract.mjs'
+import { validateResearchSelection, reportModelRoles, validateReportSnapshot, publicBusinessData } from './research-contract.mjs'
 import sharp from 'sharp'
 const idSchema = z.string().uuid()
 const requestSchema = z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/)
@@ -138,7 +138,8 @@ export async function createApp({ db, workers, projectsRoot, users }) {
   app.setErrorHandler((error, _req, reply) => {
     const code = error instanceof z.ZodError ? 400 : error.statusCode ?? 500
     if (code === 500) console.error('[web-api]', error.name, error.code ?? 'UNEXPECTED_ERROR')
-    reply.code(code).send({ error: code === 500 ? '服务执行失败，请检查本地运行记录' : code === 503 ? '管理员尚未完成所需模型的配置和能力验证' : error.message, ...(error.code ? { code: error.code } : {}) })
+    const serviceFailure = /^(?:IMAGE_|WEB_SEARCH_|SEARCH_)/u.test(error.code ?? '')
+    reply.code(code).send({ error: code === 500 ? '服务执行失败，请检查本地运行记录' : code === 503 && !serviceFailure ? '管理员尚未完成所需模型的配置和能力验证' : publicBusinessData(error.message), ...(error.code ? { code: error.code } : {}) })
   })
   function requireAdmin(req) { if (req.user.role !== 'admin') throw fail(403, '此操作仅限管理员') }
   app.get('/api/me', req => ({ id: req.user.id, role: req.user.role }))
@@ -223,11 +224,13 @@ export async function createApp({ db, workers, projectsRoot, users }) {
   })
   app.get('/api/projects/:id/research', async req => {
     const p = await project(req)
-    return { ...await workers.call(p, { operation: 'research-plan' }), progress: await workers.call(p, { operation: 'research-status' }) }
+    const plan = await workers.call(p, { operation: 'research-plan' })
+    return { ...plan, ...(workers.availability ? { availability: await workers.availability(await platform.getPolicy()) } : {}), progress: await workers.call(p, { operation: 'research-status' }) }
   })
   app.post('/api/projects/:id/research/plan', async req => {
     const p = await project(req), selection = z.object({ moduleIds, flags }).strict().parse(req.body)
-    return workers.call(p, { operation: 'research-plan', selection })
+    const plan = await workers.call(p, { operation: 'research-plan', selection })
+    return { ...plan, ...(workers.availability ? { availability: await workers.availability(await platform.getPolicy()) } : {}) }
   })
   app.get('/api/projects/:id/chapters', async req => workers.call(await project(req), { operation: 'report-status' }))
   app.post('/api/projects/:id/chapters/prepare', async req => {
@@ -342,6 +345,10 @@ export async function createApp({ db, workers, projectsRoot, users }) {
         const status = cancelled ? 'cancelled' : unknown ? 'interrupted' : 'failed'
         const detail = cancelled ? '任务已取消，已产生的成果保留；未自动重跑。' : unknown ? '执行中断，结果需要检查；不会自动重复调用。' : publicTaskError(error)
         if (!cancelled && !closing) await recordExecution(p)
+        else if (cancelled && !closing && workers.serviceTrace) {
+          // Read durable receipts after Worker shutdown without reopening an agent.
+          try { await query('UPDATE jobs SET execution_metadata=$2 WHERE id=$1', [job.id, await workers.serviceTrace(p, { since: startedAt })]) } catch { /* An incomplete receipt remains unknown. */ }
+        }
         await query('UPDATE jobs SET status=$2,error=$3,finished_at=now() WHERE id=$1', [job.id, status, detail])
         await query("UPDATE annotations SET status='failed' WHERE batch_id=$1", [job.id])
         await event(p.id, { type: `task-${status}`, id: job.id })
@@ -352,6 +359,10 @@ export async function createApp({ db, workers, projectsRoot, users }) {
     const known = {
       MODEL_POLICY_NOT_READY: '管理员尚未完成模型能力验证。', MODEL_ROUTE_NOT_CONFIGURED: '管理员尚未配置模型接入。',
       MODEL_CREDENTIAL_REFERENCE_MISSING: '模型凭据引用尚未配置。', IMAGE_BACKEND_UNAVAILABLE: '图像后端尚未接入，无法生成图像。',
+      IMAGE_BACKEND_NOT_READY: 'ComfyUI 无法连接或缺少所需节点、模型，请联系管理员。',
+      IMAGE_SUBMISSION_UNKNOWN: '生图提交结果未知，已保留收执供管理员核对，不会自动重发。',
+      IMAGE_TASK_REQUIRES_RECOVERY: '此前生图任务尚需核对，请管理员检查原任务收执，避免重复生成。',
+      WEB_SEARCH_NOT_READY: '搜索服务或凭据尚未配置，请联系管理员。',
       MODULE_DEPENDENCIES_REQUIRED: '所选模块需要上游成果，请先在研究范围中检查并选择依赖模块。',
       MODULE_CONDITIONS_REQUIRED: '请先明确四项研究条件。',
       MODULE_REDO_INPUT_CHANGED: '资料或项目任务已变化，请重新选择新快照的研究范围；原有成果已保留。',
@@ -379,6 +390,7 @@ export async function createApp({ db, workers, projectsRoot, users }) {
       const required = kind === 'research' ? ['parent', 'text', 'web'] : kind === 'report' ? reportModelRoles(reportSelection) : ['parent']
       const policy = paid ? await platform.snapshotPolicy(required) : null
       if (paid && kind === 'report') validateReportSnapshot(policy, reportSelection)
+      if (paid && workers.validateTaskConfiguration) await workers.validateTaskConfiguration(policy, required)
       const limits = policy?.limits ?? (await platform.getPolicy()).limits
       const id = randomUUID(), conn = await db.connect()
       try {

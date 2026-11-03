@@ -32,7 +32,7 @@ test('normalizes the fourteen allowed identities without merging independent bud
     [undefined, 393216], [undefined, 393216], [undefined, 393216], [undefined, 393216],
   ])
   assert.equal(find(policy, sense('kimi-k3')).compat.maxTokensField, 'max_completion_tokens')
-  assert.equal(find(policy, { provider: 'Comfyui-PIC', model: 'Klein' }).imageConfig.modelFile, 'Flux2-Klein-9B-True-v2-bf16.safetensors')
+  assert.equal(find(policy, { provider: 'Comfyui-PIC', model: 'Klein' }).imageConfig.modelFile, 'flux3-image-klein-bf16.safetensors')
   assert.ok(MODEL_CATALOG.every(item => item.source && item.declaredCapabilities && item.status === 'unverified'))
   assert.equal(find(policy, official('deepseek-v4-flash-vision-exp')).capabilities.vision, false)
   find(policy, sense('deepseek-v4-pro')).maxOutputTokens = 32000

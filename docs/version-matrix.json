@@ -190,7 +190,10 @@
       "handoff": "docs/pre-v2.1.0-handoff.md",
       "sourceCommitSHA": "72de3d2aa0b6665f1e81f88dd81608d03e783f22",
       "verificationStatus": "offline-regressions-passed-no-paid-model-validation",
-      "webHostApi": "ctx.preplanning.research"
+      "webHostApi": "ctx.preplanning.research",
+      "webSearchBackend": "deepseek-search-api",
+      "webImageBackend": "comfyui-flux3-klein-2026-11-03.1",
+      "webServiceVerification": "real-worker-local-http-fixtures-passed-real-services-pending"
     }
   },
   "authority": {

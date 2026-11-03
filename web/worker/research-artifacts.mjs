@@ -45,11 +45,18 @@ async function artifactFiles(workspace) {
   await walk('.pre-design/chapter-productions')
   await walk('.pre-design/web-reports')
   await add('.pre-design/report-manuscript.md', 'manuscript')
+  const { listGeneratedImages } = await import('./image-receipts.mjs')
+  for (const image of await listGeneratedImages(root)) {
+    const info = await lstat(safeProjectPath(root, image.relative))
+    files.push({ relative: image.relative, mtime: info.mtimeMs, id: idOf(image.relative), filename: image.filename,
+      kind: 'generated-concept', bytes: image.bytes, status: 'unreviewed', sha256: image.sha256, width: image.width, height: image.height })
+  }
   return files.sort((a, b) => b.mtime - a.mtime || a.id.localeCompare(b.id))
 }
 export async function listProjectArtifacts(workspace) {
   return (await artifactFiles(workspace)).map(({ relative: _relative, mtime: _mtime, ...row }) => ({ ...row,
-    ...(row.kind === 'research-summary' ? { status: 'unreviewed', limitations: ['选定研究成果的汇编，未经报告审查。'] } : {}) }))
+    ...(row.kind === 'research-summary' ? { status: 'unreviewed', limitations: ['选定研究成果的汇编，未经报告审查。'] }
+      : row.kind === 'generated-concept' ? { status: 'unreviewed', limitations: ['AI 生成的概念图，未经图片审查，不代表现场现状或建设承诺。'] } : {}) }))
 }
 export async function readBoundFile(workspace, relative) {
   const path = safeProjectPath(workspace, relative), before = await lstat(path)
@@ -69,10 +76,11 @@ export async function readProjectArtifact(workspace, id) {
   const entry = (await artifactFiles(workspace)).find(row => row.id === id)
   if (!entry) throw researchError('ARTIFACT_NOT_FOUND', '成果不存在。', 404)
   let data = await readBoundFile(workspace, entry.relative)
+  if (entry.kind === 'generated-concept' && createHash('sha256').update(data).digest('hex') !== entry.sha256) throw researchError('ARTIFACT_CHANGED')
   const extension = extname(entry.filename).toLowerCase()
   if (extension === '.json') data = Buffer.from(JSON.stringify(publicBusinessData(JSON.parse(data.toString('utf8')), [workspace]), null, 2))
   else if (['.md','.html'].includes(extension)) data = Buffer.from(publicBusinessData(data.toString('utf8'), [workspace]))
-  const types = { '.json':'application/json; charset=utf-8', '.md':'text/markdown; charset=utf-8', '.html':'text/html; charset=utf-8', '.pdf':'application/pdf', '.pptx':'application/vnd.openxmlformats-officedocument.presentationml.presentation' }
+  const types = { '.json':'application/json; charset=utf-8', '.md':'text/markdown; charset=utf-8', '.html':'text/html; charset=utf-8', '.pdf':'application/pdf', '.pptx':'application/vnd.openxmlformats-officedocument.presentationml.presentation', '.png':'image/png', '.jpeg':'image/jpeg', '.webp':'image/webp' }
   return { filename: entry.filename, contentType: types[extension] ?? 'application/octet-stream', data }
 }
 export async function researchCheckpoints(workspace, projectId) {

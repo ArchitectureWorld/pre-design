@@ -29,7 +29,7 @@ test('业务响应剔除路由凭据与绝对路径但保留真实资料缺口',
   assert.equal(value.provider, undefined)
   assert.doesNotMatch(JSON.stringify(value), /ENV_SECRET|\/tmp\/private|SenseNova/)
 })
-test('章节快照核验实际text图片能力及research的web角色，拒绝未接入图像后端',()=>{
+test('章节快照核验实际text图片能力及research的web角色，图像角色未验证时拒绝生图',()=>{
   assert.equal(typeof contract.validateReportSnapshot,'function')
   const policy=defaultPolicy(),text=policy.models.find(row=>row.provider==='SenseNova'&&row.model==='sensenova-6.8-flash-lite')
   policy.routes.vision.primary=null
@@ -40,6 +40,6 @@ test('章节快照核验实际text图片能力及research的web角色，拒绝�
   assert.equal(contract.validateReportSnapshot(policy,{chapterId:'site',stage:'production-plan'}).revision,policy.revision)
   policy.routes.web.primary=null
   assert.throws(()=>contract.validateReportSnapshot(policy,{chapterId:'site',stage:'production-research'}),error=>error.code==='MODEL_POLICY_NOT_READY')
-  assert.throws(()=>contract.validateReportSnapshot(policy,{chapterId:'site',stage:'production-visuals'}),/IMAGE_BACKEND_UNAVAILABLE/)
+  assert.throws(()=>contract.validateReportSnapshot(policy,{chapterId:'site',stage:'production-visuals'}),error=>error.code==='MODEL_POLICY_NOT_READY')
   assert.equal(contract.validateReportSnapshot(undefined,{mode:'research-summary',moduleIds:['1.01']}),undefined)
 })

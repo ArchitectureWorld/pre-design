@@ -23,7 +23,7 @@ test('运行快照仅装配已验证路由、独立预算和目标凭据，未�
   assert.equal(output.providers['sensenova-local'].models[0].maxTokens, 65536)
   assert.deepEqual(Object.values(output.env), ['private-test-secret'])
   assert.equal(output.classRoutes.image, null)
-  assert.equal(output.imageAvailability.status, 'unavailable')
+  assert.equal(output.imageAvailability.status, 'not_ready')
   assert.throws(() => runtime.materializeModelRuntime(configured(), settings, { refs: {} }, ['parent']), /MODEL_NOT_READY/)
   assert.throws(() => runtime.materializeModelRuntime(defaultPolicy(), settings, { refs: {} }, ['parent']), /模型策略未就绪/)
   assert.deepEqual(runtime.isolatedEnvironment({ PATH: '/usr/bin', HOME: '/home/user', OPENAI_API_KEY: 'no', DEEPSEEK_API_KEY: 'no', DSH_HOME: '/old', PRE_WEB_SOCKET: 'old' }), { PATH: '/usr/bin', HOME: '/home/user' })

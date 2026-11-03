@@ -26,6 +26,8 @@ test('实际工具守卫覆盖父子Agent、越界软链接和伪造提案身份
   assert.equal(call('preplanning_apply_commands', { envelope }), undefined)
   for (const update of [{ project_id: 'p2' }, { expected_revision: 1 }, { requested_state: 'confirmed' }, { actor: { actor_id: 'other', role: 'agent' } }]) assert.match(call('preplanning_apply_commands', { envelope: { ...envelope, ...update } }), /WEB_/)
   assert.match(call('preplanning_apply_commands', { envelope }, child), /WEB_/)
+  assert.match(call('comfyui_pic', {mode:'generate',prompt:'x'}), /WEB_/)
+  assert.equal(call('comfyui_pic', {mode:'generate',prompt:'x'},child),undefined)
   assert.match(call('web_fetch', { url: 'file:///etc/passwd' }, child), /WEB_/)
   assert.match(call('web_fetch', { url: 'http://127.0.0.1:3080/private' }, child), /WEB_/)
   assert.equal(call('web_fetch', { url: 'https://example.org/source' }, child), undefined)
@@ -36,15 +38,16 @@ test('父会话保留研究子Agent继承所需的网页工具，父prompt仍隐
   const workspace=await mkdtemp(join(tmpdir(),'research-scope-'))
   t.after(()=>rm(workspace,{recursive:true,force:true}))
   const hooks=new Map(),seen=[]
-  const globalNames=['preplanning_get_context','preplanning_read_material','preplanning_apply_commands','web_fetch']
+  const globalNames=['preplanning_get_context','preplanning_read_material','preplanning_apply_commands','web_fetch','comfyui_pic']
   const ctx={agents:new Map(),preplanning:{repository:{readContext:()=>({project:{projectId:'p',currentRevision:0}})}},tools:{get:name=>globalNames.includes(name)?{}:undefined,guard(){}},on:(name,handler)=>hooks.set(name,handler)}
   boundary.installProjectBoundary(ctx,{workspace,sessionId:'parent'})
   const agent=id=>({id,ctx:{tools:{restrict:filter=>{for(const name of filter.allow)assert.ok(globalNames.includes(name),`Unknown global tool ${name}`);seen.push({id,allow:filter.allow})}},systemPrompt:{section(){}}}})
   hooks.get('agent/created')({agent:agent('parent')})
   assert.ok(seen[0].allow.includes('web_fetch'))
+  assert.ok(seen[0].allow.includes('comfyui_pic'))
   hooks.get('agent/created')({agent:agent('child')})
-  assert.deepEqual(seen[1].allow,['web_fetch'])
-  const assembled={tools:[{name:'preplanning_read_material'},{name:'web_fetch'}],sections:[]}
+  assert.deepEqual(seen[1].allow,['web_fetch','comfyui_pic'])
+  const assembled={tools:[{name:'preplanning_read_material'},{name:'web_fetch'},{name:'comfyui_pic'}],sections:[]}
   await hooks.get('system-prompt/assemble')(undefined,{agent:{id:'parent'}},async()=>assembled)
   assert.deepEqual(assembled.tools.map(t=>t.name),['preplanning_read_material'])
 })

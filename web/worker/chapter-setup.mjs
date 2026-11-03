@@ -81,7 +81,6 @@ export async function chapterPreflight(workspace, input, delivery, {verifyAssets
     const assets=await json(workspace,assetsPath(chapterId))
     if (!assets?.length) block('CHAPTER_PRODUCTION_ASSETS_REQUIRED','请先选择真实上传图片。')
     else if (verifyAssets) { try { await checkedAssets(workspace,assets) } catch { block('CHAPTER_ASSET_CHANGED','章节图片缺失、发生变化或不属于本项目，请重新准备。') } }
-    if (stage === 'production-visuals') block('IMAGE_BACKEND_UNAVAILABLE','图像生成后端尚未装配。')
     if (validRequest(request,chapterId) && !['production-plan','production-research'].includes(stage)) {
       if (typeof productionDirectory !== 'function') {
         block('CHAPTER_PRODUCTION_DIRECTORY_UNAVAILABLE','章节生产目录服务尚未装配。')

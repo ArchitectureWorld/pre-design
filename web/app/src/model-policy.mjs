@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { FLUX3_IMAGE_CONFIG, DEFAULT_SEARCH_POLICY } from './service-defaults.mjs'
 
 const fail = (statusCode, message, details = {}) => Object.assign(new Error(message), { statusCode, ...details })
 const clone = value => JSON.parse(JSON.stringify(value))
@@ -29,7 +30,7 @@ export const MODEL_CATALOG = freeze([
   entry('deepseek-official', 'deepseek-v4-flash', capabilities(true), { maxOutputTokens: 393216 }),
   entry('deepseek-official', 'deepseek-v4-pro', capabilities(true), { maxOutputTokens: 393216 }),
   entry('deepseek-official', 'deepseek-v4-flash-vision-exp', capabilities(true), { maxOutputTokens: 393216 }),
-  entry('Comfyui-PIC', 'Klein', capabilities(false, false, true), { imageConfig: { modelFile: 'Flux2-Klein-9B-True-v2-bf16.safetensors' } }),
+  entry('Comfyui-PIC', 'Klein', capabilities(false, false, true), { imageConfig: { ...FLUX3_IMAGE_CONFIG } }),
   entry('启航引擎AIGC组', 'tt-image-2.5', capabilities(false, false, true)),
   entry('启航引擎AIGC组', 'tt-image-2.5-flare', capabilities(false, false, true)),
   entry('启航引擎AIGC组', 'tt-image-2.5-sunburst', capabilities(false, false, true)),
@@ -47,6 +48,11 @@ const identifier = z.string().min(1).max(160).regex(/^[\p{L}\p{N}_.:@/-]+$/u)
 const modelKeySchema = z.object({ provider: identifier, model: identifier }).strict()
 const routeSchema = z.object({ primary: modelKeySchema.nullable(), fallbacks: z.array(modelKeySchema).max(13) }).strict()
 const workflowRef = z.string().min(1).max(512).regex(/^[^\x00-\x1f\x7f]+$/u)
+const credentialRef = z.string().regex(/^credential:[\p{L}\p{N}][\p{L}\p{N}_.-]{0,127}$/u)
+const serviceURL = z.string().min(1).max(2048).refine(value => {
+  try { const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password && !url.search && !url.hash && !/\s/u.test(value) }
+  catch { return false }
+})
 const modelSchema = z.object({
   source: z.string().min(1).max(80).optional(),
   provider: identifier, model: identifier, runtimeProvider: identifier,
@@ -55,15 +61,22 @@ const modelSchema = z.object({
   contextWindow: positiveInteger.optional(), maxOutputTokens: positiveInteger.optional(),
   compat: z.object({ maxTokensField: z.enum(['max_tokens', 'max_completion_tokens']).optional(),
     protocol: z.enum(['openai-completions', 'openai-responses']).optional() }).strict().optional(),
-  credentialRef: z.string().regex(/^credential:[\p{L}\p{N}][\p{L}\p{N}_.-]{0,127}$/u).optional(),
-  imageConfig: z.object({ modelFile: z.literal('Flux2-Klein-9B-True-v2-bf16.safetensors'),
-    textToImageWorkflow: workflowRef.optional(), referenceImageWorkflow: workflowRef.optional() }).strict().optional(),
+  credentialRef: credentialRef.optional(),
+  // Legacy metadata remains readable in immutable historical task snapshots.
+  // The runtime accepts only the pinned Flux3 workflows for new image execution.
+  imageConfig: z.object({ modelFile: z.enum(['flux3-image-klein-bf16.safetensors', 'Flux2-Klein-9B-True-v2-bf16.safetensors']),
+    textToImageWorkflow: workflowRef.optional(), referenceImageWorkflow: workflowRef.optional(),
+    baseURL: serviceURL.optional(), timeoutMs: z.number().int().min(1000).max(3600000).optional(),
+    pollIntervalMs: z.number().int().min(100).max(10000).optional() }).strict().optional(),
 }).strict()
 const policySchema = z.object({
   revision: positiveInteger.optional(), models: z.array(modelSchema).length(14),
   routes: z.object(Object.fromEntries(roles.map(role => [role, routeSchema]))).strict(),
   limits: z.object({ globalConcurrency: positiveInteger, perUserConcurrency: positiveInteger,
     maxQueuedPerUser: positiveInteger, maxDailyJobsPerUser: positiveInteger }).strict(),
+  search: z.object({ enabled: z.boolean(), provider: z.literal('deepseek-search-api'), baseURL: serviceURL,
+    credentialRef: credentialRef.optional(), maxResults: z.number().int().min(1).max(50),
+    maxQueries: z.number().int().min(1).max(8), timeoutMs: z.number().int().min(1000).max(120000) }).strict().optional(),
 }).strict()
 
 export function defaultPolicy() {
@@ -74,7 +87,24 @@ export function defaultPolicy() {
       primary: role === 'image' ? { provider: 'Comfyui-PIC', model: 'Klein' } : { ...main }, fallbacks: [],
     }])),
     limits: { globalConcurrency: 2, perUserConcurrency: 1, maxQueuedPerUser: 10, maxDailyJobsPerUser: 20 },
+    search: { ...DEFAULT_SEARCH_POLICY },
   }
+}
+
+// Called only while creating a new policy revision, never while reading a task.
+export function migrateServicePolicy(input) {
+  const next = clone(input)
+  let changed = false
+  if (!next.search) { next.search = { ...DEFAULT_SEARCH_POLICY }; changed = true }
+  const image = next.models.find(row => row.provider === 'Comfyui-PIC' && row.model === 'Klein')
+  if (image?.imageConfig?.modelFile === 'Flux2-Klein-9B-True-v2-bf16.safetensors') {
+    image.imageConfig = { ...FLUX3_IMAGE_CONFIG }
+    image.status = 'unverified'
+    // A previous Flux2 verification cannot qualify as a Flux3 fallback.
+    next.routes.image.fallbacks = next.routes.image.fallbacks.filter(row => row.provider !== 'Comfyui-PIC')
+    changed = true
+  }
+  return changed ? validatePolicy(next) : null
 }
 
 function invalid(message) { throw fail(400, message, { code: 'INVALID_MODEL_POLICY' }) }

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
-import { defaultPolicy, validatePolicy, validateSnapshot } from './model-policy.mjs'
+import { defaultPolicy, validatePolicy, validateSnapshot, migrateServicePolicy } from './model-policy.mjs'
 
 const fail = (statusCode, message, code) => Object.assign(new Error(message), { statusCode, ...(code ? { code } : {}) })
 const hashToken = token => createHash('sha256').update(token).digest('hex')
@@ -83,6 +83,16 @@ export async function createPlatformStore(db, users) {
         await connection.query('INSERT INTO platform_policy_versions(revision,policy,created_by) VALUES($1,$2,NULL)', [1, initial])
         await connection.query('INSERT INTO platform_policy_state(id,revision) VALUES(1,1)')
         await connection.query("INSERT INTO platform_policy_audit(revision,previous_revision,actor_id,action) VALUES(1,NULL,NULL,'initialized')")
+      } else {
+        const { rows: [current] } = await connection.query('SELECT policy FROM platform_policy_versions WHERE revision=$1', [state.revision])
+        if (!current || current.policy?.revision !== state.revision) throw fail(503, '当前模型配置版本不完整', 'PLATFORM_POLICY_STATE_MISSING')
+        const migrated = migrateServicePolicy(current.policy)
+        if (migrated) {
+          migrated.revision = state.revision + 1
+          await connection.query('INSERT INTO platform_policy_versions(revision,policy,created_by) VALUES($1,$2,NULL)', [migrated.revision, migrated])
+          await connection.query('UPDATE platform_policy_state SET revision=$1 WHERE id=1', [migrated.revision])
+          await connection.query("INSERT INTO platform_policy_audit(revision,previous_revision,actor_id,action) VALUES($1,$2,NULL,'updated')", [migrated.revision,state.revision])
+        }
       }
     })
   } catch (error) {

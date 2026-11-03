@@ -37,16 +37,15 @@ export function validateReportSelection(input) {
 }
 export function reportModelRoles(input) {
   const selection=validateReportSelection(input)
-  return selection.mode === 'research-summary' ? [] : ['parent','text',...(selection.stage === 'production-research' ? ['web'] : [])]
+  return selection.mode === 'research-summary' ? [] : ['parent','text',...(selection.stage === 'production-research' ? ['web'] : []),...(selection.stage === 'production-visuals' ? ['image','vision'] : [])]
 }
 export function validateReportSnapshot(snapshot,input) {
   const selection=validateReportSelection(input)
   if (selection.mode === 'research-summary') return undefined
-  if (selection.stage === 'production-visuals') throw researchError('IMAGE_BACKEND_UNAVAILABLE','IMAGE_BACKEND_UNAVAILABLE: 图像生成后端尚未装配。',503)
   const policy=validateSnapshot(snapshot,reportModelRoles(selection))
   // Core chapter production attaches images to its actual text class. Checking
   // an unrelated vision route would not prove these requests can read images.
-  if (['production-plan','production-layout','production-export','production-review'].includes(selection.stage)) {
+  if (['production-plan','production-visuals','production-layout','production-export','production-review'].includes(selection.stage)) {
     const route=policy.routes.text
     if ([route.primary,...route.fallbacks].some(ref=>!policy.models.find(model=>model.provider === ref.provider && model.model === ref.model)?.capabilities.vision)) {
       throw researchError('REPORT_TEXT_VISION_REQUIRED','REPORT_TEXT_VISION_REQUIRED: 当前章节步骤实际使用的文本主备模型均须支持图片输入。',503)
@@ -54,7 +53,7 @@ export function validateReportSnapshot(snapshot,input) {
   }
   return policy
 }
-const privateKey = /^(?:provider|model|runtimeProvider|credentialRef|credentials|apiKey|apiKeyEnv|authorization|secret|token|settings|routes|routeChain|selected|actualModel|configurationSnapshot|snapshotPolicy|workspaceRoot|directoryRoot|snapshotRoot|cwd|path|absolutePath|executionAudit|attempts)$/iu
+const privateKey = /^(?:provider|model|runtimeProvider|credentialRef|credentialEnv|credentials|apiKey|apiKeyEnv|authorization|secret|token|settings|routes|routeChain|selected|actualModel|configurationSnapshot|snapshotPolicy|baseURL|endpoint|workspaceRoot|directoryRoot|snapshotRoot|cwd|path|absolutePath|executionAudit|attempts)$/iu
 export function publicBusinessData(value, privateRoots = []) {
   if (value === undefined || value === null || typeof value === 'number' || typeof value === 'boolean') return value
   if (typeof value === 'string') {

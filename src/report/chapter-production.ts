@@ -460,11 +460,13 @@ export class ChapterProductionService {
       if(sceneRequest)validateChapterSceneRequest(sceneRequest,state.manuscriptHash,draft.chapter.pages.map(p=>p.id))
       const scenePhase=sceneRequest?'scene-briefs-'+hash(sceneRequest).slice(0,12):'scene-briefs-v1'
       const scenePageIds=sceneRequest?.pageIds??draft.chapter.pages.map(p=>p.id)
+      const referenceAssetIds=assets.map(asset=>asset.id)
       assets=await discoverChapterAssets(workspace,assets,signal)
       const images=await chapterAssetContactSheets(join(root,scenePhase),assets,signal)
-      const prompt=['根据本章已审正文与真实素材，为缺少相应产品/体验画面的页面撰写1至6个概念场景生图任务。现场候选多数是航拍；不能把航拍当成课程、服务或产品体验已经可见。场景应表现人、活动、空间和产品使用方式，具体对应本章内容，避免泛泛湖景。每图供1至2个明确页面使用；其它页面由排版者选相关现场图。',CLIENT_VISUAL_PROMPT,
+      const prompt=['根据本章已审正文与真实素材，为缺少相应产品/体验画面的页面撰写1至6个概念场景生图任务。不得把素材未呈现的课程、服务或产品体验说成已经可见。场景应表现人、活动、空间和产品使用方式，具体对应本章内容。每图供1至2个明确页面使用；其它页面由排版者选相关现场图。',CLIENT_VISUAL_PROMPT,
         '所有图均为拟议概念，不是现状、竣工效果或工程承诺。必须适合前期策划对外汇报：精致自然的建筑/景观摄影感，真实尺度，完整横幅构图1600×896，清楚的主题和景深；不做拼贴、文字海报或关系图，不出现可读文字和标志。环境、建筑类型、活动内容及尺度必须来自本项目正文、真实资料与用户要求，不引入其他项目的环境或设施。具体创意及prompt由你基于原文决定。',
-        'structured_output提交scenes，每项key为英文短标识，title为场景名，pageIds对应本章真实页ID，prompt写完整生图内容、主体、活动、镜头和空间关系，reason写这张图如何补足原文表达。禁止改写正文或增加经营事实。',JSON.stringify({chapter:{...draft.chapter,pages:draft.chapter.pages.filter(p=>scenePageIds.includes(p.id))},assets:assets.map(({path:_,...a})=>a)}),
+        '仅当用户明确要求编辑已有图片时，在prompt内明确使用edit并写出referenceAssetIds中的真实参考资产ID与编辑要求；其他独立概念场景使用generate，不编造参考文件。',
+        'structured_output提交scenes，每项key为英文短标识，title为场景名，pageIds对应本章真实页ID，prompt写完整生图内容、主体、活动、镜头和空间关系，reason写这张图如何补足原文表达。禁止改写正文或增加经营事实。',JSON.stringify({userRequest:request.message,referenceAssetIds,chapter:{...draft.chapter,pages:draft.chapter.pages.filter(p=>scenePageIds.includes(p.id))},assets:assets.map(({path:_,...a})=>a)}),
         ...(sceneRequest?['本次是实际页面复核后的补充生图，必须覆盖以下全部指定页；每张最多供两个页面使用，保留现有场景，不复制已有同图冒充补充。具体画面和提示词由你决定。',JSON.stringify(sceneRequest)]:[])].join('\n')
       const validateBriefs=(v:ChapterSceneBriefs)=>{
         validateChapterSceneBriefs(v,scenePageIds)
@@ -479,7 +481,7 @@ export class ChapterProductionService {
       const generated:ChapterAssetInput[]=[]
       for(const scene of briefs.scenes){
         await guard();const identity=hash({manuscript:state.manuscriptHash,scene}).slice(0,16)
-        const record=await this.d.visual.generate(parent,{taskId:'chapter-scene-'+identity,projectId:input.projectId,chapterId:profile.code,workItemId:profile.code+'-01',kind:'concept',required:true,prompt:scene.prompt},signal,{preserveUncertain:true,beforeStart:async()=>{await guard()}})
+        const record=await this.d.visual.generate(parent,{taskId:'chapter-scene-'+identity,projectId:input.projectId,chapterId:profile.code,workItemId:profile.code+'-01',kind:'concept',required:true,prompt:scene.prompt,referenceAssetIds},signal,{preserveUncertain:true,beforeStart:async()=>{await guard()}})
         generated.push(await chapterGeneratedScene(workspace,scene,record))
         await saveChapterProduction(join(root,'scene-generation-'+identity+'.json'),{scene,record,asset:generated.at(-1)})
         await saveChapterProduction(sceneAssetPath,mergeChapterSceneAssets(previousScenes,generated))

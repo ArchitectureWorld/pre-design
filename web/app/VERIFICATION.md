@@ -24,6 +24,20 @@
 - 普通用户无模型入口；管理员可保存/刷新配置，查看候选路由与实际请求证据；未知用量明确显示未记录。
 - 原型 CSS 逐字保留、DOM ID 顺序不变；增量窗口通过桌面和 390px 宽度检查，浏览器错误为零。
 
+## 本轮搜索与 Flux3 工作流接入
+
+- 用户提供的两份工作流已分别保存为版本化文生图/图生图模板，使用 `flux3-image-klein-bf16.safetensors`。与附件精确比较，仅清空示例提示词和参考图文件名；保留本地编码器、扩写器、节点连接和原始尺寸默认。
+- 独立 Search API 使用任务快照地址和专用凭据，保留真实来源、空结果与失败；没有额外 Messages 模型调用。管理员可设置服务地址和凭据引用，普通用户只看到可用性说明。
+- 图像工具只接受实际 image 类子会话和快照内配套 LLM，编辑图片核验当前项目的 Core/标准目录绑定、资产 ID、哈希和像素。ComfyUI 图像路由按已注册工具验证，不要求伪造文本提供方。
+- 提交前持久收执、同任务跨子会话防重复、按 promptId 查结果、只取消本请求排队项；结果未知不自动重发。已完成且重新核验通过的概念图可下载，收执摘要可由管理员查看。
+- 启动探测继承用户取消信号。只读复核用挂起的本地 HTTP 服务验证取消 4 ms 结束，仅一次探测请求，未启动 DSH 或模型任务。
+- Web 全套 **209/209 通过**：`.cache/services-web-tests-final.log`。受影响 Core **189 通过、1 跳过**：`.cache/services-core-tests-final.log`。当前类型检查、生产构建、Host/UI 构建记录为 `.cache/services-*-final.log`。
+- 真实 Worker/DSH Host + 本地 HTTP 模拟服务联调通过：搜索额外模型请求为 0；generate/edit 均经原生子会话、`comfyui_pic`、图片附件和 Collector，生成两份 candidate 资产；两次 prompt、一份参考图上传，资产文件、清单及收执哈希一致。证据 `.cache/service-probe-latest.json`、`.cache/service-probe-report.md`。这些 PNG 是协议测试图片，不是 GPU 生成成功证明。
+- 实际浏览器验证新增搜索/ComfyUI 设置与搜索状态显示，同时复验三身份隔离、62 模块、真实图片上传、章节准备和小屏布局；日志 `.cache/services-browser.log`，浏览器错误为零且未调用真实模型。
+- 两项实际装配问题（把图像工具当作 LLM 校验、将 Core ID 与标准项目 ID 直接比较）均先复现，再修复并通过完整 Worker 联调。取消信号问题也已修复并由独立只读复核关闭，见 `.cache/services-integration-review.md`。
+
+尚缺真实服务地址和凭据，因此保持未验证状态；本轮没有验证外部搜索结果质量、实际 GPU 出图、完整模型生成的章节质量。图像提交未知后的迟到结果仍需管理员核对原收执，不能自动重新提交。
+
 ## 项目无关性
 
 运行代码不预置特定项目、地点、产品节点、案例或“用户已经批准理想条件”等事实。章节提示词、页表、标题、导出文件名和备注只使用当前项目名称、真实委托与研究来源。案例库由项目显式提供并绑定项目身份；缺目录给出缺口，不自动装载示例案例。原内嵌示例及图片移到测试 fixtures；生产前端构建剔除演示项目记录。
@@ -35,7 +49,7 @@
 - `pnpm typecheck`、`pnpm build`、锁文件冻结安装：通过。日志 `.cache/core-generic-typecheck-final.log`、`.cache/core-generic-build-final.log`，Core 详细记录 `.cache/core-v210-report.md`。
 - 专业测试以 8 分片覆盖 433 个文件，分阶段完成后各片均通过（合计 4495 项通过、15 项跳过）；通用化修改后另对受影响代码执行专业文稿 470 项、导出相关 75 项及案例迁移 64 项回归。这不是一次性在最终提交上重跑全套的记录。日志 `.cache/core-shard-*-of-8.log`、`.cache/core-generic-professional-regression.log`。
 - HTML/PDF 导出：7 项真实浏览器排版/文本/图像/几何校验通过。修正 Linux 中文字体的标题行框与图注内边距，未放宽几何断言。日志 `.cache/core-generic-export-regression.log`。
-- 最终 Web Node 测试：78/78 通过，覆盖真实 PostgreSQL 临时 schema、API、UI、Worker 边界、快照、取消和目录契约。日志 `.cache/web-v210-final-tests.log`。
+- 基础 Web 合并阶段 Node 测试：78/78 通过，覆盖真实 PostgreSQL 临时 schema、API、UI、Worker 边界、快照、取消和目录契约。日志 `.cache/web-v210-final-tests.log`；本轮结果见上节。
 - 实际 DSH Host 构建通过，7 个文件共约 5.83 MB。日志 `.cache/host-v210-final-build.log`。
 - 实际 DSH/Unix socket 离线探针通过：62 项目录、同会话恢复、工具越界阻断、章节准备、研究缺口预检、真实请求身份及 65536 预算传递。提供方为本地模拟 HTTP 服务，返回 401 后任务真实 failed；没有伪造成功研究。日志 `.cache/research-offline-probe-final.log`。
 - 最终 Playwright 验收：`.cache/web-v210-browser/report.json`、研究范围/管理员/章节准备/手机截图；`realModelsInvoked` 为 false。
@@ -46,8 +60,8 @@
 ## 尚未完成的真实接入
 
 - 允许模型的实际端点和凭据配置尚未提供。14 项目前保持待验证，未执行真实文本研究、视觉审查或完整章节质量验收。
-- ComfyUI Klein 和启航图像适配器未装配，生成图像明确不可用；模型身份和管理员配置字段已保留。
-- 独立网页搜索后端未接入，受控公开网页原文抓取可用。没有沿用 DSH 自带的额外收费模型凭据。
+- ComfyUI Flux3 文生图、图生图适配器已装配，真实地址及 GPU 出图尚未验证。启航图像来源尚无适配器。
+- 独立 Search API 已接入，真实服务地址/凭据仍待提供。使用快照指定的专用凭据，禁用 Messages 搜索回退；受控公开网页原文抓取保持可用。
 - Office/CAD/OCR、注册/密码管理、HTTPS 入口、完整备份恢复尚未验收。
 
 这些是可用性边界，不能以本地测试通过替代真实接入验收。

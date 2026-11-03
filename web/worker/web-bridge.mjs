@@ -1,11 +1,15 @@
 // The private Unix socket accepts business operations, never caller supplied commands.
 import { createServer } from 'node:http'
-import { chmod, readFile, unlink, realpath } from 'node:fs/promises'
+import { chmod, readFile, unlink, realpath, appendFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { timingSafeEqual } from 'node:crypto'
 import { validateSnapshot } from '../app/src/model-policy.mjs'
 import { RESEARCH_CONDITIONS, validateResearchSelection, validateReportSelection, validateReportSnapshot, publicBusinessData, researchError } from '../app/src/research-contract.mjs'
 import { installProjectBoundary } from './project-boundary.mjs'
 import { installModelBoundary } from './model-runtime.mjs'
+import { installSearchBoundary } from './search-runtime.mjs'
+import { installImageTool } from './image-tool.mjs'
+import { ComfyUIClient, compileFlux3Workflow } from './comfyui-client.mjs'
 import { createResearchSummary, listProjectArtifacts, researchCheckpoints } from './research-artifacts.mjs'
 import { collectExecutionTrace } from './execution-trace.mjs'
 import { recordResearchRequest } from './research-request.mjs'
@@ -13,7 +17,7 @@ import { checkpointCompatibility } from './research-checkpoint.mjs'
 import { prepareChapter, chapterPreflight, chapterReadiness } from './chapter-setup.mjs'
 
 export const name = 'pre-design-web-bridge'
-export const inject = ['preplanning', 'commands', 'agents', 'tools', 'llm']
+export const inject = ['preplanning', 'commands', 'agents', 'tools', 'llm', 'web', 'attachments']
 function success(result) {
   const value = result?.result ?? result
   if (value?.kind !== 'success') {
@@ -22,7 +26,7 @@ function success(result) {
   }
   return value
 }
-export function createBridgeHandler(ctx, { workspace, sessionId, snapshot, callerUserId }) {
+export function createBridgeHandler(ctx, { workspace, sessionId, snapshot, callerUserId, imageAvailability, searchAvailability }) {
   let mutation = false, report = { status: 'idle', artifacts: [] }, reportController
   const context = () => ctx.preplanning.repository.readContext(sessionId)
   const research = () => {
@@ -75,8 +79,8 @@ export function createBridgeHandler(ctx, { workspace, sessionId, snapshot, calle
         continuation:{mode:checkpoint.compatibility.compatible?'resume':'new-snapshot',reason:checkpoint.compatibility.reason ?? 'unchanged',
           message:checkpoint.compatibility.compatible?'将核验并复用同一快照成果。':'将建立新研究快照；旧成果保留，未选前置模块不会自动执行。'},
         selection: { moduleIds: selection.moduleIds, dependencyModuleIds: plan.dependencyModuleIds ?? [], executionModuleIds: selection.moduleIds },
-        availability: { image: { status: 'unavailable', code: 'IMAGE_BACKEND_UNAVAILABLE' },
-          web: { fetch: 'available', search: 'unavailable', code: 'WEB_SEARCH_BACKEND_UNAVAILABLE', reason: '公开网页原文读取可用；独立搜索后端尚未验证。' }, models: { status: snapshot ? 'configured' : 'not_ready' } } }
+        availability: { image: imageAvailability ?? { status: 'not_ready', code: 'IMAGE_POLICY_NOT_READY' },
+          web: { fetch: 'available', search: searchAvailability?.status === 'ready' ? 'configured' : searchAvailability?.status ?? 'not_ready', ...searchAvailability }, models: { status: snapshot ? 'configured' : 'not_ready' } } }
     }
     if (input.operation === 'state') return { ...context(), workflow: ctx.preplanning.runtime.snapshot(context().project.projectId) }
     if (mutation) throw researchError('BRIDGE_BUSY', '项目正在处理上一项操作。', 409)
@@ -147,9 +151,18 @@ export async function apply(ctx) {
   const workspace = await realpath(process.env.PRE_WEB_WORKSPACE ?? '')
   if (!socket || !secret || !sessionId || !process.env.PRE_WEB_POLICY_FILE) throw new Error('WEB_BRIDGE_CONFIG_MISSING')
   const policy = JSON.parse(await readFile(process.env.PRE_WEB_POLICY_FILE, 'utf8'))
+  await installSearchBoundary(ctx, { searchPolicy: policy.searchPolicy, availability: policy.searchAvailability,
+    onAudit: entry => appendFile(join(dirname(process.env.PRE_WEB_POLICY_FILE), 'search-audit.jsonl'), JSON.stringify(entry) + '\n', { mode: 0o600 }) })
+  if (policy.imageBackend) {
+    const backend = policy.imageBackend
+    await installImageTool(ctx, { workspace, sessionId, policy, backend: {
+      client: new ComfyUIClient({ ...backend, headers: backend.credentialEnv ? { Authorization: `Bearer ${process.env[backend.credentialEnv]}` } : {} }),
+      compileWorkflow: compileFlux3Workflow,
+    } })
+  }
   installProjectBoundary(ctx, { sessionId, workspace })
   await installModelBoundary(ctx, { sessionId, ...policy })
-  const handle = createBridgeHandler(ctx, { workspace, sessionId, snapshot: policy.snapshot, callerUserId:process.env.PRE_WEB_CALLER_USER_ID })
+  const handle = createBridgeHandler(ctx, { workspace, sessionId, ...policy, callerUserId:process.env.PRE_WEB_CALLER_USER_ID })
   const server = createServer(async (req, res) => {
     res.setHeader('content-type', 'application/json; charset=utf-8')
     const supplied = Buffer.from(req.headers.authorization ?? ''), expected = Buffer.from(`Bearer ${secret}`)

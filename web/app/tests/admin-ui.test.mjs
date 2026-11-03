@@ -59,6 +59,21 @@ test('普通用户不创建模型管理入口、不创建弹窗，也不请求�
   assert.doesNotThrow(() => controls.dispose())
 })
 
+test('管理员填写独立搜索和 ComfyUI 地址，仅提交凭据引用并保留工作流版本',async t=>{
+  const {document,window,calls,open}=fixture(t,{policy:defaultPolicy()});await open()
+  change(window,byLabel(document,'启用独立搜索'),true)
+  change(window,byLabel(document,'搜索服务地址'),'https://search.example.org/v1/tools')
+  change(window,byLabel(document,'搜索凭据引用'),'credential:SEARCH_KEY')
+  change(window,byLabel(document,'ComfyUI 服务地址'),'http://127.0.0.1:8188')
+  button(document,'保存策略').click()
+  await settle(()=>calls.some(call=>call.options.method==='PUT'))
+  const sent=calls.find(call=>call.options.method==='PUT').options.body.policy
+  assert.equal(sent.search.enabled,true);assert.equal(sent.search.credentialRef,'credential:SEARCH_KEY')
+  assert.equal(sent.models[10].imageConfig.baseURL,'http://127.0.0.1:8188')
+  assert.equal(sent.models[10].imageConfig.textToImageWorkflow,'flux3-klein-t2i@2026-11-03.1')
+  assert.equal(sent.models[10].status,'unverified')
+})
+
 test('管理员通过真实表单修改主备顺序与预算，并以原版本保存完整策略', async t => {
   const { document, window, calls, open } = fixture(t)
   await open()

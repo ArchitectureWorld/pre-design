@@ -1,3 +1,5 @@
+import { DEFAULT_SEARCH_POLICY } from './service-defaults.mjs'
+
 const roleNames = { parent: '父任务', text: '文本生成', web: '网络查询', vision: '图片审查', image: '图像生成', imageLlm: '生图配套 LLM' }
 const requiredCapabilities = { parent: ['text', 'tools'], text: ['text', 'tools'], web: ['text', 'tools'], vision: ['text', 'vision'], image: ['image'], imageLlm: ['text', 'tools'] }
 const capabilityNames = { text: '文字输入', tools: '工具调用', vision: '图片理解', image: '图像生成' }
@@ -163,8 +165,10 @@ export function mountAdminControls({ request, notify = () => {}, container, iden
       const model = modelFor(key(candidate)); return !model || !compatible(model, role, true)
     })) return '备用待调整'
     if (role === 'image' && [draft.routes.image.primary, ...draft.routes.image.fallbacks].some(model => model?.provider === 'Comfyui-PIC')) {
+      if (!selected.imageConfig?.baseURL) return '图像未就绪：缺少服务地址'
       const llm = modelFor(key(draft.routes.imageLlm.primary))
       if (!llm || llm.status !== 'verified' || !llm.capabilities.text || !llm.capabilities.tools) return '图像未就绪：配套 LLM 待验证'
+      if (draft.routes.imageLlm.fallbacks.length) return '图像未就绪：请清空配套 LLM 备用链'
     }
     return '已就绪'
   }
@@ -183,7 +187,7 @@ export function mountAdminControls({ request, notify = () => {}, container, iden
   }
   function renderRoutes() {
     const focusedLabel = routesSection.contains(document.activeElement) ? document.activeElement.getAttribute('aria-label') : null
-    routesSection.replaceChildren(create('h3', '', '角色与主备顺序'), create('p', 'pd-admin-hint', '主模型可以先登记为待验证；备用只列出已验证且匹配能力的模型，按从上到下的顺序调用。网络查询仍需要宿主搜索工具。'))
+    routesSection.replaceChildren(create('h3', '', '角色与主备顺序'), create('p', 'pd-admin-hint', '主模型可以先登记为待验证；备用只列出已验证且匹配能力的模型，按从上到下的顺序调用。网络查询还需在下方配置独立搜索服务。'))
     const grid = create('div', 'pd-admin-route-grid')
     for (const [role, title] of Object.entries(roleNames)) {
       const route = draft.routes[role], card = create('section', 'pd-admin-route'); card.dataset.adminRole = role
@@ -218,6 +222,7 @@ export function mountAdminControls({ request, notify = () => {}, container, iden
       add.disabled = !route.primary || !available.length
       card.append(add)
       if (!available.length) card.append(create('small', 'pd-admin-hint', '暂无其他已验证且匹配能力的备用模型'))
+      if (role === 'imageLlm') card.append(create('small', 'pd-admin-hint', 'Flux3 生图当前只使用主选配套 LLM，备用链须留空；提交结果未知时保留收执供核对。'))
       grid.append(card)
     }
     routesSection.append(grid)
@@ -267,10 +272,38 @@ export function mountAdminControls({ request, notify = () => {}, container, iden
       const declared = Object.entries(model.declaredCapabilities || {}).filter(([, value]) => value).map(([capability]) => capabilityNames[capability]).join('、')
       const hint = create('p', 'pd-admin-hint', `交接声明：${declared || '无明确声明'}；实际验证状态以上方选项为准。`)
       if (model.compat?.maxTokensField) hint.append(create('span', '', ` 兼容字段：${model.compat.maxTokensField}（保持原值）。`))
-      if (model.imageConfig?.modelFile) hint.append(create('span', '', ` 模型文件：${model.imageConfig.modelFile}；现有工作流配置保持原值。`))
+      if (model.imageConfig?.modelFile) {
+        hint.append(create('span', '', ` 模型文件：${model.imageConfig.modelFile}。文生图与参考图编辑使用已登记的工作流版本；填写服务地址不会自动标记为已验证。`))
+        const address = create('input', 'pd-admin-input'); address.type = 'url'; address.value = model.imageConfig.baseURL ?? ''; address.placeholder = 'http://主机地址:8188'
+        address.setAttribute('aria-label', 'ComfyUI 服务地址'); address.autocomplete = 'off'; address.spellcheck = false
+        address.addEventListener('input', () => { if (address.value) model.imageConfig.baseURL = address.value; else delete model.imageConfig.baseURL; changed(); renderRoutes() })
+        fields.append(labelField('ComfyUI 服务地址', address))
+        hint.append(create('span', '', ` 工作流：${model.imageConfig.textToImageWorkflow ?? '未登记'} / ${model.imageConfig.referenceImageWorkflow ?? '未登记'}。无鉴权服务可留空凭据引用。`))
+      }
       card.append(summary, fields, capabilityGroup, hint); catalog.append(card)
     }
     return catalog
+  }
+  function renderSearch() {
+    draft.search ??= { ...DEFAULT_SEARCH_POLICY }
+    const search = draft.search, panel = section('独立搜索服务', '搜索通过 Search API 获取来源，不额外调用问答模型。配置随任务版本保存；服务地址与凭据引用仅管理员可见。'), grid = create('div', 'pd-admin-limits')
+    const enabled = create('input'); enabled.type = 'checkbox'; enabled.checked = search.enabled; enabled.setAttribute('aria-label', '启用独立搜索')
+    enabled.addEventListener('change', () => { search.enabled = enabled.checked; changed() }); panel.append(labelField('启用独立搜索', enabled))
+    for (const [name, label, options] of [
+      ['baseURL', '搜索服务地址', { type: 'url', required: true }],
+      ['credentialRef', '搜索凭据引用', { type: 'text', placeholder: 'credential:已登记标识' }],
+      ['maxResults', '每次搜索结果上限', { type: 'number', min: 1, max: 50 }],
+      ['maxQueries', '每轮搜索次数上限', { type: 'number', min: 1, max: 8 }],
+      ['timeoutMs', '搜索超时（毫秒）', { type: 'number', min: 1000, max: 120000 }],
+    ]) {
+      const input = create('input', 'pd-admin-input'); Object.assign(input, options); input.value = search[name] ?? ''; input.setAttribute('aria-label', label); input.autocomplete = 'off'
+      if (options.type === 'number') { input.step = '1'; input.required = true }
+      if (name === 'credentialRef') { input.pattern = 'credential:[\\p{L}\\p{N}][\\p{L}\\p{N}_.\\-]{0,127}'; input.title = '只填写凭据引用，不填写密钥。' }
+      input.addEventListener('input', () => { if (!input.value && name === 'credentialRef') delete search[name]; else search[name] = options.type === 'number' ? Number(input.value) : input.value; changed() })
+      grid.append(labelField(label, input))
+    }
+    panel.append(grid, create('p', 'pd-admin-hint', '支持 DeepSeek Search API 协议。未启用或凭据缺失时会显示具体原因；不会切换到其他账号或模型代替搜索。'))
+    return panel
   }
   function renderPolicy() {
     policyForm = create('form', 'pd-admin-form'); policyForm.addEventListener('submit', event => { event.preventDefault(); void save() })
@@ -284,7 +317,7 @@ export function mountAdminControls({ request, notify = () => {}, container, iden
       input.addEventListener('input', () => { draft.limits[name] = Number(input.value); changed() })
       grid.append(labelField(label, input))
     }
-    limits.append(grid); editFields.append(routesSection, renderCatalog(), limits); policyForm.append(editFields)
+    limits.append(grid); editFields.append(routesSection, renderSearch(), renderCatalog(), limits); policyForm.append(editFields)
     panes.policy.replaceChildren(policyForm); updateState()
   }
   function switchTab(name) {
@@ -296,7 +329,9 @@ export function mountAdminControls({ request, notify = () => {}, container, iden
     const metadata = job.execution_metadata
     const requests = Array.isArray(metadata?.parent?.requests) ? metadata.parent.requests : []
     const executions = Array.isArray(metadata?.executions) ? metadata.executions : []
-    if (!requests.length && !executions.length) {
+    const searches = Array.isArray(metadata?.search) ? metadata.search : []
+    const images = Array.isArray(metadata?.images) ? metadata.images : []
+    if (!requests.length && !executions.length && !searches.length && !images.length) {
       details.append(create('p', 'pd-admin-hint', '实际调用、预算、用量与备用切换：未记录。'))
       return details
     }
@@ -332,6 +367,22 @@ export function mountAdminControls({ request, notify = () => {}, container, iden
       if (typeof execution.childId === 'string') context.push(`子任务：${execution.childId}`)
       if (typeof execution.startedAt === 'string' && Number.isFinite(Date.parse(execution.startedAt))) context.push(`开始：${new Date(execution.startedAt).toLocaleString('zh-CN')}`)
       card.append(create('p', 'pd-admin-hint', context.join(' · '))); details.append(card)
+    }
+    for (const row of searches) {
+      const card = create('section', 'pd-admin-call')
+      card.append(create('h4', '', '独立搜索'), create('p', '', `状态：${{ started: '开始尝试', succeeded: '已返回', failed: '失败' }[row.phase] ?? '未知'}`))
+      if (Number.isInteger(row.sourceCount)) card.append(create('p', '', `返回来源：${row.sourceCount} 条`))
+      if (row.code) card.append(create('p', 'pd-admin-hint', row.code))
+      details.append(card)
+    }
+    for (const row of images) {
+      const card = create('section', 'pd-admin-call'); card.append(create('h4', '', 'Flux3 图像收执'))
+      card.append(create('p', '', `状态：${{ completed: '已取得图片', preparing: '准备中', dispatching: '提交中，待核对', submission_unknown: '提交结果未知', submitted: '已提交，待核对', failed: '失败' }[row.state] ?? '待核对'}`))
+      if (row.promptId) card.append(create('p', 'pd-admin-hint', `ComfyUI 任务编号：${row.promptId}`))
+      if (row.workflow) card.append(create('p', 'pd-admin-hint', `工作流：${row.workflow.workflowId} · ${row.workflow.workflowVersion} · ${row.workflow.workflowSha256}`))
+      if (row.output) card.append(create('p', '', `图片：${row.output.width} × ${row.output.height}`))
+      if (row.errorCode) card.append(create('p', 'pd-admin-hint', row.errorCode))
+      details.append(card)
     }
     return details
   }

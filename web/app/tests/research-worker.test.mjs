@@ -32,15 +32,16 @@ test('后台研究启动成功后持续查询到partial，不能冒充completed'
   await worker.closeAll()
 })
 test('取消发生在启动期间，Worker启动后先退出，不能开始收费研究', async () => {
-  let release, calls = 0
+  let release, calls = 0, receivedSignal
   const gate = new Promise(resolve => {release=resolve})
-  class SlowWorker extends WorkerFixture { async start() { await gate; return super.start() } }
+  class SlowWorker extends WorkerFixture { async start(...args) { receivedSignal=args[3]; await gate; return super.start(...args) } }
   const worker = new SlowWorker(async () => {calls++;return {status:'completed'}})
   assert.equal(typeof worker.runResearch, 'function')
   const controller = new AbortController()
   const pending = worker.runResearch(project,selection,snapshot(),undefined,controller.signal)
   await new Promise(resolve => setImmediate(resolve)); controller.abort(new Error('USER_CANCELLED')); release()
   await assert.rejects(pending,/USER_CANCELLED/)
+  assert.equal(receivedSignal,controller.signal,'启动探测须继承本次用户取消信号')
   assert.equal(calls, 0); assert.equal(worker.disposed, 1)
 })
 test('Worker尚在启动时已预留项目，第二个研究不能并发进入', async () => {

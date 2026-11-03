@@ -64,6 +64,7 @@ export function mountPlatform({ request, mutate, getProject, getIdentity, notify
     }
     const names = new Map((catalog.chapters ?? []).map(c => Array.isArray(c) ? c : [String(c.id), c.title ?? c.name]))
     dialog.querySelector('.platform-body').innerHTML = `<p class="platform-description">只执行明确选中的研究模块。可以先用“待确认”检查范围，执行前须选择四项研究条件；这些选择用于界定研究范围，不能替代现场事实核实。缺少上游成果时会提示补充。</p>
+      <p class="platform-description" data-service-status></p>
       <div class="platform-conditions">${Object.entries(conditions).map(([key, label]) => `<label>${label}<select data-condition="${key}"><option value="unknown">待确认</option><option value="true">是</option><option value="false">否</option></select></label>`).join('')}</div>
       <div class="platform-scope-actions"><span>已选 <b data-selected-count>${selected.size}</b> 项 / ${catalog.modules.length} 项</span><button type="button" data-action="check-plan">检查条件与依赖</button><button type="button" data-action="add-dependencies">添加提示的依赖</button><button type="button" data-action="clear-scope">清空选择</button></div>
       <div class="platform-modules">${[...byChapter].map(([id, rows]) => `<section><h3>第 ${escape(id)} 章 · ${escape(names.get(id) ?? '研究模块')}</h3>${rows.map(m => {
@@ -71,6 +72,7 @@ export function mountPlatform({ request, mutate, getProject, getIdentity, notify
         return `<label class="platform-module"><input type="checkbox" data-module="${escape(m.id)}" ${selected.has(m.id) ? 'checked' : ''}><span><b>${escape(m.id)}</b> ${escape(m.title)}</span><small>${badge}</small></label>`
       }).join('')}</section>`).join('')}</div>
       <div class="platform-footer"><label><input type="checkbox" data-redo> 重做所选模块，保留其他成果</label><button type="button" class="primary-btn" data-action="run-research" ${selected.size ? '' : 'disabled'}>开始所选研究 ↗</button></div>`
+    renderServiceStatus()
     for (const input of dialog.querySelectorAll('[data-condition]')) { input.value = String(flags[input.dataset.condition]); input.onchange = () => { flags[input.dataset.condition] = input.value === 'unknown' ? 'unknown' : input.value === 'true'; saveSelection() } }
     for (const input of dialog.querySelectorAll('[data-module]')) input.onchange = () => { input.checked ? selected.add(input.dataset.module) : selected.delete(input.dataset.module); saveSelection() }
     dialog.querySelector('[data-action="clear-scope"]').onclick = () => { selected.clear(); saveSelection(); renderResearch() }
@@ -89,11 +91,16 @@ export function mountPlatform({ request, mutate, getProject, getIdentity, notify
       message('任务已提交，可在“任务与成果”查看进度。')
     })
   }
+  function renderServiceStatus() {
+    const status = dialog?.querySelector('[data-service-status]'), web = cache?.availability?.web
+    if (status) status.textContent = web ? `搜索服务：${web.status === 'ready' || web.search === 'configured' ? '已配置，实际连通以搜索结果为准。' : web.reason ?? '尚未配置，请联系管理员。'} 网页原文读取${web.fetch === 'available' ? '可用' : '尚未就绪'}。` : '搜索服务状态尚未提供。'
+  }
   async function checkPlan() {
     if (!selected.size) throw new Error('请先选择需要研究的模块。')
     const id = panelProject, result = await request(`/projects/${id}/research/plan`, { method: 'POST', body: { moduleIds: [...selected].sort(), flags: { ...flags } } })
     if (!active(id)) return
     cache = { ...cache, ...result }
+    renderServiceStatus()
     const missing = (result.selection?.dependencyModuleIds ?? []).filter(item => !selected.has(item))
     const unresolved = [...(result.plan?.pendingModuleIds ?? []), ...(result.plan?.blockedModuleIds ?? [])].filter(item => selected.has(item))
     message([missing.length ? `所选范围涉及上游依赖：${missing.join('、')}；请确认是否需要加入，已有有效成果可由后端复用。` : '所选范围已检查。', unresolved.length ? `条件或依赖待补充：${unresolved.join('、')}。` : ''].join(' '))
@@ -120,7 +127,7 @@ export function mountPlatform({ request, mutate, getProject, getIdentity, notify
   }
   function renderArtifacts(artifacts) {
     const target = dialog?.querySelector('[data-artifacts]'); if (!target) return
-    target.innerHTML = (artifacts ?? []).map(a => `<div class="platform-artifact"><div><strong>${escape(a.filename)}</strong><small>${escape(labels[a.status] ?? a.status ?? a.kind)} · ${Math.ceil((a.bytes ?? 0) / 1024)} KB</small></div><div>${/\.(md|txt|json)$/iu.test(a.filename) ? `<button type="button" data-preview-artifact="${escape(a.id)}">预览文字</button> ` : ''}<button type="button" data-artifact="${escape(a.id)}">下载</button></div></div>`).join('') || '<p>暂无成果。完成研究后，可下载原始结果或汇编报告。</p>'
+    target.innerHTML = (artifacts ?? []).map(a => `<div class="platform-artifact"><div><strong>${escape(a.filename)}</strong><small>${a.kind === 'generated-concept' ? 'AI 概念图 · ' : ''}${escape(labels[a.status] ?? a.status ?? a.kind)} · ${Math.ceil((a.bytes ?? 0) / 1024)} KB</small></div><div>${/\.(md|txt|json)$/iu.test(a.filename) ? `<button type="button" data-preview-artifact="${escape(a.id)}">预览文字</button> ` : ''}<button type="button" data-artifact="${escape(a.id)}">下载</button></div></div>`).join('') || '<p>暂无成果。完成研究后，可下载原始结果或汇编报告。</p>'
     for (const button of target.querySelectorAll('[data-preview-artifact]')) button.onclick = () => void perform(async () => {
       const id = panelProject, file = await request(`/projects/${id}/artifacts/${button.dataset.previewArtifact}`, { download: true })
       const content = await file.blob.text()

@@ -1,7 +1,7 @@
 import type { LlmRoute, ModelRoute } from './types.ts'
 
-// Bridge to the DSH ComfyUI plugin already installed by the user. Endpoints,
-// workflow files and credentials remain owned by that plugin's DSH settings.
+// Tool identity is independent of the companion LLM provider. The installed
+// adapter owns endpoints, pinned workflows and private credential resolution.
 export const COMFYUI_IMAGE_TOOL = 'comfyui_pic'
 export function imageToolForRoute(route: LlmRoute | null | undefined): string | undefined {
   return route?.provider === 'Comfyui-PIC' && route.model === 'Klein' ? COMFYUI_IMAGE_TOOL : undefined
