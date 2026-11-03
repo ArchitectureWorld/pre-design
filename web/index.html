@@ -1,0 +1,1281 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pre-design · Web 工作平台交互原型 V0.9 · 成果归拢/全展开 · 紧凑创建</title>
+<style>
+:root{
+  color-scheme:light;
+  --ink:#233040; --muted:#85909f; --muted2:#a5adb9; --line:rgba(101,116,140,.15);
+  --glass:rgba(255,255,255,.57); --glass-strong:rgba(255,255,255,.77);
+  --white:#fff; --accent:#446de4; --accent2:#708fff; --pale:#eaf0ff;
+  --shadow:0 28px 85px rgba(78,100,132,.14),0 3px 18px rgba(98,114,143,.065);
+  --radius:27px;
+}
+*{box-sizing:border-box} html,body{margin:0;height:100%;width:100%;overflow:hidden}
+body{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color:var(--ink);background:#edf1f6;-webkit-font-smoothing:antialiased}
+button,input,textarea,select{font:inherit;color:inherit}button{cursor:pointer}button:disabled{opacity:.43;cursor:not-allowed}
+svg{flex-shrink:0} .hidden{display:none!important}
+#environment{position:fixed;inset:0;z-index:-2;overflow:hidden;background:linear-gradient(125deg,#eaf0f5 0%,#f1f2f8 48%,#eff5f5 100%)}
+#environment:before{content:"";position:absolute;width:760px;height:700px;left:-160px;top:-245px;border-radius:50%;background:radial-gradient(circle,rgba(132,182,237,.35) 0%,rgba(194,214,244,.21) 36%,transparent 73%);filter:blur(20px)}
+#environment:after{content:"";position:absolute;width:940px;height:850px;right:-270px;bottom:-460px;border-radius:50%;background:radial-gradient(circle,rgba(185,211,201,.43),rgba(212,194,226,.16) 47%,transparent 73%);filter:blur(18px)}
+.environment-lilac{position:absolute;left:39%;top:2%;height:610px;width:500px;transform:rotate(20deg);background:radial-gradient(ellipse,rgba(218,208,238,.32),transparent 68%);filter:blur(18px)}
+.noise{pointer-events:none;position:fixed;inset:0;z-index:-1;opacity:.13;background-image:url('data:image/svg+xml,%3Csvg viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="n"%3E%3CfeTurbulence type="fractalNoise" baseFrequency=".68" numOctaves="3" stitchTiles="stitch"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23n)" opacity=".27"/%3E%3C/svg%3E')}
+.topbar{position:fixed;top:0;left:0;right:0;height:78px;z-index:40;display:flex;align-items:center;justify-content:space-between;padding:0 37px;pointer-events:none}
+.topbar>*{pointer-events:auto}.brand{display:flex;align-items:center;gap:12px;user-select:none}.brand-symbol{width:37px;height:37px;position:relative;display:grid;place-items:center;border-radius:12px;background:linear-gradient(142deg,rgba(255,255,255,.9),rgba(255,255,255,.35));border:1px solid rgba(255,255,255,.85);box-shadow:0 5px 16px rgba(95,117,156,.12),inset 0 1px 4px #fff}
+.brand-symbol:before,.brand-symbol:after{content:"";position:absolute;width:16px;height:16px;border:2.4px solid #6180d8;border-radius:6px;transform:rotate(32deg)}.brand-symbol:before{left:8px;opacity:.95}.brand-symbol:after{left:14px;opacity:.55;transform:rotate(32deg) scale(.9)}
+.brand-name{font-size:13px;letter-spacing:.18em;font-weight:820}.brand-caption{font-size:10.5px;letter-spacing:.1em;margin-top:2px;color:#909bab;font-weight:600}
+.top-right{display:flex;align-items:center;gap:12px}.environment-pill{display:flex;align-items:center;gap:7px;color:#63738a;background:rgba(255,255,255,.52);border:1px solid rgba(255,255,255,.72);padding:8px 12px;border-radius:30px;font-size:11px;backdrop-filter:blur(13px)}.status-dot{width:6px;height:6px;background:#79b8a1;border-radius:50%;box-shadow:0 0 0 3px rgba(121,184,161,.13)}
+.top-action{height:33px;width:33px;border-radius:50%;border:1px solid rgba(255,255,255,.75);background:rgba(255,255,255,.45);display:grid;place-items:center;color:#71809b;box-shadow:inset 0 1px 1px #fff;backdrop-filter:blur(12px)}
+.stage{position:fixed;inset:0;padding-top:73px}.glass{background:var(--glass);backdrop-filter:blur(31px) saturate(174%);-webkit-backdrop-filter:blur(31px) saturate(174%);border:1px solid rgba(255,255,255,.84);box-shadow:var(--shadow);position:relative;isolation:isolate}
+.glass:before{content:"";position:absolute;pointer-events:none;inset:0;border-radius:inherit;background:linear-gradient(127deg,rgba(255,255,255,.36),transparent 39%,rgba(255,255,255,.065) 65%,rgba(255,255,255,.3));mix-blend-mode:screen;z-index:-1}
+.glass:after{content:"";pointer-events:none;position:absolute;inset:1px;border-radius:inherit;border-top:1px solid rgba(255,255,255,.8);border-left:1px solid rgba(255,255,255,.25)}
+#entryStage,#consultStage{display:flex;align-items:center;justify-content:center;padding:68px 20px 33px;overflow:auto;scrollbar-width:thin}
+.flow-card{width:min(100%,632px);max-height:min(790px,calc(100vh - 118px));border-radius:31px;padding:31px 34px 25px;overflow:auto;scrollbar-width:thin;box-shadow:0 35px 105px rgba(82,102,141,.16),0 2px 8px rgba(79,101,128,.04),inset 0 2px 0 rgba(255,255,255,.7);animation:float-in .62s cubic-bezier(.2,.75,.15,1) both}
+@keyframes float-in{from{opacity:0;transform:translateY(18px) scale(.977)}to{opacity:1;transform:translateY(0) scale(1)}}
+.flow-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}.micro{font-size:10px;letter-spacing:.16em;font-weight:760;color:#97a2b2}.step-pill{border-radius:30px;background:rgba(246,248,252,.65);border:1px solid rgba(255,255,255,.7);padding:7px 12px;color:#78879b;font-size:11px;font-weight:660}
+.flow-title{font-size:32px;letter-spacing:-.06em;font-weight:730;line-height:1.3;margin:0}.flow-title em{font-style:normal;color:#5574c6}.flow-desc{font-size:12.5px;color:#8995a4;line-height:1.85;margin:10px 0 25px}
+.field{margin-bottom:15px}.field-row{display:grid;grid-template-columns:1fr 1fr;gap:13px}.field-label{display:block;font-size:11px;font-weight:660;color:#526277;margin:0 0 7px 4px}.must{color:#dc7b80;margin-left:2px}
+.field-input{width:100%;border-radius:12px;outline:0;border:1px solid rgba(144,160,183,.22);background:rgba(255,255,255,.56);height:44px;padding:0 14px;transition:border-color .2s,box-shadow .2s;font-size:13px;box-shadow:inset 0 1px 2px rgba(106,121,150,.03)}
+.field-input:focus{border-color:rgba(83,116,216,.5);box-shadow:0 0 0 3px rgba(81,116,227,.09)}
+.field-textarea{height:68px;padding-top:12px;resize:vertical;min-height:60px}.field-input::placeholder{color:#a9b3be}
+.upload-area{border-radius:16px;border:1px dashed #aebbcf;background:linear-gradient(150deg,rgba(255,255,255,.36),rgba(242,247,253,.27));padding:15px 15px 13px;display:flex;gap:12px;align-items:center;transition:background .2s,border-color .2s;cursor:pointer}
+.upload-area.drag{border-color:#6886d7;background:rgba(224,234,252,.6)}.upload-icon{height:40px;width:40px;display:grid;place-items:center;border-radius:13px;background:rgba(255,255,255,.8);border:1px solid #fff;color:#6685d5;box-shadow:0 3px 10px rgba(105,122,161,.07)}.upload-copy{flex:1;min-width:0}.upload-copy b{font-size:12.5px;font-weight:670;display:block}.upload-copy span{font-size:10.5px;color:#97a3b1;line-height:1.65;display:block;margin-top:2px}.link-like{border:0;background:none;color:#5477ce;padding:5px 0;font-size:11px;font-weight:680;white-space:nowrap}
+.file-chips{display:flex;flex-wrap:wrap;gap:6px;margin:9px 0 3px}.filechip{max-width:100%;background:rgba(255,255,255,.59);border:1px solid rgba(255,255,255,.8);border-radius:20px;padding:6px 8px 6px 10px;display:inline-flex;align-items:center;gap:7px;font-size:10.5px;color:#68788d}.filechip button{border:0;background:transparent;color:#96a2b1;padding:0;line-height:0}.filechip .file-name{max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.validation{min-height:16px;margin-top:6px;font-size:11px;color:#cf6371;line-height:1.5}
+.upload-readiness{font-size:10.5px;color:#9c8290;margin:5px 2px 0;line-height:1.55}
+.upload-readiness.ready{color:#387d6c}
+.upload-area.invalid{border-color:#d88b94;background:rgba(254,241,243,.72)}
+.create-feedback{margin:12px 0 0;border:1px solid rgba(199,113,124,.30);border-radius:12px;padding:12px 14px;background:rgba(255,240,242,.82);color:#86525c;font-size:11px;line-height:1.65}
+.create-feedback strong{font-size:12px;display:block;margin-bottom:2px}
+.create-feedback-actions{display:flex;gap:15px;align-items:center;margin-top:5px;flex-wrap:wrap}
+.create-feedback-actions button{border:0;background:none;color:#5575ca;font-size:11px;font-weight:750;padding:5px 0}
+.process-skip{border:0;background:transparent;color:#5575ca;font-size:11px;font-weight:650;padding:10px 0;display:block;margin:4px 0 0 auto}
+body.theme-dark .create-feedback{background:rgba(92,56,66,.56);border-color:rgba(236,151,168,.28);color:#f7c9d1}
+body.theme-dark .upload-readiness{color:#c5adbb}body.theme-dark .upload-readiness.ready{color:#9bcaba}
+.primary-btn{height:45px;padding:0 18px;border-radius:13px;border:1px solid rgba(75,110,205,.13);background:linear-gradient(135deg,#597bdd,#4368cc);box-shadow:0 9px 20px rgba(75,113,206,.21),inset 0 1px 1px rgba(255,255,255,.3);color:#fff;display:flex;align-items:center;justify-content:center;gap:9px;font-size:12.5px;font-weight:670;transition:transform .17s,box-shadow .17s}.primary-btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 12px 27px rgba(75,113,206,.28)}
+.ghost-btn{height:38px;padding:0 12px;border:1px solid rgba(130,150,172,.18);background:rgba(255,255,255,.5);border-radius:11px;font-size:11.5px;color:#65748b;cursor:pointer}
+.flow-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:19px;padding-top:16px;border-top:1px solid var(--line)}
+.flow-note{font-size:10.5px;color:#9ba5b2;line-height:1.5;max-width:250px}.flow-footer{display:flex;justify-content:center;align-items:center;gap:6px;color:#a9b0ba;font-size:10px;margin-top:17px}
+.spinner{width:22px;height:22px;border:3px solid rgba(91,122,205,.17);border-top-color:#5e7ddd;border-radius:50%;animation:spin .9s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.processing-list{margin:20px 0 10px;display:grid;gap:8px}.processing-line{display:flex;align-items:center;gap:13px;border-radius:12px;padding:10px 12px;background:rgba(255,255,255,.35);border:1px solid rgba(255,255,255,.5);color:#8793a3;font-size:12px}.processing-line.active{color:#455878;background:rgba(255,255,255,.72)}.processing-line.done{color:#617d8f}.check-circle{width:19px;height:19px;display:grid;place-items:center;border-radius:100%;background:#e6edf5;color:#a7b0c0;font-size:11px;flex-shrink:0}.processing-line.done .check-circle{background:#e0f1e8;color:#65aa89}.processing-line.active .check-circle{background:#eaf0ff;color:#597cdd}.progress-track{height:5px;border-radius:9px;background:rgba(109,139,178,.12);overflow:hidden;margin:20px 0}.progress-fill{height:100%;width:0%;border-radius:inherit;background:linear-gradient(90deg,#80afe4,#5c7dde);transition:width .65s ease}.processing-meta{font-size:11px;color:#9ba6b4}
+/* Consultation, preserving the same shell */
+.consult-card{height:min(774px,calc(100vh - 123px));display:flex;flex-direction:column;overflow:hidden}
+.consult-header{flex-shrink:0}.consult-subtitle{font-size:11px;color:#8e9aab;margin-top:7px;line-height:1.6}.consult-stream{flex:1;min-height:0;overflow:auto;scrollbar-width:thin;padding:10px 4px 12px;display:flex;flex-direction:column;gap:13px}.consult-system{align-self:center;background:rgba(234,242,249,.72);font-size:10px;color:#94a0af;padding:6px 13px;border-radius:30px;margin:2px 0}.chat-row{display:flex;gap:9px;align-items:flex-start}.assistant-mini-avatar{height:26px;width:26px;flex-shrink:0;border-radius:9px;background:linear-gradient(140deg,#879fe1,#b4cbeb);box-shadow:inset 0 1px 2px #fff;display:grid;place-items:center;color:#fff;font-size:10px;font-weight:800;letter-spacing:-.03em}
+.assistant-bubble{background:rgba(255,255,255,.72);border:1px solid rgba(255,255,255,.9);border-radius:4px 15px 15px 15px;box-shadow:0 4px 13px rgba(100,117,145,.045);padding:12px 14px;color:#536278;max-width:86%;font-size:12px;line-height:1.8}.assistant-bubble strong{color:#34465b}
+.user-bubble{align-self:flex-end;max-width:83%;padding:10px 13px;border:1px solid rgba(220,231,247,.7);border-radius:14px 4px 14px 14px;background:rgba(219,231,252,.72);color:#465c82;font-size:12px;line-height:1.7}
+.question-options{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:2px 0 5px 35px}.option-btn{min-height:38px;padding:9px 12px;border:1px solid rgba(135,157,195,.21);border-radius:11px;background:rgba(255,255,255,.56);font-size:11.5px;color:#5e708e;text-align:left;transition:.2s}.option-btn:hover{background:rgba(241,247,255,.97);border-color:rgba(100,129,202,.36);color:#426ac1}
+.consult-compose{padding:12px 0 0;border-top:1px solid var(--line);display:flex;align-items:center;gap:9px;flex-shrink:0}.consult-compose input{flex:1;min-width:0}.send-round{height:38px;width:38px;border-radius:12px;background:#5376dc;border:0;color:white;display:grid;place-items:center;box-shadow:0 5px 13px rgba(87,116,215,.21)}.generated-outline{border:1px solid rgba(119,146,193,.2);background:linear-gradient(140deg,rgba(241,248,255,.8),rgba(255,255,255,.66));border-radius:15px;padding:13px 15px;margin:1px 0 10px 34px}.generated-outline b{font-size:11.5px;color:#526684}.outline-list{display:grid;grid-template-columns:1fr 1fr;gap:8px 15px;margin-top:12px}.outline-line{display:flex;gap:9px;align-items:center;font-size:11.5px;color:#708098}.outline-line span{font-size:10px;color:#5476d3}
+.consult-bottom{border-top:1px solid var(--line);padding-top:12px;flex-shrink:0}.consult-confirm{width:100%;margin-top:9px}.consult-help{font-size:10.5px;color:#9ba7b5;text-align:center}
+/* Workbench */
+#workspaceStage{padding:80px 21px 21px;display:flex;gap:14px;overflow:hidden;animation:reveal .55s ease both}
+@keyframes reveal{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.workspace-pane{flex:1;min-width:0;min-height:0;border-radius:26px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 18px 70px rgba(90,115,151,.08),inset 0 1px 1px #fff}
+.workspace-top{height:78px;min-height:78px;display:flex;align-items:center;justify-content:space-between;padding:0 23px 0 26px;border-bottom:1px solid rgba(150,163,181,.15);position:relative;z-index:3}
+.eyebrow{font-size:10px;letter-spacing:.16em;font-weight:760;color:#98a3b1}.pane-title{display:flex;align-items:center;gap:10px;margin-top:6px}.pane-title h2{font-size:17px;letter-spacing:-.035em;line-height:1;margin:0;font-weight:730}.tiny-count{font-size:10.5px;color:#8c99aa;border-radius:30px;background:rgba(255,255,255,.65);padding:5px 9px;border:1px solid rgba(255,255,255,.65)}
+.canvas-tools{display:flex;align-items:center;gap:6px}.tool-btn{height:32px;width:32px;display:grid;place-items:center;border-radius:10px;border:1px solid rgba(133,151,177,.16);background:rgba(255,255,255,.45);color:#6d7c94}.tool-btn:hover{background:rgba(255,255,255,.95);color:#4f6ac3}.tool-separator{width:1px;height:22px;background:rgba(122,137,164,.17);margin:0 4px}.zoom-badge{min-width:43px;text-align:center;font-size:11px;font-weight:650;color:#7c8ba0}
+.graph-area{flex:1;min-height:0;overflow:hidden;position:relative;background:radial-gradient(ellipse at 40% 25%,rgba(255,255,255,.28),transparent 55%)}
+.graph-area:before{content:"";position:absolute;inset:0;pointer-events:none;background-image:radial-gradient(circle,rgba(126,145,170,.30) .72px,transparent 1.2px);background-size:25px 25px;opacity:.45;mask-image:linear-gradient(to right,rgba(0,0,0,.55),black 75%)}
+.graph-viewport{position:absolute;inset:0;overflow:hidden;touch-action:none;cursor:grab}.graph-viewport.dragging{cursor:grabbing}.graph-board{position:absolute;left:0;top:0;width:1160px;height:1460px;transform-origin:0 0;will-change:transform}.edges{position:absolute;inset:0;pointer-events:none;overflow:visible}.edge{fill:none;stroke:#b1c2d9;stroke-width:2;opacity:.72}.edge.main{stroke:#8fa9db;stroke-width:2.5}
+.mapnode{position:absolute;display:flex;align-items:center;outline:0;cursor:pointer;transition:box-shadow .18s,border-color .18s,background .18s;user-select:none}
+.mapnode:focus-visible{outline:3px solid rgba(91,124,213,.25);outline-offset:3px}.mapnode.active{border-color:rgba(86,118,213,.8)!important;box-shadow:0 0 0 4px rgba(91,125,223,.12),0 10px 25px rgba(97,118,163,.12)!important;z-index:4}.mapnode:hover{z-index:3;border-color:rgba(110,142,215,.5)!important}
+.rootnode{width:244px;height:104px;padding:17px 17px 15px;border:1px solid rgba(114,143,199,.21);background:linear-gradient(136deg,rgba(255,255,255,.95),rgba(235,243,255,.92));border-radius:18px;box-shadow:0 12px 34px rgba(88,111,157,.12);flex-direction:column;align-items:flex-start;justify-content:center;gap:7px}
+.root-head{font-size:10px;font-weight:750;color:#6b8bd8;letter-spacing:.09em}.root-name{font-size:17px;line-height:1.25;font-weight:760;color:#34435b;letter-spacing:-.04em}.root-meta{font-size:10px;color:#8996a8}
+.chapnode{width:205px;height:83px;padding:13px 15px;border:1px solid rgba(143,165,196,.23);background:rgba(255,255,255,.79);border-radius:15px;box-shadow:0 8px 22px rgba(99,119,151,.085);gap:12px}
+.chap-num{display:grid;place-items:center;flex-shrink:0;width:34px;height:35px;border-radius:11px;background:var(--chap-bg,#e7effd);color:var(--chap-clr,#597abf);font-size:12px;font-weight:780}
+.chap-label{min-width:0}.chap-label strong{font-size:13.3px;white-space:nowrap}.chap-label span{font-size:9.8px;color:#9aa5b5;margin-top:6px;display:block}
+.sectionnode{width:190px;height:67px;padding:10px 13px;gap:10px;border-radius:13px;border:1px solid rgba(148,162,183,.19);background:rgba(255,255,255,.69);box-shadow:0 5px 19px rgba(110,129,158,.06)}.sec-bullet{width:6px;height:6px;border-radius:100%;background:#87a2d6;box-shadow:0 0 0 4px rgba(130,163,219,.12);flex-shrink:0}.sec-main{font-size:12.1px;font-weight:690;color:#4d5f79;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sec-info{font-size:10px;color:#a6afbd;margin-top:5px}
+.artnode{width:199px;height:145px;padding:7px;border-radius:15px;background:rgba(255,255,255,.8);border:1px solid rgba(148,162,183,.21);box-shadow:0 10px 27px rgba(109,129,160,.09);display:flex;flex-direction:column;align-items:stretch;gap:5px}.art-preview{height:101px;border-radius:9px;background:#f4f6fa;border:1px solid rgba(136,154,178,.12);overflow:hidden;position:relative;pointer-events:none}.art-titleline{display:flex;gap:6px;align-items:center;min-width:0;padding:0 3px}.art-fmt{padding:3px 5px;border-radius:5px;font-size:8px;font-weight:850;letter-spacing:.02em;color:#5f7fcd;background:#eaf0ff}.art-fmt.pdf{color:#bd797e;background:#faecee}.art-fmt.ppt{color:#b27c4d;background:#fcf1e5}.art-name{font-size:10px;font-weight:660;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#5b6a80;flex:1}.art-hint{font-size:8px;color:#afbac8}
+.art-mini{position:relative;width:100%;height:100%;overflow:hidden;background:#fff;color:#27364b;display:flex;gap:9px;padding:9px}.art-mini .mini-left{width:50%;position:relative;z-index:1}.art-mini .mini-head{width:27px;height:3px;border-radius:3px;background:#86a8d4;margin-bottom:8px}.art-mini .mini-title{font-size:8px;font-weight:750;line-height:1.4;letter-spacing:-.03em}.art-mini .mini-line{height:2px;background:#dfe5ed;border-radius:4px;margin-top:5px}.art-mini .mini-line.short{width:76%}.art-mini .mini-figure{flex:1;border-radius:4px;background:linear-gradient(135deg,#dde8e8,#f3f6ec);overflow:hidden;position:relative}.art-mini .mini-maproad{height:125%;width:2px;background:rgba(255,255,255,.9);transform:rotate(36deg);position:absolute;top:-12%;left:52%;box-shadow:13px 0 0 rgba(255,255,255,.9),-18px 0 0 rgba(255,255,255,.7)}.art-mini .mini-plot{position:absolute;inset:24% 20% 26% 32%;background:rgba(105,153,176,.53);clip-path:polygon(7% 0,88% 10%,99% 69%,52% 100%,0 57%)}.art-mini.chart .mini-figure{display:flex;align-items:end;gap:5px;padding:9px 7px 8px;background:#f0f4f9}.mini-bar{flex:1;background:#95aad7;border-radius:2px 2px 0 0}.mini-bar:nth-child(2){background:#a4cbbd}.mini-bar:nth-child(4){background:#d0b0a8}.art-mini.cards .mini-figure{display:grid;grid-template-columns:1fr 1fr;gap:5px;background:#f7f7f9;padding:5px}.art-mini.cards .mini-card{border-radius:4px;background:#e5edf5}.art-mini.cards .mini-card:nth-child(2){background:#e8ebdd}.art-mini.cards .mini-card:nth-child(3){background:#efdfdc}.art-mini.pdf .mini-left{width:60%}.art-mini.pdf .mini-figure{background:linear-gradient(130deg,#eff4ef,#e2e8ed)}
+.node-picker{position:absolute;z-index:9;display:flex;gap:7px;align-items:center;padding:8px 9px;background:rgba(255,255,255,.9);border-radius:11px;border:1px solid #fff;box-shadow:0 12px 28px rgba(89,110,147,.13);font-size:11px;color:#667b9b;pointer-events:auto;white-space:nowrap;transform:translate(-8px,-120%);backdrop-filter:blur(14px)}.node-picker button{font-size:11px;border:0;border-radius:8px;color:#4f73ce;background:#eaf0ff;padding:6px 9px}
+.canvas-legend{position:absolute;bottom:20px;left:22px;display:flex;gap:9px;align-items:center;color:#9aa6b6;font-size:10px;background:rgba(255,255,255,.61);border:1px solid rgba(255,255,255,.8);border-radius:30px;padding:8px 13px;backdrop-filter:blur(10px)}.legend-dot{width:4px;height:4px;border-radius:100%;background:#bbc7d4}
+.empty-space-tip{position:absolute;top:16px;left:23px;font-size:10.5px;color:#98a4b4}
+/* Chat sidebar */
+.sidebar{width:400px;flex:0 0 400px;display:flex;flex-direction:column;min-height:0;border-radius:25px;overflow:hidden;animation:slide-in .6s cubic-bezier(.22,.8,.2,1) both}
+@keyframes slide-in{from{transform:translateX(30px);opacity:0}to{transform:translateX(0);opacity:1}}
+.sidebar-head{height:78px;min-height:78px;display:flex;align-items:center;gap:11px;padding:0 19px;border-bottom:1px solid rgba(150,163,181,.16)}
+.project-icon{height:36px;width:36px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(145deg,#e7edff,#fff);border:1px solid rgba(255,255,255,.9);color:#6585d1;box-shadow:0 3px 9px rgba(105,118,155,.07)}
+.sidebar-head-title{flex:1;min-width:0}.sidebar-head-title strong{display:block;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.025em}.sidebar-head-title span{display:block;color:#95a1b0;font-size:10px;margin-top:4px}.plus-btn{height:34px;width:34px;display:grid;place-items:center;background:rgba(255,255,255,.75);border-radius:11px;border:1px solid rgba(255,255,255,.85);box-shadow:0 4px 13px rgba(123,143,179,.08);color:#5b7bc9}.plus-btn:hover{background:#fff;color:#315dca}
+.chat-history{flex:1;overflow:auto;scrollbar-width:thin;padding:22px 19px 19px;display:flex;flex-direction:column;gap:17px;min-height:0}
+.chat-date{font-size:10px;color:#aab3bf;align-self:center;padding:4px 12px;background:rgba(255,255,255,.44);border-radius:30px}
+.chatmsg{font-size:12px;line-height:1.78}.chatmsg.ai{align-self:stretch;display:flex;align-items:flex-start;gap:9px;color:#596a80}.chatmsg.ai .msg-text{padding-top:2px;max-width:285px}.chatmsg.me{align-self:flex-end;max-width:91%;background:rgba(221,231,251,.78);border:1px solid rgba(219,229,248,.8);border-radius:16px 5px 16px 16px;padding:11px 13px;color:#4b648d}.chatmsg.system{align-self:stretch;margin-left:34px;display:flex;gap:8px;align-items:flex-start;font-size:11px;padding:11px 12px;border-radius:12px;background:rgba(255,255,255,.48);color:#7892aa;border:1px solid rgba(255,255,255,.62)}.msg-tag{font-size:10px;font-weight:720;color:#5979ca;display:block;margin-bottom:3px}.chatmsg.ai strong{color:#3f536e}
+.annotation-bar{min-height:42px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 18px;border-top:1px solid var(--line);border-bottom:1px solid rgba(134,149,174,.07);background:rgba(246,249,255,.24)}.annotation-flag{display:flex;gap:8px;align-items:center;color:#73829a;font-size:10.5px}.annotation-flag span.num{display:inline-grid;min-width:20px;height:20px;place-items:center;background:#e7eeff;color:#5276d0;border-radius:7px;font-size:10px;font-weight:800}.annotation-open{font-size:11px;color:#6580bc;border:0;background:transparent;font-weight:680;padding:8px 0}
+.chat-compose-wrap{flex-shrink:0;padding:14px 16px 15px;background:rgba(255,255,255,.24)}.composer{border-radius:17px;background:rgba(255,255,255,.76);border:1px solid rgba(255,255,255,.92);box-shadow:0 6px 22px rgba(116,136,164,.075),inset 0 1px 2px #fff;padding:10px 12px 9px}
+.chips-refs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}.ref-chip{border-radius:8px;background:#edf3ff;border:1px solid rgba(102,134,199,.14);display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:6px 7px 6px 9px;font-size:10.5px;color:#5472ad}.ref-chip-label{max-width:224px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}.ref-chip button{border:0;background:transparent;padding:0;color:#8097bd;display:grid;place-items:center}
+.compose-textarea{width:100%;border:0;outline:0;min-height:68px;max-height:130px;resize:none;background:transparent;font-size:12px;line-height:1.7;color:#3d4d63}.compose-textarea::placeholder{color:#aab3c0}.compose-bottom{display:flex;align-items:center;justify-content:space-between;gap:9px}.composer-status{font-size:10px;color:#a1acba;display:flex;align-items:center;gap:5px}.compose-submit{border:0;background:#4c71d4;color:white;display:flex;align-items:center;justify-content:center;gap:6px;height:32px;padding:0 11px;border-radius:10px;font-size:11.5px;font-weight:680;box-shadow:0 6px 14px rgba(74,111,205,.18)}
+.compose-submit.annot{background:linear-gradient(135deg,#4d73d4,#6e82d4)}
+/* Annotation drawer overlay within sidebar */
+.annotation-drawer{position:absolute;inset:78px 0 0;z-index:20;display:flex;flex-direction:column;background:rgba(250,252,255,.985);backdrop-filter:blur(33px);border-radius:0 0 25px 25px;animation:drawer-in .25s ease;box-shadow:0 -5px 20px rgba(97,116,150,.035)}
+@keyframes drawer-in{from{transform:translateY(14px);opacity:0}to{transform:translateY(0);opacity:1}}
+.drawer-title{display:flex;justify-content:space-between;align-items:center;padding:21px 21px 16px;border-bottom:1px solid rgba(146,159,184,.17)}.drawer-title h3{margin:0;font-size:17px;letter-spacing:-.04em}.drawer-title p{margin:5px 0 0;color:#97a4b5;font-size:10.5px}.plain-icon-btn{border:0;background:rgba(227,234,245,.65);height:28px;width:28px;border-radius:9px;display:grid;place-items:center;color:#7a8da5}
+.annotation-list{flex:1;min-height:0;overflow:auto;padding:15px 18px;display:flex;flex-direction:column;gap:9px}.annotation-item{border:1px solid rgba(144,158,184,.16);border-radius:14px;background:rgba(255,255,255,.75);padding:13px}.annotation-item-top{display:flex;align-items:center;gap:7px;margin-bottom:7px}.anno-status{border-radius:20px;padding:3px 7px;font-size:9.5px;font-weight:720;background:#eaf0fc;color:#657fc0}.anno-status.done{background:#e5f1ea;color:#6b9e86}.annotation-item strong{font-size:11px;color:#53667e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}.annotation-item p{font-size:11px;line-height:1.7;color:#74839a;margin:0 0 10px;word-break:break-word}.anno-tools{display:flex;align-items:center;justify-content:space-between}.annotation-item .scope{font-size:10px;color:#a9b2bf}.anno-tools button{border:0;background:transparent;font-size:10.5px;color:#9a8f99;padding:3px 5px}.drawer-footer{padding:14px 17px 18px;border-top:1px solid rgba(146,159,184,.16)}.drawer-footer .primary-btn{width:100%}.drawer-footer-desc{text-align:center;margin-top:9px;color:#9aabba;font-size:10px}
+.drawer-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;flex:1;color:#9aa8b9}.drawer-empty b{color:#74849a;font-size:13px}.drawer-empty p{font-size:11px;max-width:250px;text-align:center;line-height:1.7}
+/* Artifact expansion */
+.preview-overlay{position:absolute;inset:0;z-index:24;background:rgba(223,230,241,.53);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:54px 44px 36px;animation:preview-in .25s ease}
+@keyframes preview-in{from{opacity:0}to{opacity:1}}
+.preview-card{width:100%;height:100%;max-height:100%;max-width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;pointer-events:none}
+.preview-toolbar{pointer-events:auto;max-width:100%;width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(255,255,255,.91);border:1px solid #fff;border-radius:14px;padding:9px 10px 9px 15px;box-shadow:0 10px 30px rgba(99,120,151,.11)}.preview-title{font-size:12px;font-weight:740;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.preview-title span{font-size:10px;color:#a1aebb;font-weight:500;margin-left:8px}.preview-actions{display:flex;align-items:center;gap:7px;flex-shrink:0}.preview-actions button{border-radius:9px;border:1px solid rgba(142,157,179,.19);background:#f7f9fc;padding:7px 10px;font-size:10.5px;color:#62728e}.preview-actions button.close{width:28px;padding:5px;display:grid;place-items:center;color:#69798f}
+.preview-sheet-holder{width:100%;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;pointer-events:auto;overflow:hidden}
+.preview-sheet{position:relative;background:white;border-radius:6px;box-shadow:0 18px 45px rgba(79,97,133,.21);border:1px solid rgba(255,255,255,.8);overflow:hidden;width:min(100%,930px,calc((100vh - 278px)*1.77778));aspect-ratio:16 / 9;display:flex;flex-direction:column}
+.preview-sheet.portrait{width:min(100%,440px,calc((100vh - 270px)*.707));aspect-ratio:210 / 297}
+.preview-page-top{padding:20px 27px 14px;display:flex;align-items:center;justify-content:space-between;font-size:10px;letter-spacing:.12em;color:#8092ac;border-bottom:1px solid #edf0f4}.preview-page-top b{font-size:10px;color:#5575b7}.preview-page-body{flex:1;min-height:0;display:flex;padding:24px 28px 23px;gap:34px}.preview-page-left{flex:0 0 44%;min-width:0;display:flex;flex-direction:column}.preview-kicker{font-size:10px;font-weight:800;color:#6689c9;letter-spacing:.13em}.preview-h1{font-size:27px;line-height:1.38;letter-spacing:-.06em;font-weight:790;margin:10px 0 15px;color:#2f4055}.preview-desc{font-size:12px;line-height:1.9;color:#708198;margin:0 0 14px}.preview-metrics{display:flex;gap:7px;margin-top:auto}.preview-metric{flex:1;background:#f1f5fa;border-radius:8px;padding:9px}.preview-metric b{font-size:16px;color:#45679c;display:block}.preview-metric span{font-size:9px;color:#97a6b9;display:block;margin-top:4px}.preview-page-figure{flex:1;min-width:0;border-radius:11px;background:#e4eaf0;position:relative;overflow:hidden}.figure-map{height:100%;width:100%;background:linear-gradient(130deg,#d9e9e1 2%,#f0eee2 48%,#dfe9f0 100%);position:relative;overflow:hidden}.figure-map svg{position:absolute;inset:0;width:100%;height:100%}.figure-tag{position:absolute;bottom:14px;right:13px;border:1px solid rgba(255,255,255,.8);border-radius:7px;background:rgba(255,255,255,.87);font-size:10px;padding:8px 11px;color:#56708b}.figure-bars{width:100%;height:100%;padding:28px 19px 26px;background:linear-gradient(120deg,#f5f7fa,#e9f0f5);display:flex;align-items:flex-end;justify-content:space-around;gap:13px}.figure-bars .bar-col{width:20%;height:var(--bar-h);border-radius:6px 6px 0 0;background:linear-gradient(to top,#6f8dc1,#b1c6e9);position:relative}.figure-bars .bar-col:nth-child(2){background:linear-gradient(to top,#6cafa3,#b2d5ca)}.figure-bars .bar-col:nth-child(3){background:linear-gradient(to top,#b0a4c7,#d8cfe5)}.figure-bars .bar-col:nth-child(4){background:linear-gradient(to top,#c39880,#e3c9b6)}.figure-bars .bar-col span{position:absolute;bottom:-19px;font-size:9px;text-align:center;width:100%;color:#90a1b5}
+.figure-grid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:10px;padding:16px;width:100%;height:100%;background:#edf2f7}.figure-grid div{border-radius:10px;background:#e0e8ee;display:flex;align-items:flex-end;padding:10px;font-size:10px;color:#62748c;font-weight:700}.figure-grid div:nth-child(2){background:#e4e9d7}.figure-grid div:nth-child(3){background:#e9dcd6}.figure-grid div:nth-child(4){background:#d9e4ed}
+.preview-sheet.portrait .preview-page-top{padding:15px 19px 11px}.preview-sheet.portrait .preview-page-body{display:block;padding:20px 23px;overflow:auto}.preview-sheet.portrait .preview-page-left{display:block}.preview-sheet.portrait .preview-h1{font-size:20px;margin:8px 0 12px}.preview-sheet.portrait .preview-desc{font-size:11px}.preview-sheet.portrait .preview-page-figure{margin-top:15px;height:180px}.preview-sheet.portrait .preview-metrics{margin-top:14px}
+.selectable{cursor:text;border-radius:5px;transition:background .17s,box-shadow .17s}.selectable:hover{background:rgba(100,140,225,.07);box-shadow:0 0 0 5px rgba(100,140,225,.07)}.selectable.selected-block{background:#eaf0ff;box-shadow:0 0 0 5px #eaf0ff}.preview-hint{font-size:10px;text-align:center;color:#647c9a;pointer-events:none;background:rgba(255,255,255,.72);padding:5px 10px;border-radius:30px;max-width:100%}.selection-popover{pointer-events:auto;position:absolute;z-index:15;bottom:17px;left:50%;transform:translateX(-50%);display:flex;gap:9px;align-items:center;padding:8px 9px 8px 12px;max-width:75%;background:#fff;box-shadow:0 9px 32px rgba(71,96,134,.18);border:1px solid #e5ebf2;border-radius:12px}.selection-popover span{font-size:10px;color:#647d9a;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.selection-popover button{white-space:nowrap;border:0;background:#567bd6;border-radius:8px;padding:7px 10px;color:white;font-size:10px}
+.toast{position:fixed;bottom:26px;left:50%;z-index:100;transform:translateX(-50%) translateY(15px);opacity:0;pointer-events:none;min-width:240px;max-width:80vw;background:rgba(47,63,88,.87);color:white;border:1px solid rgba(255,255,255,.14);box-shadow:0 18px 35px rgba(48,62,89,.23);border-radius:12px;padding:11px 16px;text-align:center;font-size:11.5px;line-height:1.6;backdrop-filter:blur(20px);transition:opacity .2s,transform .2s}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.sr-only{position:absolute!important;height:1px;width:1px;overflow:hidden;clip:rect(1px,1px,1px,1px);white-space:nowrap}
+@media(max-width:1220px){.sidebar{width:355px;flex-basis:355px}.topbar{padding:0 23px}.flow-card{max-height:calc(100vh - 105px)}}
+@media(max-width:850px){html,body{overflow:auto}#workspaceStage{position:relative;min-height:100vh;height:auto;flex-direction:column;padding:76px 12px 12px;overflow:visible}.workspace-pane{min-height:58vh;height:58vh;flex:none}.sidebar{width:100%;height:520px;flex:none}.topbar{height:66px;padding:0 14px}.brand-caption{display:none}.environment-pill{font-size:10px}.flow-card{padding:24px 20px}.preview-overlay{padding:44px 15px}.preview-page-body{gap:10px;padding:14px}.preview-h1{font-size:19px}.preview-desc{font-size:10px}.preview-page-top{padding:11px 14px}.canvas-legend{left:10px;bottom:11px;font-size:9px}.workspace-top{padding:0 13px}.pane-title h2{font-size:15px}}
+@media(max-width:480px){.field-row,.question-options{grid-template-columns:1fr}.flow-title{font-size:27px}.flow-actions{flex-direction:column;align-items:stretch}.flow-note{max-width:none}.upload-area{flex-wrap:wrap}.plus-btn{width:31px;height:31px}.pane-title .tiny-count{display:none}.micro{font-size:9px}}
+/* Contrast-safe dark appearance */
+body.theme-dark{--ink:#e7edf6;--muted:#a3adc1;--line:rgba(189,205,230,.13);--glass:rgba(40,49,69,.60);--glass-strong:rgba(39,49,70,.84);--shadow:0 28px 80px rgba(6,13,31,.26);background:#1b2433;color:#e6ecf6}
+body.theme-dark #environment{background:linear-gradient(124deg,#161f2c,#243145 53%,#182831)}body.theme-dark #environment:before{background:radial-gradient(circle,rgba(54,91,147,.37),transparent 70%)}body.theme-dark #environment:after{background:radial-gradient(circle,rgba(59,104,103,.24),transparent 70%)}
+body.theme-dark .glass{border-color:rgba(209,225,255,.14)}body.theme-dark .glass:after{border-top-color:rgba(255,255,255,.16)}body.theme-dark .glass:before{opacity:.25}body.theme-dark .environment-pill,body.theme-dark .top-action,body.theme-dark .field-input,body.theme-dark .upload-area,body.theme-dark .step-pill,body.theme-dark .ghost-btn,body.theme-dark .upload-icon,body.theme-dark .filechip,body.theme-dark .assistant-bubble,body.theme-dark .option-btn,body.theme-dark .generated-outline,body.theme-dark .processing-line,body.theme-dark .tool-btn,body.theme-dark .canvas-legend,body.theme-dark .node-picker,body.theme-dark .chat-date,body.theme-dark .composer,body.theme-dark .chatmsg.system{background:rgba(50,63,84,.82);border-color:rgba(210,230,255,.14);color:#c7d2e3}
+body.theme-dark .flow-title,body.theme-dark .field-label,body.theme-dark .pane-title h2,body.theme-dark .sidebar-head-title strong,body.theme-dark .chap-label strong,body.theme-dark .sectionnode .sec-main,body.theme-dark .chatmsg.ai strong,body.theme-dark .drawer-title h3{color:#e4ebf8}
+body.theme-dark .chapnode,body.theme-dark .sectionnode,body.theme-dark .rootnode,body.theme-dark .artnode{background:rgba(48,61,82,.93);border-color:rgba(200,222,255,.14);color:#d4ddeb}body.theme-dark .root-name{color:#e7edf6}body.theme-dark .sidebar .project-icon,body.theme-dark .plus-btn{background:rgba(54,72,99,.88);border-color:rgba(206,221,246,.12)}body.theme-dark .graph-area{background:radial-gradient(ellipse at 40% 25%,rgba(90,110,154,.06),transparent 60%)}
+body.theme-dark .compose-textarea,body.theme-dark .field-input{color:#e6edf9}body.theme-dark .chatmsg.me,body.theme-dark .user-bubble{background:rgba(78,99,148,.57);border-color:rgba(140,169,226,.14);color:#e4ecff}body.theme-dark .annotation-drawer{background:rgba(33,45,64,.96)}body.theme-dark .annotation-item{background:rgba(52,68,92,.88);border-color:rgba(199,219,247,.13)}body.theme-dark .annotation-item strong{color:#e3eaf7}body.theme-dark .annotation-item p{color:#bac6d8}body.theme-dark .preview-overlay{background:rgba(20,29,43,.60)}body.theme-dark .preview-toolbar{background:rgba(46,59,81,.96);border-color:rgba(196,216,241,.12)}body.theme-dark .preview-actions button{background:rgba(71,83,110,.7);color:#d8e5f6}body.theme-dark .preview-sheet{color:#29394e}body.theme-dark .field-input::placeholder,body.theme-dark .compose-textarea::placeholder{color:#92a2bc}
+
+/* Pre-design v0.3 interaction changes: affordance-first annotations, right-pan, fluid handoff */
+.graph-viewport{cursor:default;user-select:none;-webkit-user-select:none}
+.graph-viewport.dragging,.graph-viewport.dragging *{cursor:grabbing!important}
+.graph-viewport .mapnode{cursor:pointer}
+.edges{pointer-events:none}
+.edge-hit{fill:none;stroke:transparent;stroke-width:18;pointer-events:stroke;cursor:crosshair}
+.edge.is-picked{stroke:#6288dc;stroke-width:4;opacity:1;filter:drop-shadow(0 1px 3px rgba(75,113,210,.28))}
+.node-picker{z-index:18;padding:4px;gap:0;border-radius:12px;transform:translate(-5px,-117%);background:rgba(255,255,255,.95);box-shadow:0 12px 28px rgba(80,103,151,.22),inset 0 1px 0 #fff;animation:affordance-appear .2s cubic-bezier(.17,.89,.3,1.4) both}
+.context-annotate,.node-picker .context-annotate{display:flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;border:0;border-radius:9px;background:#5478d6!important;color:white!important;font-size:11px;font-weight:700;line-height:1;padding:8px 11px;box-shadow:0 5px 12px rgba(75,110,201,.22);cursor:pointer}
+.context-annotate:hover{background:#3d62c9!important}
+@keyframes affordance-appear{from{opacity:0;transform:translate(-5px,-99%) scale(.88)}to{opacity:1;transform:translate(-5px,-117%) scale(1)}}
+.preview-overlay{padding:28px 40px 30px}
+.preview-card{gap:13px;justify-content:center}
+.preview-toolbar{flex-shrink:0;min-height:51px;padding:8px 10px 8px 18px;background:rgba(255,255,255,.90)}
+.preview-nav{display:flex;align-items:center;gap:5px;border-radius:10px;padding:3px 5px;background:rgba(231,237,248,.68);border:1px solid rgba(145,165,197,.10)}
+.preview-nav button{height:27px;min-width:29px;padding:1px 7px;border:0;background:transparent;color:#5876b7;font-size:20px;line-height:1}
+.preview-nav button:disabled{opacity:.24;cursor:not-allowed}
+.preview-nav span{font-size:11px;font-weight:700;min-width:44px;text-align:center;color:#7286a6;font-variant-numeric:tabular-nums}
+.preview-sheet-holder{flex:1;min-height:0}
+.preview-sheet{width:min(100%,930px,calc((100vh - 252px)*1.77778))}
+.preview-sheet.portrait{width:min(100%,470px,calc((100vh - 252px)*.707))}
+.preview-page-figure{touch-action:none;cursor:crosshair}
+.preview-page-figure [data-graphic-line]{cursor:pointer}
+.preview-page-figure [data-graphic-line]:hover{filter:brightness(.91)}
+.preview-page-figure .graphic-path-selected{stroke:#286ad0!important;stroke-width:9!important;filter:drop-shadow(0 1px 3px rgba(40,92,200,.45))}
+.preview-page-figure .graphic-unit-selected{box-shadow:0 0 0 3px rgba(71,118,215,.75),0 0 0 7px rgba(71,118,215,.16)!important;filter:brightness(1.05)}
+.figure-region-outline{position:absolute;z-index:10;pointer-events:none;background:rgba(86,137,222,.15);border:1.5px solid #5b87df;box-shadow:0 0 0 1px rgba(255,255,255,.7),0 4px 16px rgba(42,98,185,.14);border-radius:3px}
+.preview-sheet .selected-block{background:rgba(96,145,220,.14);box-shadow:0 0 0 4px rgba(96,145,220,.14)}
+.selection-popover{position:absolute;z-index:30;left:0;top:0;bottom:auto;max-width:none;transform:none;display:flex;padding:4px;background:rgba(255,255,255,.95);border:1px solid rgba(255,255,255,.95);border-radius:12px;box-shadow:0 10px 26px rgba(59,91,143,.24);backdrop-filter:blur(20px);animation:pop-appear .18s cubic-bezier(.2,.8,.2,1.15) both}
+@keyframes pop-appear{from{opacity:0;scale:.87}to{opacity:1;scale:1}}
+.selection-popover button{border-radius:9px;padding:8px 11px;font-size:11px}
+.morph-ghost{position:fixed!important;z-index:90!important;margin:0!important;pointer-events:none!important;overflow:hidden!important;box-sizing:border-box;isolation:isolate;will-change:top,left,width,height,border-radius,box-shadow;transform:none!important;animation:none!important}
+.morph-ghost .consult-stream{overflow:hidden}
+.morph-ghost .consult-bottom,.morph-ghost .consult-header,.morph-ghost .consult-stream{pointer-events:none}
+.morph-veil{position:absolute;z-index:100;pointer-events:none;inset:0;border-radius:inherit;background:linear-gradient(120deg,rgba(247,251,255,.10),rgba(182,206,254,.12),transparent);opacity:0;animation:liquid-refraction .85s ease-in-out both}
+@keyframes liquid-refraction{0%{opacity:.0;transform:translateX(-45%)}35%{opacity:.8;transform:translateX(-10%)}100%{opacity:0;transform:translateX(45%)}}
+#workspaceStage.workspace-transitioning,#workspaceStage.workspace-transitioning .sidebar{animation:none!important}
+#workspaceStage.workspace-transitioning .sidebar{opacity:0}
+#workspaceStage.workspace-transitioning .workspace-pane{opacity:0}
+body.theme-dark .node-picker,body.theme-dark .selection-popover{background:rgba(56,70,97,.96);border-color:rgba(174,202,243,.2)}
+body.theme-dark .preview-nav{background:rgba(89,105,137,.28);border-color:rgba(178,199,230,.12)}body.theme-dark .preview-nav button,body.theme-dark .preview-nav span{color:#c4d4f4}
+@media(max-width:850px){.preview-overlay{padding:10px 10px 14px}.preview-toolbar{padding:8px}.preview-title{font-size:10px}.preview-title span{display:none}.preview-nav{gap:0}.preview-nav span{font-size:10px;min-width:35px}.preview-actions{gap:4px}.preview-actions button{padding:6px 7px}.preview-sheet{width:min(100%,calc((100vh - 245px)*1.7778))}}
+@media(prefers-reduced-motion:reduce){.morph-ghost,.selection-popover,.node-picker{animation:none!important}}
+
+/* V0.4 spatial system: content gets priority, tools become compact */
+.topbar{height:56px;padding:0 17px 0 20px;z-index:70}
+.brand{gap:9px}.brand-symbol{width:31px;height:31px;border-radius:10px}.brand-symbol:before,.brand-symbol:after{width:14px;height:14px}.brand-symbol:before{left:6px}.brand-symbol:after{left:11px}
+.brand-name{font-size:11.5px;letter-spacing:.12em}.brand-caption{font-size:9px;letter-spacing:.025em}
+.top-right{gap:8px}.environment-pill{padding:6px 9px;font-size:10px}.top-action{width:30px;height:30px}
+.project-switcher{max-width:360px;display:flex;align-items:center;gap:8px;height:32px;border-radius:10px;padding:0 10px;margin-left:12px;background:rgba(255,255,255,.62);border:1px solid rgba(255,255,255,.83);color:#617189;font-size:11px;font-weight:710;box-shadow:inset 0 1px 0 rgba(255,255,255,.8);transition:background .18s,box-shadow .18s}
+.project-switcher:hover,.project-switcher[aria-expanded="true"]{background:rgba(255,255,255,.9);box-shadow:0 4px 14px rgba(91,119,170,.10)}
+.project-switcher #currentProjectLabel{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:245px}.project-switcher .picker-chevron{opacity:.60}
+#entryStage,#consultStage{padding:56px 20px 20px}
+#workspaceStage{padding:60px 12px 12px;gap:10px}
+.workspace-pane,.sidebar{border-radius:19px}
+.workspace-top{height:50px;min-height:50px;padding:0 13px 0 18px}
+.workspace-top>div:first-child{display:flex;align-items:center;gap:11px;min-width:0}
+.workspace-top .eyebrow{font-size:9px;letter-spacing:.085em;color:#9aa9bb;white-space:nowrap}
+.pane-title{margin:0;gap:9px}.pane-title h2{font-size:13px;font-weight:740;white-space:nowrap}.tiny-count{font-size:9.5px;padding:4px 7px;background:rgba(255,255,255,.48)}
+.canvas-tools{gap:4px}.tool-btn{height:28px;width:28px;border-radius:8px;font-size:17px}.zoom-badge{font-size:10px;min-width:36px}
+.graph-area:before{opacity:.27;background-size:22px 22px}.empty-space-tip{top:12px;left:18px;font-size:9px;opacity:.78}
+.graph-board{width:1060px;height:900px}
+.rootnode{width:210px;height:92px;padding:14px;gap:5px;border-radius:15px}.root-name{font-size:14.5px}.root-head,.root-meta{font-size:9px}
+.chapnode{width:184px;height:70px;padding:11px;border-radius:12px;gap:10px}.chap-num{width:30px;height:31px;border-radius:9px;font-size:11px}.chap-label strong{font-size:12px}.chap-label span{font-size:9px;margin-top:3px}
+.sectionnode{width:196px;height:57px;padding:9px 11px;border-radius:11px}.sec-main{font-size:11px}.sec-info{font-size:9px;margin-top:4px}
+.artnode{width:232px;height:99px;padding:5px;gap:4px;border-radius:12px}.art-preview{height:69px;border-radius:7px}.art-titleline{padding:0 3px}.art-name{font-size:9.7px}.art-fmt{font-size:7.5px;padding:2px 5px}.art-mini{padding:6px}.art-mini .mini-title{font-size:7px}.art-mini .mini-line{margin-top:4px}
+.canvas-legend{bottom:10px;left:12px;padding:7px 10px;font-size:9px;gap:7px;background:rgba(255,255,255,.53)}
+.sidebar{width:356px;flex:0 0 356px}
+.sidebar-head{height:55px;min-height:55px;padding:0 13px;gap:9px}
+.sidebar-head .project-icon{height:30px;width:30px;border-radius:9px}.sidebar-head-title strong{font-size:11.5px}.sidebar-head-title span{font-size:9px;margin-top:2px}
+.plus-btn{height:30px;width:30px;border-radius:9px}
+.chat-history{padding:15px 12px 10px;gap:11px}.chatmsg{font-size:11.4px;line-height:1.72}.chatmsg.ai .msg-text{max-width:none}
+.chatmsg.system{margin-left:27px;padding:9px 10px}.chat-date{font-size:9px;padding:3px 10px}
+.annotation-bar{min-height:36px;padding:0 12px}.annotation-flag{font-size:10px}.annotation-flag span.num{min-width:19px;height:19px}.annotation-open{font-size:10px}
+.chat-compose-wrap{padding:8px 10px 10px}.composer{padding:8px 10px;border-radius:13px}.compose-textarea{min-height:45px;max-height:110px;font-size:11.5px;line-height:1.5}.compose-submit{height:29px;font-size:10.5px;border-radius:8px}
+.composer-status{font-size:9px}.ref-chip-label{max-width:188px}.annotation-drawer{inset:55px 0 0;border-radius:0 0 19px 19px}
+.preview-overlay{padding:12px 21px 16px;backdrop-filter:blur(9px)}
+.preview-card{gap:8px}.preview-toolbar{height:45px;min-height:45px;padding:6px 10px;width:min(100%,990px)}
+.preview-title{font-size:11px}.preview-sheet{width:min(100%,990px,calc((100vh - 167px)*1.77778))}
+.preview-sheet.portrait{width:min(100%,530px,calc((100vh - 167px)*.707))}
+.preview-actions button{padding:6px 9px}.preview-sheet-holder{flex:1}
+/* On-demand project switcher */
+.project-quick{position:fixed;top:53px;left:171px;z-index:110;width:365px;max-width:calc(100vw - 24px);padding:11px;border-radius:19px;box-shadow:0 24px 70px rgba(52,73,107,.18),inset 0 1px 0 rgba(255,255,255,.92);background:rgba(251,253,255,.91)}
+.quick-head{display:flex;justify-content:space-between;align-items:center;padding:3px 5px 10px}.quick-head strong{font-size:12px}.quick-head span{font-size:9.5px;color:#9ca9b9}
+.quick-search-wrap,.library-search{display:flex;align-items:center;gap:8px;border:1px solid rgba(126,149,182,.18);border-radius:11px;padding:0 10px;height:37px;background:rgba(244,247,252,.77);color:#91a1b6}
+.quick-search-wrap input,.library-search input{flex:1;min-width:0;border:0;background:transparent;outline:0;font-size:11px;color:var(--ink)}
+.quick-section-label{display:flex;align-items:center;justify-content:space-between;padding:13px 5px 6px;font-size:9.5px;color:#9ba8b8;letter-spacing:.06em;font-weight:730}
+.quick-section-label span{font-weight:500;letter-spacing:0}.quick-project-list{display:flex;flex-direction:column;gap:3px;max-height:340px;overflow:auto}
+.quick-project{display:flex;align-items:center;gap:9px;width:100%;padding:10px 9px;text-align:left;border:0;border-radius:11px;background:transparent;color:var(--ink)}
+.quick-project:hover,.quick-project.active{background:rgba(231,239,252,.85)}.project-monogram{flex:0 0 31px;width:31px;height:31px;border-radius:10px;display:grid;place-items:center;font-size:11px;color:#6383c7;background:linear-gradient(130deg,#edf2ff,#dce9fe)}
+.quick-project:nth-child(2n) .project-monogram,.library-row:nth-child(2n) .project-monogram{color:#629184;background:linear-gradient(130deg,#eaf5ef,#d9eee7)}
+.quick-project:nth-child(3n) .project-monogram,.library-row:nth-child(3n) .project-monogram{color:#987bb6;background:linear-gradient(130deg,#f3edf9,#e6e1f7)}
+.quick-project-info{min-width:0;flex:1}.quick-project-info strong{display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.quick-project-info small{display:block;font-size:9.4px;color:#9ba7b7;margin-top:4px}
+.quick-status{font-size:9px;color:#698db9;padding:4px 6px;border-radius:6px;background:#e9f0fd}.quick-empty{padding:17px 10px;text-align:center;color:#9daabb;font-size:11px}
+.quick-footer{display:flex;align-items:center;justify-content:space-between;margin-top:9px;padding:10px 3px 1px;border-top:1px solid rgba(121,145,178,.14);gap:10px}.quick-footer button{border:0;background:transparent;font-size:10.5px;font-weight:700;color:#5878bb;padding:6px 7px;border-radius:8px}
+.quick-footer .quick-new-btn{background:#e9efff;color:#4d73d0}
+.project-library-shade{position:fixed;inset:0;z-index:120;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(62,77,104,.28);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.project-library{width:min(850px,100%);height:min(680px,calc(100vh - 60px));max-height:100%;padding:25px 26px 0;display:flex;flex-direction:column;border-radius:25px;background:rgba(251,253,255,.92)}
+.library-top{display:flex;align-items:flex-start;justify-content:space-between}.library-top .library-eyebrow{font-size:9px;letter-spacing:.15em;color:#98a9bb;font-weight:700}
+.library-top h2{font-size:25px;letter-spacing:-.04em;margin:8px 0 6px}.library-top h2 span{font-size:11px;vertical-align:middle;margin-left:11px;color:#8d9baa;font-weight:600;letter-spacing:0}.library-top p{font-size:11px;color:#93a1b3;margin:0 0 17px}
+.library-close{width:33px;height:33px;border:1px solid rgba(123,146,181,.16);border-radius:10px;background:rgba(247,250,255,.9);color:#8191a8}
+.library-controls{display:flex;gap:10px;margin-bottom:17px}.library-search{flex:1;height:41px;background:rgba(242,246,251,.75)}.library-search input{font-size:12px}
+.library-create{border:0;background:#5577d5;color:white;padding:0 15px;border-radius:10px;font-size:11px;font-weight:730;white-space:nowrap}
+.library-list-header{display:grid;grid-template-columns:minmax(0,1fr) 120px 112px;gap:15px;padding:0 13px 9px;border-bottom:1px solid rgba(141,159,183,.2);font-size:10px;font-weight:700;color:#9ba7b7}
+.library-list{overflow:auto;min-height:0;flex:1;padding:6px 0}.library-row{display:grid;grid-template-columns:minmax(0,1fr) 120px 112px;gap:15px;align-items:center;width:100%;text-align:left;border:0;border-bottom:1px solid rgba(146,161,187,.11);border-radius:9px;padding:12px 13px;background:transparent;color:var(--ink)}.library-row:hover{background:rgba(232,239,250,.74)}.library-row.active{background:rgba(229,238,253,.64)}.library-row-main{display:flex;align-items:center;gap:10px;min-width:0}.library-row-title{min-width:0}.library-row-title strong{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.library-row-title small{display:block;color:#9aa9b9;margin-top:5px;font-size:10px}.library-row-status{color:#587dad;font-size:10px}.library-row-time{font-size:10px;color:#8d9aac}
+.library-bottom{flex-shrink:0;display:flex;justify-content:space-between;gap:10px;padding:11px 0 15px;font-size:9px;color:#99a8ba;border-top:1px solid rgba(142,160,188,.15)}
+body.theme-dark .project-switcher{background:rgba(51,66,89,.7);border-color:rgba(174,195,229,.13);color:#d3e0f2}
+body.theme-dark .project-quick,body.theme-dark .project-library{background:rgba(34,47,67,.97);border-color:rgba(192,217,248,.15)}
+body.theme-dark .quick-project:hover,body.theme-dark .quick-project.active,body.theme-dark .library-row:hover,body.theme-dark .library-row.active{background:rgba(81,101,136,.38)}
+body.theme-dark .quick-search-wrap,body.theme-dark .library-search,body.theme-dark .library-close{background:rgba(67,82,111,.48);border-color:rgba(186,207,244,.12);color:#c3d0e4}
+body.theme-dark .quick-search-wrap input,body.theme-dark .library-search input{color:#e4edfb}
+body.theme-dark .quick-project,body.theme-dark .library-row{color:#e3ecf9}
+body.theme-dark .quick-project-info small,body.theme-dark .library-row-title small,body.theme-dark .library-bottom,body.theme-dark .library-top p{color:#abbcd1}
+body.theme-dark .quick-status{color:#a7c4f1;background:rgba(83,111,163,.36)}body.theme-dark .quick-footer .quick-new-btn{background:rgba(86,118,192,.33);color:#c2d3fd}
+@media(max-width:1120px){.sidebar{width:320px;flex-basis:320px}.workspace-top .eyebrow{display:none}.project-quick{left:142px}.project-switcher{max-width:270px}}
+@media(max-width:850px){.topbar{height:53px;padding:0 12px}.brand-caption{display:none}.project-switcher{margin-left:4px;max-width:205px}.project-switcher #currentProjectLabel{max-width:120px}#workspaceStage{padding:57px 8px 8px;gap:8px}.workspace-pane{height:62vh;min-height:62vh}.sidebar{height:430px;width:100%;flex-basis:auto}.workspace-top{padding:0 10px}.project-quick{left:12px;top:49px;width:min(365px,calc(100vw - 24px))}.project-library{padding:19px 15px 0}.library-list-header,.library-row{grid-template-columns:minmax(0,1fr) 75px}.library-row-time,.library-list-header span:last-child{display:none}.project-library-shade{padding:10px}.preview-overlay{padding:9px}.preview-toolbar{padding:7px;height:42px;min-height:42px}.preview-sheet{width:min(100%,calc((100vh - 180px)*1.7778))}}
+@media(max-width:530px){.environment-pill{display:none}.brand-label{display:none}.project-switcher{max-width:250px;margin-left:2px}.project-switcher #currentProjectLabel{max-width:168px}.pane-title h2{font-size:11px}.tiny-count{display:none}.canvas-legend{font-size:8px}.library-controls{flex-direction:column}.library-create{height:38px}.library-row{padding:10px 4px}.library-list-header{padding-left:4px}.library-bottom span:last-child{display:none}}
+
+/* V0.5: no oversized empty project-library sheet when only a few projects exist. */
+.project-library{height:auto;min-height:0;max-height:min(650px,calc(100vh - 44px));}
+.library-list{flex:0 1 auto;min-height:62px;max-height:min(420px,49vh);}
+@media(max-width:850px){.project-library{height:auto;max-height:calc(100vh - 25px)}.library-list{max-height:46vh}}
+/* V0.6 — fixed overview landing, compact project cards, large page preview */
+#overviewStage{display:flex;align-items:flex-start;justify-content:center;padding:clamp(77px,11vh,110px) 24px 30px;overflow:auto;scrollbar-width:thin}
+.overview-shell{width:min(1240px,100%);padding:29px 32px 26px;border-radius:24px;min-height:530px;background:rgba(255,255,255,.46);display:flex;flex-direction:column;animation:overview-appear .54s cubic-bezier(.2,.75,.2,1) both}
+@keyframes overview-appear{from{transform:translateY(12px) scale(.99);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
+.overview-head{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:3px 1px 24px;border-bottom:1px solid rgba(121,145,177,.12)}
+.overview-head .micro{color:#8fa2ba}.overview-head h1{font-size:27px;letter-spacing:-.045em;line-height:1.25;margin:12px 0 7px;font-weight:750}.overview-head p{font-size:12px;color:#8796a9;line-height:1.7;margin:0}
+.overview-create{height:41px;min-width:115px;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid rgba(85,119,207,.22);border-radius:12px;background:linear-gradient(130deg,#627fda,#486dd1);color:#fff;font-size:12px;font-weight:700;box-shadow:0 8px 20px rgba(75,109,193,.18)}.overview-create b{font-size:20px;font-weight:420;line-height:1}
+.overview-controls{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:20px 0 15px}
+.overview-search{display:flex;align-items:center;gap:9px;height:39px;padding:0 12px;width:min(410px,100%);border:1px solid rgba(119,144,179,.17);background:rgba(255,255,255,.52);border-radius:11px;color:#8b9ab1}
+.overview-search input{width:100%;outline:0;border:0;background:transparent;font-size:11.5px;color:var(--ink)}.overview-search input::placeholder{color:#a5b1c1}
+.overview-summary{display:flex;gap:17px;font-size:10.5px;color:#8290a4;white-space:nowrap}.overview-summary strong{font-size:11px;color:#506d9b}
+.overview-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;align-content:start;padding:0 0 23px;min-height:232px}
+.overview-project{width:100%;text-align:left;border:1px solid rgba(161,180,209,.23);border-radius:17px;padding:18px 18px 15px;background:rgba(255,255,255,.68);box-shadow:0 6px 21px rgba(88,106,148,.04),inset 0 1px 0 rgba(255,255,255,.86);transition:transform .2s,border-color .2s,box-shadow .2s,background .2s;min-height:212px;display:flex;flex-direction:column;gap:0}
+.overview-project:hover,.overview-project:focus-visible{transform:translateY(-3px);background:rgba(255,255,255,.91);border-color:rgba(94,130,207,.45);box-shadow:0 14px 36px rgba(94,113,160,.11);outline:none}
+.overview-project-top{display:flex;justify-content:space-between;align-items:center;gap:9px}.overview-project-kind{display:inline-flex;align-items:center;gap:6px;font-size:9.5px;color:#738baf;font-weight:650}.overview-project-kind i{width:7px;height:7px;border-radius:50%;background:#82b7a7;display:block}.overview-project-time{font-size:9.5px;color:#9aa7b7}
+.overview-project-title{font-size:16px;line-height:1.35;letter-spacing:-.033em;font-weight:760;display:block;margin:18px 0 7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.overview-project-place{font-size:10.5px;color:#8f9db0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.overview-project-foot{margin-top:auto;padding-top:21px;display:flex;justify-content:space-between;align-items:center;gap:7px;font-size:10px;color:#8f9db0}
+.overview-project-foot .progress-meta{display:flex;align-items:center;gap:7px;min-width:0}.overview-project-foot .progress-meta b{font-weight:650;color:#6684c8;white-space:nowrap}
+.overview-project-foot .open-arrow{display:grid;place-items:center;width:29px;height:29px;min-width:29px;border-radius:9px;background:#eff3fb;color:#547ac7;font-size:15px}
+.overview-no-projects{grid-column:1/-1;text-align:center;padding:55px 20px;color:#98a6ba;font-size:12px}
+.overview-bottom{margin-top:auto;padding:18px 2px 0;border-top:1px solid rgba(132,148,174,.12);display:flex;align-items:center;justify-content:space-between;gap:12px;color:#a0aebb;font-size:10px}
+.overview-bottom .overview-meta-dot{height:5px;width:5px;border-radius:100%;background:#83bbab;display:inline-block;margin-right:5px}
+.create-back{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;padding:4px 0;font-weight:700;font-size:11px;color:#73839c;cursor:pointer}.create-back:hover{color:#5275d1}
+.quick-overview-link{width:100%;border:1px solid rgba(127,152,191,.15);border-radius:10px;background:rgba(246,249,255,.57);text-align:left;padding:10px 12px;margin-bottom:10px;font-size:11px;font-weight:700;color:#5878bc}.quick-overview-link:hover{background:rgba(231,240,255,.86)}
+.brand-symbol,.brand-label{cursor:pointer}
+#resumeStage{display:flex;align-items:center;justify-content:center;padding:60px 20px 20px;overflow:hidden}
+.resume-card{width:min(100%,630px);height:390px;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;position:relative}
+.resume-kicker{font-size:10px;letter-spacing:.13em;color:#92a1b5;font-weight:760}.resume-title{font-size:26px;font-weight:740;margin:24px 0 12px;letter-spacing:-.045em;line-height:1.35}.resume-desc{line-height:1.9;font-size:12px;color:#8999ab;max-width:440px;margin:0}.resume-bottom{display:flex;gap:9px;align-items:center;border-top:1px solid rgba(137,154,186,.13);padding:17px 0 0;color:#8a9bb0;font-size:11px}.resume-loading{width:16px;height:16px;border:2px solid rgba(80,117,198,.18);border-top-color:#5478d0;border-radius:50%;animation:spin .8s linear infinite}
+.morph-ghost .resume-content,.morph-ghost .resume-bottom,.morph-ghost .flow-top{pointer-events:none}
+/* The full presentation uses the entire left canvas, not a small central card. */
+.preview-overlay{padding:7px 10px 11px;background:rgba(225,234,247,.47)}
+.preview-card{gap:6px;align-items:stretch;justify-content:flex-start}
+.preview-toolbar{width:100%;max-width:none;height:43px;min-height:43px;border-radius:10px}
+.preview-sheet-holder{width:100%;align-items:center;justify-content:center;min-height:0;padding:0 0 1px}
+.preview-sheet{max-width:none;width:min(100%,calc((100vh - 144px)*1.7777778));border-radius:4px}
+.preview-sheet.portrait{width:min(100%,calc((100vh - 144px)*.70707))}
+.preview-page-h1{font-size:clamp(27px,2.3vw,35px)}
+.preview-desc{font-size:clamp(12px,.96vw,14px)}
+.preview-sheet-nav{position:absolute;top:50%;transform:translateY(-50%);z-index:28;width:31px;height:62px;border:1px solid rgba(255,255,255,.86);background:rgba(255,255,255,.78);backdrop-filter:blur(12px);color:#6f87bd;border-radius:12px;font-size:29px;display:grid;place-items:center;padding:0;box-shadow:0 5px 22px rgba(68,96,144,.08)}
+.preview-sheet-nav:hover{background:#fff;color:#4267c6}.preview-sheet-nav:disabled{opacity:.23;pointer-events:none}
+.preview-sheet-nav.left{left:9px}.preview-sheet-nav.right{right:9px}
+body.theme-dark .overview-shell{background:rgba(29,44,64,.61)}body.theme-dark .overview-project{background:rgba(48,63,86,.79);color:#e4eaf6;border-color:rgba(173,198,239,.14)}
+body.theme-dark .overview-project:hover{background:rgba(66,81,105,.87)}body.theme-dark .overview-project-place,body.theme-dark .overview-project-time,body.theme-dark .overview-head p,body.theme-dark .overview-bottom{color:#a6b7d0}
+body.theme-dark .overview-project-foot .open-arrow,body.theme-dark .overview-search,body.theme-dark .quick-overview-link{background:rgba(76,96,132,.47);color:#b9cbf2;border-color:rgba(177,201,245,.16)}body.theme-dark .overview-search input{color:#e2eaf8}
+body.theme-dark .resume-title{color:#dce7f7}body.theme-dark .resume-desc{color:#b1bed2}
+@media(max-width:1040px){.overview-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.overview-shell{padding:23px}.overview-summary{gap:9px}}
+@media(max-width:650px){#overviewStage{padding:66px 10px 14px}.overview-shell{padding:17px;min-height:0}.overview-head{align-items:flex-start}.overview-head h1{font-size:23px}.overview-head p{font-size:11px}.overview-create{min-width:40px;height:37px}.overview-create span{display:none}.overview-controls{align-items:stretch;flex-direction:column;gap:10px}.overview-grid{grid-template-columns:1fr}.overview-project{min-height:160px}.overview-project-title{margin:10px 0 6px}.overview-project-foot{padding-top:13px}.overview-bottom{font-size:9px}.overview-bottom span:last-child{display:none}.preview-overlay{padding:4px}.preview-sheet-nav{width:23px;height:45px;border-radius:8px;font-size:22px}.preview-sheet{width:min(100%,calc((100vh - 188px)*1.77778))}.preview-sheet.portrait{width:min(100%,calc((100vh - 188px)*.707))}}
+/* V0.7 · content script layer, review gate, compact flow states */
+.graph-board{width:1204px;height:755px}
+.rootnode{width:180px;height:78px;padding:10px 12px;gap:4px}.root-name{font-size:13px}
+.chapnode{width:166px;height:62px;padding:8px 10px}.chap-num{width:28px;height:28px}.chap-label strong{font-size:11px}.chap-label span{font-size:8.5px}
+.sectionnode{width:180px;height:53px;padding:8px 10px}.sec-main{font-size:10.8px}
+.scriptnode{width:270px;height:82px;display:flex;align-items:stretch;flex-direction:column;gap:4px;background:rgba(254,255,255,.82);border:1px solid rgba(134,162,204,.24);border-radius:13px;padding:9px 11px;box-shadow:0 7px 24px rgba(87,115,154,.075)}
+.script-top{display:flex;justify-content:space-between;align-items:center;gap:7px}.script-top strong{font-size:10.9px;color:#49617f}.script-top strong span{font-weight:500;color:#9baac0}.script-status{font-style:normal;font-size:8px;padding:3px 7px;border-radius:20px;white-space:nowrap}.script-status.draft{background:#fff1dd;color:#ac8850}.script-status.approved{background:#e9f3e9;color:#63916f}.script-status.generated{background:#ebf1fe;color:#6b87c5}
+.script-excerpt{font-size:10px;color:#667991;line-height:1.52;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.script-bottom{display:flex;justify-content:space-between;align-items:center;font-size:8px;color:#9caabd;margin-top:auto}.script-bottom span{font-size:11px;color:#8fa5cc}
+.artnode{width:228px;height:84px;padding:5px;border-radius:12px}.art-preview{height:55px}.art-mini{padding:4px}.art-mini .mini-line{margin-top:3px}.art-mini .mini-title{font-size:6.2px}.art-titleline{height:15px}.art-pages{font-size:8px;color:#8e9cb1;white-space:nowrap}.artnode.locked{background:rgba(247,249,252,.69);border-style:dashed;border-color:rgba(126,148,181,.28);box-shadow:none}.art-locked-visual{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-align:center;color:#879aaf}.art-locked-visual strong{font-size:10px;font-weight:700;color:#7790af}.art-locked-visual small{font-size:8px;color:#a0aec1}.lock-icon{font-size:15px;line-height:1;color:#9fb3cb}
+.script-summary{font-size:9.6px;font-variant-numeric:tabular-nums;color:#7487a5;white-space:nowrap}.pipeline-btn{border:1px solid rgba(105,142,210,.18);background:#eaf0ff;color:#5677bf;border-radius:8px;min-height:28px;padding:0 10px;font-size:10px;font-weight:710;white-space:nowrap}.pipeline-btn:hover:enabled{background:#dde7ff}.pipeline-btn:disabled{background:rgba(237,243,251,.8);color:#8aaf94;opacity:1}
+.deck-btn{border:1px solid rgba(139,157,190,.20);background:rgba(255,255,255,.72);color:#55739e;border-radius:8px;min-height:28px;padding:0 10px;font-size:10px;font-weight:710;white-space:nowrap}.deck-btn:hover{background:#fff;color:#416ab2}
+.script-review-actions{display:flex;gap:6px;align-items:center}.script-review-actions button{font-size:10px;font-weight:680;white-space:nowrap;padding:7px 11px;border-radius:8px;border:1px solid #e3eaf4;background:#f5f8fc;color:#5e759c}.script-review-actions .script-approve-btn{background:#547ad6;color:#fff;border-color:transparent}.script-review-actions .script-approve-btn:disabled{background:#eaf5ed;color:#619374;border-color:#d3e8db;opacity:1}
+.preview-sheet.script-sheet{width:min(100%,1060px)!important;height:100%;max-height:100%;aspect-ratio:auto;overflow:auto;display:flex;flex-direction:column;border-radius:8px}
+.script-doc-top{display:flex;align-items:center;justify-content:space-between;padding:17px 27px;background:linear-gradient(145deg,#f7faff,#fff);border-bottom:1px solid #ecf0f6;flex-shrink:0}
+.script-doc-state{font-size:10px;color:#b08749;background:#fef4e3;border-radius:100px;padding:5px 10px}.script-doc-state.approved{background:#eaf5ed;color:#609275}.script-doc-state.generated{background:#eaf0fd;color:#637dc1}
+.script-doc-scroll{flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:minmax(0,1fr) 235px;gap:34px;padding:27px 30px 33px}.script-doc-main{max-width:700px}.script-meta{font-size:10px;color:#718cbb;font-weight:700;letter-spacing:.04em}.script-doc-main h2{font-size:28px;margin:9px 0 18px;color:#2e4059;letter-spacing:-.04em}.script-main-thesis{padding:15px 18px;border-left:3px solid #7395db;background:#f1f5fc;border-radius:0 9px 9px 0;color:#455e87;font-size:14px;font-weight:690;line-height:1.8}
+.script-divider{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e8ecf3;padding-bottom:10px;margin:26px 0 16px;font-size:12px;color:#4b658c;font-weight:750}.script-divider span:last-child{font-weight:450;color:#9ca8bb;font-size:10px}
+.script-paragraphs p{font-size:14px;line-height:2.08;color:#42516a;letter-spacing:.01em;margin:0 0 17px;padding:5px 4px;border-radius:5px}.script-paragraphs p:hover{background:#f3f7fe}.script-textarea{display:block;width:100%;min-height:370px;resize:vertical;padding:17px;border:1px solid #d9e3f4;border-radius:10px;background:#f9fbff;color:#3d506e;font-size:13px;line-height:2;outline:none}.script-textarea:focus{border-color:#799be4;box-shadow:0 0 0 3px rgba(87,133,221,.12)}.script-edit-label{font-size:10px;color:#6e85a4;display:block;margin-bottom:11px}.script-sample-note{font-size:10px;color:#a5adba;margin-top:20px}
+.script-doc-aside{display:flex;flex-direction:column;gap:13px;align-self:start;position:sticky;top:0}.script-aside-card{background:#f4f7fb;border:1px solid #e9eef7;border-radius:10px;padding:16px}.script-aside-card span{display:block;font-size:10px;color:#6f85a4;font-weight:750;margin-bottom:10px}.script-aside-card p{font-size:11px;line-height:1.9;color:#60718b;margin:0}.script-aside-card.subtle{background:#fafbfc}.script-aside-card.subtle span{color:#9ba8b7}
+body.theme-dark .scriptnode{background:rgba(48,61,82,.94);border-color:rgba(192,218,255,.17)}body.theme-dark .script-top strong{color:#d4e0f6}body.theme-dark .script-excerpt{color:#b4c5dd}body.theme-dark .artnode.locked{background:rgba(44,55,74,.8)}body.theme-dark .script-summary{color:#b3c5df}body.theme-dark .pipeline-btn{background:rgba(64,90,137,.63);color:#cbdaf4}body.theme-dark .script-doc-main h2{color:#31445f}
+@media(max-width:1180px){.workspace-top .eyebrow{display:none}.script-summary{display:none}.pipeline-btn{font-size:9px;padding:0 7px}}
+@media(max-width:780px){.preview-sheet.script-sheet{height:100%}.script-doc-scroll{grid-template-columns:1fr;padding:18px;gap:18px}.script-doc-aside{position:static}.script-review-actions button{padding:6px;font-size:9px}.script-doc-main h2{font-size:22px}.script-paragraphs p{font-size:12px}.workspace-top .tiny-count{display:none}}
+
+/* V0.8: district input, non-destructive history view and continuous full-book navigation */
+.field-optional{font-weight:440;font-size:10px;color:#a0aebe;margin-left:4px}
+.location-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px}
+.location-grid .field-input{padding:0 10px;font-size:11.5px;min-width:0}
+.location-data-status{margin:6px 3px 0;font-size:9.6px;color:#8f9eb1;line-height:1.55;min-height:15px}
+.location-data-status.loaded{color:#57947e}
+.location-field{margin-bottom:14px}
+.drawer-title-actions{display:flex;align-items:center;gap:7px;flex-shrink:0}
+.history-toggle{display:flex;align-items:center;gap:5px;padding:7px 10px;border-radius:9px;background:rgba(244,248,255,.78);border:1px solid rgba(120,145,184,.18);font-size:10px;font-weight:700;color:#617fae;white-space:nowrap;transition:background .15s}
+.history-toggle:hover{background:rgba(225,236,255,.94)}
+.history-count{display:inline-grid;place-items:center;min-width:16px;height:16px;padding:0 4px;border-radius:6px;background:#e7edfc;color:#5277c7;font-size:9px}
+.history-footer{text-align:center;color:#8c9bae;padding:14px 10px 17px;border-top:1px solid rgba(146,159,184,.14);font-size:10px}
+.annotation-item .anno-status.done{background:#e5f1ea;color:#608e76}
+.annotation-item .history-batch{font-size:9.2px;color:#94a2b3;display:block;margin:-1px 0 7px;line-height:1.45}
+.preview-book-chip{border:1px solid rgba(122,154,215,.18);background:rgba(232,239,255,.7);color:#5c7dbb;border-radius:7px;padding:4px 8px;font-weight:660;font-size:10px}
+body.theme-dark .history-toggle{background:rgba(71,91,122,.52);color:#c5d7f6;border-color:rgba(169,194,230,.18)}
+body.theme-dark .history-count{background:rgba(99,128,189,.43);color:#d3e1fa}
+body.theme-dark .preview-book-chip{background:rgba(62,85,129,.45);color:#cbddfd}
+@media(max-width:540px){.location-grid{grid-template-columns:1fr 1fr}.location-grid input:last-of-type{grid-column:1 / -1}.create-meta-row{grid-template-columns:1fr 1fr}.drawer-title{padding:13px 12px 11px}.history-toggle{padding:6px 7px}}
+
+/* V0.9 — one-screen creation / visual result collect-expand modes */
+#entryStage{padding:58px 12px 12px;align-items:center;overflow:hidden}
+#entryCard{width:min(100%,684px);max-height:calc(100vh - 77px);padding:17px 23px 13px;border-radius:24px;overflow:auto;scrollbar-width:thin}
+#entryCard .flow-top{margin-bottom:7px}
+#entryCard .step-pill{padding:5px 9px;font-size:9.5px}
+#entryCard .flow-title{font-size:24px;line-height:1.2;letter-spacing:-.035em}
+#entryCard .flow-desc{font-size:11px;line-height:1.5;margin:5px 0 11px}
+#entryCard .field{margin-bottom:8px}
+#entryCard .field-label{font-size:10.5px;margin-bottom:4px}
+#entryCard .field-input{height:36px;border-radius:9px;font-size:11.5px;padding:0 10px}
+#entryCard .field-row{gap:10px}
+#entryCard .location-grid{gap:7px}
+#entryCard .location-field{margin-bottom:6px}
+#entryCard .location-data-status{min-height:0;margin:3px 1px 0;font-size:9px;line-height:1.22}
+#entryCard .upload-area{padding:7px 10px;gap:10px;border-radius:11px;min-height:54px}
+#entryCard .upload-icon{height:31px;width:31px;border-radius:9px}
+#entryCard .upload-copy b{font-size:11px}
+#entryCard .upload-copy span{font-size:9px;line-height:1.2;margin-top:2px}
+#entryCard .upload-area .link-like{font-size:10px}
+#entryCard .file-chips{max-height:44px;overflow-y:auto;margin:5px 0 2px;gap:4px;scrollbar-width:thin}
+#entryCard .filechip{padding:4px 6px;border-radius:15px;font-size:9px}
+#entryCard .upload-readiness{font-size:9px;line-height:1.2;margin:4px 0 0}
+#entryCard .validation{min-height:0;margin-top:2px;font-size:10px}
+#entryCard .flow-actions{margin-top:7px;padding-top:8px;gap:8px}
+#entryCard .flow-note{display:none}
+#entryCard .flow-actions .link-like{font-size:10px}
+#entryCard .primary-btn{height:37px;border-radius:10px;font-size:11px}
+#entryCard .flow-footer{font-size:9px;margin-top:8px;padding-top:5px}
+#entryCard .create-feedback{padding:8px 10px;margin:6px 0 0;font-size:10px}
+.create-advanced{margin:0 0 8px;border-radius:9px;border:1px solid rgba(142,164,199,.15);background:rgba(255,255,255,.23)}
+.create-advanced>summary{list-style:none;cursor:pointer;font-size:10.5px;font-weight:650;color:#6982a9;padding:7px 11px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.create-advanced>summary::-webkit-details-marker{display:none}
+.create-advanced>summary span{font-size:9px;font-weight:500;color:#9aaabb}
+.create-advanced[open]>summary span{color:#6b86c7}
+.create-advanced .field{padding:0 8px 8px;margin:0!important}
+#entryCard .field-textarea{height:54px;min-height:54px;padding:8px 10px;resize:vertical}
+.visual-mode-control{display:flex;align-items:center;padding:3px;gap:2px;border:1px solid rgba(135,155,189,.18);border-radius:10px;background:rgba(235,241,251,.68);white-space:nowrap}
+.visual-mode-btn{height:25px;min-width:41px;padding:0 10px;border:0;background:transparent;border-radius:7px;color:#8394ac;font-size:10px;font-weight:670;transition:background .2s,color .2s,box-shadow .2s}
+.visual-mode-btn.active{background:rgba(255,255,255,.97);color:#4d71c0;box-shadow:0 1px 6px rgba(81,115,174,.10)}
+.visual-mode-btn:hover{color:#466bb8}
+.artnode.visual-group-node{box-shadow:0 3px 0 -1px rgba(210,223,241,.92),0 7px 0 -2px rgba(225,234,245,.82),0 12px 22px rgba(104,128,158,.10)}
+.artnode.visual-page-node{width:144px;height:84px;gap:4px;padding:5px;overflow:visible}
+.artnode.visual-page-node .art-preview{height:57px}
+.artnode.visual-page-node .art-titleline{height:13px;padding:0 2px;gap:4px}
+.artnode.visual-page-node .art-name{font-size:8.3px}
+.artnode.visual-page-node .art-fmt{font-size:7px;padding:1px 4px}
+.artnode.visual-page-node .art-mini{gap:5px;padding:4px}
+.artnode.visual-page-node .art-mini .mini-title{font-size:5.4px}
+.artnode.visual-page-node .art-mini .mini-figure{border-radius:2px}
+.page-ordinal{position:absolute;right:9px;top:9px;z-index:1;border:1px solid rgba(255,255,255,.9);background:rgba(247,250,255,.93);color:#4b6da6;border-radius:5px;font-size:10px;font-weight:800;padding:2px 4px;box-shadow:0 2px 7px rgba(60,90,130,.1)}
+.page-ordinal small{font-size:7px;font-weight:500;color:#9aacbf}
+body.theme-dark .visual-mode-control{background:rgba(40,55,81,.65);border-color:rgba(149,174,216,.17)}
+body.theme-dark .visual-mode-btn{color:#aebed9}
+body.theme-dark .visual-mode-btn.active{background:rgba(94,123,185,.54);color:#edf3ff}
+body.theme-dark .create-advanced{background:rgba(53,72,101,.45);border-color:rgba(179,200,233,.12)}
+body.theme-dark .create-advanced summary{color:#b9cbef}
+@media(max-width:1500px){.workspace-top .tiny-count,.workspace-top .eyebrow,.workspace-top .script-summary{display:none}}
+@media(max-width:1230px){.visual-mode-btn{min-width:37px;padding:0 7px}.workspace-top .script-summary{display:none}}
+@media(max-width:950px){#entryCard{max-height:calc(100vh - 73px)}.visual-mode-btn{font-size:9px}.workspace-top .tiny-count{display:none}}
+@media(max-height:710px) and (min-width:700px){#entryStage{padding:51px 10px 8px}#entryCard{padding:12px 18px 10px;max-height:calc(100vh - 59px)}#entryCard .flow-desc{margin:3px 0 8px}#entryCard .field{margin-bottom:6px}#entryCard .field-input{height:33px}#entryCard .flow-actions{margin-top:3px;padding-top:6px}#entryCard .flow-footer{margin-top:5px}}
+@media(max-width:620px){#entryStage{overflow:auto;align-items:flex-start}#entryCard{margin:0 auto;max-height:none;overflow:visible}.visual-mode-btn{min-width:36px;padding:0 6px}}
+</style>
+</head>
+<body>
+<div id="environment"><div class="environment-lilac"></div></div><div class="noise"></div>
+<header class="topbar">
+  <div class="brand"><div class="brand-symbol" aria-hidden="true"></div><div class="brand-label"><div class="brand-name">PRE—DESIGN</div><div class="brand-caption">前期策划工作平台</div></div><button type="button" class="project-switcher" id="projectSwitcher" aria-haspopup="dialog" aria-expanded="false" aria-controls="projectQuickMenu" title="切换项目（Ctrl / ⌘ + K）"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="15" rx="3"/><path d="M3 9h18"/></svg><span id="currentProjectLabel">我的项目</span><svg class="picker-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m7 10 5 5 5-5"/></svg></button></div>
+  <div class="top-right"><div class="environment-pill"><span class="status-dot"></span> 交互演示</div><button class="top-action" id="themeBtn" aria-label="切换深浅配色" title="切换深浅配色"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M20 15.2A8 8 0 0 1 8.8 4 8 8 0 1 0 20 15.2Z"/></svg></button></div>
+</header>
+<!-- V0.9：项目总览 → 紧凑创建 → 首轮问询 → 章/节/脚本 → 可视化成果（归拢/全展开） -->
+<!-- V0.7 主线：项目总览 → 首轮问询 → 大纲 → 文字脚本（可批注/确认）→ 可视化成果（多页） -->
+<section id="projectQuickMenu" class="project-quick glass hidden" role="dialog" aria-label="快速切换项目">
+  <div class="quick-head"><strong>快速切换</strong><span>Ctrl / ⌘ + K</span></div><button type="button" class="quick-overview-link" id="quickGoOverview">← 返回项目总览</button>
+  <div class="quick-search-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><input id="quickProjectSearch" placeholder="搜索项目名称或地点…" aria-label="搜索项目" autocomplete="off"/></div>
+  <div class="quick-section-label">最近项目 <span id="quickProjectCount"></span></div>
+  <div id="quickProjectList" class="quick-project-list"></div>
+  <div class="quick-footer"><button type="button" id="openProjectLibrary" class="quick-library-btn">查看全部项目 <span>↗</span></button><button type="button" id="quickNewProject" class="quick-new-btn">＋ 新建项目</button></div>
+</section>
+<div id="projectLibrary" class="project-library-shade hidden" role="dialog" aria-modal="true" aria-label="我的项目库">
+  <section class="project-library glass">
+    <div class="library-top"><div><div class="library-eyebrow">PROJECT LIBRARY</div><h2>我的项目<span id="libraryTotal" class="library-total"></span></h2><p>历史项目集中管理，打开后直接恢复工作状态。</p></div><button id="closeProjectLibrary" class="library-close" aria-label="关闭项目库">✕</button></div>
+    <div class="library-controls"><div class="library-search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><input id="librarySearch" placeholder="搜索项目名称、地点、类型" autocomplete="off" aria-label="搜索全部项目" /></div><button id="libraryNewProject" class="library-create">＋ 新建项目</button></div>
+    <div class="library-list-header"><span>项目</span><span>状态</span><span>最近访问</span></div>
+    <div id="projectLibraryList" class="library-list"></div>
+    <div class="library-bottom"><span>仅为 UI 原型：示例项目与批注状态保存在当前浏览器，正式版本由服务器保存。</span><span>点击项目即可进入</span></div>
+  </section>
+</div>
+<section id="overviewStage" class="stage" aria-label="项目总览">
+  <main class="overview-shell glass" aria-labelledby="overviewTitle">
+    <header class="overview-head">
+      <div><div class="micro">PRE—DESIGN / WORKSPACE</div><h1 id="overviewTitle">项目总览</h1><p>选择一个项目继续工作，或创建新项目。已有项目将直接恢复到成果工作台。</p></div>
+      <button type="button" class="overview-create" id="overviewCreateBtn" title="创建新项目"><b>＋</b><span>新建项目</span></button>
+    </header>
+    <div class="overview-controls"><label class="overview-search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6.5"/><path d="m15 15 6 6"/></svg><input type="search" id="overviewSearch" placeholder="搜索项目名称、地点或类型" autocomplete="off" aria-label="搜索项目" /></label>
+      <div class="overview-summary"><span><strong id="overviewTotal">0</strong> 个项目</span><span><strong id="overviewPending">0</strong> 条待提交批注</span></div></div>
+    <div class="overview-grid" id="overviewProjectGrid" aria-live="polite"></div>
+    <footer class="overview-bottom"><span><i class="overview-meta-dot"></i>统一服务器项目空间 · DSH 负责后台执行</span><span>当前为离线交互原型，项目记录仅保存在浏览器</span></footer>
+  </main>
+</section>
+<section id="entryStage" class="stage hidden">
+  <main class="flow-card glass" id="entryCard" aria-label="创建项目">
+    <div id="entryContent">
+      <div class="flow-top"><button type="button" class="create-back" id="createBackOverview">← 返回项目总览</button><div class="step-pill">PROJECT / 01 · 建立项目空间</div></div>
+      <h1 class="flow-title">从一个项目开始<span style="color:#7e9ee1">.</span></h1>
+      <p class="flow-desc">只填写必要信息，并提供至少一份原始资料。项目结构由平台自动建立，资料统一交由服务器处理。</p>
+      <form id="createForm" novalidate>
+        <div class="field"><label class="field-label" for="projectName">项目名称 <span class="must">*</span></label><input class="field-input" id="projectName" autocomplete="off" placeholder="例如：鄂州新民街城市更新" value="" maxlength="60" required /></div>
+        <div class="field-row create-meta-row"><div class="field"><label class="field-label" for="projectType">项目类型</label><select class="field-input" id="projectType"><option>城市更新</option><option>公共建筑</option><option>产业园区</option><option>片区策划</option><option>其他类型</option></select></div><div class="field"><label class="field-label" for="projectRegionDetail">地块 / 街道 <small class="field-optional">（选填）</small></label><input class="field-input" id="projectRegionDetail" placeholder="如：新民街片区、明塘体育场" autocomplete="off" /></div></div>
+        <div class="field location-field"><label class="field-label" for="projectProvince">项目地点 <span class="field-optional">选择省 / 市 / 区县，也支持直接输入</span></label><div class="location-grid"><input class="field-input" id="projectProvince" list="provinceOptions" placeholder="省 / 自治区" aria-label="项目所在省份，可选可输入" autocomplete="off" /><datalist id="provinceOptions"></datalist><input class="field-input" id="projectCity" list="cityOptions" placeholder="地级市 / 直辖市" aria-label="项目所在城市，可选可输入" autocomplete="off" /><datalist id="cityOptions"></datalist><input class="field-input" id="projectCounty" list="countyOptions" placeholder="区 / 县" aria-label="项目所在区县，可选可输入" autocomplete="off" /><datalist id="countyOptions"></datalist></div><div id="locationDataStatus" class="location-data-status">预设全国省级选项 · 其余地点可输入；联网后自动补齐完整市、区县</div><input type="hidden" id="projectLocation" /></div>
+        <details class="create-advanced" id="createAdvanced"><summary>补充项目说明 <span>可选 · 展开</span></summary><div class="field"><textarea class="field-input field-textarea" id="projectBrief" aria-label="项目说明" placeholder="已有目标、希望解决的问题、关键约束……"></textarea></div></details>
+        <div class="field" style="margin-bottom:5px"><label class="field-label">项目资料 <span class="must">*</span></label><div id="dropZone" class="upload-area" role="button" tabindex="0" aria-label="选择或拖入项目资料"><div class="upload-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="upload-copy"><b>拖入文件，或点击选择</b><span>PDF、PPT、Word、Excel、CAD、图片等均可添加</span></div><button type="button" class="link-like" id="chooseFilesBtn">选择文件</button></div><div class="file-chips" id="fileList"></div><div id="uploadReadiness" class="upload-readiness" aria-live="polite">尚未添加项目资料，创建前需至少添加 1 份。</div><div id="fileValidation" class="validation" role="alert"></div></div>
+        <div id="createFeedback" class="create-feedback hidden" role="alert"><strong>还缺少项目资料</strong><span>请选择至少一份真实文件，或使用内置示例资料体验完整流程。</span><div class="create-feedback-actions"><button type="button" id="feedbackChooseFiles">选择本地文件</button><button type="button" id="feedbackUseDemo">载入示例并继续 ↗</button></div></div><div class="flow-actions"><div><button class="link-like" type="button" id="demoFilesBtn">载入示例资料以体验流程</button><div class="flow-note">演示账号：策划人员A · 服务器路径自动分配</div></div><button type="submit" class="primary-btn">创建项目 <span aria-hidden="true">↗</span></button></div>
+      </form>
+      <div class="flow-footer"> <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg> 项目文件统一保存至服务器 · UI 演示不会真实上传</div>
+    </div>
+    <div id="processContent" class="hidden">
+      <div class="flow-top"><div class="micro">PROJECT / INITIALIZING</div><div class="step-pill">模拟执行</div></div>
+      <h1 class="flow-title" style="font-size:28px">正在建立项目<span style="color:#7e9ee1">.</span></h1>
+      <p class="flow-desc" id="processingDescription">准备服务器项目空间与研究流程。</p>
+      <div class="processing-list" id="processList"></div>
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="processing-meta" id="processMeta">正在初始化演示工作区</div><button type="button" id="skipProcessing" class="process-skip">跳过演示动画，直接进入首轮问询 ↗</button>
+      <div class="flow-footer" style="margin-top:32px">模拟工作流：无网络请求，不会写入服务器磁盘</div>
+    </div>
+  </main>
+</section>
+<section id="consultStage" class="stage hidden">
+  <main class="flow-card consult-card glass" aria-label="首轮对话问询">
+    <div class="consult-header"><div class="flow-top" style="margin-bottom:15px"><div class="micro">PROJECT / 02</div><div class="step-pill">首轮问询</div></div><h1 class="flow-title" style="font-size:25px">先明确策划方向<span style="color:#7e9ee1">.</span></h1><div class="consult-subtitle">已完成资料分类与研究项对照。只询问现有资料无法确定的关键信息。</div></div>
+    <div class="consult-stream" id="consultStream"></div>
+    <div class="consult-bottom"><div class="consult-compose" id="consultComposer"><input id="consultInput" class="field-input" placeholder="也可以直接输入你的想法……" /><button id="consultSend" class="send-round" title="发送回答" aria-label="发送回答"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 7-7 7 7M12 5v14" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div><button class="primary-btn consult-confirm hidden" id="confirmOutline">确认首轮大纲 · 进入工作台 <span>↗</span></button><div class="consult-help" style="margin-top:8px">初步章节可在工作台随时调整；此处确认不锁定内容</div></div>
+  </main>
+</section>
+<section id="resumeStage" class="stage hidden" aria-label="恢复历史项目">
+ <main class="flow-card resume-card glass" aria-live="polite">
+  <div class="flow-top"><div class="micro">PROJECT / RESTORING</div><span class="step-pill">继续上次工作</span></div>
+  <div class="resume-content"><div class="resume-kicker">已保存的项目</div><h2 id="resumeProjectName" class="resume-title">正在恢复项目</h2><p id="resumeDescription" class="resume-desc">读取已有的大纲、成果、批注及会话。</p></div>
+  <div class="resume-bottom"><span class="resume-loading" aria-hidden="true"></span><span>自动恢复并进入工作台 · 无须重复首轮问询</span></div>
+ </main>
+</section>
+<section id="workspaceStage" class="stage hidden" aria-label="项目工作平台">
+  <main class="workspace-pane glass">
+    <div class="workspace-top"><div><div class="eyebrow">CONTENT MAP / 成果关系图</div><div class="pane-title"><h2>大纲 · 文字脚本 · 成果</h2><span class="tiny-count" id="outlineCount">4 章 · 8 节 · 8 份脚本</span></div></div><div class="canvas-tools"><div class="visual-mode-control" role="group" aria-label="可视化成果展开方式"><button type="button" class="visual-mode-btn active" id="visualGroupedBtn" aria-pressed="true" title="每节成果归拢为一组">归拢</button><button type="button" class="visual-mode-btn" id="visualExpandedBtn" aria-pressed="false" title="把全部成果页面展开为独立缩略图">全展开</button></div><span class="script-summary" id="scriptProgress">脚本 0 / 8 已确认</span><button type="button" class="pipeline-btn" id="pipelineBtn">确认全部脚本</button><button type="button" class="deck-btn hidden" id="fullDeckBtn">整册预览</button><span class="tool-separator"></span><button id="fitBtn" class="tool-btn" title="定位全局" aria-label="定位全局"><svg width="17" height="17" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.6"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 4v5H4m11-5v5h5M4 15h5v5m6 0v-5h5"/></svg></button><span class="tool-separator"></span><button id="zoomOutBtn" class="tool-btn" title="缩小">−</button><span id="zoomReadout" class="zoom-badge">85%</span><button id="zoomInBtn" class="tool-btn" title="放大">＋</button></div></div>
+    <div class="graph-area" id="graphArea"><div class="empty-space-tip">单击标题、成果或连线，出现「添加批注」 · 右键拖动画布</div><div id="graphViewport" class="graph-viewport"><div class="graph-board" id="graphBoard"><svg id="edgeLayer" class="edges" width="1220" height="755" viewBox="0 0 1220 755" aria-hidden="true"></svg><div id="nodeLayer"></div><div id="nodePicker" class="node-picker hidden" role="group" aria-label="选中内容操作"><button id="pickerQuote" class="context-annotate" type="button" title="添加批注并载入会话" aria-label="添加批注">＋ <span>添加批注</span></button></div></div></div><div class="canvas-legend"><span id="visualLayoutHint">归拢视图 · 每节成果收为一组</span><span class="legend-dot"></span><span>左键选中 → 添加批注</span><span class="legend-dot"></span><span>右键拖动画布</span><span class="legend-dot"></span><span>双击成果预览</span></div>
+      <div id="previewOverlay" class="preview-overlay hidden" role="dialog" aria-modal="true" aria-label="成果预览"><div id="previewCard" class="preview-card"><div class="preview-toolbar" id="previewToolbar"><div class="preview-title" id="previewTitle">成果预览</div><div class="preview-actions"><div id="scriptReviewActions" class="script-review-actions hidden"><button type="button" id="scriptEditBtn">编辑脚本</button><button type="button" id="scriptApproveBtn" class="script-approve-btn">确认本节脚本</button></div><div id="previewNav" class="preview-nav"><button type="button" id="previewPrev" aria-label="上一页" title="上一页">‹</button><span id="previewPageCount">1 / 1</span><button type="button" id="previewNext" aria-label="下一页" title="下一页">›</button></div><button id="previewQuoteBtn" type="button">引用本页</button><button id="closePreview" class="close" title="关闭预览" aria-label="关闭预览">✕</button></div></div><div class="preview-sheet-holder" id="previewSheetHolder"><div class="preview-sheet" id="previewSheet"></div></div><div class="selection-popover hidden" id="selectionPopover" role="group" aria-label="内容批注操作"><button id="selectionQuoteBtn" class="context-annotate" type="button" title="对选中内容添加批注" aria-label="添加批注">＋ <span>添加批注</span></button></div></div><button class="preview-sheet-nav left" id="previewSidePrev" type="button" title="上一页" aria-label="上一页">‹</button><button class="preview-sheet-nav right" id="previewSideNext" type="button" title="下一页" aria-label="下一页">›</button></div></div>
+    </div>
+  </main>
+  <aside class="sidebar glass" id="sidebar" aria-label="项目对话与批注">
+    <header class="sidebar-head"><div class="project-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 19V5a2 2 0 0 1 2-2h8l6 6v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M14 3v7h6M8 14h8m-8 4h5" stroke-linecap="round"/></svg></div><div class="sidebar-head-title"><strong id="sidebarProjectName">鄂州新民街城市更新</strong><span>项目会话 · 预设 Agent 模型</span></div><button id="chatAttachBtn" class="plus-btn" title="添加项目资料" aria-label="添加项目资料"><svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.7"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg></button></header>
+    <div id="chatHistory" class="chat-history"></div>
+    <div class="annotation-bar"><div class="annotation-flag"><span class="num" id="annotationCount">0</span><span id="annotationSummary">条批注待统一提交</span></div><button id="openAnnotationDrawer" class="annotation-open">批注箱 <span aria-hidden="true">↗</span></button></div>
+    <div class="chat-compose-wrap"><div class="composer"><div id="referenceChips" class="chips-refs hidden"></div><textarea id="chatInput" class="compose-textarea" placeholder="提问，或者选择左侧内容进行批注……"></textarea><div class="compose-bottom"><div class="composer-status" id="composerMode"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 7v5l3 2"/><circle cx="12" cy="12" r="9"/></svg> 普通会话</div><button id="chatSubmit" class="compose-submit"><span id="submitText">发送</span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 7-7 7 7M12 5v14" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div></div></div>
+    <div id="annotationDrawer" class="annotation-drawer hidden"><div class="drawer-title"><div><h3 id="drawerHeading">批注箱</h3><p id="drawerDescription">只显示未提交的批注，统一提交给 Agent</p></div><div class="drawer-title-actions"><button type="button" id="annotationHistoryBtn" class="history-toggle" aria-label="查看历史批注">历史批注 <span class="history-count" id="historyCount">0</span></button><button id="closeAnnotationDrawer" class="plain-icon-btn" aria-label="关闭批注箱">✕</button></div></div><div class="annotation-list" id="annotationList"></div><div class="drawer-footer" id="pendingDrawerFooter"><button class="primary-btn" id="batchSubmitBtn">统一提交给 Agent <span>↗</span></button><div class="drawer-footer-desc">仅提交待处理批注，已完成的历史批注不再重复执行</div></div><div class="history-footer hidden" id="historyDrawerFooter">已完成记录只读保存 · 不影响当前未提交的批注</div></div>
+  </aside>
+</section>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<input type="file" id="createFileInput" class="hidden" multiple accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.dwg,.dxf,.ifc,.png,.jpg,.jpeg,.webp,.zip,.txt,.html,.md,.json,.geojson" />
+<input type="file" id="chatFileInput" class="hidden" multiple />
+<script>
+'use strict';
+/* Standalone interactive UX demo. Project operations are simulated; optional district list fetched from MIT-licensed mumuy/data_location. */
+const $=s=>document.querySelector(s);
+const state={scripts:{},activeScript:null,scriptEditing:false,stage:'overview',projectName:'',projectLocation:'',projectRegionDetail:'',projectType:'城市更新',files:[],answers:[],currentQuestion:0,selected:null,annotations:[],messages:[],visualLayoutMode:'grouped',activeArt:null,selectionText:'',board:{scale:.81,x:33,y:19},nodeRects:new Map(),activeNodeId:null,pendingTarget:null,previewTarget:null,previewIndex:0,previewMode:'visual',transitioning:false,processing:false,submitted:0,modifiedIds:new Set(),dark:false};
+const questions=[
+ {text:'从目前资料看，这一项目可能同时涉及公共服务、空间品质与商业活力。<strong>你最希望本轮优先解决哪个方向？</strong>',options:['民生与公共服务','历史文化与风貌','产业与商业活力','综合平衡推进']},
+ {text:'了解。<strong>这一次交付希望推进到什么程度？</strong> 后续可以继续深化，无需现在一次确定所有细节。',options:['先形成清晰的汇报大纲','形成可汇报的初版内容','同步研究实施与投资路径','由 Agent 判断合适深度']}
+];
+const ICON={file:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 3h9l5 5v13H5zM14 3v5h5"/></svg>',close:'<svg width="12" height="12" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2"><path d="m5 5 14 14M19 5 5 19"/></svg>'};
+function escapeHTML(text){return String(text??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));}
+let toastTimer;function toast(str){let t=$('#toast');t.textContent=str;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2800)}
+/* V0.8 administrative preset. MIT-source data_location list.jsonp, April 2026.
+   Online: nationwide province/prefecture/county. Offline: preset provinces, exemplar cities, free typing. */
+const LOCATION_PROVINCES=['北京市','天津市','河北省','山西省','内蒙古自治区','辽宁省','吉林省','黑龙江省','上海市','江苏省','浙江省','安徽省','福建省','江西省','山东省','河南省','湖北省','湖南省','广东省','广西壮族自治区','海南省','重庆市','四川省','贵州省','云南省','西藏自治区','陕西省','甘肃省','青海省','宁夏回族自治区','新疆维吾尔自治区','台湾省','香港特别行政区','澳门特别行政区'];
+const LOCATION_FALLBACK={
+ '湖北省':{'武汉市':['江岸区','江汉区','硚口区','汉阳区','武昌区','青山区','洪山区','东西湖区','汉南区','蔡甸区','江夏区','黄陂区','新洲区'],'鄂州市':['鄂城区','华容区','梁子湖区'],'襄阳市':['襄城区','樊城区','襄州区','南漳县','谷城县','保康县','老河口市','枣阳市','宜城市'],'宜昌市':['西陵区','伍家岗区','点军区','猇亭区','夷陵区','远安县','兴山县','秭归县','长阳土家族自治县','五峰土家族自治县','宜都市','当阳市','枝江市'],'黄石市':['黄石港区','西塞山区','下陆区','铁山区','阳新县','大冶市'],'黄冈市':['黄州区','团风县','红安县','罗田县','英山县','浠水县','蕲春县','黄梅县','麻城市','武穴市'],'荆州市':['沙市区','荆州区','公安县','监利市','江陵县','石首市','洪湖市','松滋市'],'荆门市':['东宝区','掇刀区','沙洋县','钟祥市','京山市'],'孝感市':['孝南区','孝昌县','大悟县','云梦县','应城市','安陆市','汉川市'],'十堰市':['茅箭区','张湾区','郧阳区','郧西县','竹山县','竹溪县','房县','丹江口市'],'咸宁市':['咸安区','嘉鱼县','通城县','崇阳县','通山县','赤壁市'],'随州市':['曾都区','随县','广水市'],'恩施土家族苗族自治州':['恩施市','利川市','建始县','巴东县','宣恩县','咸丰县','来凤县','鹤峰县'],'省直辖县级行政区划':['仙桃市','潜江市','天门市','神农架林区']},
+ '北京市':{'北京市':['东城区','西城区','朝阳区','海淀区','丰台区','石景山区','门头沟区','房山区','通州区','顺义区','昌平区','大兴区','怀柔区','平谷区','密云区','延庆区']},
+ '上海市':{'上海市':['黄浦区','徐汇区','长宁区','静安区','普陀区','虹口区','杨浦区','闵行区','宝山区','嘉定区','浦东新区','金山区','松江区','青浦区','奉贤区','崇明区']},
+ '天津市':{'天津市':['和平区','河东区','河西区','南开区','河北区','红桥区','东丽区','西青区','津南区','北辰区','武清区','宝坻区','滨海新区','宁河区','静海区','蓟州区']},
+ '重庆市':{'重庆市':['渝中区','万州区','涪陵区','大渡口区','沙坪坝区','九龙坡区','南岸区','北碚区','巴南区','长寿区','两江新区']},
+ '广东省':{'广州市':['越秀区','海珠区','荔湾区','天河区','白云区','黄埔区','花都区','番禺区','南沙区','从化区','增城区'],'深圳市':['福田区','罗湖区','南山区','宝安区','龙岗区','盐田区','龙华区','坪山区','光明区'],'佛山市':['禅城区','南海区','顺德区','三水区','高明区'],'东莞市':[],'珠海市':['香洲区','斗门区','金湾区']},
+ '福建省':{'厦门市':['思明区','湖里区','海沧区','集美区','同安区','翔安区'],'福州市':['鼓楼区','台江区','仓山区','晋安区','马尾区','长乐区'],'泉州市':['鲤城区','丰泽区','洛江区','泉港区','惠安县','晋江市','石狮市']},
+ '浙江省':{'杭州市':['上城区','拱墅区','西湖区','滨江区','萧山区','余杭区','临平区','钱塘区','富阳区','临安区'],'宁波市':['海曙区','江北区','镇海区','北仑区','鄞州区','奉化区'],'衢州市':['柯城区','衢江区','龙游县','常山县','开化县','江山市']},
+ '江苏省':{'南京市':['玄武区','秦淮区','建邺区','鼓楼区','栖霞区','雨花台区','江宁区','浦口区','六合区','溧水区','高淳区'],'苏州市':['姑苏区','虎丘区','吴中区','相城区','吴江区','常熟市','张家港市','昆山市','太仓市'],'无锡市':['梁溪区','锡山区','惠山区','滨湖区','新吴区']},
+ '四川省':{'成都市':['锦江区','青羊区','金牛区','武侯区','成华区','龙泉驿区','青白江区','新都区','温江区','双流区','郫都区','新津区']},
+ '陕西省':{'西安市':['新城区','碑林区','莲湖区','灞桥区','未央区','雁塔区','阎良区','临潼区','长安区','高陵区','鄠邑区']}
+};
+const LOCATION_CACHE_KEY='pre-design:region-list:v2026-04';
+let fullLocationData=null;
+function locationDatalist(id,arr){const box=document.getElementById(id);box.innerHTML=arr.map(v=>`<option value="${escapeHTML(v)}"></option>`).join('')}
+function normalizeLocationName(value){return String(value||'').replace(/\s+/g,'').trim()}
+function cleanProvinceInput(){return normalizeLocationName($('#projectProvince').value)}
+function locationProvince(){return LOCATION_PROVINCES.find(x=>x===cleanProvinceInput())||''}
+function locationCities(){return fullLocationData?.[locationProvince()]||LOCATION_FALLBACK[locationProvince()]||{}}
+function updateLocationFields(preserve=true){
+ const cities=Object.keys(locationCities());const city=$('#projectCity').value.trim();
+ locationDatalist('cityOptions',cities);const counties=locationCities()[city]||[];locationDatalist('countyOptions',counties);
+ if(!preserve){$('#projectCity').value='';$('#projectCounty').value='';locationDatalist('countyOptions',[])}
+ else if(city&&counties.length&&$('#projectCounty').value&&!counties.includes($('#projectCounty').value)){/* keep manual input */}
+ updateLocationValue();
+}
+function updateLocationValue(){
+ const parts=[$('#projectProvince').value,$('#projectCity').value,$('#projectCounty').value,$('#projectRegionDetail').value].map(v=>v.trim()).filter(Boolean);
+ $('#projectLocation').value=parts.join(' · ');
+}
+function restoreLocationInputs(location='',region=''){
+ const parts=String(location||'').split(/\s*[·/]\s*/).map(x=>x.trim()).filter(Boolean);
+ $('#projectProvince').value=parts[0]||'';$('#projectCity').value=parts[1]||'';$('#projectCounty').value=parts[2]||'';
+ $('#projectRegionDetail').value=region||parts[3]||'';
+ updateLocationFields(true);
+}
+function hydrateLocationCodes(codes){
+ const provinces={};const codeToProvince={};const directCityNames={};
+ for(const [code,name] of Object.entries(codes)){
+  if(!/^\d{6}$/.test(code))continue;
+  if(code.endsWith('0000')){provinces[name]={};codeToProvince[code.slice(0,2)]=name}
+ }
+ // Regional codes ending 00, except province entries, represent prefecture cities.
+ const cityByCode={};
+ for(const [code,name] of Object.entries(codes)){
+  if(!/^\d{6}$/.test(code)||code.endsWith('0000')||!code.endsWith('00'))continue;
+  const province=codeToProvince[code.slice(0,2)];if(!province)continue;
+  if(!provinces[province][name])provinces[province][name]=[];cityByCode[code.slice(0,4)]=name;
+ }
+ for(const [code,name] of Object.entries(codes)){
+  if(!/^\d{6}$/.test(code)||code.endsWith('00'))continue;
+  const province=codeToProvince[code.slice(0,2)];if(!province)continue;
+  const direct=['北京市','上海市','天津市','重庆市','香港特别行政区','澳门特别行政区','台湾省'].includes(province);
+  const cityName=cityByCode[code.slice(0,4)]||(direct?province:'省直辖县级行政区划');
+  if(!provinces[province][cityName])provinces[province][cityName]=[];
+  provinces[province][cityName].push(name);
+ }
+ // Some sources do not include prefectural cities for municipalities, use their names.
+ for(const province of Object.keys(provinces))if(!Object.keys(provinces[province]).length)provinces[province][province]=[];
+ return provinces;
+}
+window.jsonp_location=function(codes){
+ if(!codes||Object.keys(codes).length<2500)return;
+ fullLocationData=hydrateLocationCodes(codes);
+ try{localStorage.setItem(LOCATION_CACHE_KEY,JSON.stringify(codes))}catch(e){}
+ const n=Object.values(fullLocationData).reduce((count,cities)=>count+Object.values(cities).reduce((m,areas)=>m+areas.length,0),0);
+ $('#locationDataStatus').textContent=`已加载全国行政区划选项（约 ${n.toLocaleString('zh-CN')} 个区县），可下拉或直接输入 · 资料版本 2026-04`;
+ $('#locationDataStatus').classList.add('loaded');
+ locationDatalist('provinceOptions',[...new Set([...LOCATION_PROVINCES,...Object.keys(fullLocationData)])]);updateLocationFields(true);
+};
+locationDatalist('provinceOptions',LOCATION_PROVINCES);updateLocationFields(true);
+try{const cached=localStorage.getItem(LOCATION_CACHE_KEY);if(cached)window.jsonp_location(JSON.parse(cached))}catch(e){}
+$('#projectProvince').addEventListener('input',()=>updateLocationFields(false));
+$('#projectCity').addEventListener('input',()=>{$('#projectCounty').value='';updateLocationFields(true)});
+$('#projectCounty').addEventListener('input',updateLocationValue);
+$('#projectRegionDetail').addEventListener('input',updateLocationValue);
+// Deferred cross-origin JSONP lookup; usable from a local file and without requiring a bundler.
+(function loadAdministrativeData(){
+ const urls=['https://fastly.jsdelivr.net/gh/mumuy/data_location@master/list.jsonp','https://cdn.jsdelivr.net/gh/mumuy/data_location@master/list.jsonp','https://raw.githubusercontent.com/mumuy/data_location/master/list.jsonp'];
+ let idx=0;let done=false;
+ function next(){
+  if(done||idx>=urls.length)return;
+  let script=document.createElement('script');script.async=true;script.src=urls[idx++];script.referrerPolicy='no-referrer';
+  const watchdog=setTimeout(()=>{script.remove();next()},2400);
+  script.onerror=()=>{clearTimeout(watchdog);script.remove();next()};
+  script.onload=()=>{clearTimeout(watchdog);script.remove();if(fullLocationData)done=true;else next()};
+  document.head.appendChild(script);
+ }
+ next();
+})();
+
+function addFiles(input,category='create'){const all=Array.from(input||[]);if(!all.length)return;let count=0;for(const f of all){const fobj={name:f.name,size:f.size||0,type:f.type||'文件',demo:false};if(!state.files.some(s=>s.name===fobj.name&&s.size===fobj.size)){state.files.push(fobj);count++}}renderFiles();$('#fileValidation').textContent='';toast(`已添加 ${count} 份文件（仅供演示，未上传服务器）`)}
+function renderFiles(){let list=$('#fileList');list.innerHTML=state.files.map((f,i)=>`<div class="filechip">${ICON.file}<span class="file-name" title="${escapeHTML(f.name)}">${escapeHTML(f.name)}</span>${f.demo?'<span style="color:#86a2cb">示例</span>':''}<button type="button" data-remove="${i}" aria-label="移除${escapeHTML(f.name)}">${ICON.close}</button></div>`).join('');list.querySelectorAll('[data-remove]').forEach(b=>b.addEventListener('click',()=>{state.files.splice(+b.dataset.remove,1);renderFiles()}));const count=state.files.length;$('#uploadReadiness').textContent=count?`已添加 ${count} 份项目资料 · 可以点击「创建项目」进入下一步`:'尚未添加项目资料，创建前需至少添加 1 份。';$('#uploadReadiness').classList.toggle('ready',count>0);$('#dropZone').classList.toggle('invalid',false);if(count){$('#fileValidation').textContent='';$('#createFeedback').classList.add('hidden')}}
+function loadDemoFiles(){if(!$('#projectName').value.trim())$('#projectName').value='鄂州新民街城市更新';state.files=[{name:'鄂州新民街现状调查.pdf',size:3200000,type:'application/pdf',demo:true},{name:'城市更新策划汇报.pptx',size:7200000,type:'application/presentation',demo:true},{name:'片区基础资料.xlsx',size:110000,type:'application/spreadsheet',demo:true}];renderFiles();toast('已载入 3 份示例资料，可以创建项目；不会上传真实文件。')}
+$('#demoFilesBtn').addEventListener('click',loadDemoFiles);
+$('#feedbackChooseFiles').addEventListener('click',()=>$('#createFileInput').click());
+$('#feedbackUseDemo').addEventListener('click',()=>{loadDemoFiles();$('#createForm').requestSubmit()});
+$('#chooseFilesBtn').addEventListener('click',e=>{e.stopPropagation();$('#createFileInput').click()});$('#createFileInput').addEventListener('change',e=>{addFiles(e.target.files);e.target.value=''});
+$('#dropZone').addEventListener('click',e=>{if(e.target.closest('button'))return;$('#createFileInput').click()});$('#dropZone').addEventListener('keydown',e=>{if(e.key==='Enter')$('#createFileInput').click()});
+for(const evt of ['dragover','dragenter'])$('#dropZone').addEventListener(evt,e=>{e.preventDefault();$('#dropZone').classList.add('drag')});for(const evt of ['dragleave','drop'])$('#dropZone').addEventListener(evt,e=>{e.preventDefault();$('#dropZone').classList.remove('drag')});$('#dropZone').addEventListener('drop',e=>addFiles(e.dataTransfer.files));
+$('#createForm').addEventListener('submit',e=>{e.preventDefault();if(state.processing)return;const name=$('#projectName').value.trim();if(!name){$('#projectName').focus();toast('请先输入项目名称');return}if(!state.files.length){$('#fileValidation').textContent='未检测到项目资料。请添加真实文件，或点击下方「载入示例并继续」。';$('#createFeedback').classList.remove('hidden');$('#dropZone').classList.add('invalid');$('#createFeedback').scrollIntoView({block:'nearest',behavior:'smooth'});toast('缺少项目资料：可选择文件，或载入示例继续体验');return}$('#createFeedback').classList.add('hidden');state.projectName=name;updateLocationValue();state.projectLocation=$('#projectLocation').value.trim();state.projectRegionDetail=$('#projectRegionDetail').value.trim();state.projectType=$('#projectType').value;registerNewProject();startProcessing().catch(err=>{console.error('演示流程出错',err);state.processing=false;setStage('create');$('#processContent').classList.add('hidden');$('#entryContent').classList.remove('hidden');toast('流程出现异常，已返回创建页，请重试')})});
+function setStage(name){state.stage=name;$('#overviewStage').classList.toggle('hidden',name!=='overview');$('#entryStage').classList.toggle('hidden',name!=='create'&&name!=='processing');$('#consultStage').classList.toggle('hidden',name!=='consult');$('#resumeStage').classList.toggle('hidden',name!=='resume');$('#workspaceStage').classList.toggle('hidden',name!=='workspace')}
+const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+let processingGeneration=0;
+async function startProcessing(){if(state.processing)return;const generation=++processingGeneration;state.processing=true;setStage('processing');$('#entryContent').classList.add('hidden');$('#processContent').classList.remove('hidden');const tasks=[['建立服务器项目目录',`/项目空间/策划人员A_${state.projectName}/`],['登记并上传原始资料',`已收到 ${state.files.length} 份文件（演示）`],['识别内容并分类归档','原始资料 / source-materials / assets'],['对照既定研究流程检查缺失项','已形成待询问事项清单'],['生成首轮章节框架','初步建议 4 章 · 8 节']];$('#processList').innerHTML=tasks.map((t,i)=>`<div class="processing-line" id="pLine${i}"><span class="check-circle">${i+1}</span><div><div>${escapeHTML(t[0])}</div><div style="font-size:10px;color:#a0acbc;margin-top:3px">${escapeHTML(t[1])}</div></div></div>`).join('');$('#progressFill').style.width='0%';for(let i=0;i<tasks.length;i++){if(i>0){$('#pLine'+(i-1)).classList.remove('active');$('#pLine'+(i-1)).classList.add('done');$('#pLine'+(i-1)).querySelector('.check-circle').textContent='✓'}$('#pLine'+i).classList.add('active');$('#processMeta').textContent=tasks[i][0]+' · 模拟执行';$('#progressFill').style.width=`${(i+.18)/tasks.length*100}%`;await delay(i===0?650:560);if(generation!==processingGeneration)return}$('#pLine4').classList.remove('active');$('#pLine4').classList.add('done');$('#pLine4').querySelector('.check-circle').textContent='✓';$('#progressFill').style.width='100%';$('#processMeta').textContent='初始化完成 · 正在进入首轮问询';await delay(460);if(generation!==processingGeneration)return;state.processing=false;startConsult()}
+$('#skipProcessing').addEventListener('click',()=>{if(state.stage!=='processing')return;processingGeneration++;state.processing=false;startConsult()});
+function consultBubble(content){let row=document.createElement('div');row.className='chat-row';row.innerHTML='<div class="assistant-mini-avatar">P</div><div class="assistant-bubble">'+content+'</div>';$('#consultStream').append(row);scrollConsult();return row}
+function consultUser(content){let bubble=document.createElement('div');bubble.className='user-bubble';bubble.textContent=content;$('#consultStream').append(bubble);scrollConsult()}
+function scrollConsult(){const area=$('#consultStream');requestAnimationFrame(()=>area.scrollTop=area.scrollHeight)}
+function startConsult(){setStage('consult');$('#consultComposer').classList.remove('hidden');$('#confirmOutline').classList.add('hidden');state.currentQuestion=0;state.answers=[];persistActiveProject();let s=$('#consultStream');s.innerHTML='';let system=document.createElement('div');system.className='consult-system';system.textContent='资料解析与标准化归档已完成 · 演示';s.append(system);consultBubble(`已接收 <strong>${state.files.length} 份项目资料</strong>，建立对应的服务器目录（演示）。资料与既定流程要求对照后，发现以下信息仍需确认。`);askQuestion(0)}
+function askQuestion(i){let q=questions[i];consultBubble(q.text);let opts=document.createElement('div');opts.className='question-options';opts.id='consultOptions';opts.innerHTML=q.options.map((opt,j)=>`<button type="button" class="option-btn" data-ans="${j}">${escapeHTML(opt)}</button>`).join('');$('#consultStream').append(opts);opts.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>consultAnswer(q.options[+b.dataset.ans])));scrollConsult()}
+function consultAnswer(answer){if(state.currentQuestion>=questions.length)return;$('#consultOptions')?.remove();consultUser(answer);state.answers.push(answer);state.currentQuestion++;persistActiveProject();$('#consultInput').value='';if(state.currentQuestion<questions.length){setTimeout(()=>askQuestion(state.currentQuestion),340)}else setTimeout(finishConsult,400)}
+$('#consultSend').addEventListener('click',()=>{let v=$('#consultInput').value.trim();if(v)consultAnswer(v)});$('#consultInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#consultSend').click()}});
+function finishConsult(){consultBubble('根据现有资料和你的回答，已整理出一份<strong>可继续调整的首轮大纲</strong>。以下仅显示章级摘要；节与页面在工作台展开。');let block=document.createElement('div');block.className='generated-outline';block.innerHTML='<b>首轮策划大纲 · 4 章 / 8 节</b><div class="outline-list">'+['01 项目背景','02 现状与需求','03 策划定位','04 实施与落地'].map((s,i)=>`<div class="outline-line"><span>${String(i+1).padStart(2,'0')}</span>${s}</div>`).join('')+'</div>';$('#consultStream').append(block);$('#consultComposer').classList.add('hidden');$('#confirmOutline').classList.remove('hidden');scrollConsult()}
+function enterWorkspace({resume=false,snapshot=null}={}){
+ if(state.transitioning)return;
+ state.transitioning=true;
+ // Capture the actual saved viewport BEFORE chat initialization writes transient state.
+ // Otherwise a first-time historical project mistakenly restores the default pan/zoom.
+ const resumeBoard=resume&&snapshot?.board?{...snapshot.board}:null;
+ const source=document.querySelector(resume?'.resume-card':'.consult-card');
+ const origin=source.getBoundingClientRect();
+ // FLIP shared-surface transition.  Clone is visual-only and never interactive.
+ const ghost=source.cloneNode(true);
+ ghost.querySelectorAll('[id]').forEach(n=>n.removeAttribute('id'));
+ ghost.setAttribute('aria-hidden','true');
+ ghost.classList.add('morph-ghost');
+ Object.assign(ghost.style,{left:origin.left+'px',top:origin.top+'px',width:origin.width+'px',height:origin.height+'px',maxHeight:'none',minHeight:'0',overflow:'hidden',borderRadius:'31px'});
+ const veil=document.createElement('div');veil.className='morph-veil';ghost.appendChild(veil);
+ document.body.appendChild(ghost);
+ const workspace=$('#workspaceStage');workspace.classList.add('workspace-transitioning');
+ setStage('workspace');if(!resume){state.messages=[];state.annotations=[];state.selected=null;state.pendingTarget=null;state.modifiedIds.clear()}
+ $('#sidebarProjectName').textContent=state.projectName;updateProjectSwitcher();
+ if(resume && snapshot?.chatHTML){$('#chatHistory').innerHTML=snapshot.chatHTML}else{initChat()}
+ renderGraph();updateAnnotationUI();updateComposer();
+ const restoredBoard=resumeBoard;
+ if(restoredBoard && [restoredBoard.scale,restoredBoard.x,restoredBoard.y].every(Number.isFinite)&&restoredBoard.scale>=.48&&restoredBoard.scale<=1.55){state.board={...restoredBoard};transformBoard()}else fitGraph();
+ if(resume && snapshot?.chatDraft)$('#chatInput').value=snapshot.chatDraft;
+ persistActiveProject();
+ const dest=$('#sidebar'),pane=document.querySelector('.workspace-pane');
+ const target=dest.getBoundingClientRect();
+ const finish=()=>{ghost.remove();workspace.classList.remove('workspace-transitioning');dest.style.opacity='';pane.style.opacity='';state.transitioning=false;toast(resume?'已恢复历史项目及工作状态':'已进入成果工作台 · 本次为交互模拟')};
+ if(window.matchMedia('(prefers-reduced-motion: reduce)').matches || typeof ghost.animate!=='function') {finish();return}
+ // Animate the same glass surface from center card to the right conversation sidebar.
+ const shell=ghost.animate([
+  {left:origin.left+'px',top:origin.top+'px',width:origin.width+'px',height:origin.height+'px',borderRadius:'31px',boxShadow:'0 35px 105px rgba(82,102,141,.16)'},
+  {offset:.64,left:(origin.left+(target.left-origin.left)*.81)+'px',top:(origin.top+(target.top-origin.top)*.81)+'px',width:(origin.width+(target.width-origin.width)*.81)+'px',height:(origin.height+(target.height-origin.height)*.81)+'px',borderRadius:'27px',boxShadow:'0 36px 80px rgba(81,108,158,.21)'},
+  {left:target.left+'px',top:target.top+'px',width:target.width+'px',height:target.height+'px',borderRadius:'25px',boxShadow:'0 18px 65px rgba(88,109,148,.14)'}
+ ],{duration:870,easing:'cubic-bezier(.20,.78,.19,1)',fill:'forwards'});
+ const fadePane=pane.animate([{opacity:0,transform:'translateX(-20px) scale(.985)'},{opacity:1,transform:'translateX(0px) scale(1)'}],{duration:680,delay:175,easing:'cubic-bezier(.18,.75,.22,1)',fill:'forwards'});
+ const ghostCopy=ghost.querySelectorAll('.consult-header,.consult-stream,.consult-bottom,.resume-content,.resume-bottom,.resume-card>.flow-top');
+ ghostCopy.forEach(n=>n.animate([{opacity:1,transform:'translateY(0)'},{offset:.62,opacity:.38,transform:'translateY(0)'},{opacity:0,transform:'translateY(-12px)'}],{duration:770,fill:'forwards'}));
+ const sidebarFade=dest.animate([{opacity:0,filter:'blur(6px)'},{offset:.66,opacity:.08,filter:'blur(4px)'},{opacity:1,filter:'blur(0px)'}],{duration:870,fill:'forwards'});
+ shell.finished.then(()=>{fadePane.cancel();sidebarFade.cancel();finish()}).catch(finish);
+}
+$('#confirmOutline').addEventListener('click',enterWorkspace);
+/* V0.7: one independent text script per section. Written text is the editable source of the visual output. */
+const SCRIPT_LIBRARY=[
+ {thesis:'明确研究范围与空间关系，建立项目的基础判断。',body:'本节首先明确项目研究边界、服务对象和空间层级，将项目放入城市、片区与街区三个尺度进行比较，避免只依据单一地块特征形成策划结论。\n\n研究重点包括区域交通联系、周边功能节点、公共服务资源与潜在发展机会。对已有资料中的区位描述，应逐一核对时间、口径及空间范围。\n\n在此基础上提出初步区位判断：哪些条件是项目既有优势，哪些条件可能限制项目建设，哪些问题需要进一步补充现地调查。',evidence:'需核对：项目范围、上位规划图件、交通与用地资料；缺失项暂不作为事实结论。',visual:'建议 2 页：区位关系图、研究范围及要点标注图。'},
+ {thesis:'让政策与上位规划真正成为策划约束，而非背景堆砌。',body:'对国家、省、市及项目所在片区的规划与政策进行分层梳理，重点区分明确的法定约束、政策鼓励方向和需要进一步论证的机会性内容。\n\n每条政策应保留来源、发布主体、适用条件和现行效力。策划判断只能使用能够对应具体项目条件的条款，不将一般性口号直接等同于项目可行性。\n\n最后形成“要求—项目影响—拟回应措施”的对应表，为后续定位与方案比选提供依据。',evidence:'需核对：政策原文、实施日期、规划成果版本和适用范围。',visual:'建议 3 页：政策筛选表、规划叠加图、项目响应矩阵。'},
+ {thesis:'由服务人群的真实需求推导设施与功能，而不是先罗列业态。',body:'将人口结构、使用人群、日常活动时间及现有公共设施情况结合起来，识别不同群体的实际需求。\n\n按照可及性、服务半径、使用频率和设施能力评价现状供给。对于数据缺失的服务项目，应标记为“需核实”，不能由周边同类设施直接推断供需缺口。\n\n最终形成优先补齐的设施清单，说明每项设施对应的用户群体、需求依据及初步规模判断。',evidence:'需核对：人口数据、设施清单、可达性调查、使用需求访谈。',visual:'建议 3 页：服务群体结构、设施分布图、需求缺口矩阵。'},
+ {thesis:'把现状问题、潜在资源与实施机会放在同一张判断框架中。',body:'对空间品质、交通组织、建筑利用、文化资源、公共服务及运营状况进行系统梳理，分别识别短板与可利用资源。\n\n一个现状现象不自动构成策划结论。需要说明问题发生的位置、影响对象、形成原因以及证据可靠程度，避免用印象描述代替研究。\n\n形成问题—机会对照矩阵，明确可通过本项目直接解决的事项，以及需要跨项目协同处理的内容。',evidence:'需核对：现场照片定位、建筑与用地台账、访谈和实际运营情况。',visual:'建议 2 页：现状问题分布、问题与机会矩阵。'},
+ {thesis:'形成能够回应现状问题、可被检验的项目目标定位。',body:'项目定位应从已经确认的价值资源和需求缺口中推导，不能直接套用行业常见的概念口号。\n\n先明确项目服务的人群与区域，再确定核心功能、差异化特征与预期价值，形成主定位及若干可比较的备选方向。\n\n定位结论应能够对应后续空间措施和可实施内容，并说明尚待决策的前提条件。',evidence:'需核对：研究成果摘要、同类项目对比、建设与运营主体诉求。',visual:'建议 2 页：定位推演路径、价值目标体系。'},
+ {thesis:'以功能—空间—使用场景的对应关系建立策划策略。',body:'围绕项目定位，将功能需求转换为空间组织与具体使用场景，明确基础功能、复合功能和后期可弹性调整的内容。\n\n对各项功能说明使用对象、空间要求、相互关系和运营条件；需要保留现状条件的，应与新建或改造策略分开表达。\n\n形成可用于下一轮概念设计的功能结构，并对空间冲突、实施边界及投资需求提出预警。',evidence:'需核对：用地条件、建筑现状、功能规模及各专业约束。',visual:'建议 4 页：功能构成、空间联系、场景策略、实施约束图。'},
+ {thesis:'把策划构想拆解为可组织、可推进的实施阶段。',body:'从前期准备、重点示范、分期实施到后续运营，建立与项目条件相匹配的实施路径。\n\n每一阶段明确工作内容、触发条件、参与主体及可验收成果。涉及产权、资金、报批或建设条件的事项，必须列入阶段前置约束。\n\n在保证整体策划连贯性的同时，优先选择能够形成示范效果、降低后续不确定性的任务。',evidence:'需核对：实施主体、产权条件、建设计划和审批要求。',visual:'建议 2 页：分期实施路线图、阶段任务及前置条件。'},
+ {thesis:'让建设投入、资金来源和后期运营逻辑形成可验证的闭环。',body:'梳理项目建设与运营涉及的主要成本、潜在收入和资金来源，区分已经掌握的客观数据与需要假设的测算参数。\n\n对运营功能说明运营主体、收费基础、利用率及持续维护要求；对政策支持类资金说明投向条件与申报限制。\n\n最终以情景对比和关键风险清单支持项目决策，而不是在缺少资料时给出确定的投资收益结论。',evidence:'需核对：工程规模、造价依据、资金政策、运营实绩与测算假设。',visual:'建议 3 页：投资结构、资金路径、运营与风险分析。'}
+];
+const SECTION_PAGE_COUNTS=[2,3,3,2,2,4,2,3];
+function scriptIdFor(i,j){return `script-${i+1}-${j+1}`}
+function scriptRecordBySection(i,j){return state.scripts[scriptIdFor(i,j)]}
+function makeScriptRecords(legacyFinished=false){
+ const result={};for(let idx=0;idx<SCRIPT_LIBRARY.length;idx++){
+  const i=Math.floor(idx/2),j=idx%2,b=SCRIPT_LIBRARY[idx];
+  result[scriptIdFor(i,j)]={id:scriptIdFor(i,j),body:b.body,thesis:b.thesis,evidence:b.evidence,visualBrief:b.visual,approved:legacyFinished,generated:legacyFinished,revision:1};
+ }return result
+}
+function ensureScripts(legacyFinished=false){if(!state.scripts||Object.keys(state.scripts).length===0)state.scripts=makeScriptRecords(legacyFinished)}
+function scriptStats(){const all=Object.values(state.scripts||{});return {total:all.length,approved:all.filter(x=>x.approved).length,generated:all.filter(x=>x.generated).length,pages:all.reduce((n,x,i)=>n+(x.generated?SECTION_PAGE_COUNTS[(Number(x.id.split('-')[1])-1)*2+(Number(x.id.split('-')[2])-1)]||1:0),0)}}
+function updatePipelineUI(){
+ const st=scriptStats(),btn=$('#pipelineBtn');if(!st.total)return;
+ $('#scriptProgress').textContent=`脚本 ${st.approved}/${st.total} 已确认 · 图文 ${st.generated}/${st.total} 已生成`;
+ if(st.approved<st.total){btn.textContent=`批量确认剩余 ${st.total-st.approved} 份脚本`;btn.disabled=false;btn.dataset.action='approve'}
+ else if(st.generated<st.total){btn.textContent=`生成 ${st.total-st.generated} 组可视化成果`;btn.disabled=false;btn.dataset.action='generate'}
+ else{btn.textContent='可视化成果已生成 ✓';btn.disabled=true;btn.dataset.action='done'}
+}
+$('#pipelineBtn').addEventListener('click',async()=>{
+ const action=$('#pipelineBtn').dataset.action;if(action==='approve'){
+  for(const r of Object.values(state.scripts))r.approved=true;
+  renderGraph();persistActiveProject();toast('本轮脚本已批量确认（演示）· 下一步可生成可视化成果');
+ }else if(action==='generate'){
+  const btn=$('#pipelineBtn');btn.disabled=true;btn.textContent='正在生成可视化（模拟）…';
+  await delay(800);for(const r of Object.values(state.scripts))if(r.approved)r.generated=true;
+  renderGraph();persistActiveProject();toast('已根据确认的文字脚本生成多页 HTML 成果（演示）');
+ }
+});
+function scriptStatusLabel(rec){return rec.generated?'已出成果':rec.approved?'已确认':'待确认'}
+function renderScriptNode(sec){const r=state.scripts[sec.script.id];const brief=r?.thesis||'等待脚本整理';return `<div class="script-top"><strong>文字脚本 <span>${escapeHTML(sec.number)}</span></strong><em class="script-status ${r?.generated?'generated':r?.approved?'approved':'draft'}">${scriptStatusLabel(r)}</em></div><div class="script-excerpt">${escapeHTML(brief)}</div><div class="script-bottom">双击查看完整章节内容 <span>↗</span></div>`}
+
+function buildData(){
+ const isUrban=state.projectType==='城市更新';
+ const chapters=isUrban?['项目背景','现状与需求','策划定位','实施与落地']:['项目背景','需求与现状','策略与方案','实施与成果'];
+ const sections=isUrban?[['区位与研究范围','政策与上位规划'],['人口与公共服务','现状问题与价值'],['目标定位','功能与空间策划'],['分期实施','投资与运营路径']]:[['项目区位与条件','政策与目标要求'],['服务对象与需求','现状问题与潜力'],['项目目标定位','功能组织与策略'],['实施计划','投资与运营']];
+ const visuals=[['map','bars'],['bars','cards'],['cards','map'],['cards','bars']];
+ const titles=[['区位关系与基地研判','政策依据与适配性'],['服务设施供需分析','问题识别与机会'],['项目定位与目标','功能与空间策略'],['分期实施路线','资金与运营分析']];
+ ensureScripts();
+ return chapters.map((name,i)=>({id:`chapter-${i+1}`,name,index:i+1,sections:sections[i].map((sec,j)=>{
+  const scriptId=scriptIdFor(i,j),rec=state.scripts[scriptId];
+  return {id:`section-${i+1}-${j+1}`,name:sec,number:`${i+1}.${j+1}`,script:{id:scriptId},artifact:{id:`page-${i+1}-${j+1}`,title:titles[i][j],type:'HTML',visual:visuals[i][j],chapter:i+1,section:j+1,sourceSection:sec,pageCount:SECTION_PAGE_COUNTS[i*2+j],generated:!!rec.generated}}
+ })}));
+}
+let graphData=[];const graphPositions={root:{x:20,y:330,w:180,h:78},chapterX:233,sectionX:425,scriptX:633,artX:939,chapStartY:47,chapStep:175,sectionOffsets:[-4,84],boardW:1204,boardH:755};
+function updateVisualModeControls(){
+ const expanded=state.visualLayoutMode==='expanded';
+ for(const [id,on] of [['visualGroupedBtn',!expanded],['visualExpandedBtn',expanded]]){
+  const btn=document.getElementById(id);btn.classList.toggle('active',on);btn.setAttribute('aria-pressed',String(on));
+ }
+ const st=scriptStats();
+ $('#visualLayoutHint').textContent=expanded?`全展开 · ${st.pages} 页独立成果 · 双击任意页打开整册`:`归拢 · ${st.generated} 组可视化成果 / 共 ${st.pages} 页`;
+}
+function changeVisualMode(mode){
+ if(state.stage!=='workspace')return;
+ if(state.visualLayoutMode===mode)return;
+ state.visualLayoutMode=mode==='expanded'?'expanded':'grouped';
+ renderGraph();fitGraph();persistActiveProject();
+ toast(state.visualLayoutMode==='expanded'?'已展开每一页成果 · 右键移动画布，双击预览':'已按小节归拢成果 · 点击「全展开」可再次查看全部页面');
+}
+$('#visualGroupedBtn').addEventListener('click',()=>changeVisualMode('grouped'));
+$('#visualExpandedBtn').addEventListener('click',()=>changeVisualMode('expanded'));
+function renderGraph(){
+ clearGraphAction();state.activeNodeId=null;graphData=buildData();state.nodeRects.clear();
+ const layer=$('#nodeLayer');layer.innerHTML='';const svg=$('#edgeLayer');svg.innerHTML='';
+ const expanded=state.visualLayoutMode==='expanded';
+ const st=scriptStats();
+ graphPositions.boardW=expanded&&st.generated?1610:1204;
+ graphPositions.boardH=755;
+ $('#graphBoard').style.width=graphPositions.boardW+'px';$('#graphBoard').style.height=graphPositions.boardH+'px';
+ svg.setAttribute('width',graphPositions.boardW);svg.setAttribute('height',graphPositions.boardH);
+ svg.setAttribute('viewBox',`0 0 ${graphPositions.boardW} ${graphPositions.boardH}`);
+ const root=graphPositions.root;
+ layer.append(makeNode('rootnode',root.id,root.x,root.y,`<div class="root-head">PRE—DESIGN / 项目</div><div class="root-name" title="${escapeHTML(state.projectName)}">${escapeHTML(state.projectName.length>12?state.projectName.slice(0,12)+'…':state.projectName)}</div><div class="root-meta">章 → 节 → 脚本 → 成果</div>`));state.nodeRects.set('root',root);
+ graphData.forEach((chap,i)=>{
+  const y=graphPositions.chapStartY+i*graphPositions.chapStep;
+  const c={id:chap.id,x:graphPositions.chapterX,y,w:166,h:62};state.nodeRects.set(chap.id,c);appendEdge(svg,root,c,true);
+  layer.append(makeNode('chapnode',chap.id,c.x,c.y,`<div class="chap-num" style="--chap-bg:${['#e8eefa','#e3f1ed','#f0eaf8','#f6eee2'][i]};--chap-clr:${['#6185c8','#568f7e','#8d77b2','#ae8b5e'][i]}">${String(i+1).padStart(2,'0')}</div><div class="chap-label"><strong>${escapeHTML(chap.name)}</strong><span>2 节 · 2 份脚本</span></div>`));
+  chap.sections.forEach((sec,j)=>{
+   const sy=y+graphPositions.sectionOffsets[j];
+   const n={id:sec.id,x:graphPositions.sectionX,y:sy,w:180,h:53};state.nodeRects.set(n.id,n);appendEdge(svg,c,n);
+   layer.append(makeNode('sectionnode',n.id,n.x,n.y,`<div class="sec-bullet"></div><div style="min-width:0"><div class="sec-main">${escapeHTML(sec.number+' '+sec.name)}</div><div class="sec-info">大纲 · 章节标题</div></div>`));
+   const script={id:sec.script.id,x:graphPositions.scriptX,y:sy-16,w:270,h:82};state.nodeRects.set(script.id,script);appendEdge(svg,n,script);
+   const sn=makeNode('scriptnode',script.id,script.x,script.y,renderScriptNode(sec));sn.title='单击选择批注，双击审阅与确认文字脚本';sn.addEventListener('dblclick',ev=>{ev.stopPropagation();openScriptPreview(sec)});layer.append(sn);
+   const art=sec.artifact;
+   if(expanded && art.generated){
+    let previous=script;
+    for(let page=0;page<art.pageCount;page++){
+     const pageId=art.id+'__page__'+(page+1);
+     const rect={id:pageId,x:graphPositions.artX+page*166,y:sy-15,w:144,h:84};
+     state.nodeRects.set(pageId,rect);appendEdge(svg,previous,rect);previous=rect;
+     const pageTitle=previewSlideTitle(art,page);
+     const miniArt={...art,title:pageTitle,visual:page===0?art.visual:['bars','map','cards'][page%3]};
+     const html=`<div class="art-preview">${renderMini(miniArt)}</div><div class="art-titleline"><span class="art-fmt html">HTML</span><span class="art-name" title="${escapeHTML(pageTitle)}">${escapeHTML(pageTitle)}</span></div><span class="page-ordinal">${String(page+1).padStart(2,'0')}<small> / ${art.pageCount}</small></span>`;
+     const an=makeNode('artnode visual-page-node',pageId,rect.x,rect.y,html);
+     an.title=`${sec.number} · ${art.title} · 第 ${page+1}/${art.pageCount} 页，双击打开整册`;
+     an.addEventListener('dblclick',ev=>{ev.stopPropagation();openPreview(art,page)});
+     layer.append(an);
+    }
+   }else{
+    const rect={id:art.id,x:graphPositions.artX,y:sy-15,w:228,h:84};state.nodeRects.set(rect.id,rect);appendEdge(svg,script,rect);
+    const html=art.generated?`<div class="art-preview">${renderMini(art)}</div><div class="art-titleline"><span class="art-fmt html">HTML</span><span class="art-name">${escapeHTML(art.title)}</span><span class="art-pages">${art.pageCount} 页 · 一组</span></div>`:
+    `<div class="art-locked-visual"><span class="lock-icon">${state.scripts[sec.script.id].approved?'◈':'◌'}</span><strong>${state.scripts[sec.script.id].approved?'等待生成可视化':'等待脚本确认'}</strong><small>${state.scripts[sec.script.id].approved?'点击上方「生成可视化成果」':'双击左侧文字脚本进行审阅'}</small></div>`;
+    const an=makeNode('artnode '+(art.generated?'visual-group-node':'locked'),rect.id,rect.x,rect.y,html);
+    an.title=art.generated?`共 ${art.pageCount} 页 · 双击进入整册预览`:'需先确认脚本，再生成可视化成果';
+    an.addEventListener('dblclick',ev=>{ev.stopPropagation();if(art.generated)openPreview(art);else{toast('请先确认文字脚本，再生成对应可视化成果');openScriptPreview(sec)}});layer.append(an);
+   }
+  });
+ });
+ $('#outlineCount').textContent=`4 章 · 8 节 · 8 份脚本 · ${st.pages} 页成果`;
+ updatePipelineUI();$('#fullDeckBtn').classList.toggle('hidden',st.generated===0);
+ updateVisualModeControls();
+}
+
+function makeNode(classname,id,x,y,html){
+ let el=document.createElement('div');el.className='mapnode '+classname;el.dataset.nodeId=id;el.style.left=x+'px';el.style.top=y+'px';el.innerHTML=html;el.tabIndex=0;el.setAttribute('role','button');el.setAttribute('aria-label','选择节点 '+id);
+ el.addEventListener('click',ev=>{ev.stopPropagation();selectNode(id)});
+ el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();selectNode(id)}if(e.key==='Enter'&&id.startsWith('page-')){const art=findArtifact(id),m=id.match(/__page__(\d+)$/);openPreview(art,m?Number(m[1])-1:0)}});
+ return el
+}
+function appendEdge(svg,a,b,main=false){
+ const x1=a.x+a.w,y1=a.y+a.h/2,x2=b.x,y2=b.y+b.h/2;
+ const mid=(x1+x2)/2,d=`M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`;
+ const p=document.createElementNS('http://www.w3.org/2000/svg','path');p.setAttribute('d',d);p.setAttribute('class','edge'+(main?' main':''));svg.append(p);
+ const hit=document.createElementNS('http://www.w3.org/2000/svg','path');hit.setAttribute('d',d);hit.setAttribute('class','edge-hit');hit.dataset.edgeId=`${a.id}--${b.id}`;
+ hit.addEventListener('click',ev=>{
+  ev.stopPropagation();document.querySelectorAll('.edge.is-picked').forEach(n=>n.classList.remove('is-picked'));p.classList.add('is-picked');
+  document.querySelectorAll('.mapnode.active').forEach(n=>n.classList.remove('active'));state.activeNodeId=null;
+  const v=$('#graphViewport').getBoundingClientRect(),board=state.board;
+  const localX=(ev.clientX-v.left-board.x)/board.scale,localY=(ev.clientY-v.top-board.y)/board.scale;
+  state.pendingTarget={id:`line:${a.id}:${b.id}`,kind:'line',title:`${findNodeTitle(a.id)} → ${findNodeTitle(b.id)}`,excerpt:'大纲与成果之间的关联连线'};
+  showGraphAction(localX,localY);
+ });svg.append(hit)
+}
+function renderMini(art){const v=art.visual;return `<div class="art-mini ${art.type==='PDF'?'pdf':''} ${v==='bars'?'chart':v==='cards'?'cards':''}"><div class="mini-left"><div class="mini-head"></div><div class="mini-title">${escapeHTML(art.title)}</div><div class="mini-line"></div><div class="mini-line short"></div><div class="mini-line"></div><div class="mini-line short"></div></div><div class="mini-figure">${v==='map'?'<i class="mini-maproad"></i><i class="mini-plot"></i>':v==='bars'?'<div class="mini-bar" style="height:38%"></div><div class="mini-bar" style="height:72%"></div><div class="mini-bar" style="height:53%"></div><div class="mini-bar" style="height:82%"></div>':'<div class="mini-card"></div><div class="mini-card"></div><div class="mini-card"></div><div class="mini-card"></div>'}</div></div>`}
+function findArtifact(id){for(const c of graphData)for(const s of c.sections)if(s.artifact.id===id||String(id).startsWith(s.artifact.id+'__page__'))return s.artifact;return null}
+function findSectionByScript(id){for(const c of graphData)for(const sec of c.sections)if(sec.script.id===id)return sec;return null}
+function findNodeTitle(id){if(id==='root')return state.projectName;for(let c of graphData){if(c.id===id)return c.name;for(let s of c.sections){if(s.id===id)return s.number+' '+s.name;if(s.artifact.id===id)return s.artifact.title;if(String(id).startsWith(s.artifact.id+'__page__'))return previewSlideTitle(s.artifact,Math.max(0,Number(id.split('__page__')[1])-1));if(s.script.id===id)return s.number+' '+s.name+' · 文字脚本'}}return id}
+function showGraphAction(x,y){
+ const picker=$('#nodePicker');picker.classList.remove('hidden');
+ picker.style.left=Math.max(10,Math.min(950,x))+'px';
+ picker.style.top=Math.max(35,Math.min(873,y))+'px';
+}
+function clearGraphAction(){state.pendingTarget=null;$('#nodePicker').classList.add('hidden');}
+function selectNode(id){
+ state.activeNodeId=id;
+ document.querySelectorAll('.mapnode.active').forEach(n=>n.classList.remove('active'));
+ document.querySelectorAll('.edge.is-picked').forEach(n=>n.classList.remove('is-picked'));
+ const node=document.querySelector(`[data-node-id="${id}"]`);if(node)node.classList.add('active');
+ const art=findArtifact(id),title=findNodeTitle(id);
+ state.pendingTarget={id,kind:art?'page':id.startsWith('script')?'script':id.startsWith('section')?'section':id.startsWith('chapter')?'chapter':'project',title,excerpt:title};
+ const r=state.nodeRects.get(id);
+ if(r)showGraphAction(r.x+r.w-9,r.y+9);
+}
+function setReference(ref){state.selected=ref;updateComposer();$('#chatInput').focus({preventScroll:true})}
+function clearReference(){state.selected=null;updateComposer()}
+function updateComposer(){let chips=$('#referenceChips');let selected=state.selected;chips.classList.toggle('hidden',!selected);chips.innerHTML=selected?`<span class="ref-chip" title="${escapeHTML(selected.excerpt||selected.title)}"><span style="font-weight:820">${({block:'内容块',quote:'文字',page:'页面',chapter:'章',section:'节',region:'划选区域',graphic:'图线',line:'连线',script:'文字脚本',project:'项目'})[selected.kind]||'内容'}引用</span><span class="ref-chip-label">${escapeHTML(selected.excerpt||selected.title)}</span><button id="removeRef" title="取消引用">${ICON.close}</button></span>`:'';chips.querySelector('#removeRef')?.addEventListener('click',clearReference);let btn=$('#chatSubmit');btn.classList.toggle('annot',!!selected);$('#submitText').textContent=selected?'保存批注':'发送';$('#composerMode').innerHTML=selected?'● 批注会话 · 先保存，不执行 Agent':'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 7v5l3 2"/><circle cx="12" cy="12" r="9"/></svg> 普通会话';$('#chatInput').placeholder=selected?'针对当前选中内容输入修改意见…':'提问，或者选择左侧内容进行批注……'}
+function initChat(){const h=$('#chatHistory');h.innerHTML='<div class="chat-date">项目会话 · 今日</div>';addChat('ai',`首轮大纲已经建立，下一步先<strong>审阅并确认每节的文字脚本</strong>，再生成可视化成果。<br><br>你可以<strong>单击左侧的章、节、文字脚本、连线或成果</strong>，点击浮出的「添加批注」图标载入这里。针对内容的消息只保存批注，不立即调用 Agent。`);addChat('system',`首轮策略：${escapeHTML(state.answers.join(' · '))}。`);$('#chatInput').value='';$('#chatHistory').scrollTop=0}
+function addChat(kind,text,raw=true){let h=$('#chatHistory'),el=document.createElement('div');el.className='chatmsg '+kind;if(kind==='ai')el.innerHTML='<div class="assistant-mini-avatar">P</div><div class="msg-text">'+text+'</div>';else if(kind==='system')el.innerHTML='<span style="font-size:12px;color:#7193b2">◈</span><span>'+text+'</span>';else el.textContent=text;h.append(el);requestAnimationFrame(()=>{h.scrollTop=h.scrollHeight});persistActiveProject()}
+$('#chatSubmit').addEventListener('click',handleChatSubmit);$('#chatInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();handleChatSubmit()}});
+function handleChatSubmit(){let text=$('#chatInput').value.trim();if(!text){toast(state.selected?'请输入批注内容':'请输入消息');return}if(state.selected){let id='AN-'+String(Date.now())+'-'+String(Math.round(Math.random()*100));let ann={id,targetId:state.selected.id,targetKind:state.selected.kind,targetTitle:state.selected.title,excerpt:state.selected.excerpt,text,createdAt:new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}),status:'pending'};state.annotations.push(ann);addChat('system',`已保存批注：<strong>${escapeHTML(ann.targetTitle)}</strong><br>${escapeHTML(text)}<br><span style="color:#9aa9b8">尚未执行，等待批量提交</span>`);$('#chatInput').value='';clearReference();updateAnnotationUI();toast('批注已保存，可以继续标注下一个内容')}
+else{addChat('me',text,false);$('#chatInput').value='';setTimeout(()=>addChat('ai','已收到。此为交互原型：普通聊天可直接发送，实际研究和 Agent 模型调用将在连接 DSH 后执行。'),600)}}
+let annotationDrawerView='pending';
+function updateAnnotationUI(){
+ const pending=state.annotations.filter(a=>a.status==='pending').length,history=state.annotations.filter(a=>a.status==='done').length;
+ $('#annotationCount').textContent=pending;$('#annotationSummary').textContent='条批注待统一提交';
+ const historyBadge=$('#historyCount');if(historyBadge)historyBadge.textContent=history;
+ renderAnnotationList();persistActiveProject();
+}
+function setAnnotationView(view){
+ annotationDrawerView=view==='history'?'history':'pending';
+ const history=annotationDrawerView==='history';
+ $('#drawerHeading').textContent=history?'历史批注':'批注箱';
+ $('#drawerDescription').textContent=history?'已完成的批注归档，只读查看':'先集中记录，最后统一交给 Agent 修改';
+ $('#annotationHistoryBtn').innerHTML=history?'← 返回待提交':`历史批注 <span class="history-count" id="historyCount">${state.annotations.filter(a=>a.status==='done').length}</span>`;
+ $('#annotationHistoryBtn').setAttribute('aria-label',history?'返回未提交批注':'查看历史批注');
+ $('#pendingDrawerFooter').classList.toggle('hidden',history);
+ $('#historyDrawerFooter').classList.toggle('hidden',!history);
+ renderAnnotationList();
+}
+function renderAnnotationList(){
+ const list=$('#annotationList'),history=annotationDrawerView==='history';
+ const records=state.annotations.map((a,i)=>({...a,originalIndex:i})).filter(a=>history?a.status==='done':a.status==='pending');
+ if(history)records.reverse();
+ if(!records.length){
+  list.innerHTML=history?'<div class="drawer-empty"><b>暂无历史批注</b><p>完成批量提交后，已完成记录会自动收纳到这里，不影响下一批待处理内容。</p></div>':'<div class="drawer-empty"><b>暂无待提交批注</b><p>在左侧选中章节、文字脚本或图文成果后保存批注。已完成记录请查看右上角「历史批注」。</p></div>';
+ }else{
+  list.innerHTML=records.map(a=>`<div class="annotation-item" data-annotation-id="${escapeHTML(a.id)}"><div class="annotation-item-top"><span class="anno-status ${history?'done':''}">${history?'模拟完成':'未提交'}</span><strong title="${escapeHTML(a.targetTitle)}">${escapeHTML(a.targetTitle)}</strong></div><p>${escapeHTML(a.text)}</p>${history?`<span class="history-batch">完成时间 ${escapeHTML(a.completedAt||a.createdAt||'未知')} · ${escapeHTML(a.batchId||'旧版提交批次')}</span>`:''}<div class="anno-tools"><span class="scope">${escapeHTML(a.createdAt)} · ${({quote:'选中文字',page:'整页成果',region:'图表区域',graphic:'图形或图线',block:'内容块',line:'导图连线',chapter:'大纲章节',section:'大纲章节',script:'文字脚本'})[a.targetKind]||'其他内容'}</span>${!history?`<div><button data-edit="${a.originalIndex}">编辑</button><button data-delete="${a.originalIndex}">删除</button></div>`:''}</div></div>`).join('');
+  if(!history){
+   list.querySelectorAll('[data-delete]').forEach(b=>b.addEventListener('click',()=>{state.annotations.splice(+b.dataset.delete,1);updateAnnotationUI();toast('已删除该待提交批注')}));
+   list.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>{const a=state.annotations[+b.dataset.edit];state.selected={id:a.targetId,kind:a.targetKind,title:a.targetTitle,excerpt:a.excerpt};$('#chatInput').value=a.text;state.annotations.splice(+b.dataset.edit,1);$('#annotationDrawer').classList.add('hidden');updateComposer();updateAnnotationUI();$('#chatInput').focus();toast('已载入批注草稿，可修改后重新保存')}));
+  }
+ }
+ const pending=state.annotations.filter(a=>a.status==='pending').length;
+ $('#batchSubmitBtn').disabled=pending===0||state.submitting;
+ $('#batchSubmitBtn').innerHTML=state.submitting?'<span class="spinner" style="width:17px;height:17px;border-width:2px"></span> 正在模拟处理…':`统一提交 ${pending} 条批注 <span>↗</span>`;
+}
+$('#openAnnotationDrawer').addEventListener('click',()=>{$('#annotationDrawer').classList.remove('hidden');setAnnotationView('pending')});
+$('#closeAnnotationDrawer').addEventListener('click',()=>$('#annotationDrawer').classList.add('hidden'));
+$('#annotationHistoryBtn').addEventListener('click',()=>setAnnotationView(annotationDrawerView==='history'?'pending':'history'));
+$('#batchSubmitBtn').addEventListener('click',async()=>{
+ if(state.submitting)return;
+ const items=state.annotations.filter(a=>a.status==='pending');if(!items.length)return;
+ state.submitting=true;renderAnnotationList();await delay(1250);
+ const batchId='批次 '+new Date().toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
+ const completedAt=new Date().toLocaleString('zh-CN',{hour12:false});
+ items.forEach(a=>{a.status='done';a.batchId=batchId;a.completedAt=completedAt;state.modifiedIds.add(a.targetId);if(a.targetId?.startsWith('script-')){const base=a.targetId.split('#')[0],rec=state.scripts?.[base];if(rec){rec.approved=false;rec.generated=false;rec.revision++}}});
+ renderGraph();state.submitted+=items.length;state.submitting=false;updateAnnotationUI();
+ setAnnotationView('pending');$('#annotationDrawer').classList.add('hidden');
+ addChat('ai',`已完成 <strong>${items.length} 条批注的模拟批量处理</strong>，记录已转入「历史批注」，本轮待提交批注已清空。正式平台将按 Revision 校验修改结果。`);
+ toast(`已模拟提交 ${items.length} 条批注，记录已归档至历史批注`);
+});
+$('#chatAttachBtn').addEventListener('click',()=>$('#chatFileInput').click());$('#chatFileInput').addEventListener('change',e=>{let f=Array.from(e.target.files||[]);if(f.length){for(let file of f)state.files.push({name:file.name,size:file.size,type:file.type,demo:false});addChat('system',`添加 ${f.length} 份新资料（模拟）：${f.map(i=>escapeHTML(i.name)).join('、')}。真实平台将上传至服务器“原始资料”目录并触发重新核查。`);toast(`已添加 ${f.length} 份演示资料`)}e.target.value=''});
+/* Graph movement and scaling */
+function transformBoard(){const b=state.board;$('#graphBoard').style.transform=`translate(${b.x}px,${b.y}px) scale(${b.scale})`;$('#zoomReadout').textContent=`${Math.round(b.scale*100)}%`}
+function fitGraph(){let view=$('#graphViewport').getBoundingClientRect(),w=graphPositions.boardW,h=graphPositions.boardH;let scale=Math.max(.48,Math.min(1.14,(view.width-30)/w,(view.height-18)/h));state.board.scale=scale;state.board.x=Math.max(9,(view.width-w*scale)/2);state.board.y=Math.max(5,(view.height-h*scale)/2);transformBoard()}
+function zoomBy(factor,px,py){let r=$('#graphViewport').getBoundingClientRect(),b=state.board;px=px??r.width/2;py=py??r.height/2;let newScale=Math.max(.48,Math.min(1.55,b.scale*factor));let localX=(px-b.x)/b.scale,localY=(py-b.y)/b.scale;b.x=px-localX*newScale;b.y=py-localY*newScale;b.scale=newScale;transformBoard()}
+$('#zoomInBtn').addEventListener('click',()=>zoomBy(1.16));$('#zoomOutBtn').addEventListener('click',()=>zoomBy(1/1.16));$('#fitBtn').addEventListener('click',fitGraph);$('#pickerQuote').addEventListener('click',e=>{e.stopPropagation();if(!state.pendingTarget)return;setReference({...state.pendingTarget});clearGraphAction();toast('已添加批注目标，请在右侧输入修改意见')});
+let panning=false,lastPt,activePanPointer=null;
+const graphViewport=$('#graphViewport');
+graphViewport.addEventListener('contextmenu',e=>e.preventDefault());
+graphViewport.addEventListener('pointerdown',e=>{
+ if(e.button!==2)return;
+ e.preventDefault();panning=true;activePanPointer=e.pointerId;lastPt={x:e.clientX,y:e.clientY};
+ graphViewport.classList.add('dragging');graphViewport.setPointerCapture(e.pointerId)
+});
+graphViewport.addEventListener('pointermove',e=>{
+ if(!panning||e.pointerId!==activePanPointer)return;
+ state.board.x+=e.clientX-lastPt.x;state.board.y+=e.clientY-lastPt.y;
+ lastPt={x:e.clientX,y:e.clientY};transformBoard()
+});
+function endPan(e){if(activePanPointer!==null&&e&&e.pointerId!==activePanPointer)return;panning=false;activePanPointer=null;graphViewport.classList.remove('dragging')}
+graphViewport.addEventListener('pointerup',endPan);graphViewport.addEventListener('pointercancel',endPan);graphViewport.addEventListener('lostpointercapture',endPan);
+graphViewport.addEventListener('click',e=>{if(e.target===graphViewport||e.target===$('#graphBoard')||e.target===$('#edgeLayer')){clearGraphAction();document.querySelectorAll('.edge.is-picked').forEach(n=>n.classList.remove('is-picked'))}});
+$('#graphViewport').addEventListener('wheel',e=>{e.preventDefault();let r=$('#graphViewport').getBoundingClientRect();if(e.ctrlKey||e.metaKey){zoomBy(e.deltaY<0?1.065:1/1.065,e.clientX-r.left,e.clientY-r.top)}else{state.board.y-=e.deltaY*.8;state.board.x-=e.deltaX*.8;transformBoard()}},{passive:false});
+/* Expanded artifact: text/graphic/line selection -> affordance -> annotated chat */
+let previewData=null;
+function updatePreviewNav(){
+ const total=state.deckEntries.length;const hasMore=total>1;
+ $('#previewPageCount').textContent=`${state.previewIndex+1} / ${total}`;
+ $('#previewPrev').disabled=state.previewIndex===0;$('#previewNext').disabled=state.previewIndex>=total-1;
+ $('#previewSidePrev').disabled=state.previewIndex===0;$('#previewSideNext').disabled=state.previewIndex>=total-1;
+ $('#previewNav').classList.toggle('hidden',!hasMore);
+ $('#previewSidePrev').classList.toggle('hidden',!hasMore);$('#previewSideNext').classList.toggle('hidden',!hasMore);
+}
+const previewDescriptions={
+ map:'结合项目区位、城市空间与周边资源，梳理发展背景及场地价值，形成研究基础判断。',
+ bars:'根据资料与研究评价指标，识别现状结构性差异，区分证据、推断与待核实内容。',
+ cards:'围绕目标客群、空间功能和实施资源，提出初步策划方向与具备落地路径的策略。'
+};
+function previewPageTotal(art){return Number(art?.pageCount)||1}
+function previewSlideTitle(art,index){
+ if(index===0)return art.title;
+ return [art.title+' · 核心研判',art.title+' · 方案推演',art.title+' · 要点总结'][index-1]||art.title;
+}
+function graphicHTML(kind){
+ if(kind==='map')return `<div class="figure-map"><svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice">
+ <rect width="400" height="300" fill="#e9efe8"/><path fill="#cadfd6" d="M0 40 Q130 64 178 0 L260 0 Q210 98 400 100 L400 300 L0 300Z"/>
+ <path data-graphic-line="主要交通联系" d="M-40 250 C50 174 55 110 138 142 S310 175 450 -14" fill="none" stroke="#fbfcf7" stroke-width="21"/>
+ <path data-graphic-line="次要交通联系" d="M-32 270 C70 189 132 222 207 135 S330 95 420 60" fill="none" stroke="#fff" stroke-width="12"/>
+ <path data-graphic-line="片区道路网络" d="M12 0 L330 330M130 -30 400 220M10 290 400 33" fill="none" stroke="#fff" stroke-width="6" opacity=".7"/>
+ <path data-graphic-line="研究地块边界" d="M121 89 240 75 276 178 161 213 108 164Z" fill="#96b6be" fill-opacity=".65" stroke="#56799e" stroke-width="2" stroke-dasharray="6 4"/>
+ <circle data-graphic-line="核心研究点" cx="197" cy="142" r="16" fill="#678ed1" fill-opacity=".25" stroke="#527dcc" stroke-width="2"/>
+ <circle cx="197" cy="142" r="5" fill="#527dcc"/><text x="224" y="141" fill="#365b91" font-size="15" font-family="sans-serif">SITE</text>
+ </svg><span class="figure-tag">研究范围 · 示意</span></div>`;
+ if(kind==='bars')return `<div class="figure-bars">${[55,79,67,90].map((h,i)=>`<div data-graphic-line="${['现状','需求','机会','目标'][i]}数据柱" class="bar-col" style="--bar-h:${h}%"><span>${['现状','需求','机会','目标'][i]}</span></div>`).join('')}</div>`;
+ return `<div class="figure-grid">${['空间策略','功能策划','价值提升','实施路径'].map((x,i)=>`<div data-graphic-line="${i+1} ${x}">${String(i+1).padStart(2,'0')} ${x}</div>`).join('')}</div>`
+}
+/* Text script review is a separate artifact layer; explicit approval gates visual generation. */
+function allScriptEntries(){return graphData.flatMap(c=>c.sections)}
+function allVisualEntries(){return graphData.flatMap(c=>c.sections.flatMap(section=>section.artifact.generated?Array.from({length:section.artifact.pageCount},(_,i)=>({art:section.artifact,localIndex:i,section})):[]))}
+function currentVisualEntry(){return state.previewMode==='visual'?state.deckEntries[state.previewIndex]||null:null}
+function openScriptPreview(sec){
+ state.previewMode='script';state.previewDeckMode=true;state.deckEntries=allScriptEntries();
+ state.previewIndex=Math.max(0,state.deckEntries.findIndex(s=>s.script.id===sec.script.id));
+ state.activeScript=state.deckEntries[state.previewIndex];state.scriptEditing=false;previewData=null;state.activeArt=null;
+ $('#previewOverlay').classList.remove('hidden');renderScriptPage();
+}
+function renderScriptPage(){
+ const sec=state.activeScript;if(!sec)return;
+ const rec=state.scripts[sec.script.id];clearPreviewAction();window.getSelection()?.removeAllRanges();
+ $('#previewTitle').innerHTML=`整册文字脚本 <span>${escapeHTML(sec.number+' '+sec.name)} · ${state.previewIndex+1}/${state.deckEntries.length} 节</span>`;
+ $('#scriptReviewActions').classList.remove('hidden');updatePreviewNav();
+ $('#previewQuoteBtn').textContent='引用本节';$('#previewQuoteBtn').onclick=()=>{setReference({id:rec.id,kind:'script',title:sec.number+' '+sec.name,excerpt:rec.thesis});toast('已载入文字脚本，输入意见后保存批注')};
+ const edit=$('#scriptEditBtn'),approve=$('#scriptApproveBtn');
+ edit.textContent=state.scriptEditing?'保存文字修改':'编辑脚本';
+ approve.textContent=rec.approved?'已确认 ✓':'确认本节脚本';approve.disabled=rec.approved||state.scriptEditing;
+ const w=$('#previewSheet');w.className='preview-sheet script-sheet';w.style.width='';
+ const paragraphs=rec.body.split(/\n\s*\n/).filter(Boolean);
+ const content=state.scriptEditing?`<label class="script-edit-label" for="scriptEditor">完整章节文字内容</label><textarea id="scriptEditor" class="script-textarea" spellcheck="false">${escapeHTML(rec.body)}</textarea>`:
+ `<div class="script-paragraphs">${paragraphs.map((p,i)=>`<p class="selectable" data-block="paragraph-${i+1}">${escapeHTML(p)}</p>`).join('')}</div>`;
+ w.innerHTML=`<div class="script-doc-top"><div class="micro">PRE—DESIGN · CONTENT SCRIPT</div><div class="script-doc-state ${rec.generated?'generated':rec.approved?'approved':'draft'}">${rec.generated?'可视化已生成':rec.approved?'脚本已确认':'待审核 · 未生成图文'}</div></div>
+ <div class="script-doc-scroll"><div class="script-doc-main">
+ <div class="script-meta">第 ${sec.number} 节 · 文字脚本 · R${rec.revision}</div><h2>${escapeHTML(sec.name)}</h2>
+ <div class="script-main-thesis">${escapeHTML(rec.thesis)}</div>
+ <div class="script-divider"><span>具体策划文字</span><span>可选中添加批注</span></div>
+ ${content}
+ <div class="script-sample-note">示例脚本用于交互演示，尚未依据实际项目资料完成事实核查。</div>
+ </div><aside class="script-doc-aside"><div class="script-aside-card"><span>研究依据 / 缺失项</span><p>${escapeHTML(rec.evidence)}</p></div><div class="script-aside-card"><span>可视化表达建议</span><p>${escapeHTML(rec.visualBrief)}</p></div><div class="script-aside-card subtle"><span>生成规则</span><p>确认文字脚本后，再由 DSH 生成对应 HTML 页面。再次改写文字会撤销确认并将旧成果标记为待重新生成。</p></div></aside></div>`;
+ w.querySelectorAll('.script-paragraphs p').forEach(el=>el.addEventListener('click',ev=>{
+  if(window.getSelection()?.toString().trim())return;
+  w.querySelectorAll('.selected-block').forEach(n=>n.classList.remove('selected-block'));
+  el.classList.add('selected-block');const r=el.getBoundingClientRect();
+  showPreviewAction({id:rec.id+'#'+el.dataset.block,kind:'block',title:sec.number+' '+sec.name+' · 文字脚本',excerpt:el.textContent.trim().slice(0,700)},r.right,r.top);
+ }));
+}
+$('#scriptEditBtn').addEventListener('click',()=>{
+ if(!state.activeScript)return;const sec=state.activeScript,rec=state.scripts[sec.script.id];
+ if(!state.scriptEditing){state.scriptEditing=true;renderScriptPage();$('#scriptEditor')?.focus();return}
+ const next=$('#scriptEditor')?.value.trim();if(!next){toast('脚本内容不能为空');return}
+ if(next!==rec.body){rec.body=next;rec.approved=false;rec.generated=false;rec.revision++;persistActiveProject();renderGraph();toast('文字脚本已保存；确认状态与旧图文成果已撤销')}
+ else toast('文字脚本未发生变化');
+ state.scriptEditing=false;renderScriptPage();
+});
+$('#scriptApproveBtn').addEventListener('click',()=>{
+ if(!state.activeScript||state.scriptEditing)return;
+ const rec=state.scripts[state.activeScript.script.id];if(rec.approved)return;
+ rec.approved=true;renderGraph();renderScriptPage();persistActiveProject();toast('这一节文字脚本已确认；全部确认后可以生成 HTML 可视化');
+});
+function fitPreviewSheet(){
+ const holder=$('#previewSheetHolder'),sheet=$('#previewSheet');
+ if(!holder||!sheet||$('#previewOverlay').classList.contains('hidden'))return;if(state.activeScript){sheet.style.width='';return}if(!previewData)return;
+ const r=holder.getBoundingClientRect(),ratio=previewData.type==='PDF'?210/297:16/9;
+ if(r.width>30&&r.height>30)sheet.style.width=Math.max(80,Math.min(r.width-2,(r.height-3)*ratio))+'px';
+}
+function openPreview(art,localIndex=0){
+ if(!art)return;
+ const entries=allVisualEntries();if(!entries.length){toast('尚无可视化成果');return}
+ state.previewMode='visual';state.previewDeckMode=true;state.deckEntries=entries;
+ const first=entries.findIndex(entry=>entry.art.id===art.id&&entry.localIndex===localIndex);
+ state.previewIndex=Math.max(0,first);previewData=entries[state.previewIndex].art;
+ state.activeArt=art;state.activeScript=null;state.scriptEditing=false;
+ $('#previewOverlay').classList.remove('hidden');renderPreviewPage();requestAnimationFrame(fitPreviewSheet)
+}
+function clearPreviewAction(){state.previewTarget=null;$('#selectionPopover').classList.add('hidden')}
+function showPreviewAction(ref,x,y){
+ state.previewTarget=ref;
+ const overlay=$('#previewOverlay'),r=overlay.getBoundingClientRect(),pop=$('#selectionPopover');
+ pop.classList.remove('hidden');
+ const w=120,h=45;
+ pop.style.left=Math.max(12,Math.min(r.width-w-12,x-r.left+8))+'px';
+ pop.style.top=Math.max(62,Math.min(r.height-h-10,y-r.top-47))+'px'
+}
+function slideReference(art,index,kind,id,excerpt){
+ const title=previewSlideTitle(art,index);
+ return {id:`${art.id}#p${index+1}-${id}`,kind,title:`${title}（第 ${index+1} 页）`,excerpt,pageIndex:index+1,pageId:art.id}
+}
+state.previewDeckMode=false;state.deckEntries=[];
+$('#fullDeckBtn').addEventListener('click',()=>{
+ const entries=allVisualEntries();if(!entries.length){toast('请先确认文字脚本并生成可视化成果');return}
+ state.previewMode='visual';state.previewDeckMode=true;state.deckEntries=entries;state.previewIndex=0;state.activeScript=null;state.scriptEditing=false;
+ previewData=entries[0].art;state.activeArt=previewData;
+ $('#previewOverlay').classList.remove('hidden');renderPreviewPage();requestAnimationFrame(fitPreviewSheet)
+});
+function renderPreviewPage(){
+ const entry=currentVisualEntry();const art=entry?.art;if(!art)return;
+ previewData=art;state.activeArt=art;
+ $('#scriptReviewActions').classList.add('hidden');$('#previewQuoteBtn').textContent='引用本页';
+ clearPreviewAction();window.getSelection()?.removeAllRanges();
+ const i=entry.localIndex,slideTitle=previewSlideTitle(art,i);
+ $('#previewTitle').innerHTML=`整册图文成果 <span>${escapeHTML(art.title)} · ${art.chapter}.${art.section} · 第 ${i+1} 页</span>`;
+ updatePreviewNav();
+ $('#previewQuoteBtn').onclick=()=>{setReference(slideReference(art,i,'page','page',slideTitle));clearPreviewAction();toast(`已将第 ${i+1} 页引用到右侧批注会话`)};
+ const w=$('#previewSheet');w.className='preview-sheet'+(art.type==='PDF'?' portrait':'');
+ const visual=i===0?art.visual:['bars','map','cards'][i%3];
+ const summary=[previewDescriptions[visual],'基于现状证据建立关键问题之间的关系，明确策略应当回应的直接需求。','围绕目标与研究结果，对空间组织、功能搭配和实施条件进行多方案推演。','归纳本页结论、证据缺口及后续深化要点，形成可供下一轮审阅的条目。'][i]||previewDescriptions[visual];
+ const content=`<div class="preview-page-top"><b>PRE—DESIGN</b><span>${escapeHTML(state.projectName)} · 概念成果（模拟）</span><span>${String(art.chapter).padStart(2,'0')} / ${String(i+1).padStart(2,'0')}</span></div>
+ <div class="preview-page-body"><div class="preview-page-left">
+ <span class="preview-kicker selectable" data-block="tag">${escapeHTML(art.sourceSection)}</span>
+ <h2 class="preview-h1 selectable" data-block="title">${escapeHTML(slideTitle)}</h2>
+ <p class="preview-desc selectable" data-block="summary">${escapeHTML(summary)}</p>
+ <p class="preview-desc selectable" data-block="implication">本页为交互演示。可以选择具体文字、图形线条，或在图表内拖出矩形区域后添加批注。</p>
+ <div class="preview-metrics"><div class="preview-metric selectable" data-block="metric-1"><b>04</b><span>分析维度</span></div><div class="preview-metric selectable" data-block="metric-2"><b>08</b><span>研究要素</span></div><div class="preview-metric selectable" data-block="metric-3"><b>${String(i+1).padStart(2,'0')}</b><span>成果页码</span></div></div>
+ </div><div class="preview-page-figure" data-block="graphic" title="单击图线或拖选区域后添加批注">${graphicHTML(visual)}<div id="figureRegionSelection" class="figure-region-outline hidden"></div></div></div>`;
+ w.innerHTML=content;requestAnimationFrame(fitPreviewSheet);
+ // Click text block, but do not quote or save before explicit affordance click.
+ w.querySelectorAll('.selectable').forEach(el=>el.addEventListener('click',e=>{
+  if(window.getSelection()?.toString().trim())return;
+  w.querySelectorAll('.selected-block').forEach(n=>n.classList.remove('selected-block'));
+  el.classList.add('selected-block');const text=el.textContent.trim().replace(/\s+/g,' ').slice(0,250),rect=el.getBoundingClientRect();
+  showPreviewAction(slideReference(art,i,'block',el.dataset.block,text),rect.right,rect.top)
+ }));
+ const figure=w.querySelector('.preview-page-figure'),selectionBox=$('#figureRegionSelection');
+ let drag=null;
+ figure.addEventListener('pointerdown',e=>{
+  if(e.button!==0)return;
+  const r=figure.getBoundingClientRect();drag={x:e.clientX-r.left,y:e.clientY-r.top,source:e.target};
+  clearPreviewAction();figure.setPointerCapture(e.pointerId);e.preventDefault();
+ });
+ figure.addEventListener('pointermove',e=>{
+  if(!drag)return;
+  const r=figure.getBoundingClientRect(),cx=Math.max(0,Math.min(r.width,e.clientX-r.left)),cy=Math.max(0,Math.min(r.height,e.clientY-r.top));
+  const l=Math.min(drag.x,cx),t=Math.min(drag.y,cy),w=Math.abs(drag.x-cx),h=Math.abs(drag.y-cy);
+  if(w>5||h>5){selectionBox.classList.remove('hidden');Object.assign(selectionBox.style,{left:l+'px',top:t+'px',width:w+'px',height:h+'px'})}
+ });
+ figure.addEventListener('pointerup',e=>{
+  if(!drag)return;
+  const r=figure.getBoundingClientRect();const cx=Math.max(0,Math.min(r.width,e.clientX-r.left)),cy=Math.max(0,Math.min(r.height,e.clientY-r.top));
+  const l=Math.min(drag.x,cx),t=Math.min(drag.y,cy),rw=Math.abs(drag.x-cx),rh=Math.abs(drag.y-cy);
+  w.querySelectorAll('.graphic-path-selected,.graphic-unit-selected').forEach(el=>el.classList.remove('graphic-path-selected','graphic-unit-selected'));
+  if(rw>=9&&rh>=9){
+   const coords={x:Math.round(l/r.width*1000)/10,y:Math.round(t/r.height*1000)/10,w:Math.round(rw/r.width*1000)/10,h:Math.round(rh/r.height*1000)/10};
+   const ref=slideReference(art,i,'region',`region-${coords.x}-${coords.y}-${coords.w}-${coords.h}`,`图表划选区域：左 ${coords.x}% · 上 ${coords.y}% · 宽 ${coords.w}% · 高 ${coords.h}%`);
+   ref.region=coords;showPreviewAction(ref,r.left+l+rw,r.top+t)
+  }else{
+   selectionBox.classList.add('hidden');
+   const feature=drag.source?.closest?.('[data-graphic-line]');
+   if(feature){const label=feature.dataset.graphicLine;feature.classList.add(feature.namespaceURI==='http://www.w3.org/2000/svg'?'graphic-path-selected':'graphic-unit-selected');
+    const ref=slideReference(art,i,'graphic',`graphic-${Math.abs(hash(label))}`,`图形 / 图线：${label}`);
+    showPreviewAction(ref,e.clientX,e.clientY)
+   }else{
+    const ref=slideReference(art,i,'graphic','graphic',`图表区域：${slideTitle}`);
+    showPreviewAction(ref,e.clientX,e.clientY)
+   }
+  }
+  drag=null
+ });
+ figure.addEventListener('pointercancel',()=>{drag=null;selectionBox.classList.add('hidden')});
+}
+function navigatePreview(delta){
+ if(state.scriptEditing){toast('请先保存本节文字脚本，再切换');return}
+ const next=state.previewIndex+delta;if(next<0||next>=state.deckEntries.length)return;
+ state.previewIndex=next;
+ if(state.previewMode==='script'){
+  state.activeScript=state.deckEntries[next];state.scriptEditing=false;renderScriptPage();
+ }else{
+  previewData=state.deckEntries[next].art;renderPreviewPage();
+ }
+ const scroller=$('#previewSheet .script-doc-scroll');if(scroller)scroller.scrollTop=0;
+}
+$('#previewPrev').addEventListener('click',()=>navigatePreview(-1));$('#previewNext').addEventListener('click',()=>navigatePreview(1));$('#previewSidePrev').addEventListener('click',()=>navigatePreview(-1));$('#previewSideNext').addEventListener('click',()=>navigatePreview(1));
+function closePreview(){if(state.scriptEditing){toast('请先保存文字脚本，再关闭预览');return}state.previewDeckMode=false;state.deckEntries=[];state.previewMode='visual';state.activeScript=null;state.activeArt=null;previewData=null;clearPreviewAction();$('#previewOverlay').classList.add('hidden');window.getSelection()?.removeAllRanges()}
+$('#closePreview').addEventListener('click',closePreview);
+$('#previewOverlay').addEventListener('click',e=>{if(e.target.id==='previewOverlay')closePreview()});
+document.addEventListener('keydown',e=>{
+ if($('#previewOverlay').classList.contains('hidden'))return;
+ if(e.key==='Escape')closePreview();
+ if(!e.target.closest('input,textarea,[contenteditable]')){if(e.key==='ArrowRight')navigatePreview(1);if(e.key==='ArrowLeft')navigatePreview(-1)}
+});
+// Native text selection is handled on mouseup and touch selectionchange.
+function showTextSelectionAction(){
+ if(!previewData&&!state.activeScript)return;
+ const sel=window.getSelection(),text=sel?.toString().trim()||'';
+ if(text.length<2||!$('#previewSheet').contains(sel.anchorNode))return;
+ const bounds=sel.getRangeAt(0).getBoundingClientRect();
+ $('#previewSheet').querySelectorAll('.selected-block').forEach(n=>n.classList.remove('selected-block'));
+ if(state.activeScript){let sec=state.activeScript;showPreviewAction({id:sec.script.id+'#quote-'+Math.abs(hash(text)),kind:'quote',title:sec.number+' '+sec.name+' · 文字脚本',excerpt:text.slice(0,700)},bounds.right,bounds.top);return}
+ const art=previewData,i=currentVisualEntry()?.localIndex??0;
+ showPreviewAction(slideReference(art,i,'quote',`selection-${Math.abs(hash(text))}`,text.slice(0,700)),bounds.right,bounds.top);
+}
+$('#previewSheet').addEventListener('mouseup',()=>setTimeout(showTextSelectionAction,0));
+$('#previewSheet').addEventListener('touchend',()=>setTimeout(showTextSelectionAction,190));
+$('#selectionQuoteBtn').addEventListener('click',()=>{if(!state.previewTarget)return;setReference({...state.previewTarget});clearPreviewAction();toast('已载入选中内容，请在右侧保存批注')});
+function hash(s){let h=0;for(let i=0;i<s.length;i++)h=((h<<5)-h+s.charCodeAt(i))|0;return h}
+$('#themeBtn').addEventListener('click',()=>{state.dark=!state.dark;document.body.classList.toggle('theme-dark',state.dark);toast(state.dark?'已切换深色玻璃主题':'已切换浅色玻璃主题')});
+window.addEventListener('resize',()=>{if(state.stage==='workspace'){if($('#previewOverlay').classList.contains('hidden'))fitGraph();else fitPreviewSheet()}});
+
+/* V0.4 project library and quick switcher. Demo-only client persistence; production authoritative state is server-side. */
+const PROTOTYPE_PROJECTS_KEY='pre-design:v0.4:demo-projects';
+const PROTOTYPE_LAST_KEY='pre-design:v0.4:last-active';
+const seedTime=Date.now();
+const seededProjects=[
+ {id:'seed-wuhan',name:'武汉站综合枢纽策划',location:'湖北省 · 武汉市',type:'公共建筑',stage:'workspace',files:[{name:'武汉站基础资料.pdf',demo:true,size:1820000}],answers:['综合平衡推进','形成可汇报的初版内容'],annotations:[],updatedAt:seedTime-1000*60*48},
+ {id:'seed-xiangyang',name:'襄阳东站前期策划',location:'湖北省 · 襄阳市',type:'公共建筑',stage:'workspace',files:[{name:'项目前期研究.xlsx',demo:true,size:548000}],answers:['民生与公共服务','先形成清晰的汇报大纲'],annotations:[],updatedAt:seedTime-1000*60*60*25},
+ {id:'seed-xiamen',name:'厦门三康完整社区',location:'福建省 · 厦门市',type:'城市更新',stage:'workspace',files:[{name:'社区现状调查.pdf',demo:true,size:3850000}],answers:['民生与公共服务','同步研究实施与投资路径'],annotations:[],updatedAt:seedTime-1000*60*60*42}
+];
+function loadProjectRecords(){
+ try{const raw=localStorage.getItem(PROTOTYPE_PROJECTS_KEY);if(raw){let parsed=JSON.parse(raw);if(Array.isArray(parsed)&&parsed.every(x=>typeof x.id==='string'&&typeof x.name==='string'))return parsed.slice(0,50)}}catch(err){console.warn('浏览器示例项目记录不可读取，使用默认项目',err)}
+ return seededProjects.map(x=>({...x,files:x.files.map(f=>({...f})),answers:[...x.answers],annotations:[]}));
+}
+let projectRecords=loadProjectRecords();
+function saveProjectRecords(){try{localStorage.setItem(PROTOTYPE_PROJECTS_KEY,JSON.stringify(projectRecords));if(state.currentProjectId)localStorage.setItem(PROTOTYPE_LAST_KEY,state.currentProjectId);}catch(err){console.warn('演示记录保存失败；当前会话仍可切换项目',err)}}
+function currentProjectRecord(){return projectRecords.find(p=>p.id===state.currentProjectId)||null}
+function registerNewProject(){
+ const id='demo-project-'+Date.now()+'-'+Math.floor(Math.random()*1000);
+ state.currentProjectId=id;state.visualLayoutMode='grouped';state.scripts=makeScriptRecords(false);state.annotations=[];state.selected=null;state.messages=[];state.currentQuestion=0;state.answers=[];state.modifiedIds.clear();state.submitted=0;
+ projectRecords.unshift({id,name:state.projectName,location:state.projectLocation,regionDetail:state.projectRegionDetail,type:state.projectType,stage:'consult',files:state.files.map(f=>({...f})),answers:[],annotations:[],scripts:structuredClone(state.scripts),submitted:0,updatedAt:Date.now()});
+ saveProjectRecords();updateProjectSwitcher();
+}
+function persistActiveProject(){
+ const p=currentProjectRecord();if(!p)return;
+ p.name=state.projectName;p.location=state.projectLocation;p.regionDetail=state.projectRegionDetail;p.type=state.projectType;p.files=state.files.map(f=>({...f}));
+ p.answers=state.answers.slice();p.annotations=state.annotations.map(a=>({...a}));p.scripts=structuredClone(state.scripts);p.submitted=state.submitted;
+ p.stage=state.stage==='workspace'?'workspace':'consult';p.updatedAt=Date.now();
+ if(state.stage==='workspace'){p.chatHTML=$('#chatHistory').innerHTML;p.modifiedIds=[...state.modifiedIds];p.board={...state.board};p.visualLayoutMode=state.visualLayoutMode;p.chatDraft=$('#chatInput').value;p.activeSelection=state.selected?{...state.selected}:null}
+ saveProjectRecords();updateProjectSwitcher();
+}
+function updateProjectSwitcher(){const name=state.currentProjectId?state.projectName:'项目总览';$('#currentProjectLabel').textContent=name;$('#projectSwitcher').title=(state.currentProjectId?'当前：'+name+' · ':'')+'切换项目（Ctrl / ⌘ + K）'}
+function formatProjectTime(ms){let d=Math.max(0,Date.now()-Number(ms||0)),hour=Math.round(d/3600000);if(hour<1)return '刚刚';if(hour<24)return hour+' 小时前';if(hour<168)return Math.floor(hour/24)+' 天前';return new Date(ms).toLocaleDateString('zh-CN',{month:'short',day:'numeric'})}
+function projectStatus(p){let n=(p.annotations||[]).filter(a=>a.status==='pending').length;if(n)return `${n} 条待批注`;if(p.stage==='consult')return '首轮问询';const count=p.scripts?Object.values(p.scripts).filter(x=>x.generated).length:8;return count===8?'成果工作台':`文字脚本 ${count}/8 成果`}
+function projectList(q=''){const t=q.trim().toLocaleLowerCase();return [...projectRecords].filter(p=>!t||[p.name,p.location,p.type].join(' ').toLocaleLowerCase().includes(t)).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0))}
+function renderQuickProjects(){
+ const items=projectList($('#quickProjectSearch').value).slice(0,5);
+ $('#quickProjectCount').textContent=`${projectRecords.length} 个项目`;
+ $('#quickProjectList').innerHTML=items.map((p,i)=>`<button type="button" class="quick-project ${state.currentProjectId===p.id?'active':''}" data-open-project="${escapeHTML(p.id)}"><span class="project-monogram">${escapeHTML(p.name.slice(0,1))}</span><span class="quick-project-info"><strong>${escapeHTML(p.name)}</strong><small>${escapeHTML(p.location||p.type||'未设地点')} · ${formatProjectTime(p.updatedAt)}</small></span><span class="quick-status">${escapeHTML(projectStatus(p))}</span></button>`).join('')||'<div class="quick-empty">没有找到匹配的项目</div>';
+}
+function renderProjectLibrary(){
+ $('#libraryTotal').textContent=`${projectRecords.length} 个项目`;
+ const projects=projectList($('#librarySearch').value);
+ $('#projectLibraryList').innerHTML=projects.map(p=>`<button type="button" class="library-row ${state.currentProjectId===p.id?'active':''}" data-open-project="${escapeHTML(p.id)}"><span class="library-row-main"><span class="project-monogram">${escapeHTML(p.name.slice(0,1))}</span><span class="library-row-title"><strong>${escapeHTML(p.name)}</strong><small>${escapeHTML(p.location||'未设置地点')} · ${escapeHTML(p.type||'项目')}</small></span></span><span class="library-row-status">${escapeHTML(projectStatus(p))}</span><span class="library-row-time">${formatProjectTime(p.updatedAt)}</span></button>`).join('')||'<div class="quick-empty" style="padding:35px">没有符合条件的项目</div>';
+}
+function closeProjectMenu(){let m=$('#projectQuickMenu');m.classList.add('hidden');$('#projectSwitcher').setAttribute('aria-expanded','false')}
+function toggleProjectMenu(force){const open=typeof force==='boolean'?force:$('#projectQuickMenu').classList.contains('hidden');if(!$('#projectLibrary').classList.contains('hidden'))return;$('#projectQuickMenu').classList.toggle('hidden',!open);$('#projectSwitcher').setAttribute('aria-expanded',String(open));if(open){renderQuickProjects();$('#quickProjectSearch').focus()}}
+function openLibrary(){closeProjectMenu();$('#projectLibrary').classList.remove('hidden');$('#librarySearch').value='';renderProjectLibrary();$('#librarySearch').focus()}
+function closeLibrary(){$('#projectLibrary').classList.add('hidden')}
+function openNewProject(){
+ if(state.submitting){toast('正在提交当前批注，请完成后再切换项目');return}
+ if(state.stage==='processing')processingGeneration++;
+ persistActiveProject();state.currentProjectId=null;state.processing=false;state.transitioning=false;state.projectName='';state.projectLocation='';state.projectRegionDetail='';state.projectType='城市更新';state.files=[];state.scripts={};state.activeScript=null;state.annotations=[];state.answers=[];state.selected=null;state.activeArt=null;state.currentQuestion=0;state.submitted=0;state.modifiedIds.clear();
+ $('#entryContent').classList.remove('hidden');$('#processContent').classList.add('hidden');$('#projectName').value='';restoreLocationInputs('','');$('#projectBrief').value='';$('#createAdvanced').open=false;$('#projectType').value='城市更新';$('#fileValidation').textContent='';$('#createFeedback').classList.add('hidden');$('#previewOverlay').classList.add('hidden');$('#annotationDrawer').classList.add('hidden');annotationDrawerView='pending';$('#chatInput').value='';renderFiles();setStage('create');saveProjectRecords();updateProjectSwitcher();closeProjectMenu();closeLibrary();toast('已打开新建项目 · 原项目保持保存')
+}
+function resumeConsultProject(p){
+ setStage('consult');$('#consultComposer').classList.remove('hidden');$('#confirmOutline').classList.add('hidden');state.currentQuestion=0;
+ let prior=[...state.answers];state.answers=[];$('#consultStream').innerHTML='';
+ let system=document.createElement('div');system.className='consult-system';system.textContent='已恢复项目问询 · 演示';$('#consultStream').append(system);
+ consultBubble(`继续<strong>${escapeHTML(state.projectName)}</strong>的首轮问询。已归档 ${state.files.length} 份项目资料。`);
+ for(let i=0;i<Math.min(prior.length,questions.length);i++){consultBubble(questions[i].text);consultUser(prior[i]);state.answers.push(prior[i]);state.currentQuestion++}
+ if(state.currentQuestion>=questions.length)finishConsult();else askQuestion(state.currentQuestion)
+}
+let resumeToken=0;
+function goOverview(){
+ if(state.submitting){toast('批注正在提交，请先完成当前操作');return}
+ if(state.stage==='processing'){processingGeneration++;state.processing=false}
+ resumeToken++;document.querySelectorAll('.morph-ghost').forEach(el=>el.remove());$('#workspaceStage').classList.remove('workspace-transitioning');state.transitioning=false;
+ if(state.currentProjectId&&state.stage!=='resume')persistActiveProject();
+ state.currentProjectId=null;state.selected=null;state.pendingTarget=null;state.previewTarget=null;
+ $('#previewOverlay').classList.add('hidden');$('#annotationDrawer').classList.add('hidden');
+ closeProjectMenu();closeLibrary();setStage('overview');updateProjectSwitcher();renderOverview();
+}
+function openExistingProject(id,{initial=false}={}){
+ const p=projectRecords.find(item=>item.id===id);if(!p)return;
+ if(state.submitting){toast('正在提交当前批注，请完成后再切换项目');return}
+ if(state.currentProjectId===id&&state.stage==='workspace'){closeProjectMenu();closeLibrary();toast('当前已打开此项目');return}
+ if(!initial && state.currentProjectId && state.stage!=='resume')persistActiveProject();
+ if(state.stage==='processing')processingGeneration++;
+ document.querySelectorAll('.morph-ghost').forEach(el=>el.remove());$('#workspaceStage').classList.remove('workspace-transitioning');state.transitioning=false;state.processing=false;
+ state.currentProjectId=p.id;state.visualLayoutMode=p.visualLayoutMode==='expanded'?'expanded':'grouped';state.projectName=p.name;state.projectLocation=p.location||'';state.projectRegionDetail=p.regionDetail||'';state.projectType=p.type||'城市更新';state.files=(p.files||[]).map(f=>({...f}));state.scripts=p.scripts&&Object.keys(p.scripts).length?structuredClone(p.scripts):makeScriptRecords(p.stage==='workspace');state.activeScript=null;state.answers=[...(p.answers||[])];state.annotations=(p.annotations||[]).map(a=>({...a}));state.submitted=p.submitted||0;state.modifiedIds=new Set(p.modifiedIds||[]);state.selected=p.activeSelection?{...p.activeSelection}:null;state.pendingTarget=null;state.previewTarget=null;state.activeArt=null;state.activeNodeId=null;
+ $('#entryContent').classList.remove('hidden');$('#processContent').classList.add('hidden');$('#previewOverlay').classList.add('hidden');$('#annotationDrawer').classList.add('hidden');annotationDrawerView='pending';$('#sidebarProjectName').textContent=p.name;$('#chatInput').value=p.chatDraft||'';
+ closeProjectMenu();closeLibrary();
+ $('#resumeProjectName').textContent=p.name;
+ const pending=state.annotations.filter(a=>a.status==='pending').length;
+ $('#resumeDescription').textContent=`${p.location||p.type||'现有项目'} · 大纲、8 份文字脚本与可视化成果 · ${pending} 条待提交批注。正在恢复原有工作状态。`;
+ setStage('resume');updateProjectSwitcher();
+ p.updatedAt=Date.now();saveProjectRecords();
+ const token=++resumeToken;
+ setTimeout(()=>{if(token!==resumeToken||state.currentProjectId!==id||state.stage!=='resume')return;enterWorkspace({resume:true,snapshot:p})},480);
+}
+function renderOverview(){
+ const term=$('#overviewSearch').value;
+ const items=projectList(term);
+ $('#overviewTotal').textContent=projectRecords.length;
+ $('#overviewPending').textContent=projectRecords.reduce((n,p)=>n+(p.annotations||[]).filter(a=>a.status==='pending').length,0);
+ const list=$('#overviewProjectGrid');
+ list.innerHTML=items.map((p)=>{
+  const pending=(p.annotations||[]).filter(a=>a.status==='pending').length;
+  const count=p.scripts?Object.values(p.scripts).filter(x=>x.generated).length:(p.stage==='workspace'?8:0);const status=p.stage==='consult'?'首轮大纲未确认':`4章 · 8节 · 8脚本 · ${count}/8 已出成果`;
+  return `<button type="button" class="overview-project" data-overview-id="${escapeHTML(p.id)}" aria-label="打开历史项目 ${escapeHTML(p.name)}">
+   <div class="overview-project-top"><span class="overview-project-kind"><i></i>${escapeHTML(p.type||'前期策划')}</span><span class="overview-project-time">${formatProjectTime(p.updatedAt)}</span></div>
+   <strong class="overview-project-title" title="${escapeHTML(p.name)}">${escapeHTML(p.name)}</strong>
+   <div class="overview-project-place">${escapeHTML(p.location||'未填写项目地点')}</div>
+   <div class="overview-project-foot"><span class="progress-meta"><b>${pending?pending+' 条待批注':'已有成果'}</b><span>${status}</span></span><span class="open-arrow">↗</span></div>
+  </button>`;
+ }).join('')||'<div class="overview-no-projects">没有匹配的项目。点击右上角「＋」创建一个新项目。</div>';
+}
+$('#projectSwitcher').addEventListener('click',e=>{e.stopPropagation();toggleProjectMenu()});
+$('#overviewCreateBtn').addEventListener('click',openNewProject);$('#overviewSearch').addEventListener('input',renderOverview);$('#createBackOverview').addEventListener('click',goOverview);$('#quickGoOverview').addEventListener('click',goOverview);$('#overviewProjectGrid').addEventListener('click',e=>{const b=e.target.closest('[data-overview-id]');if(b)openExistingProject(b.dataset.overviewId)});
+for(const el of [$('.brand-symbol'),$('.brand-label')]){el.tabIndex=0;el.title='返回项目总览';el.setAttribute('role','button');el.addEventListener('click',goOverview);el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();goOverview()}})}
+$('#quickProjectSearch').addEventListener('input',renderQuickProjects);
+$('#librarySearch').addEventListener('input',renderProjectLibrary);
+$('#openProjectLibrary').addEventListener('click',goOverview);
+$('#quickNewProject').addEventListener('click',openNewProject);
+$('#libraryNewProject').addEventListener('click',openNewProject);
+$('#closeProjectLibrary').addEventListener('click',closeLibrary);
+
+$('#quickProjectList').addEventListener('click',e=>{const b=e.target.closest('[data-open-project]');if(b)openExistingProject(b.dataset.openProject)});
+$('#projectLibraryList').addEventListener('click',e=>{const b=e.target.closest('[data-open-project]');if(b)openExistingProject(b.dataset.openProject)});
+$('#projectLibrary').addEventListener('click',e=>{if(e.target===$('#projectLibrary'))closeLibrary()});
+document.addEventListener('pointerdown',e=>{if(!$('#projectQuickMenu').classList.contains('hidden')&&!e.target.closest('#projectQuickMenu,#projectSwitcher'))closeProjectMenu()},true);
+document.addEventListener('keydown',e=>{
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();toggleProjectMenu();return}
+ if(e.key==='Escape'){if(!$('#projectLibrary').classList.contains('hidden')){closeLibrary();e.stopPropagation()}else if(!$('#projectQuickMenu').classList.contains('hidden')){closeProjectMenu();e.stopPropagation()}}
+});
+function initProjectLibrary(){
+ state.currentProjectId=null;updateProjectSwitcher();renderQuickProjects();renderOverview();setStage('overview');
+}
+renderFiles();initProjectLibrary();
+/* Prototype uses only browser localStorage for demo project switching; no backend requests or server uploads. */
+</script>
+</body>
+</html>
