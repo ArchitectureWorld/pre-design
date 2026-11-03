@@ -1,9 +1,10 @@
 # Web V1 × DSH 真实接入技术路线（RFC v0.1）
 
-> 状态：**技术路线候选稿，待实机 P0 验证后冻结**。本文件不代表 DSH 对接已经运行成功。  
+> 状态：**DSH 目标版本已决策固定；架构方案待 P0 实机验证后正式冻结**。本文件不代表 DSH 对接已经运行成功。  
 > 日期：2026-11-03  
 > 工作分支：`web_V1`（原型入口 `web/index.html`）  
-> 现有稳定主线：Pre-design 2.0.2 / DSH `0.1.5-rc.1` / Presentation Standard Project Directory `0.1.0`  
+> 历史主线兼容基线：Pre-design 2.0.2 / DSH `0.1.5-rc.1` / Presentation Standard Project Directory `0.1.0`  
+> **Web V1 新开发固定 DSH：`0.2.1-rc.5`（官方 Tag `dsh-v0.2.1-rc.5`，2026-10-30 发布）**  
 > 独立研究开发分支：`v2.1.0`（8章62项规划，仅部分研究子模块已实现；不可宣称完整62项已运行）
 
 ## 1. 不变的产品目标
@@ -89,20 +90,23 @@
 
 DSH SDK **只承担 Agent 对话与事件传输**。现有 SDK JSON-RPC 方法不等于 pre-design 项目 API；确定性“建项目、绑定、审批、查询领域状态”必须通过受控 Host 桥接。不能把自由文本提示词输出当成事务提交凭据。
 
-## 6. DSH 版本与兼容性策略（首要 P0）
+## 6. DSH 版本决策与兼容性策略（首要 P0）
 
-现有 `pre-design` 固定于 `0.1.5-rc.1`，而截至本 RFC，官方新候选为 `0.2.1-rc.5`。不得把当前 Web profile 的 `DSH_HOME` 原地拿来升级。测试采用新建隔离的目录、包和数据库。
+**已决定：Web V1 的全部新开发、SDK Worker、适配层和验收以 DSH `0.2.1-rc.5` 为唯一目标基线。** 不再同时实施两个 DSH 版本的开发适配。该版本为 2026-11-03 核实的最新官方发布（2026-10-30）；`0.2.2-alpha.2` 虽版本号更高，但其发布于 2026-10-28，且仍是 Alpha 预览。锁定官方 Tag `dsh-v0.2.1-rc.5` 对应提交 `b830ec950f`（完整 SHA 在实际安装核验记录中确认）；所有 DSH CLI、SDK Client/Protocol/相关官方包使用配套的相同版本，不使用浮动 `latest` 或 `^` 范围。使用锁文件锁定实际依赖。
 
-| 核查项目 | 0.1.5-rc.1 | 0.2.1-rc.5 |
+旧 `pre-design` 的 `0.1.5-rc.1` 仅用于迁移审计、旧状态读取及行为对比，**不作为 Web V1 的运行备选**。不得直接把旧 Web profile 的 `DSH_HOME` 原地升级；创建全新的隔离 `DSH_HOME`、profile、模型凭据配置和测试项目目录。
+
+| 核查项目 | 新版目标 `0.2.1-rc.5` | 验收要求 |
 |---|---|---|
-| SDK stdio / 任务事件 | 官方文档已有 | 官方文档已有 |
-| 持久 Session 原 ID 恢复 | 该版协议未声明 `session/resume` | 官方协议声明支持 |
-| `session/wait` | 该版协议未声明 | 官方协议声明支持 |
-| 当前 pre-design Host 是否可直接载入 | **待验证：必需 `webServer` 是已知阻碍** | **待适配与验证** |
-| 取消正在运行的 Prompt | 官方协议无该方法 | 官方协议仍无该方法 |
-| 插件运行与版本锁定 | 现有主线已按该版验证 | 不能视为已兼容 |
+| SDK 启动与通信 | 官方 stdio JSON-RPC SDK | 子进程启动/终止可控，初始化成功 |
+| Agent 执行 | `session/prompt` / 事件通知 | 真实模型执行、事件追踪、结果可回放 |
+| Session 重启恢复 | `session/resume` | 重新启动 Worker 后恢复**原** Session ID |
+| 任务结束同步 | `session/wait` | 不把事件缺失/浏览器断连误当成任务完成 |
+| Workspace 绑定 | `session/working-directory/get/set` | 目录映射正确且无路径逃逸 |
+| pre-design Host 装配 | 目前 `webServer` 必需注入 | 拆分/适配后无需 DSH 原生 Web UI 即可加载 |
+| 运行中取消 | SDK 协议目前未定义单独取消 Prompt 的请求 | 不声明支持；专属 Worker 终止和状态恢复另行验证 |
 
-决策：**以 `0.2.1-rc.5` 为候选目标版本、`0.1.5-rc.1` 为兼容对照基线**。只有在独立环境中跑通 Host/SDK/数据/恢复的门禁，才锁定正式 Web V1 的实际运行版本；如果失败，先修适配层，不进行生产存储的跨版本迁移。
+**升级策略：** 即便官方未来发布更高版本，当前迭代保持 `0.2.1-rc.5` 不漂移；单独评估新版并回归 SDK、插件、存储和成果链路，全部通过才人工更新版本锁定与文档。这满足“以最新版本启动开发”，不等于运行时不断自动升级。
 
 注意：SDK 的任务超时、网络断开或取消订阅不会自动撤销实际写盘。第一阶段不得把“停止显示”当成“Agent 已停止”；必要时结束专属 Worker 并从安全快照检查后恢复。
 
@@ -120,7 +124,7 @@ DSH SDK **只承担 Agent 对话与事件传输**。现有 SDK JSON-RPC 方法�
 
 | Gate | 交付物 | 通过条件 |
 |---|---|---|
-| P0-A 版本/进程 | 两版本隔离的 SDK smoke、启动/关闭/事件/会话恢复对照记录 | 实测结果明确；失败停止 |
+| P0-A 版本/进程 | 固定 `0.2.1-rc.5` 的独立 SDK smoke，启动/关闭/事件/会话恢复记录 | 锁定版本的实测结果明确；失败停止 |
 | P0-B 插件装配 | SDK profile 能载入精简后的 pre-design Host，读取受控 Workspace | 无 `webServer` 注入错误，工具已注册 |
 | P1 项目与资料 | Web 创建→服务器建目录→上传 PDF + PPTX→登记来源/Hash→Agent 解读 | 来源可定位，不能出现虚构分析 |
 | P2 首轮交互 | 首轮缺项问询→人机确认→真实章/节与文字脚本 | 项目可恢复、同名不重复、资料不丢失 |
@@ -138,7 +142,7 @@ DSH SDK **只承担 Agent 对话与事件传输**。现有 SDK JSON-RPC 方法�
 
 ## 10. 来源
 
-- 官方 SDK（0.1.5-rc.1）：https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.1.5-rc.1/packages/sdk/protocol/README.md
+- 旧版 SDK 迁移参考（0.1.5-rc.1，不作为运行目标）：https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.1.5-rc.1/packages/sdk/protocol/README.md
 - 官方 SDK（0.2.1-rc.5）：https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.1-rc.5/packages/sdk/protocol/README.md
 - 官方 TS Client（0.2.1-rc.5）：https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.1-rc.5/packages/sdk/client/README.md
 - 现有 pre-design Host：https://github.com/ArchitectureWorld/pre-design/blob/web_V1/src/index.ts
