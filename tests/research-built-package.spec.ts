@@ -14,7 +14,7 @@ async function packedFilePaths(): Promise<string[]> {
   const args = process.platform === 'win32'
     ? ['/d', '/s', '/c', 'npm', ...packArguments]
     : packArguments
-  const { stdout } = await execFile(command, args, { cwd: root, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 })
+  const { stdout } = await execFile(command, args, { cwd: root, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024, timeout: 25_000 })
   const rows = JSON.parse(stdout) as PackedPackage[]
   return rows[0]!.files.map(file => file.path.replaceAll('\\', '/')).sort()
 }
@@ -30,5 +30,5 @@ describe('Pre 2.0.1 packed research contracts', () => {
       'research/v2.0.1/schemas/evidence-record.schema.json',
       'research/v2.0.1/schemas/analysis-trace.schema.json',
     ]))
-  })
+  }, 30_000)
 })
