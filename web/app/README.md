@@ -37,6 +37,22 @@ web/app/start-local.sh
 
 同一局域网访问已有环境时，将私有 `.local/web/config.json` 中的 `host` 设置为 `0.0.0.0`，然后重启服务。初始默认 `127.0.0.1` 仅允许 Linux 本机访问；修改初始化环境变量不会覆盖已有配置。浏览器使用 Linux 的实际局域网 IP 和 `http://`，不要使用 `0.0.0.0` 或另一台电脑自己的 `localhost`。
 
+本机候选环境已改由 systemd 用户服务常驻运行，单元文件位于 `~/.config/systemd/user/`：
+
+- `pre-design-web-v210.service` 运行当前候选目录的 `start-local.sh`，读取既有私有配置；进程退出后等待 5 秒自动重启。
+- `pre-design-local-postgres.service` 是启动时的数据库准备服务，调用原 `Development/pre-design-web/web/app/local-postgres.sh start`，复用原数据目录及 socket，不创建第二套数据库实例。Web 启动依赖它成功完成。
+- 两个服务已启用，当前用户已开启 linger，因此不依赖终端或登录会话。已验证 Web 进程退出后的自动恢复；没有为验收重启整台 Linux。
+
+日常操作使用以下命令；服务运行期间不要再手动执行 `start-local.sh`，避免端口和数据库执行器冲突：
+
+```bash
+systemctl --user status pre-design-web-v210.service
+systemctl --user restart pre-design-web-v210.service
+journalctl --user -u pre-design-web-v210.service -n 50 --no-pager
+```
+
+`systemctl --user stop pre-design-web-v210.service` 会停止 Web，不停止共用数据库。数据库准备服务正常状态为 `active (exited)`；它负责启动时确保数据库可用，不监控已运行的 PostgreSQL 进程。
+
 ## 使用流程
 
 1. 登录，创建项目并上传真实资料。支持 PDF、TXT、Markdown、CSV、JSON 和 PNG/JPEG/WebP 图片，每份不超过 10 MB。创建和上传不自动调用模型。
