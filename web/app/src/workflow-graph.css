@@ -1,0 +1,29 @@
+.workflow-graph-board .mapnode{box-sizing:border-box;max-width:none;max-height:none;min-height:0}
+.workflow-graph-board .rootnode{padding:12px;gap:4px}
+.workflow-graph-board .root-name{width:100%;font-size:13px;line-height:20px;letter-spacing:0;overflow:visible;text-overflow:clip;white-space:normal}
+.workflow-graph-board .root-head,.workflow-graph-board .root-meta{line-height:12px;flex-shrink:0}
+.workflow-graph-board .chapnode{padding:10px 12px;gap:10px}
+.workflow-graph-board .chap-num{width:28px;height:28px;flex:0 0 28px}
+.workflow-graph-board .chap-label{flex:1;min-width:0}
+.workflow-graph-board .chap-label strong{display:block;font-size:12px;line-height:18px;white-space:normal;overflow:visible;text-overflow:clip}
+.workflow-graph-board .chap-label>span{font-size:9px;line-height:12px;margin-top:3px}
+.workflow-graph-board .sectionnode{padding:10px 12px;gap:10px}
+.workflow-graph-board .workflow-section-label{flex:1;min-width:0}
+.workflow-graph-board .sec-main{font-size:12px;line-height:18px;white-space:normal;overflow:visible;text-overflow:clip}
+.workflow-graph-board .sec-info{font-size:9px;line-height:12px;margin-top:3px}
+.workflow-graph-board .workflow-graph-title-line{display:block!important;font:inherit!important;color:inherit!important;margin:0!important;line-height:inherit!important;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}
+.workflow-graph-board .scriptnode{padding:10px 12px;gap:5px;overflow:hidden}
+.workflow-graph-board .script-top{min-height:18px;flex-shrink:0}
+.workflow-graph-board .script-top strong{font-size:11px;line-height:18px;overflow-wrap:anywhere}
+.workflow-graph-board .script-excerpt{font-size:11px;line-height:17px;-webkit-line-clamp:3;overflow-wrap:anywhere;flex-shrink:1}
+.workflow-graph-board .script-bottom{line-height:12px;flex-shrink:0}
+.workflow-graph-board .edge{fill:none;stroke-linejoin:bevel;stroke-linecap:round;pointer-events:none}
+.workflow-graph-board .edge-hit{fill:none;stroke:transparent;stroke-width:15;pointer-events:stroke;cursor:pointer}
+.workflow-graph-viewport{touch-action:none;cursor:grab}
+.workflow-graph-viewport.dragging,.workflow-graph-viewport.dragging *{cursor:grabbing!important;user-select:none!important}
+.workflow-graph-board .workflow-script-title{font-size:11px;font-weight:700;line-height:17px;flex-shrink:0}
+.workflow-graph-board .workflow-visual-node{padding:10px 12px;gap:5px}
+.workflow-graph-board .workflow-visual-label{display:flex;align-items:center;gap:6px;font-size:9px;line-height:12px}
+.workflow-graph-board .workflow-align-guide{stroke:#6486e8;stroke-width:1;stroke-dasharray:5 4;opacity:.7;pointer-events:none}
+.workflow-graph-board .is-node-dragging{z-index:5;outline:2px solid #6788ee;box-shadow:0 12px 32px #4269bc33;opacity:.94}
+.workflow-graph-viewport.node-dragging,.workflow-graph-viewport.node-dragging *{cursor:grabbing!important;user-select:none!important}

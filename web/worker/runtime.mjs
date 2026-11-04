@@ -15,6 +15,8 @@ import { materializeSearchRuntime } from './search-runtime.mjs'
 import { ComfyUIClient } from './comfyui-client.mjs'
 import { readSearchAudit } from './search-audit.mjs'
 import { readImageReceipts } from './image-receipts.mjs'
+import {materialReadReceipts} from './material-read-receipts.mjs'
+import {agentActivity} from '../app/src/task-progress.mjs'
 import { listProjectArtifacts, readProjectArtifact } from './research-artifacts.mjs'
 const workerRoot = dirname(fileURLToPath(import.meta.url))
 const signature = value => createHash('sha256').update(JSON.stringify(value ?? null)).digest('hex')
@@ -57,7 +59,7 @@ export class ProjectWorkers {
     signal?.throwIfAborted()
     const closing = this.closing.get(project.id)
     if (closing) return closing.then(() => this.open(project, snapshot, requiredRoles, signal))
-    const previous = this.instances.get(project.id), key = signature({ snapshot, requiredRoles })
+    const previous = this.instances.get(project.id), key = signature({ snapshot, requiredRoles, readOnly:!!project.read_only })
     if (previous && (snapshot === undefined || this.snapshots.get(project.id) === key)) return previous
     if (previous && this.active.has(project.id)) return Promise.reject(researchError('WORKER_TASK_BUSY', '项目已有运行中的模型任务。', 409))
     const pending = (async () => {
@@ -106,7 +108,7 @@ export class ProjectWorkers {
     const harness = new DeepSeekHarness({ profile: 'sdk', patches: [patch], dshHome: join(home, 'dsh'), cwd: workspace, processCwd: workspace,
       ...parent, ...(parentModel?.maxOutputTokens ? { maxTokens: parentModel.maxOutputTokens } : {}), initializeTimeoutMs: 60000,
       env: { ...isolatedEnvironment(), ...materialized.env, ...search.env, PRE_WEB_SOCKET: socket, PRE_WEB_BRIDGE_SECRET: secret, PRE_WEB_SESSION_ID: project.session_id,
-        PRE_WEB_WORKSPACE: workspace, PRE_WEB_POLICY_FILE: policyFile, ...(project.owner_id ? {PRE_WEB_CALLER_USER_ID:String(project.owner_id)} : {}), PRE_DESIGN_PRESENTATION_PROJECT_ROOT: workspace, DSH_MAX_TOKENS_AS_SUCCESS: 'false' } })
+        PRE_WEB_WORKSPACE: workspace, PRE_WEB_POLICY_FILE: policyFile, PRE_WEB_READ_ONLY:project.read_only?'true':'false', ...(project.owner_id ? {PRE_WEB_CALLER_USER_ID:String(project.owner_id)} : {}), PRE_DESIGN_PRESENTATION_PROJECT_ROOT: workspace, DSH_MAX_TOKENS_AS_SUCCESS: 'false' } })
     try {
       signal?.throwIfAborted()
       await harness.start()
@@ -166,11 +168,17 @@ export class ProjectWorkers {
     const policy = validateSnapshot(snapshot, ['parent'])
     return this.withTask(project, policy, signal, async instance => {
       signal?.throwIfAborted()
-      const result = await instance.session.run(text, { onNotification: event => onEvent?.({ type: event.method ?? 'agent-progress' }) })
+      const result = await instance.session.run(text, { onNotification: notification => {
+        const activity=agentActivity(notification)
+        if(activity)onEvent?.(activity)
+      } })
       signal?.throwIfAborted()
       const ended = result.events.findLast(event => event.type === 'turn/end')
       if (ended?.data?.reason?.kind !== 'completed') throw researchError('AGENT_TURN_NOT_COMPLETED', '模型任务未完成；保留真实终态。', 409)
-      return { response: result.finalResponse, eventCount: result.events.length }
+      // Resumed conversations may cite prior successful reads. Use the trusted
+      // bound session log, then let the API recheck source path/hash/page/quote.
+      const materialReads=project.read_only?await instance.rpc({operation:'material-read-receipts'}):undefined
+      return { response: result.finalResponse, eventCount: result.events.length, ...(project.read_only?{materialReads:[...materialReads,...materialReadReceipts(result.events)]}:{}) }
     }, ['parent'])
   }
   async monitor(instance, operation, started, onEvent, signal) {
@@ -189,7 +197,7 @@ export class ProjectWorkers {
     const input = validateResearchSelection(selection), policy = validateSnapshot(snapshot, ['parent','text','web'])
     return this.withTask(project, policy, signal, async instance => {
       signal?.throwIfAborted()
-      return this.monitor(instance, 'research-status', await instance.rpc({ operation: 'research-run', selection: input, ...(project.task_id ? {jobId:String(project.task_id)} : {}) }), onEvent, signal)
+      return this.monitor(instance, 'research-status', await instance.rpc({ operation: 'research-run', selection: input, ...(project.outline_context ? {outlineContext:project.outline_context} : {}), ...(project.task_id ? {jobId:String(project.task_id)} : {}) }), onEvent, signal)
     }, ['parent','text','web'])
   }
   async runReport(project, selection, snapshot, onEvent, signal) {
@@ -199,7 +207,7 @@ export class ProjectWorkers {
     const policy = validateReportSnapshot(snapshot,input)
     return this.withTask(project, policy, signal, async instance => {
       signal?.throwIfAborted()
-      return this.monitor(instance, 'report-status', await instance.rpc({ operation: 'report-run', selection: input }), onEvent, signal)
+      return this.monitor(instance, 'report-status', await instance.rpc({ operation: 'report-run', selection: input, ...(project.outline_context ? {outlineContext:project.outline_context} : {}), ...(project.task_id ? {jobId:String(project.task_id)} : {}) }), onEvent, signal)
     }, roles)
   }
   listArtifacts(project) { return listProjectArtifacts(project.workspace) }

@@ -19,7 +19,7 @@ test('selecting research only prepares a scope; execution submits precisely the 
   const platform = ui.mountPlatform({
     request: async (path, options) => { requests.push([path, options]); return { catalog, plan, selection: { dependencyModuleIds: ['1.01'] }, progress: { status: 'idle', modules: [] } } },
     mutate: async (path, body) => { mutations.push([path, body]); return { id: 'job-1' } },
-    getProject: () => ({ id: 'project-1', jobs: [], revision: 0 }), getIdentity: async () => ({ id: 'alice', role: 'user' }), notify() {},
+    getProject: () => ({ id: 'project-1', outline: {status:'confirmed'}, jobs: [], revision: 0 }), getIdentity: async () => ({ id: 'alice', role: 'user' }), notify() {},
   })
   t.after(() => platform.dispose())
   await platform.openResearch()
@@ -58,17 +58,17 @@ test('task panel retains limited results and cancels the selected task without r
 
 test('changing projects closes the previous research scope so stale selections cannot target another project', async t => {
   assert.equal(typeof ui.mountPlatform, 'function')
-  const document = setup(t); let project = { id: 'project-a', jobs: [] }
+  const document = setup(t); let project = { id: 'project-a', outline: {status:'confirmed'}, jobs: [] }
   const platform = ui.mountPlatform({ request: async () => ({ catalog, plan }), mutate: async () => assert.fail('must not submit stale selection'), getProject: () => project, getIdentity: async () => ({ role: 'user' }), notify() {} })
   t.after(() => platform.dispose())
   await platform.openResearch()
-  project = { id: 'project-b', jobs: [] }; platform.onState(project)
+  project = { id: 'project-b', outline: {status:'confirmed'}, jobs: [] }; platform.onState(project)
   assert.equal(document.querySelector('[data-platform-dialog]')?.open ?? false, false)
 })
 
 test('chapter setup submits the actual requirements and only selected image ids without a fabricated approval', async t => {
   const document = setup(t), mutations = []
-  const project = { id: 'project-1', jobs: [], materials: [{ id: 'image-1', filename: '项目照片.png', image: { width: 200, height: 120 } }, { id: 'text-1', filename: '任务书.txt' }] }
+  const project = { id: 'project-1', outline: {status:'confirmed'}, jobs: [], materials: [{ id: 'image-1', filename: '项目照片.png', image: { width: 200, height: 120 } }, { id: 'text-1', filename: '任务书.txt' }] }
   const platform = ui.mountPlatform({ request: async () => ({ status: 'idle', chapters: [{ chapterId: 'site', prepared: false, readiness: { status: 'blocked', blockers: [{ message: '请先保存章节要求' }] } }] }), mutate: async (...args) => { mutations.push(args); return { status: 'configured' } }, getProject: () => project, getIdentity: async () => ({ role: 'user' }), notify() {} })
   t.after(() => platform.dispose())
   document.querySelector('[data-open="chapters"]').click(); await new Promise(r => setTimeout(r, 20))
@@ -85,10 +85,23 @@ test('chapter setup submits the actual requirements and only selected image ids 
 
 test('research artifact preview displays the owned downloaded text without executing embedded markup', async t => {
   const document = setup(t), body = '# 研究结果\n资料缺口：测绘未完成\n<script>window.bad = true</script>'
-  const platform = ui.mountPlatform({ request: async (path, options) => options?.download ? { filename: '研究汇编.md', blob: new Blob([body]) } : [{ id: 'artifact-1', filename: '研究汇编.md', status: 'unreviewed' }], mutate: async () => assert.fail('preview must not dispatch work'), getProject: () => ({ id: 'project-1', jobs: [] }), getIdentity: async () => ({ role: 'user' }), notify() {} })
+  const platform = ui.mountPlatform({ request: async (path, options) => options?.download ? { filename: '研究汇编.md', blob: new Blob([body]) } : [{ id: 'artifact-1', filename: '研究汇编.md', status: 'unreviewed' }], mutate: async () => assert.fail('preview must not dispatch work'), getProject: () => ({ id: 'project-1', outline: {status:'confirmed'}, jobs: [] }), getIdentity: async () => ({ role: 'user' }), notify() {} })
   t.after(() => platform.dispose()); await platform.openTasks()
   document.querySelector('[data-preview-artifact]').click(); await new Promise(r => setTimeout(r, 20))
   assert.equal(document.querySelector('[data-preview-content]').textContent, body)
   assert.equal(document.querySelector('[data-preview-content] script'), null)
   assert.equal(window.bad, undefined)
+})
+
+test('workflow tasks and both draft download formats have Chinese status labels without implying professional approval', async t => {
+  const document=setup(t),requests=[]
+  const project={id:'project-1',jobs:[{id:'job-1',kind:'workflow',status:'completed',result:{response:'本轮初稿已保存。',workflowDraftId:'draft-1',version:1}}]}
+  const platform=ui.mountPlatform({request:async(path,options)=>{requests.push([path,options]);return [{id:'workflow-draft-1-html',filename:'阶段初稿-V1.html',kind:'workflow-draft',status:'pending_review',bytes:2048},{id:'workflow-draft-1-md',filename:'阶段初稿-V1.md',kind:'workflow-draft',status:'pending_review',bytes:1024}]},mutate:async()=>assert.fail('viewing drafts must not dispatch tasks'),getProject:()=>project,getIdentity:async()=>({role:'user'}),notify(){}})
+  t.after(()=>platform.dispose());await platform.openTasks()
+  assert.match(document.querySelector('.platform-task strong').textContent,/阶段初稿/)
+  assert.match(document.querySelector('[data-artifacts]').textContent,/待审阅/)
+  assert.equal(document.querySelectorAll('[data-artifact]').length,2)
+  assert.equal(document.querySelector('[data-artifact="workflow-draft-1-html"]').textContent,'下载 HTML')
+  assert.equal(document.querySelector('[data-artifact="workflow-draft-1-md"]').textContent,'下载 Markdown')
+  assert.doesNotMatch(document.querySelector('.platform-task').textContent,/workflowDraftId/)
 })

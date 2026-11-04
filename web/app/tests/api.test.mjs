@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import pg from 'pg'
 import { createApp } from '../src/server.mjs'
 import { createPlatformStore } from '../src/platform-store.mjs'
+import {confirmedOutlineFixture} from './fixtures/outline.mjs'
 const root = await mkdtemp(join(tmpdir(), 'pre-web-test-'))
 const pool = new pg.Pool({ host: '/tmp/pre-design-pg-1000', port: 55439, database: 'pre_design_web', user: 'zetta' })
 const schema = `test_${Date.now()}`
@@ -41,6 +42,7 @@ test('requires identity, creates one isolated project, rejects payload reuse and
   const file = await post(`/api/projects/${p.id}/materials`, { requestId: 'upload-2', baseRevision: 0, filename: '任务书.txt', content: Buffer.from('实际资料').toString('base64') })
   assert.equal(file.statusCode, 200, file.body)
   assert.equal(file.json().sha256.length, 64)
+  await confirmedOutlineFixture(db,p.id)
   const task = { requestId: 'task-1', baseRevision: 0, text: '解读资料' }
   const [a, b] = await Promise.all([post(`/api/projects/${p.id}/chat`, task), post(`/api/projects/${p.id}/chat`, task)])
   assert.equal(a.json().id, b.json().id)
@@ -76,4 +78,22 @@ test('requires identity, creates one isolated project, rejects payload reuse and
   assert.equal(recovered.annotations[0].status, 'completed')
   assert.equal(recovered.jobs.find(j=>j.id===crashJob).status, 'completed')
   assert.equal((await post(`/api/projects/${p.id}/materials`, { requestId: 'upload-2', baseRevision: 0, filename: '任务书.txt', content: Buffer.from('实际资料').toString('base64') })).json().id, file.json().id)
+})
+test('binary folder upload filters new CAD and preserves legacy CAD and other files, retains paths, checks ownership and idempotency',async()=>{
+ const p=(await post('/api/projects',{requestId:'folder-project',name:'目录上传测试'})).json()
+ const data=Buffer.concat([Buffer.from('AC1032'),Buffer.alloc(17*1024*1024,7)])
+ const upload=(name,path,id,bytes=data,extra={})=>app.inject({method:'POST',url:`/api/projects/${p.id}/materials?`+new URLSearchParams({filename:name,relativePath:path,requestId:id,baseRevision:'0'}),headers:{...headers,'content-type':'application/octet-stream',...extra},payload:bytes})
+ const denied=await upload('原图.DWG','资料/原图.DWG','cad-block');assert.equal(denied.statusCode,415);assert.equal(denied.json().code,'MATERIAL_CAD_CONVERSION_REQUIRED');assert.match(denied.json().error,/PDF/)
+ const legacyDenied=await post(`/api/projects/${p.id}/materials`,{requestId:'cad-json',baseRevision:0,filename:'图纸.dxf',content:'eA=='});assert.equal(legacyDenied.statusCode,415)
+ const a=await upload('平面.bin','资料/建筑/平面.bin','folder-a');assert.equal(a.statusCode,200,a.body)
+ const b=await upload('平面.bin','资料/结构/平面.bin','folder-b');assert.equal(b.statusCode,200,b.body);assert.notEqual(a.json().id,b.json().id)
+ assert.equal((await upload('平面.bin','资料/建筑/平面.bin','folder-a')).json().id,a.json().id)
+ assert.equal((await upload('平面.bin','资料/建筑/平面.bin','folder-a',Buffer.from('changed'))).statusCode,409)
+ assert.equal((await upload('x.dwg','../x.dwg','escape')).statusCode,400)
+ assert.equal((await upload('x.dwg','x.dwg','cross',Buffer.from('x'),{authorization:`Bearer ${'b'.repeat(40)}`})).statusCode,404)
+ const empty=await upload('README','资料/README','empty',Buffer.alloc(0));assert.equal(empty.statusCode,200,empty.body)
+ const odd=await upload('专业模型.rvt','资料/专业模型.rvt','rvt',Buffer.from([0,255,1]));assert.equal(odd.statusCode,200,odd.body)
+ await db.query("UPDATE materials SET filename='历史原件.dwg',relative_path='资料/历史原件.dwg' WHERE id=$1",[a.json().id])
+ const download=await app.inject({url:`/api/projects/${p.id}/materials/${a.json().id}`,headers});assert.equal(download.statusCode,200);assert.deepEqual(download.rawPayload,data);assert.match(download.headers['content-disposition'],/^attachment/)
+ const state=(await app.inject({url:`/api/projects/${p.id}/state`,headers})).json();assert.equal(state.materials.length,4);assert.equal(state.materials.find(m=>m.id===a.json().id).relativePath,'资料/历史原件.dwg');assert.equal(state.materials.find(m=>m.id===a.json().id).processing.status,'conversion_required')
 })

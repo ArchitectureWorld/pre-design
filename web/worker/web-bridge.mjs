@@ -1,3 +1,4 @@
+import { validateOutlineContext, installOutlinePrompts, recordOutlineContext, withOutlineGeneration } from './outline-generation.mjs'
 // The private Unix socket accepts business operations, never caller supplied commands.
 import { createServer } from 'node:http'
 import { chmod, readFile, unlink, realpath, appendFile } from 'node:fs/promises'
@@ -15,6 +16,7 @@ import { collectExecutionTrace } from './execution-trace.mjs'
 import { recordResearchRequest } from './research-request.mjs'
 import { checkpointCompatibility } from './research-checkpoint.mjs'
 import { prepareChapter, chapterPreflight, chapterReadiness } from './chapter-setup.mjs'
+import {materialReadReceipts} from './material-read-receipts.mjs'
 
 export const name = 'pre-design-web-bridge'
 export const inject = ['preplanning', 'commands', 'agents', 'tools', 'llm', 'web', 'attachments']
@@ -27,6 +29,7 @@ function success(result) {
   return value
 }
 export function createBridgeHandler(ctx, { workspace, sessionId, snapshot, callerUserId, imageAvailability, searchAvailability }) {
+  installOutlinePrompts(ctx.preplanning.subagents)
   let mutation = false, report = { status: 'idle', artifacts: [] }, reportController
   const context = () => ctx.preplanning.repository.readContext(sessionId)
   const research = () => {
@@ -52,10 +55,13 @@ export function createBridgeHandler(ctx, { workspace, sessionId, snapshot, calle
     return success(await ctx.commands.execute(agent, text, [], AbortSignal.timeout(60000)))
   }
   async function handle(input) {
-    const keys = { create: ['name'], state: [], sync: [], confirm: ['proposalId', 'baseRevision'], 'research-plan': ['selection'], 'research-status': [], 'research-run': ['selection','jobId'], 'research-cancel': [], 'report-status': [], 'report-run': ['selection'], 'report-preflight':['selection'], 'chapter-prepare':['chapterId','message','feedback','assets'], 'execution-trace': ['since'] }
+    const keys = { create: ['name'], state: [], sync: [], confirm: ['proposalId', 'baseRevision'], 'research-plan': ['selection'], 'research-status': [], 'research-run': ['selection','jobId','outlineContext'], 'research-cancel': [], 'report-status': [], 'report-run': ['selection','jobId','outlineContext'], 'report-preflight':['selection'], 'chapter-prepare':['chapterId','message','feedback','assets'], 'execution-trace': ['since'], 'material-read-receipts':[] }
     if (!input || !Object.hasOwn(keys, input.operation) || Object.keys(input).some(key => key !== 'operation' && !keys[input.operation].includes(key))) throw researchError('OPERATION_FORBIDDEN')
+    const outline = validateOutlineContext(input.outlineContext)
+    const generation = action => withOutlineGeneration(ctx,{workspace,projectId:context().project.projectId,jobId:input.jobId,operation:input.operation,outline},action)
     const agent = ctx.agents.get(sessionId)
     if (!agent) throw researchError('SESSION_NOT_READY')
+    if(input.operation==='material-read-receipts')return materialReadReceipts(agent.session?.snapshotEvents?.()??[])
     if (input.jobId !== undefined && (typeof input.jobId !== 'string' || !/^[A-Za-z0-9._-]{1,128}$/u.test(input.jobId))) throw researchError('JOB_ID_INVALID')
     if (input.operation === 'execution-trace') return collectExecutionTrace(agent, ctx.preplanning.agentClasses, context().project.projectId, { since: input.since })
     if (input.operation === 'research-status') return status()
@@ -111,18 +117,19 @@ export function createBridgeHandler(ctx, { workspace, sessionId, snapshot, calle
         const projectId = context().project.projectId
         if (research().status(projectId).status === 'running' || report.status === 'running') throw researchError('RESEARCH_ALREADY_RUNNING', 'RESEARCH_ALREADY_RUNNING', 409)
         const plan = research().plan({ moduleIds: selection.moduleIds, flags: selection.flags })
+        await recordOutlineContext(ctx,agent,outline)
         const {newest,compatibility,resumeRunIds}=await resume(selection,agent)
         if (selection.redo && newest && !compatibility.compatible) throw researchError('MODULE_REDO_INPUT_CHANGED','原始资料或任务背景已变化，不能在旧快照单模块重做。请明确选择新快照所需模块范围；旧成果保留。',409,{reason:compatibility.reason})
         if (selection.redo && !resumeRunIds.length) throw researchError('MODULE_REDO_CHECKPOINT_REQUIRED', '所选模块尚无可重放的研究检查点。', 409)
         if (plan.missingDependencies?.length && !resumeRunIds.length) throw researchError('MODULE_DEPENDENCIES_REQUIRED', `请显式选择所需前置模块：${plan.missingDependencies.join('、')}`, 409, { missingDependencies: plan.missingDependencies })
         await recordResearchRequest(ctx, agent, selection, resumeRunIds,{callerUserId,jobId:input.jobId})
-        success(await research().run(agent, { moduleIds: selection.moduleIds, flags: selection.flags,
-          ...(resumeRunIds.length ? { resumeRunIds } : {}), ...(selection.redo ? { reviseModuleIds: selection.moduleIds } : {}) }, new AbortController().signal))
+        success(await generation(() => research().run(agent, { moduleIds: selection.moduleIds, flags: selection.flags,
+          ...(resumeRunIds.length ? { resumeRunIds } : {}), ...(selection.redo ? { reviseModuleIds: selection.moduleIds } : {}) }, new AbortController().signal)))
         return status()
       } else if (input.operation === 'report-run') {
         const selection = validateReportSelection(input.selection)
         if (report.status === 'running' || research().status(context().project.projectId).status === 'running') throw researchError('REPORT_ALREADY_RUNNING', 'REPORT_ALREADY_RUNNING', 409)
-        if (selection.mode === 'research-summary') return createResearchSummary(workspace, selection, context().project.projectId)
+        if (selection.mode === 'research-summary') return generation(() => createResearchSummary(workspace, selection, context().project.projectId))
         const preflight=await chapterPreflight(workspace,selection,await deliveryStatus(),chapterOptions())
         if (!preflight.ready) throw researchError(preflight.blockers[0].code,preflight.blockers[0].message,409,{blockers:preflight.blockers})
         validateReportSnapshot(snapshot,selection)
@@ -130,7 +137,7 @@ export function createBridgeHandler(ctx, { workspace, sessionId, snapshot, calle
         reportController = new AbortController()
         const controller = reportController
         report = { status: 'running', chapterId: selection.chapterId, stage: selection.stage }
-        void Promise.resolve().then(() => ctx.preplanning.reportAccess.chapter(agent, selection.chapterId, selection.stage, controller.signal))
+        void Promise.resolve().then(() => generation(() => ctx.preplanning.reportAccess.chapter(agent, selection.chapterId, selection.stage, controller.signal)))
           .then(result => { controller.signal.throwIfAborted(); report = { ...report, status: 'completed', message: typeof result === 'string' ? result : result?.text } })
           .catch(error => { report = { ...report, status: controller.signal.aborted ? 'cancelled' : 'failed', error: String(error.message ?? 'REPORT_FAILED') } })
         return report
@@ -160,7 +167,7 @@ export async function apply(ctx) {
       compileWorkflow: compileFlux3Workflow,
     } })
   }
-  installProjectBoundary(ctx, { sessionId, workspace })
+  installProjectBoundary(ctx, { sessionId, workspace, readOnly:process.env.PRE_WEB_READ_ONLY==='true' })
   await installModelBoundary(ctx, { sessionId, ...policy })
   const handle = createBridgeHandler(ctx, { workspace, sessionId, ...policy, callerUserId:process.env.PRE_WEB_CALLER_USER_ID })
   const server = createServer(async (req, res) => {

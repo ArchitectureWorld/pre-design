@@ -25,6 +25,22 @@ async function source(root: string, text: string, path = '原始资料/brief.txt
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))) })
 
 describe('material corpus', () => {
+  it('includes nested folder uploads and original JSON names that match generated metadata', async () => {
+    const root = await workspace()
+    const directory = join(root, '原始资料', '项目', '建筑', '方案', 'upload-uuid')
+    await mkdir(directory, { recursive: true })
+    for (const name of ['说明.txt', 'project.json', 'rules.json', 'outline.json', 'manifest.json', '.source.json']) {
+      await writeFile(join(directory, name), JSON.stringify({ name, note: '用户原始资料' }))
+    }
+    await writeFile(join(root, 'project.json'), '{"note":"系统文件，不作为原件"}')
+    const inventory = await new WorkspaceMaterialReader().list(root)
+    expect(inventory.truncated).toBe(false)
+    expect(inventory.files).toHaveLength(6)
+    const corpus = await captureMaterialCorpus(root)
+    expect(corpus.documents).toHaveLength(6)
+    expect(corpus.documents.every(doc => doc.path.startsWith('原始资料/项目/建筑/方案/upload-uuid/'))).toBe(true)
+  })
+
   it('extracts all real PDF pages across batches and deduplicates byte-identical originals/copies', async () => {
     const root = await workspace()
     const bytes = materialPdf(Array.from({ length: 12 }, (_, index) => `Physical page ${index + 1}`))

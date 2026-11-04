@@ -1,0 +1,13 @@
+[Unit]
+Description=Ensure the existing shared Pre-design PostgreSQL instance is started
+
+[Service]
+Type=oneshot
+WorkingDirectory=/media/zetta/55c3d58e-22b5-4ac9-80d7-435081fb7a10/Development/pre-design-web
+ExecStart=/media/zetta/55c3d58e-22b5-4ac9-80d7-435081fb7a10/Development/pre-design-web/web/app/local-postgres.sh start
+RemainAfterExit=yes
+TimeoutStartSec=60
+UMask=0077
+
+[Install]
+WantedBy=default.target

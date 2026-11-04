@@ -3,6 +3,10 @@ import assert from 'node:assert/strict'
 import vm from 'node:vm'
 import { webcrypto } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
+import {partitionMaterialUploads,isCadMaterial,CAD_CONVERSION_MESSAGE} from '../src/material-policy.mjs'
+import {flowEditorState} from '../src/outline-flow.js'
+import {chapterCapabilityLabel} from '../src/outline-view.js'
+import {currentWorkflowVisual} from '../src/workflow-ui.js'
 import { ProjectWorkers } from '../../worker/runtime.mjs'
 test('discards a dead worker after a failed bridge call without replaying that operation', async () => {
  const workers = new ProjectWorkers({}), p={id:'project'};let starts=0,closes=0
@@ -14,11 +18,11 @@ test('discards a dead worker after a failed bridge call without replaying that o
 })
 function ui(){
  const actions=[],elements=new Map();const el=()=>({classList:{add(){},remove(){},toggle(){}},value:'',textContent:'',style:{}})
- const context=vm.createContext({console,crypto:{randomUUID:()=>String(Math.random())},sessionStorage:{getItem:()=>null,setItem(){},removeItem(){}},document:{addEventListener(){}},setTimeout,AbortController,
+ const context=vm.createContext({console,currentWorkflowVisual,chapterCapabilityLabel,partitionMaterialUploads,isCadMaterial,CAD_CONVERSION_MESSAGE,flowEditorState,crypto:{randomUUID:()=>String(Math.random())},sessionStorage:{getItem:()=>null,setItem(){},removeItem(){}},document:{addEventListener(){}},setTimeout,AbortController,
  state:{currentProjectId:'A',stage:'overview',scripts:{},annotations:[]},projectRecords:[{id:'A',name:'A'}],$:(id)=>{if(!elements.has(id))elements.set(id,el());return elements.get(id)},closeProjectMenu(){},closeLibrary(){},setStage(stage){context.state.stage=stage;actions.push(stage)},enterWorkspace(){actions.push('workspace')},toast(){}})
  return {context,actions,elements}
 }
-const source=await readFile(new URL('../src/prototype-api.js',import.meta.url),'utf8')
+const source=(await readFile(new URL('../src/prototype-api.js',import.meta.url),'utf8')).replace(/^import .*\n/gm,'')
 test('proposal review exposes actual quality issues in the existing evidence sidebar',()=>{
  const {context}=ui();context.updateProjectSwitcher=()=>{};
  vm.runInContext(source+'\nglobalThis.test={applySnapshot};',context)
@@ -29,6 +33,17 @@ test('proposal review exposes actual quality issues in the existing evidence sid
  assert.match(context.state.scripts['script-1-1'].evidence,/产权资料待补充/)
  value.core={stateObjects:[{objectId:'PS01',value:payload}],proposals:[]};context.test.applySnapshot(value)
  assert.match(context.state.scripts['script-1-1'].evidence,/860平方米未经测绘核验/)
+})
+test('章节草案保留专业文字审阅入口，已确认文本不冒充可视化成果',()=>{
+ const {context}=ui();context.updateProjectSwitcher=()=>{};context.graphData=[]
+ vm.runInContext(source+'\nglobalThis.test={applySnapshot,allScriptEntries,allVisualEntries};',context)
+ const payload={data:{canonical_name:'真实专业对象'}}
+ context.test.applySnapshot({id:'A',name:'测试',revision:1,materials:[],annotations:[],outline:{draft:{chapters:[{id:'01',tasks:['计划任务'],gaps:[]}]}},core:{stateObjects:[{objectId:'PS02',value:payload}],proposals:[{proposalId:'review-me',status:'pending_review',envelope:{target_object_id:'PS01',change_set:{payload}}}]}})
+ assert.ok(context.test.allScriptEntries().some(s=>context.state.scripts[s.script.id].proposalId==='review-me'))
+ const confirmed=context.test.allScriptEntries().find(section=>context.state.scripts[section.script.id].objectId==='PS02')
+ assert.ok(confirmed,'已确认专业文字仍进入脚本预览')
+ assert.match(context.state.scripts[confirmed.script.id].body,/真实专业对象/)
+ assert.equal(context.test.allVisualEntries().length,0,'专业文字确认不会创建可视化成果')
 })
 test('LAN HTTP mutations work without secure-context crypto.randomUUID',async()=>{
  const {context}=ui();context.crypto={getRandomValues:array=>webcrypto.getRandomValues(array)};
@@ -64,4 +79,12 @@ test('a cancelled creation does not upload files from the next project',async()=
  context.state.files=[{name:'B.txt',file:{}}];context.state.projectName='B';context.state.currentProjectId=null;context.test.server.navigation++
  resolve({id:'A'});await creation
  assert.deepEqual(calls,['/projects']);assert.equal(context.state.currentProjectId,null)
+})
+test('folder selection retains same-name files in different directories and filters CAD for PDF or image replacement',()=>{
+ const {context}=ui();context.state.files=[];context.renderFiles=()=>{}
+ vm.runInContext(source+'\nglobalThis.test={addFiles};renderFiles=()=>{};',context)
+ context.test.addFiles([{name:'平面.dwg',size:12*1024*1024,type:'',webkitRelativePath:'资料/建筑/平面.dwg'},{name:'平面.dwg',size:12*1024*1024,type:'',webkitRelativePath:'资料/结构/平面.dwg'},{name:'模型.rvt',size:1,type:''},{name:'README',size:0,type:''}])
+ assert.equal(context.state.files.length,2);assert.equal(context.state.cadReplacements.length,2)
+ assert.equal(context.state.cadReplacements[0],'资料/建筑/平面.dwg')
+ assert.equal(context.state.cadReplacements[1],'资料/结构/平面.dwg')
 })

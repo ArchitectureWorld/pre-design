@@ -1,13 +1,13 @@
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
-const labels = { queued: '等待执行', running: '执行中', cancelling: '正在取消', cancelled: '已取消', completed: '已完成', partial: '有资料缺口', failed: '未完成', interrupted: '中断，需检查', unreviewed: '未经报告审查', idle: '尚未执行' }
+const labels = { queued: '等待执行', running: '执行中', cancelling: '正在取消', cancelled: '已取消', completed: '已完成', partial: '有资料缺口', failed: '未完成', interrupted: '中断，需检查', unreviewed: '未经报告审查', pending_review:'待审阅', reviewed:'已审阅', draft:'待审阅', stale:'旧版', idle: '尚未执行' }
 const conditions = { industryPlanning: '涉及产业策划', existingBuildings: '存在既有建筑', externalPartners: '涉及外部合作方', marketing: '需要营销策划' }
 const chapters = { opportunity: '机会与背景', site: '场地研究', positioning: '项目定位', products: '产品策划', spatial: '空间策略', launch: '启动实施', operation: '运营策划' }
 const stages = { 'production-plan': '制定成果计划', 'production-research': '补充成果研究', 'production-write': '撰写成果脚本', 'production-visuals': '生成图像', 'production-layout': '成果排版', 'production-export': '导出成果', 'production-review': '审查成果', write: '撰写章节正文', review: '审查章节正文', revise: '修订章节正文' }
 
-export function mountPlatform({ request, mutate, getProject, getIdentity, notify, onResearch = () => {}, mountAdmin = () => ({ dispose() {} }) }) {
+export function mountPlatform({ request, mutate, getProject, getIdentity, notify, onResearch = () => {}, openOutline = () => {}, mountAdmin = () => ({ dispose() {} }) }) {
   const container = document.querySelector('.top-right'), controls = document.createElement('div')
   controls.className = 'platform-controls'
-  controls.innerHTML = '<button type="button" data-open="research">研究范围</button><button type="button" data-open="tasks">任务与成果</button><button type="button" data-open="chapters">章节生产</button>'
+  controls.innerHTML = '<button type="button" data-open="outline">章节流程</button><button type="button" data-open="research">研究范围</button><button type="button" data-open="tasks">任务与成果</button><button type="button" data-open="chapters">章节生产</button>'
   container?.prepend(controls)
   let dialog, panelProject, panelKind, ticket = 0, currentIdentity, admin, cache, busy = false, returnFocus
   const selected = new Set(), flags = Object.fromEntries(Object.keys(conditions).map(key => [key, 'unknown']))
@@ -42,6 +42,7 @@ export function mountPlatform({ request, mutate, getProject, getIdentity, notify
     const run = dialog?.querySelector('[data-action="run-research"]'); if (run) run.disabled = !selected.size
   }
   async function openResearch() {
+    if(getProject()?.outline?.status!=='confirmed'){notify('请先梳理资料并确认章节流程。');openOutline();return}
     const id = begin('research', '选择研究范围'); if (!id) return
     const generation = ticket
     try {
@@ -68,8 +69,9 @@ export function mountPlatform({ request, mutate, getProject, getIdentity, notify
       <div class="platform-conditions">${Object.entries(conditions).map(([key, label]) => `<label>${label}<select data-condition="${key}"><option value="unknown">待确认</option><option value="true">是</option><option value="false">否</option></select></label>`).join('')}</div>
       <div class="platform-scope-actions"><span>已选 <b data-selected-count>${selected.size}</b> 项 / ${catalog.modules.length} 项</span><button type="button" data-action="check-plan">检查条件与依赖</button><button type="button" data-action="add-dependencies">添加提示的依赖</button><button type="button" data-action="clear-scope">清空选择</button></div>
       <div class="platform-modules">${[...byChapter].map(([id, rows]) => `<section><h3>第 ${escape(id)} 章 · ${escape(names.get(id) ?? '研究模块')}</h3>${rows.map(m => {
-        const badge = plan.inactiveModuleIds?.includes(m.id) ? '当前不适用' : plan.pendingModuleIds?.includes(m.id) ? '条件待确认' : plan.blockedModuleIds?.includes(m.id) ? '依赖未满足' : '可选择'
-        return `<label class="platform-module"><input type="checkbox" data-module="${escape(m.id)}" ${selected.has(m.id) ? 'checked' : ''}><span><b>${escape(m.id)}</b> ${escape(m.title)}</span><small>${badge}</small></label>`
+        const conditionBlock=cache.outlineReadiness?.blockedModules?.[m.id]
+        const badge = conditionBlock ? '资料条件未满足' : plan.inactiveModuleIds?.includes(m.id) ? '当前不适用' : plan.pendingModuleIds?.includes(m.id) ? '条件待确认' : plan.blockedModuleIds?.includes(m.id) ? '依赖未满足' : '可选择'
+        return `<label class="platform-module"><input type="checkbox" data-module="${escape(m.id)}" ${conditionBlock?'disabled':''} title="${escape(conditionBlock??'')}" ${selected.has(m.id) ? 'checked' : ''}><span><b>${escape(m.id)}</b> ${escape(m.title)}</span><small>${badge}</small></label>`
       }).join('')}</section>`).join('')}</div>
       <div class="platform-footer"><label><input type="checkbox" data-redo> 重做所选模块，保留其他成果</label><button type="button" class="primary-btn" data-action="run-research" ${selected.size ? '' : 'disabled'}>开始所选研究 ↗</button></div>`
     renderServiceStatus()
@@ -102,6 +104,8 @@ export function mountPlatform({ request, mutate, getProject, getIdentity, notify
     cache = { ...cache, ...result }
     renderServiceStatus()
     const missing = (result.selection?.dependencyModuleIds ?? []).filter(item => !selected.has(item))
+    const conditionIssues=Object.entries(result.outlineReadiness?.blockedModules??{}).filter(([id])=>selected.has(id)).map(([id,reason])=>`${id}：${reason}`)
+    if(conditionIssues.length)throw new Error(conditionIssues.join('；'))
     const unresolved = [...(result.plan?.pendingModuleIds ?? []), ...(result.plan?.blockedModuleIds ?? [])].filter(item => selected.has(item))
     message([missing.length ? `所选范围涉及上游依赖：${missing.join('、')}；请确认是否需要加入，已有有效成果可由后端复用。` : '所选范围已检查。', unresolved.length ? `条件或依赖待补充：${unresolved.join('、')}。` : ''].join(' '))
     return result
@@ -113,7 +117,7 @@ export function mountPlatform({ request, mutate, getProject, getIdentity, notify
   }
   function renderTasks() {
     const rows = [...(getProject()?.jobs ?? [])].reverse()
-    dialog.querySelector('.platform-body').innerHTML = `<div class="platform-task-list">${rows.map(job => `<article class="platform-task"><div><strong>${escape({ research: '模块研究', report: '成果报告', chat: '项目问询', intake: '资料解读', confirm: '确认提案', annotations: '批注修订' }[job.kind] ?? job.kind)}</strong><span>${escape(labels[job.status] ?? job.status)}</span>${['queued', 'running', 'cancelling'].includes(job.status) ? `<button type="button" data-cancel-job="${escape(job.id)}" ${job.status === 'cancelling' ? 'disabled' : ''}>取消任务</button>` : ''}</div><small>${escape(job.created_at ? new Date(job.created_at).toLocaleString('zh-CN') : '')}</small>${job.error ? `<p>${escape(job.error)}</p>` : ''}${job.result?.limitations?.length ? `<p class="platform-limitation">${escape(job.result.limitations.join('；'))}</p>` : ''}${job.result ? `<details><summary>查看执行结果</summary><pre>${escape(JSON.stringify(job.result, null, 2))}</pre></details>` : ''}</article>`).join('') || '<p>尚未提交任务，请先选择研究范围。</p>'}</div><h3>可下载成果</h3><p class="platform-description">下载保留来源和限制说明。研究生成完成不代表报告已通过审阅。</p><div data-artifacts>正在读取…</div><button type="button" data-action="assemble">汇编所选研究成果</button>`
+    dialog.querySelector('.platform-body').innerHTML = `<div class="platform-task-list">${rows.map(job => `<article class="platform-task"><div><strong>${escape({ workflow:'阶段初稿', outline:'章节核对', research: '模块研究', report: '成果报告', chat: '项目问询', intake: '资料解读', confirm: '确认提案', annotations: '批注修订' }[job.kind] ?? '项目任务')}</strong><span>${escape(labels[job.status] ?? job.status)}</span>${['queued', 'running', 'cancelling'].includes(job.status) ? `<button type="button" data-cancel-job="${escape(job.id)}" ${job.status === 'cancelling' ? 'disabled' : ''}>取消任务</button>` : ''}</div><small>${escape(job.created_at ? new Date(job.created_at).toLocaleString('zh-CN') : '')}</small>${job.progress?.label&&['queued','running','cancelling'].includes(job.status)?`<p>${escape(job.progress.label)}</p>`:''}${job.error ? `<p>${escape(job.error)}</p>` : ''}${job.result?.limitations?.length ? `<p class="platform-limitation">${escape(job.result.limitations.join('；'))}</p>` : ''}${job.result ? job.kind==='workflow'?`<p>${escape(job.result.response||'阶段初稿已保存，请逐条审阅。')}</p>`:`<details><summary>查看执行结果</summary><pre>${escape(JSON.stringify(job.result, null, 2))}</pre></details>` : ''}</article>`).join('') || '<p>尚未提交任务，可先生成本轮初稿。</p>'}</div><h3>可下载成果</h3><p class="platform-description">初稿可随时下载，保留审阅状态、来源和缺口。</p><div data-artifacts>正在读取…</div><button type="button" data-action="assemble">汇编所选研究成果</button>`
     for (const button of dialog.querySelectorAll('[data-cancel-job]')) button.onclick = () => void perform(async () => {
       const id = panelProject; button.disabled = true
       await request(`/projects/${id}/jobs/${button.dataset.cancelJob}/cancel`, { method: 'POST', body: {} })
@@ -127,7 +131,7 @@ export function mountPlatform({ request, mutate, getProject, getIdentity, notify
   }
   function renderArtifacts(artifacts) {
     const target = dialog?.querySelector('[data-artifacts]'); if (!target) return
-    target.innerHTML = (artifacts ?? []).map(a => `<div class="platform-artifact"><div><strong>${escape(a.filename)}</strong><small>${a.kind === 'generated-concept' ? 'AI 概念图 · ' : ''}${escape(labels[a.status] ?? a.status ?? a.kind)} · ${Math.ceil((a.bytes ?? 0) / 1024)} KB</small></div><div>${/\.(md|txt|json)$/iu.test(a.filename) ? `<button type="button" data-preview-artifact="${escape(a.id)}">预览文字</button> ` : ''}<button type="button" data-artifact="${escape(a.id)}">下载</button></div></div>`).join('') || '<p>暂无成果。完成研究后，可下载原始结果或汇编报告。</p>'
+    target.innerHTML = (artifacts ?? []).map(a => {const visual=String(a.id).startsWith('workflow-visual-'),workflow=String(a.id).startsWith('workflow-'),status=visual?(a.stale||a.status==='stale'?'旧版 HTML 汇报页集':'HTML 汇报页集'):workflow?(a.stale||a.status==='stale'?'旧版初稿':a.status==='approved'?'阶段初稿 · 整稿已确认':a.status==='reviewed'?'阶段初稿 · 已审阅':'阶段初稿 · 待审阅'):(labels[a.status]??a.status??a.kind),format=workflow?/\.html$/iu.test(a.filename)?' HTML':/\.md$/iu.test(a.filename)?' Markdown':'':'';return `<div class="platform-artifact"><div><strong>${escape(a.filename)}</strong><small>${a.kind === 'generated-concept' ? 'AI 概念图 · ' : ''}${escape(status)} · ${Math.ceil((a.bytes ?? 0) / 1024)} KB</small></div><div>${/\.(md|txt|json)$/iu.test(a.filename) ? `<button type="button" data-preview-artifact="${escape(a.id)}">预览文字</button> ` : ''}<button type="button" data-artifact="${escape(a.id)}">下载${format}</button></div></div>`}).join('') || '<p>暂无成果。生成本轮初稿后，可下载 HTML 或 Markdown。</p>'
     for (const button of target.querySelectorAll('[data-preview-artifact]')) button.onclick = () => void perform(async () => {
       const id = panelProject, file = await request(`/projects/${id}/artifacts/${button.dataset.previewArtifact}`, { download: true })
       const content = await file.blob.text()
@@ -142,6 +146,7 @@ export function mountPlatform({ request, mutate, getProject, getIdentity, notify
     })
   }
   async function openChapters() {
+    if(getProject()?.outline?.status!=='confirmed'){notify('请先确认章节流程，再准备章节成果。');openOutline();return}
     const id = begin('chapters', '章节生产'); if (!id) return
     chapterStatus = {}; renderChapters()
     try { await refreshChapters(id) } catch (error) { if (active(id)) message(error.message) }
@@ -201,6 +206,7 @@ export function mountPlatform({ request, mutate, getProject, getIdentity, notify
       if (active(id)) message('章节任务已提交，请在任务与成果中查看结果。')
     })
   }
+  controls.querySelector('[data-open="outline"]').onclick = () => {if(!getProject()?.id){notify('请先创建或打开项目。');return}close();openOutline()}
   controls.querySelector('[data-open="research"]').onclick = () => void openResearch()
   controls.querySelector('[data-open="tasks"]').onclick = () => void openTasks()
   controls.querySelector('[data-open="chapters"]').onclick = () => void openChapters()

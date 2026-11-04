@@ -1,3 +1,4 @@
+import {confirmedOutlineFixture} from './fixtures/outline.mjs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { MODEL_CATALOG, defaultPolicy, migrateServicePolicy, validatePolicy, validateSnapshot } from '../src/model-policy.mjs'
@@ -253,6 +254,7 @@ test('research cannot enqueue or reserve quota with a persisted verified text mo
   textOnly.status = 'verified'; policy.routes.text.primary = official('deepseek-v4-pro')
   // Simulates a version saved under the previous text-only capability contract.
   await db.query('UPDATE platform_policy_versions SET policy=$1 WHERE revision=1', [policy])
+  await confirmedOutlineFixture(db,created.json().id)
   const response = await request(`/api/projects/${created.json().id}/research`, { requestId: randomUUID(), baseRevision: 0, moduleIds: ['1.01'],
     flags: { industryPlanning: false, existingBuildings: false, externalPartners: false, marketing: false } })
   assert.equal(response.statusCode, 400, response.body)

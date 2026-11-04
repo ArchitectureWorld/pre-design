@@ -9,6 +9,8 @@ const SOURCE_DIRECTORIES = new Set(['原始资料', 'source-materials'])
 const GENERATED_FILES = new Set(['project.json', 'rules.json', 'outline.json', 'manifest.json'])
 const MAX_FILES = 256
 const MAX_DEPTH = 4
+// Web accepts 32 relative components, plus the original-material root and UUID leaf.
+const MAX_ORIGINAL_DEPTH = 34
 
 export interface MaterialReadInput {
   readonly path: string
@@ -66,18 +68,19 @@ export class WorkspaceMaterialReader {
     const walk = async (directory: string, depth: number): Promise<void> => {
       signal?.throwIfAborted()
       const rows = (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
+      const originals = relative(root, directory).split(sep)[0] === '原始资料'
       for (const row of rows) {
         signal?.throwIfAborted()
-        if (row.name.startsWith('.') || row.isSymbolicLink()) continue
+        if ((!originals && row.name.startsWith('.')) || row.isSymbolicLink()) continue
         const requested = join(directory, row.name)
         if (row.isDirectory()) {
           if (depth === 0 && !SOURCE_DIRECTORIES.has(row.name)) continue
-          if (depth >= MAX_DEPTH) { truncated = true; continue }
+          if (depth >= (originals ? MAX_ORIGINAL_DEPTH : MAX_DEPTH)) { truncated = true; continue }
           const target = await realpath(requested)
           if (inside(root, target)) await walk(target, depth + 1)
           continue
         }
-        if (!row.isFile() || GENERATED_FILES.has(row.name)) continue
+        if (!row.isFile() || (!originals && GENERATED_FILES.has(row.name))) continue
         const extension = extname(row.name).toLowerCase()
         if (depth === 0 && extension !== '.pdf' && !TEXT_EXTENSIONS.has(extension)) continue
         if (files.length >= MAX_FILES) { truncated = true; return }

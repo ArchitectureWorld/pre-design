@@ -24,6 +24,10 @@ test('实际工具守卫覆盖父子Agent、越界软链接和伪造提案身份
   assert.equal(call('structured_output', { result: 'ok' }, child), undefined)
   const envelope = { project_id: 'p1', expected_revision: 2, actor: { actor_id: 'parent', role: 'agent' }, validation_intent: 'human_review', requested_state: 'pending_review' }
   assert.equal(call('preplanning_apply_commands', { envelope }), undefined)
+  const readOnlyGuard=boundary.createProjectToolGuard({workspace,sessionId:'parent',agents,readOnly:true,readContext:()=>({project:{projectId:'p1',currentRevision:2}})})
+  assert.equal(readOnlyGuard({agent:parent,name:'preplanning_get_context',arguments:{}}),undefined)
+  assert.equal(readOnlyGuard({agent:parent,name:'preplanning_apply_commands',arguments:{envelope}}),'WEB_OUTLINE_READ_ONLY')
+  assert.equal(readOnlyGuard({agent:child,name:'comfyui_pic',arguments:{}}),'WEB_OUTLINE_READ_ONLY')
   for (const update of [{ project_id: 'p2' }, { expected_revision: 1 }, { requested_state: 'confirmed' }, { actor: { actor_id: 'other', role: 'agent' } }]) assert.match(call('preplanning_apply_commands', { envelope: { ...envelope, ...update } }), /WEB_/)
   assert.match(call('preplanning_apply_commands', { envelope }, child), /WEB_/)
   assert.match(call('comfyui_pic', {mode:'generate',prompt:'x'}), /WEB_/)

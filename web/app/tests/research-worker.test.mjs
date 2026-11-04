@@ -72,3 +72,35 @@ test('已经取消的任务在模型校验与Worker启动前退出',async()=>{
   await assert.rejects(worker.runResearch(project,selection,null,undefined,controller.signal),/USER_CANCELLED_EARLY/)
   assert.equal(worker.instances.size,0)
 })
+test('普通Agent从SDK session.event读取真实活动，只传固定标签而不外传消息、思考和工具参数',async()=>{
+  const secret='PRIVATE_THOUGHT_AND_API_KEY', notifications=[
+    {method:'session.status',params:{sessionId:project.session_id,status:'running'}},
+    ...[
+      ['turn/start',{turn:1}],
+      ['step/start',{turn:1,step:1}],
+      ['tool/call',{turn:1,step:1,callId:'read',name:'preplanning_read_material',arguments:secret}],
+      ['tool/result',{turn:1,step:1,message:{toolCallId:'read',content:[{type:'text',text:secret}]}}],
+      ['tool/call',{turn:1,step:1,callId:'context',name:'preplanning_get_context',arguments:secret}],
+      ['tool/call',{turn:1,step:1,callId:'other',name:secret,arguments:secret}],
+      ['assistant/message',{turn:1,step:1,message:{role:'assistant',content:[{type:'thinking',thinking:secret},{type:'text',text:secret}]},stream:[]}],
+      ['assistant/reasoning',{text:secret}],
+      ['turn/end',{turn:1,reason:{kind:'completed'}}],
+    ].map(([type,data],seq)=>({method:'session.event',params:{sessionId:project.session_id,event:{type,data,seq,time:Date.now()}}})),
+    {method:'session.status',params:{sessionId:project.session_id,status:'idle'}},
+  ]
+  class AgentFixture extends ProjectWorkers {
+    async start(){return{harness:{close:async()=>{}},session:{run:async(_text,{onNotification})=>{
+      for(const notification of notifications)onNotification(notification)
+      return{finalResponse:'可审阅的回复',events:[{type:'turn/end',data:{reason:{kind:'completed'}}}]}
+    }}}}
+  }
+  const worker=new AgentFixture(),events=[]
+  try{
+    const result=await worker.run(project,'test',value=>events.push(value),snapshot())
+    assert.equal(result.response,'可审阅的回复')
+    assert.deepEqual(events.map(value=>value.stage),['agent_running','generating','reading_material','tool_result','reading_context','tool_running','response_received'])
+    assert.ok(events.every(value=>typeof value.label==='string'&&Object.keys(value).sort().join(',')==='label,stage'))
+    assert.doesNotMatch(JSON.stringify(events),new RegExp(secret))
+    assert.ok(!events.some(value=>['completed','failed','cancelled'].includes(value.stage)),'SDK活动不能决定API任务终态')
+  }finally{await worker.closeAll()}
+})

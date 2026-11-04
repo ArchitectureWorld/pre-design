@@ -3,6 +3,7 @@ import { readFile, mkdir, writeFile, rm } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import ts from 'typescript'
 const root = resolve(import.meta.dirname)
+const outputRoot = resolve(process.env.PRE_WEB_BUILD_DIR || resolve(root,'dist'))
 const prototype = await readFile(resolve(root, '../index.html'), 'utf8')
 const overrides = await readFile(resolve(root, 'src/prototype-api.js'), 'utf8')
 const source = prototype.match(/<script>\s*([\s\S]*?)<\/script>/)[1]
@@ -28,18 +29,26 @@ let html = prototype.replace(/<style>[\s\S]*?<\/style>/, '<link rel="stylesheet"
   .replace(/<script>[\s\S]*?<\/script>/, '<script type="module" src="/prototype.js"></script>')
   .replace(/<title>.*?<\/title>/, '<title>Pre-design · Web 工作平台</title>')
   .replace(' 交互演示</div>', ' 本地工作空间</div>')
-  .replace('PDF、PPT、Word、Excel、CAD、图片等均可添加', '支持 PDF、TXT、Markdown、CSV、JSON，以及 PNG、JPEG、WebP 图片')
+  .replace('PDF、PPT、Word、Excel、CAD、图片等均可添加', 'CAD请先导出PDF或图像；支持文件夹及其他资料，单文件512 MB')
   .replace('演示账号：策划人员A · 服务器路径自动分配', '项目与资料保存在服务器 · 路径自动分配')
-  .replace('项目文件统一保存至服务器 · UI 演示不会真实上传', '原件保存在项目空间 · 上传完成后选择研究范围')
-  .replace('模拟工作流：无网络请求，不会写入服务器磁盘', '资料原样上传并校验 · 研究任务由你选择后发起')
+  .replace('项目文件统一保存至服务器 · UI 演示不会真实上传', '原件保存在项目空间 · 先梳理章节，再由你确认')
+  .replace('模拟工作流：无网络请求，不会写入服务器磁盘', '资料原样上传并校验 · 基于资料形成章节草案')
   .replace('>模拟执行<', '>建立项目空间<')
   .replace('正在初始化演示工作区', '正在初始化项目空间')
   .replace('项目会话 · 预设 Agent 模型', '项目问询 · 研究与修订')
-html = html.replace('</head>', '<link rel="stylesheet" href="/platform-ui.css"><link rel="stylesheet" href="/admin-ui.css"></head>')
-await rm(resolve(root, 'dist'), { recursive: true, force: true })
-await mkdir(resolve(root, 'dist'), { recursive: true })
-await writeFile(resolve(root, 'dist/index.html'), html)
-await writeFile(resolve(root, 'dist/prototype.css'), css)
+  .replace('首轮问询</div>','章节梳理与确认</div>')
+  .replace('先明确策划方向','一起编排本轮章节')
+  .replace('已完成资料分类与研究项对照。只询问现有资料无法确定的关键信息。','拖动调整章节，加入需要的模块。提交后核对资料，再补充或明确跳过缺项。')
+// Add a folder picker beside the existing file button, retaining the prototype's styles.
+html=html.replace('拖入文件，或点击选择','拖入文件或文件夹，或点击选择').replace(/(<input[^>]+id="(?:createFileInput|chatFileInput)"[^>]*?) accept="[^"]*"/g,'$1')
+  .replace(/(<button[^>]+id="chooseFilesBtn"[^>]*>[^<]*<\/button>)/,'$1<button type="button" id="chooseFolderBtn" class="link-like">选择文件夹</button>')
+html=html.replace('</body>','<input type="file" id="outlineFileInput" class="hidden" multiple><input type="file" id="createFolderInput" class="hidden" webkitdirectory directory multiple></body>')
+html=html.replace(/(<button id="chatAttachBtn"[^>]*>)[\s\S]*?(<\/button>)/,'$1<svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.7" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 16v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" stroke-linecap="round" stroke-linejoin="round"/></svg>$2')
+html = html.replace('</head>', '<link rel="stylesheet" href="/platform-ui.css"><link rel="stylesheet" href="/admin-ui.css"><link rel="stylesheet" href="/outline-flow.css"><link rel="stylesheet" href="/outline-agent.css"><link rel="stylesheet" href="/workflow-ui.css"><link rel="stylesheet" href="/workflow-graph.css"></head>')
+await rm(outputRoot, { recursive: true, force: true })
+await mkdir(outputRoot, { recursive: true })
+await writeFile(resolve(outputRoot, 'index.html'), html)
+await writeFile(resolve(outputRoot, 'prototype.css'), css)
 const bootstrap = `
 import { mountPlatform } from './platform-ui.js';
 import { mountAdminControls } from './admin-ui.js';
@@ -50,9 +59,9 @@ globalThis.prePlatform = mountPlatform({
     if(options.download){const disposition=response.headers.get('Content-Disposition') || '';const encoded=disposition.split("filename*=UTF-8''")[1];return {blob:await response.blob(),filename:encoded?decodeURIComponent(encoded):'研究成果'};}
     return response.json();
   },
-  mutate, getProject:()=>server.current?.id===state.currentProjectId?server.current:null, getIdentity:()=>api('/me'), notify:toast, mountAdmin:mountAdminControls,
+  mutate, getProject:()=>server.current?.id===state.currentProjectId?server.current:null, getIdentity:()=>api('/me'), notify:toast, mountAdmin:mountAdminControls, openOutline:startConsult,
 });
 `
-await writeFile(resolve(root, 'dist/prototype.js'), `${overrides}\n${script}\n${bootstrap}`)
-for (const name of ['platform-ui.js', 'platform-ui.css', 'admin-ui.js', 'admin-ui.css', 'service-defaults.mjs']) await writeFile(resolve(root, 'dist', name), await readFile(resolve(root, 'src', name)))
+await writeFile(resolve(outputRoot, 'prototype.js'), `${overrides}\n${script}\n${bootstrap}`)
+for (const name of ['platform-ui.js', 'platform-ui.css', 'admin-ui.js', 'admin-ui.css', 'service-defaults.mjs','outline-view.js','outline-flow.js','outline-drag.js','outline-flow.css','outline-agent.js','outline-agent.css','material-policy.mjs','workflow-ui.js','workflow-ui.css','workflow-content.mjs','workflow-visual-view.mjs','workflow-graph.js','workflow-graph.css','workflow-node-drag.js']) await writeFile(resolve(outputRoot, name), await readFile(resolve(root, 'src', name)))
 console.log('Built from web/index.html: original CSS and page structure preserved; API adapter replaces simulated operations.')

@@ -1,0 +1,19 @@
+[Unit]
+Description=Pre-design Web v2.1.0
+Wants=network-online.target
+After=network-online.target pre-design-local-postgres.service
+Requires=pre-design-local-postgres.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=/media/zetta/55c3d58e-22b5-4ac9-80d7-435081fb7a10/Development/pre-design-web-v210
+Environment=PRE_WEB_CONFIG=/media/zetta/55c3d58e-22b5-4ac9-80d7-435081fb7a10/Development/pre-design-web-v210/.local/web/config.json
+ExecStart=/media/zetta/55c3d58e-22b5-4ac9-80d7-435081fb7a10/Development/pre-design-web-v210/web/app/start-local.sh
+Restart=always
+RestartSec=5
+TimeoutStopSec=60
+UMask=0077
+
+[Install]
+WantedBy=default.target

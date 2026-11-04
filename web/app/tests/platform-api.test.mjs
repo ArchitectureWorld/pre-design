@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os'
 import pg from 'pg'
 import sharp from 'sharp'
 import { createApp } from '../src/server.mjs'
+import {confirmedOutlineFixture} from './fixtures/outline.mjs'
 
 const connection = { host: '/tmp/pre-design-pg-1000', port: 55439, database: 'pre_design_web', user: 'zetta' }
 const users = [{ id: 'admin', role: 'admin', token: 'm'.repeat(40) }, { id: 'alice', role: 'user', token: 'a'.repeat(40) }, { id: 'bob', role: 'user', token: 'b'.repeat(40) }]
@@ -41,7 +42,7 @@ async function fixture(t, options = {}) {
   let app = await createApp({ db, workers, projectsRoot: root, users })
   t.after(async () => { for (const release of traceHolds) release(); await app.close(); await db.end(); await pool.query(`DROP SCHEMA ${schema} CASCADE`); await pool.end(); await rm(root, { recursive: true, force: true }) })
   const request = (user, method, url, payload) => app.inject({ method, url, headers: { authorization: `Bearer ${users.find(u => u.id === user).token}` }, ...(payload === undefined ? {} : { payload }) })
-  const create = async (owner = 'alice') => { const r = await request(owner, 'POST', '/api/projects', { requestId: randomUUID(), name: '研究项目' }); assert.equal(r.statusCode, 200, r.body); return r.json() }
+  const create = async (owner = 'alice') => { const r = await request(owner, 'POST', '/api/projects', { requestId: randomUUID(), name: '研究项目' }); assert.equal(r.statusCode, 200, r.body); await confirmedOutlineFixture(db,r.json().id); return r.json() }
   const configure = async (change = () => {}) => {
     const r = await request('admin', 'GET', '/api/admin/models'); assert.equal(r.statusCode, 200, r.body)
     const policy = r.json(), selected = policy.models.find(m => m.provider === 'SenseNova' && m.model === 'sensenova-6.8-flash-lite')
@@ -136,6 +137,7 @@ test('research summary remains a deterministic operation and prepared chapters u
   const png = await sharp({ create: { width: 20, height: 12, channels: 3, background: '#294352' } }).png().toBuffer()
   const file = await request('alice', 'POST', `/api/projects/${p.id}/materials`, { requestId: 'photo', baseRevision: 0, filename: '素材.png', content: png.toString('base64') })
   assert.equal(file.statusCode, 200, file.body)
+  await confirmedOutlineFixture(db,p.id)
   const setup = await request('alice', 'POST', `/api/projects/${p.id}/chapters/prepare`, { requestId: 'setup', baseRevision: 0, chapterId: 'site', message: '请根据当前项目资料编制场地研究章节。', materialIds: [file.json().id] })
   assert.equal(setup.statusCode, 200, setup.body)
   const report = await request('alice', 'POST', `/api/projects/${p.id}/reports`, { requestId: 'native-plan', baseRevision: 0, chapterId: 'site', stage: 'production-plan' })
