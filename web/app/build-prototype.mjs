@@ -44,12 +44,13 @@ html=html.replace('拖入文件，或点击选择','拖入文件或文件夹，�
   .replace(/(<button[^>]+id="chooseFilesBtn"[^>]*>[^<]*<\/button>)/,'$1<button type="button" id="chooseFolderBtn" class="link-like">选择文件夹</button>')
 html=html.replace('</body>','<input type="file" id="outlineFileInput" class="hidden" multiple><input type="file" id="createFolderInput" class="hidden" webkitdirectory directory multiple></body>')
 html=html.replace(/(<button id="chatAttachBtn"[^>]*>)[\s\S]*?(<\/button>)/,'$1<svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.7" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 16v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" stroke-linecap="round" stroke-linejoin="round"/></svg>$2')
-html = html.replace('</head>', '<link rel="stylesheet" href="/platform-ui.css"><link rel="stylesheet" href="/admin-ui.css"><link rel="stylesheet" href="/outline-flow.css"><link rel="stylesheet" href="/outline-agent.css"><link rel="stylesheet" href="/workflow-ui.css"><link rel="stylesheet" href="/workflow-graph.css"></head>')
+html = html.replace('</head>', '<link rel="stylesheet" href="/dossier-ui.css"><link rel="stylesheet" href="/platform-ui.css"><link rel="stylesheet" href="/admin-ui.css"><link rel="stylesheet" href="/outline-flow.css"><link rel="stylesheet" href="/outline-agent.css"><link rel="stylesheet" href="/workflow-ui.css"><link rel="stylesheet" href="/workflow-graph.css"></head>')
 await rm(outputRoot, { recursive: true, force: true })
 await mkdir(outputRoot, { recursive: true })
 await writeFile(resolve(outputRoot, 'index.html'), html)
 await writeFile(resolve(outputRoot, 'prototype.css'), css)
 const bootstrap = `
+import { mountDossier } from './dossier-ui.js';
 import { mountPlatform } from './platform-ui.js';
 import { mountAdminControls } from './admin-ui.js';
 globalThis.prePlatform = mountPlatform({
@@ -61,7 +62,19 @@ globalThis.prePlatform = mountPlatform({
   },
   mutate, getProject:()=>server.current?.id===state.currentProjectId?server.current:null, getIdentity:()=>api('/me'), notify:toast, mountAdmin:mountAdminControls, openOutline:startConsult,
 });
+globalThis.preDossier=mountDossier({
+  getProject:()=>server.current?.id===state.currentProjectId?server.current:null,notify:toast,
+  request:async(path,options={})=>{
+    const response=await fetch('/api'+path,{method:options.method??'GET',headers:{Authorization:'Bearer '+server.token,...(options.body===undefined?{}:{'Content-Type':'application/json'})},...(options.body===undefined?{}:{body:JSON.stringify(options.body)})});
+    if(!response.ok){let data={};try{data=await response.json()}catch{}throw new Error(data.error||'请求失败');}
+    if(options.download){const disposition=response.headers.get('Content-Disposition')||'';const encoded=disposition.split("filename*=UTF-8''")[1];const simple=disposition.match(/filename="([^"]+)"/);return {blob:await response.blob(),filename:encoded?decodeURIComponent(encoded):(simple?.[1]||'project-dossier')};}
+    return response.json();
+  }
+});
 `
 await writeFile(resolve(outputRoot, 'prototype.js'), `${overrides}\n${script}\n${bootstrap}`)
 for (const name of ['platform-ui.js', 'platform-ui.css', 'admin-ui.js', 'admin-ui.css', 'service-defaults.mjs','outline-view.js','outline-flow.js','outline-drag.js','outline-flow.css','outline-agent.js','outline-agent.css','material-policy.mjs','workflow-ui.js','workflow-ui.css','workflow-content.mjs','workflow-visual-view.mjs','workflow-graph.js','workflow-graph.css','workflow-node-drag.js']) await writeFile(resolve(outputRoot, name), await readFile(resolve(root, 'src', name)))
 console.log('Built from web/index.html: original CSS and page structure preserved; API adapter replaces simulated operations.')
+
+// PRE_DESIGN_DOSSIER_R5_1
+for(const name of ['dossier-ui.js','dossier-ui.css'])await writeFile(resolve(outputRoot,name),await readFile(resolve(root,'src/dossier',name)))

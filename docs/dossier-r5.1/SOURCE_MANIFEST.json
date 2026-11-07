@@ -1,0 +1,213 @@
+{
+  "schemaVersion": "pre-design.branch-sync.r5.1",
+  "baseCommit": "be0591f708ed1ffe6dfd0f968c28293aceda8edb",
+  "targetBranch": "codex/web-v210",
+  "sourceArchiveSha256": "7a52d50dde23139cfe4b25c021cad5588ddcc5a874af908b9ecbfa14c0c2d479",
+  "payloadFiles": [
+    {
+      "path": "web/app/src/dossier/SKILL.md",
+      "sha256": "71cb8906d625d85567ff52c312ee3e3a8e42e7c52ad60782e6ee1733ab105ad2"
+    },
+    {
+      "path": "web/app/src/dossier/capability-registry.json",
+      "sha256": "068ad5082f5e8428755ca669fc477f249af94ede7c5f00b4236a6a7434cebfbe"
+    },
+    {
+      "path": "web/app/src/dossier/contract.mjs",
+      "sha256": "7581117f00cfe4272b84eedda85bf15772e5415f02e476776a881b6d29e5ce98"
+    },
+    {
+      "path": "web/app/src/dossier/dossier-ui.css",
+      "sha256": "ab10d8f6d59ed00025cf075f7f0ab049b9ea623e1afe62efbd5d9cddff46f25d"
+    },
+    {
+      "path": "web/app/src/dossier/dossier-ui.js",
+      "sha256": "fa5e2d8c2c3e6bfd0f4d8c802589986877ebdfbf451d661a02b9467a65a9205a"
+    },
+    {
+      "path": "web/app/src/dossier/routes.mjs",
+      "sha256": "4633dc5c6997b3d366967f6133a6811e8fd39b1afa37ddd543f83c815e2e7de9"
+    },
+    {
+      "path": "web/app/src/dossier/service.mjs",
+      "sha256": "1a0bd0899eafc986850d20d25db33e159fd2fbdb3a123e7dc425f3f41ce908c7"
+    },
+    {
+      "path": "web/app/src/dossier/store.mjs",
+      "sha256": "c1d2b6ee0793d424f41b43d05ff24f3118c3a86d8cf812568058d792a326870a"
+    },
+    {
+      "path": "web/app/tests/dossier-api.test.mjs",
+      "sha256": "03e88217576f6758b36dce25fe16880e2be0e7600c0c91af71956ae57512d849"
+    },
+    {
+      "path": "web/app/tests/dossier-contract.test.mjs",
+      "sha256": "b99d973cabb136572cbbd07421507344db97bff1baba67422c15c1cc1d6157ce"
+    },
+    {
+      "path": "web/app/tests/dossier-service.test.mjs",
+      "sha256": "a7d7e7aba61826748fb9dac0242a258ea5879f1594721340f006418a156e884d"
+    },
+    {
+      "path": "web/app/tests/dossier-store.test.mjs",
+      "sha256": "b419292f6dbc381fb940ab0528f1c823e3c3dd5c4a6f5361c31fb89bf04bfdbe"
+    },
+    {
+      "path": "web/app/tests/support/dossier-db.mjs",
+      "sha256": "7e3febf0a0e4a8e6c8e6641dcd99f7d92c8b674926533a398506fbf8bf3d8eff"
+    },
+    {
+      "path": "scripts/dossier-r5.1/live-smoke.mjs",
+      "sha256": "ab7122a07db2dff81571dc62b44ef96b57bf7d9afcad90975b305c539ca1dea4"
+    },
+    {
+      "path": "docs/dossier-r5.1/INTEGRATION.md",
+      "sha256": "70f20397bdb57ce615d80347dc9702f7fea4a0b1cd29547ac5e45ef084451d55"
+    },
+    {
+      "path": "docs/dossier-r5.1/PACKAGE_VERIFICATION.md",
+      "sha256": "3651544e98b0044180e5d2978b7280e11cbb34754079f1459516c17eed986b08"
+    },
+    {
+      "path": "scripts/dossier-r5.1/VERIFY-LIVE.sh",
+      "sha256": "af03d7112c038c52f442a8be931c505d11e29e8d38c9d64ea6618c4e3da3c266"
+    },
+    {
+      "path": "docs/dossier-r5.1/DEPLOYMENT_HANDOFF.md",
+      "sha256": "07035ff75c6e368028d70a16498dbfdbdc2430b7e134468494a1e656ff4db377"
+    },
+    {
+      "path": "docs/dossier-r5.1/README.md",
+      "sha256": "a631aa8c4180af53fbae4d16c13fb9472b173f4243f5160b8db64af6fe223d88"
+    },
+    {
+      "path": "docs/dossier-r5.1/PACKAGE_VERIFICATION.json",
+      "sha256": "afc77389dc82056ea80b882f5e2ae56a93d9be03a11a5091bc4eb1d98232bd11"
+    }
+  ],
+  "integratedFiles": [
+    {
+      "path": "HANDOFF.md",
+      "sha256": "14d136abe5786a8360076f8871a9de7988399080c6f2b480198a07760a513f29",
+      "gitBlobSha": "efa303c9e8e9b95cb11f3e3013a06aaf3a37d3bf"
+    },
+    {
+      "path": "docs/dossier-r5.1/DEPLOYMENT_HANDOFF.md",
+      "sha256": "07035ff75c6e368028d70a16498dbfdbdc2430b7e134468494a1e656ff4db377",
+      "gitBlobSha": "1668b4950f7c5a020d3e511de2adf366acd8efe3"
+    },
+    {
+      "path": "docs/dossier-r5.1/INTEGRATION.md",
+      "sha256": "70f20397bdb57ce615d80347dc9702f7fea4a0b1cd29547ac5e45ef084451d55",
+      "gitBlobSha": "7e931a888763e2fb823e8b27d01f13635552ff14"
+    },
+    {
+      "path": "docs/dossier-r5.1/PACKAGE_VERIFICATION.json",
+      "sha256": "afc77389dc82056ea80b882f5e2ae56a93d9be03a11a5091bc4eb1d98232bd11",
+      "gitBlobSha": "4fe6185080c9b76530bf15c4ab5b589a4c258b63"
+    },
+    {
+      "path": "docs/dossier-r5.1/PACKAGE_VERIFICATION.md",
+      "sha256": "3651544e98b0044180e5d2978b7280e11cbb34754079f1459516c17eed986b08",
+      "gitBlobSha": "a58870d7983774b9f439e45c30be69f5a8b657c8"
+    },
+    {
+      "path": "docs/dossier-r5.1/README.md",
+      "sha256": "a631aa8c4180af53fbae4d16c13fb9472b173f4243f5160b8db64af6fe223d88",
+      "gitBlobSha": "0df9590e7d770da82a561a4e926c3e5c62110506"
+    },
+    {
+      "path": "scripts/dossier-r5.1/VERIFY-LIVE.sh",
+      "sha256": "af03d7112c038c52f442a8be931c505d11e29e8d38c9d64ea6618c4e3da3c266",
+      "gitBlobSha": "5c59a9c91638b88a1ba91c2e7d611e96df7715fc"
+    },
+    {
+      "path": "scripts/dossier-r5.1/live-smoke.mjs",
+      "sha256": "ab7122a07db2dff81571dc62b44ef96b57bf7d9afcad90975b305c539ca1dea4",
+      "gitBlobSha": "6427270f259328cb6d17a420a4f8d0aa401a0a3e"
+    },
+    {
+      "path": "web/app/README.md",
+      "sha256": "e8e2b7e1c2c6da79bc74c5bc3c065c556001f215b9812550ce9c4ebe442bd978",
+      "gitBlobSha": "4b0d07f9607e689eb416076d2d4a1fe00057bf80"
+    },
+    {
+      "path": "web/app/build-prototype.mjs",
+      "sha256": "4c25dfb7f1b8d11bbd95688470b12d12af5a5b4e1df17291578a7196c3c7ff38",
+      "gitBlobSha": "76162c10e300099d075caf9a20cf9ad6ca9bdacc"
+    },
+    {
+      "path": "web/app/src/dossier/SKILL.md",
+      "sha256": "71cb8906d625d85567ff52c312ee3e3a8e42e7c52ad60782e6ee1733ab105ad2",
+      "gitBlobSha": "0b99d27df1ed7427df93919f95b1b99a37d1fa59"
+    },
+    {
+      "path": "web/app/src/dossier/capability-registry.json",
+      "sha256": "068ad5082f5e8428755ca669fc477f249af94ede7c5f00b4236a6a7434cebfbe",
+      "gitBlobSha": "93200cc29f7e3e7ae83d17cdec3611e85ec09171"
+    },
+    {
+      "path": "web/app/src/dossier/contract.mjs",
+      "sha256": "7581117f00cfe4272b84eedda85bf15772e5415f02e476776a881b6d29e5ce98",
+      "gitBlobSha": "140f13b10631222f9abefeec294ac11600cc5ecd"
+    },
+    {
+      "path": "web/app/src/dossier/dossier-ui.css",
+      "sha256": "ab10d8f6d59ed00025cf075f7f0ab049b9ea623e1afe62efbd5d9cddff46f25d",
+      "gitBlobSha": "b1f3f0d396558b22493a90102f80f2324a393ac9"
+    },
+    {
+      "path": "web/app/src/dossier/dossier-ui.js",
+      "sha256": "fa5e2d8c2c3e6bfd0f4d8c802589986877ebdfbf451d661a02b9467a65a9205a",
+      "gitBlobSha": "201a7666c313d684122f6afb64fbb20c5d585dc6"
+    },
+    {
+      "path": "web/app/src/dossier/routes.mjs",
+      "sha256": "4633dc5c6997b3d366967f6133a6811e8fd39b1afa37ddd543f83c815e2e7de9",
+      "gitBlobSha": "190a3215fb6cc36c7d8f67922aeddae230e06faa"
+    },
+    {
+      "path": "web/app/src/dossier/service.mjs",
+      "sha256": "1a0bd0899eafc986850d20d25db33e159fd2fbdb3a123e7dc425f3f41ce908c7",
+      "gitBlobSha": "b03233df036306e8df287dfd3e636b98b6271893"
+    },
+    {
+      "path": "web/app/src/dossier/store.mjs",
+      "sha256": "c1d2b6ee0793d424f41b43d05ff24f3118c3a86d8cf812568058d792a326870a",
+      "gitBlobSha": "45e8833099c2ff68762922aa02f30a8a65fc1c97"
+    },
+    {
+      "path": "web/app/src/server.mjs",
+      "sha256": "19b534d6fea9b6186e90752d157cdd9dacad3bb41e43f8b7412bb34f576e33c4",
+      "gitBlobSha": "59cb06e1386846bb65d06e5ad958148f7a452d58"
+    },
+    {
+      "path": "web/app/tests/dossier-api.test.mjs",
+      "sha256": "03e88217576f6758b36dce25fe16880e2be0e7600c0c91af71956ae57512d849",
+      "gitBlobSha": "666dcc80fb6b2684d463be262f6e89f39d805399"
+    },
+    {
+      "path": "web/app/tests/dossier-contract.test.mjs",
+      "sha256": "b99d973cabb136572cbbd07421507344db97bff1baba67422c15c1cc1d6157ce",
+      "gitBlobSha": "ef0597e2408716cec9c6ff45bb4c583945fd5d80"
+    },
+    {
+      "path": "web/app/tests/dossier-service.test.mjs",
+      "sha256": "a7d7e7aba61826748fb9dac0242a258ea5879f1594721340f006418a156e884d",
+      "gitBlobSha": "ab2ab6a73f07d3324727375a379c83869290bcd4"
+    },
+    {
+      "path": "web/app/tests/dossier-store.test.mjs",
+      "sha256": "b419292f6dbc381fb940ab0528f1c823e3c3dd5c4a6f5361c31fb89bf04bfdbe",
+      "gitBlobSha": "0a0bcd14dd35124657fc94cb62cf953c7af50fff"
+    },
+    {
+      "path": "web/app/tests/support/dossier-db.mjs",
+      "sha256": "7e3febf0a0e4a8e6c8e6641dcd99f7d92c8b674926533a398506fbf8bf3d8eff",
+      "gitBlobSha": "9abd98967903e4db598e7b96dae29dc1bea275ca"
+    }
+  ],
+  "sourceSyncOnly": true,
+  "deploymentPerformed": false,
+  "realDshVerified": false
+}

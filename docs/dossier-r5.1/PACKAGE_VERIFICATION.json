@@ -1,0 +1,41 @@
+{
+  "release": "r5.1",
+  "kind": "installable-integration-candidate",
+  "baseCommit": "be0591f708ed1ffe6dfd0f968c28293aceda8edb",
+  "targetBranch": "codex/web-v210",
+  "executed": {
+    "newPackageTests": {
+      "total": 60,
+      "passed": 59,
+      "failed": 0,
+      "skipped": 1,
+      "skippedTest": "real Fastify/PostgreSQL target API test"
+    },
+    "uiChecks": {
+      "passed": 27,
+      "failed": 0,
+      "browser": "Chromium in-memory DOM + narrow Python HTTP bridge",
+      "backend": "actual new routes/service/store via test HTTP harness",
+      "database": "SQLite persistence test adapter",
+      "worker": "controlled test output, not LLM"
+    },
+    "jsSyntaxChecks": "passed",
+    "shellSyntaxChecks": "passed"
+  },
+  "notExecuted": [
+    "Complete original repository checkout and regression",
+    "Target installation/build/restart/rollback",
+    "Actual PostgreSQL behavior",
+    "Actual DSH/LLM call",
+    "Target-native-browser network flow",
+    "97-capability production/business acceptance"
+  ],
+  "fixedEntries": {
+    "web": "http://192.168.6.45:4320/",
+    "dsh": "https://192.168.6.45:3080/"
+  },
+  "productionAccepted": false,
+  "deploymentPerformed": false,
+  "remoteRepositoryModified": false,
+  "explicitCostConsent": "VERIFY-LIVE.sh --allow-model submits at most one model job"
+}

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "pre-design.dossier-source-sync.v1",
+  "sourceBaseCommit": "be0591f708ed1ffe6dfd0f968c28293aceda8edb",
+  "sourceStagingCommit": "bb631bd8bb4711608246301e0d23f467fc2e5ffd",
+  "targetBranch": "codex/web-v210",
+  "workflowRunId": "42373924491",
+  "workflowRunAttempt": "1",
+  "nodeVersion": "v24.11.0",
+  "newDossierTests": {
+    "tests": 54,
+    "pass": 53,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 1,
+    "todo": 0
+  },
+  "syntaxChecks": "passed",
+  "result": "passed with explicit PostgreSQL test skip",
+  "databaseForOfflineTests": "SQLite isolated test adapter",
+  "realPostgreSqlVerified": false,
+  "realDshVerified": false,
+  "fullRepositoryRegressionRun": false,
+  "deploymentPerformed": false,
+  "limitations": [
+    "Target Fastify/PostgreSQL test is skipped without private target configuration.",
+    "DSH Worker responses in tests are controlled; no real model invocation.",
+    "Local Agent must complete deployment and target acceptance before reporting production ready."
+  ]
+}

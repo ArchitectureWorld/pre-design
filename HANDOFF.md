@@ -1,3 +1,5 @@
+> **R5.1 项目总档已集成（目标机待验收）：** 本地部署先读 [交接说明](docs/dossier-r5.1/DEPLOYMENT_HANDOFF.md)。不要重复运行旧压缩包安装器；本分支源码已接入总档。
+
 ## Current development: v2.1.0 milestone 3
 
 See `docs/pre-v2.1.0-milestone3-handoff.md` for evidence intake, peer comparison and the regional bridge. Existing57 execution and UI are preserved; full62 automatic execution is not complete.
