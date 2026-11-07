@@ -1,0 +1,97 @@
+name: Materialize reviewed R5.1 dossier source
+
+on:
+  push:
+    branches: [codex/web-v210]
+    paths:
+      - '.maintenance/dossier-r51/**'
+      - '.github/workflows/dossier-r51-sync.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pre-design-dossier-r51-source-sync
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    if: github.ref == 'refs/heads/codex/web-v210' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact source transport commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+      - name: Set up the supported Node runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.11.0'
+      - name: Verify hashes and materialize exact reviewed source
+        run: python3 .maintenance/dossier-r51/materialize.py
+      - name: Check integrated JavaScript and shell syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check web/app/src/server.mjs
+          node --check web/app/build-prototype.mjs
+          while IFS= read -r file; do node --check "$file"; done < <(find web/app/src/dossier -type f \( -name '*.mjs' -o -name '*.js' \) | sort)
+          node --check scripts/dossier-r5.1/live-smoke.mjs
+          bash -n scripts/dossier-r5.1/VERIFY-LIVE.sh
+      - name: Run dossier tests without deployment or model credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test --test-reporter=tap web/app/tests/dossier-*.test.mjs | tee /tmp/dossier-r51-tests.log
+      - name: Record actual source synchronization verification
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, re, subprocess
+          from pathlib import Path
+          log=Path('/tmp/dossier-r51-tests.log').read_text()
+          counts={key:int(re.search(r'^# '+key+r' (\d+)$',log,re.M).group(1)) for key in ['tests','pass','fail','cancelled','skipped','todo']}
+          assert counts['fail']==0 and counts['cancelled']==0 and counts['pass']>0, 'Tests not clean'
+          receipt={
+            'schemaVersion':'pre-design.dossier-source-sync.v1',
+            'sourceBaseCommit':'be0591f708ed1ffe6dfd0f968c28293aceda8edb',
+            'sourceStagingCommit':os.environ['GITHUB_SHA'],
+            'targetBranch':'codex/web-v210',
+            'workflowRunId':os.environ['GITHUB_RUN_ID'],
+            'workflowRunAttempt':os.environ['GITHUB_RUN_ATTEMPT'],
+            'nodeVersion':subprocess.check_output(['node','--version'],text=True).strip(),
+            'newDossierTests':counts,
+            'syntaxChecks':'passed',
+            'result':'passed with explicit PostgreSQL test skip',
+            'databaseForOfflineTests':'SQLite isolated test adapter',
+            'realPostgreSqlVerified':False,
+            'realDshVerified':False,
+            'fullRepositoryRegressionRun':False,
+            'deploymentPerformed':False,
+            'limitations':['Target Fastify/PostgreSQL test is skipped without private target configuration.','DSH Worker responses in tests are controlled; no real model invocation.','Local Agent must complete deployment and target acceptance before reporting production ready.']
+          }
+          Path('docs/dossier-r5.1/SYNC_VERIFICATION.json').write_text(json.dumps(receipt,ensure_ascii=False,indent=2)+'\n')
+          Path('docs/dossier-r5.1/SYNC_TESTS.log').write_text(log)
+          print(json.dumps(receipt,ensure_ascii=False))
+          PY
+      - name: Commit real source and remove transport files
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote_head="$(git ls-remote origin refs/heads/codex/web-v210 | cut -f1)"
+          test "$remote_head" = "$GITHUB_SHA" || { echo 'Branch changed concurrently; refusing to overwrite.'; exit 1; }
+          rm -rf .maintenance/dossier-r51
+          rm .github/workflows/dossier-r51-sync.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add web/app/src/dossier web/app/tests/dossier-*.test.mjs web/app/tests/support/dossier-db.mjs \
+            web/app/src/server.mjs web/app/build-prototype.mjs HANDOFF.md web/app/README.md \
+            scripts/dossier-r5.1 docs/dossier-r5.1
+          git add -u -- .maintenance/dossier-r51 .github/workflows/dossier-r51-sync.yml
+          git diff --cached --check
+          git commit -m 'feat(web): integrate R5.1 dossier source and local deployment handoff'
+          git push origin HEAD:codex/web-v210
+          echo "Integrated source commit: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+          echo 'Source synchronization only. No deployment, database migration, or real DSH invocation.' >> "$GITHUB_STEP_SUMMARY"
