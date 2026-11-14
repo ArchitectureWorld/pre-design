@@ -23,7 +23,7 @@ jobs:
           mkdir -p /tmp/layout-review-deps /tmp/layout-review
           cd /tmp/layout-review-deps
           npm init -y >/dev/null
-          npm install --ignore-scripts fastify@5.12.8 @fastify/static@10.1.8 pg@8.23.1 zod@4.4.3 typescript@5.9.3 @playwright/test@1.58.2 yaml@2.8.1
+          npm install --ignore-scripts fastify@5.12.8 @fastify/static@10.1.8 pg@8.23.1 zod@4.4.3 typescript@5.9.3 @playwright/test@1.58.2 yaml@2.8.1 sharp@0.34.5 exifr@7.1.3 pdf-lib@1.17.1 pdfjs-dist@6.3.289 jszip@3.10.1 pngjs@7.0.0 jpeg-js@0.4.4 @deepseek-ai/dsh-sdk-client@0.2.1-rc.5
           cd "$GITHUB_WORKSPACE"
           git archive --format=tar HEAD | gzip > /tmp/layout-review/source.tar.gz
           tar -C /tmp/layout-review-deps -czf /tmp/layout-review/deps.tar.gz node_modules
