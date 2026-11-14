@@ -1,0 +1,37 @@
+name: Native layout library checks
+on:
+  push:
+    branches: [codex/web-v210]
+    paths:
+      - '.github/workflows/layout-library-ci.yml'
+      - 'web/app/src/layout-library/**'
+      - 'web/app/tests/layout-library*'
+      - 'scripts/layout-library/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.11.0'
+      - name: Prepare review source and isolated dependencies
+        run: |
+          mkdir -p /tmp/layout-review-deps /tmp/layout-review
+          cd /tmp/layout-review-deps
+          npm init -y >/dev/null
+          npm install --ignore-scripts fastify@5.12.8 @fastify/static@10.1.8 pg@8.23.1 zod@4.4.3 typescript@5.9.3 @playwright/test@1.58.2 yaml@2.8.1
+          cd "$GITHUB_WORKSPACE"
+          git archive --format=tar HEAD | gzip > /tmp/layout-review/source.tar.gz
+          tar -C /tmp/layout-review-deps -czf /tmp/layout-review/deps.tar.gz node_modules
+          cp "$(command -v node)" /tmp/layout-review/node
+          git rev-parse HEAD > /tmp/layout-review/COMMIT.txt
+          sha256sum /tmp/layout-review/* > /tmp/layout-review/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: layout-review-source
+          path: /tmp/layout-review/
+          retention-days: 3
