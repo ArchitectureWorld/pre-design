@@ -14,6 +14,7 @@ await mkdir(workspace); await mkdir(join(workspace, '原始资料'))
 await writeFile(join(workspace, '原始资料', '任务书.md'), '项目名称：隔离验证。任务：整理已有资料；面积、边界和业主目标均未知。')
 await writeFile(join(root, 'foreign.md'), 'FOREIGN_PROJECT_SECRET_MUST_NOT_APPEAR')
 let mode = 'guard', parentCalls = 0, researchCalls = 0, blocked = false
+let outlineCalls = 0
 const observations = []
 const endpoint = createServer(async (req, res) => {
   try {
@@ -31,7 +32,21 @@ const endpoint = createServer(async (req, res) => {
     parentCalls++
     res.writeHead(200, { 'content-type': 'text/event-stream' })
     const chunk = (delta, finish_reason) => res.write(`data: ${JSON.stringify({ id: 'offline-probe', object: 'chat.completion.chunk', created: 1, model: data.model, choices: [{ index: 0, delta, finish_reason }] })}\n\n`)
-    if (parentCalls === 1) {
+    if (mode === 'outline') {
+      assert.doesNotMatch(body, /离线工具边界验证结束/, 'a chapter check must not replay the parent transcript')
+      if (++outlineCalls === 1) {
+        chunk({role:'assistant',tool_calls:[{index:0,id:'own-context',type:'function',function:{name:'preplanning_get_context',arguments:'{}'}}]},null)
+        chunk({},'tool_calls')
+      } else if (outlineCalls === 2) {
+        assert.ok(data.messages.some(m=>m.role==='tool'&&JSON.stringify(m.content).includes('任务书.md')))
+        chunk({role:'assistant',tool_calls:[{index:0,id:'own-material',type:'function',function:{name:'preplanning_read_material',arguments:JSON.stringify({path:'原始资料/任务书.md'})}}]},null)
+        chunk({},'tool_calls')
+      } else {
+        assert.ok(data.messages.some(m=>m.role==='tool'&&JSON.stringify(m.content).includes('面积、边界和业主目标均未知')))
+        chunk({role:'assistant',content:'已核对本项目原件。'},null)
+        chunk({},'stop')
+      }
+    } else if (parentCalls === 1) {
       chunk({ role: 'assistant', tool_calls: [{ index: 0, id: 'probe-call', type: 'function', function: { name: 'preplanning_read_material', arguments: JSON.stringify({ path: '../foreign.md' }) } }] }, null)
       chunk({}, 'tool_calls')
     } else {
@@ -73,6 +88,14 @@ try {
   const reply = await workers.run(project, '执行离线工具边界验证。', undefined, policy, AbortSignal.timeout(45000))
   assert.equal(reply.response, '离线工具边界验证结束。')
   assert.equal(blocked, true, 'The actual DSH tool dispatch must reject the escaped material path')
+  mode='outline'
+  const task={...project,read_only:true,task_id:randomUUID(),outline_task_session:true}
+  const checked=await workers.run(task,'核实任务书。',undefined,policy,AbortSignal.timeout(45000))
+  assert.equal(checked.response,'已核对本项目原件。')
+  assert.ok(checked.materialReads.some(r=>r.sourceRelativePath==='原始资料/任务书.md'&&r.status==='ok'))
+  const record=await workers.executionTrace(task)
+  assert.ok(record.parent.requests.some(r=>r.sessionId===`${project.session_id}-outline-${task.task_id}`&&r.provider==='sensenova-offline-probe'))
+  assert.equal((await workers.call(project,{operation:'state'})).project.projectId,created.project.projectId)
   mode = 'failure'
   const result = await workers.runResearch(project, { moduleIds: ['1.01'], flags: { industryPlanning: false, existingBuildings: false, externalPartners: false, marketing: false } }, policy, undefined, AbortSignal.timeout(45000))
   if (!researchCalls) console.error(JSON.stringify({ nativeFailureBeforeTransport: result }))
@@ -83,7 +106,7 @@ try {
   assert.ok(trace.parent.requests.some(row => row.provider === 'sensenova-offline-probe'))
   assert.ok(trace.executions.some(row => row.actual?.provider === 'sensenova-offline-probe'))
   assert.equal(trace.usage, null)
-  console.log(JSON.stringify({ probe: 'offline-only', catalog: 62, resumed: true, actualToolGuard: blocked, parentCalls, researchCalls,
+  console.log(JSON.stringify({ probe: 'offline-only', catalog: 62, resumed: true, actualToolGuard: blocked, parentCalls, researchCalls,outlineCalls,
     status: result.status, modules: result.modules.map(row => ({ itemId: row.itemId, status: row.status })), chapterPrepared:true, reportPreflightBlocked:true, actualModelTrace: true, modelBudgetObserved: observations.every(row => row.maxTokens === 65536) }))
 } finally {
   await workers.closeAll()

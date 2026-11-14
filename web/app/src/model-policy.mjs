@@ -79,7 +79,7 @@ const policySchema = z.object({
   revision: positiveInteger.optional(), models: z.array(modelSchema).min(historicalCatalogKeys.length).max(MODEL_CATALOG.length),
   routes: z.object(Object.fromEntries(roles.map(role => [role, routeSchema]))).strict(),
   limits: z.object({ globalConcurrency: positiveInteger, perUserConcurrency: positiveInteger,
-    maxQueuedPerUser: positiveInteger, maxDailyJobsPerUser: positiveInteger }).strict(),
+    maxQueuedPerUser: positiveInteger, maxDailyJobsPerUser: positiveInteger.nullable() }).strict(),
   search: z.discriminatedUnion('provider', [
     z.object({ ...searchLimits, provider: z.literal('deepseek-search-api'), baseURL: serviceURL, credentialRef: credentialRef.optional() }).strict(),
     z.object({ ...searchLimits, provider: z.literal('ddg') }).strict(),

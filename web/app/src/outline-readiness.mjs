@@ -5,6 +5,7 @@ export const OUTLINE_CONDITIONS=Object.freeze([
  {id:'planning_controls',title:'规划管控线及适用条件'},
 ])
 export const REQUIRED_CONDITIONS=Object.freeze(Object.fromEntries(['06','07','08','09','10'].map(id=>[id,OUTLINE_CONDITIONS.map(c=>c.id)])))
+export const researchDepthLabel=level=>({inventory:'资料梳理',conditional:'可做条件策划',quantitative:'可做定量分析',implementation:'可核查实施条件',blocked:'暂缓研究'}[level])
 // 专业研究仍使用原62模块；按任务含义关联新11章，不把旧章号当新章号。
 const groups={
  '01':['1.01'],
@@ -24,6 +25,8 @@ export function chapterBlockers(draft,id,visited=new Set()){
  const chapter=draft?.chapters?.find(c=>c.id===id)
  if(!chapter)return ['章节资料就绪状态尚未核实']
  const blockers=[]
+ // Legacy research jobs have no scoped output contract for an inventory or a conditional proposal.
+ if(chapter.readiness==='ready'&&['inventory','conditional'].includes(chapter.assessment?.level))blockers.push(`${chapter.title}本轮深度为“${researchDepthLabel(chapter.assessment.level)}”，可在阶段稿中开展。专业模块需要单独核对完整输入。`)
  if(chapter.disposition!=='include'||chapter.readiness!=='ready')blockers.push(`${chapter.title}：${chapter.disposition==='exclude'?'本轮不适用':chapter.readiness==='limited'?'仅可先梳理资料或提出假设，尚不具备专业成果条件':'缺条件暂缓'}`)
  for(const key of new Set([...(REQUIRED_CONDITIONS[id]??[]),...(chapter.requires??[])])){
   if(draft.conditions?.find(c=>c.id===key)?.status!=='supported')blockers.push(`${chapter.title}缺少已核实依据：${OUTLINE_CONDITIONS.find(c=>c.id===key)?.title??key}`)

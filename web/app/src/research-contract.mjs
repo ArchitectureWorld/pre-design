@@ -59,7 +59,7 @@ export function publicBusinessData(value, privateRoots = []) {
   if (typeof value === 'string') {
     let text = value
     for (const root of privateRoots.filter(Boolean).sort((a, b) => b.length - a.length)) text = text.split(root).join('[项目目录]')
-    return text.replace(/(?:[A-Za-z]:[\\/]|\/(?:home|media|tmp|etc|var|root|opt|usr|mnt|proc|run)\/)[^\s"'<>]*/gu, '[内部路径]')
+    return text.replace(/https?:\/\/[^\s"'<>]+|(?:\b[A-Za-z]:[\\/]|\/(?:home|media|tmp|etc|var|root|opt|usr|mnt|proc|run)\/)[^\s"'<>]*/gu, match=>/^https?:\/\//u.test(match)?match:'[内部路径]')
       .replace(/\b(?:sk-[A-Za-z0-9_-]{8,}|Bearer\s+[A-Za-z0-9._-]+)/gu, '[凭据已隐藏]')
   }
   if (Array.isArray(value)) return value.map(row => publicBusinessData(row, privateRoots))

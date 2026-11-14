@@ -14,15 +14,34 @@ import { createJobScheduler } from './job-scheduler.mjs'
 import { validateResearchSelection, reportModelRoles, validateReportSnapshot, publicBusinessData } from './research-contract.mjs'
 import sharp from 'sharp'
 import {createOutlineStore} from './outline-store.mjs'
+import {adjustmentPrompt} from './outline-planning.mjs'
 import {createWorkflowStore} from './workflow-store.mjs'
-import {assertMaterialUploadAllowed} from './material-policy.mjs'
+import {verifyAnnotationTarget} from './annotation-target.mjs'
+import {assertMaterialUploadAllowed,assertMaterialHeaderAllowed} from './material-policy.mjs'
 import {outlinePrompt,outlineAllowsWrites,assertOutlineExecutable} from './outline-contract.mjs'
+import {assessmentSkillHash} from './outline-assessment.mjs'
 import {createTaskProgressReporter,taskProgress} from './task-progress.mjs'
 const idSchema = z.string().uuid()
 const requestSchema = z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/)
 const base = z.object({ requestId: requestSchema, baseRevision: z.number().int().nonnegative() }).strict()
+const catalogChapter=z.string().regex(/^(0[1-9]|1[01])$/)
+const chapterFlow=z.array(catalogChapter).min(1).max(11).refine(ids=>new Set(ids).size===ids.length)
+const outlineRequest=base.extend({outlineVersion:z.number().int().nonnegative(),text:z.string().trim().max(16000).default(''),flow:chapterFlow.optional(),
+  planningMode:z.enum(['fromDiscussion','recommend','adjust','check']).optional(),planningRevision:z.number().int().nonnegative().optional(),
+  sourceJobId:idSchema.optional(),targetChapterId:catalogChapter.optional()}).superRefine((body,ctx)=>{
+    const validSource=body.planningMode==='fromDiscussion'?!!body.sourceJobId&&!body.flow&&!body.text:!body.sourceJobId
+    const validTarget=body.planningMode==='adjust'?!!body.targetChapterId&&!!body.text:!body.targetChapterId
+    const validFlow=body.planningMode==='check'||body.planningMode==='adjust'?!!body.flow:true
+    if(!validSource||!validTarget||!validFlow)ctx.addIssue({code:'custom',message:'章节操作缺少来源、目标章或本轮顺序。'})
+  })
 const workflowBlockId = z.string().max(100).regex(/^outline-(?:0[1-9]|1[01])-[1-9]\d*$/)
 const workflowItemId = z.string().max(120).regex(/^outline-(?:0[1-9]|1[01])-[1-9]\d*-item-[1-9]\d*$/)
+const annotationReference = z.object({
+  id:z.string().max(200), kind:z.string().max(30), title:z.string().max(300), excerpt:z.string().max(2000).optional(),
+  outlineVersion:z.number().int().positive().optional(), planningRevision:z.number().int().nonnegative().optional(),
+  workflowDraftId:idSchema.optional(), blockId:workflowBlockId.optional(), itemId:workflowItemId.optional(),
+  visualId:idSchema.optional(), pageId:z.string().max(150).optional(),
+})
 const workflowDraftSchema = base.extend({outlineVersion:z.number().int().nonnegative(),baseDraftId:idSchema.optional(),blockId:workflowBlockId.optional(),itemId:workflowItemId.optional(),text:z.string().trim().max(16000).optional()})
   .refine(body=>(!body.baseDraftId&&!body.blockId)||!!(body.baseDraftId&&body.blockId&&body.text),'修订须指定当前初稿、本节及修改要求')
   .refine(body=>!body.itemId||!!body.blockId,'条目修订须指定所属节')
@@ -131,6 +150,9 @@ export async function createApp({ db, workers, projectsRoot, users }) {
           if (job.kind === 'dossier') {
             const [saved]=(await conn.query('SELECT revision,snapshot_hash FROM pd_dossier_versions WHERE project_id=$1 AND job_id=$2',[p.id,job.id])).rows
             if(saved)await conn.query("UPDATE jobs SET status='recovered',error=NULL,result=$2,progress=$3 WHERE id=$1",[job.id,{response:'已恢复持久化的项目总档版本，请检查读取限制。',dossierRevision:saved.revision,snapshotHash:saved.snapshot_hash},taskProgress('recovered')])
+          } else if (job.kind === 'outline') {
+            const [saved]=(await conn.query('SELECT version,draft FROM outline_versions WHERE project_id=$1 AND job_id=$2',[p.id,job.id])).rows
+            if(saved)await conn.query("UPDATE jobs SET status='recovered',error=NULL,result=$2,progress=$3 WHERE id=$1",[job.id,{response:`章节草案 V${saved.version} 已恢复：${saved.draft.summary}`,outlineVersion:saved.version},taskProgress('recovered')])
           } else if (job.kind === 'workflow') {
             const [saved]=(await conn.query('SELECT id,version FROM workflow_drafts WHERE project_id=$1 AND job_id=$2',[p.id,job.id])).rows
             if(saved)await conn.query("UPDATE jobs SET status='recovered',error=NULL,result=$2,progress=$3 WHERE id=$1",[job.id,
@@ -210,7 +232,7 @@ export async function createApp({ db, workers, projectsRoot, users }) {
     if (p.status === 'ready' && !active.length) await serial(p.id, () => reconcile(p))
     return { ...publicProject(p), core: p.state, outline:await outlines.current(p), workflow:await workflows.current(p),
       materials: (await query('SELECT id,filename,sha256,bytes,image,relative_path FROM materials WHERE project_id=$1 ORDER BY COALESCE(relative_path,filename)', [p.id])).map(file => ({...file,relativePath:file.relative_path??file.filename,processing:materialProcessing(file.filename,file.bytes,file.image)})),
-      jobs: await query("SELECT id,kind,status,result,error,created_at,started_at,finished_at,progress,payload->>'text' AS user_text FROM jobs WHERE project_id=$1 ORDER BY created_at", [p.id]),
+      jobs: await query("SELECT id,kind,status,result,error,created_at,started_at,finished_at,progress,payload->>'text' AS user_text,payload->>'planningMode' AS planning_mode,payload->>'targetChapterId' AS target_chapter_id FROM jobs WHERE project_id=$1 ORDER BY created_at", [p.id]),
       annotations: await query("SELECT id,anchor,text,base_revision,status,batch_id,reference,created_at FROM annotations WHERE project_id=$1 AND status <> 'deleted' ORDER BY id", [p.id]) }
   })
   app.post('/api/projects/:id/materials', async req => {
@@ -225,13 +247,15 @@ export async function createApp({ db, workers, projectsRoot, users }) {
     if(!binary){
       if(!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(body.content))throw fail(400,'文件编码不合法')
       const data=Buffer.from(body.content,'base64');if(data.length>10*1024*1024)throw fail(413,'此旧版上传接口上限10 MB，请使用文件上传入口')
+      assertMaterialHeaderAllowed(body.filename,data.subarray(0,512))
       legacyImage=await inspectImage(data,body.filename);source=Readable.from([data])
     }
     return serial(p.id, async () => {
       const [current] = await query('SELECT * FROM projects WHERE id=$1', [p.id])
       const [previous] = await query('SELECT * FROM materials WHERE project_id=$1 AND request_id=$2', [p.id,body.requestId])
       if(!previous)revision(current,body.baseRevision)
-      const id=randomUUID(), stored=await writeMaterialStream(p.workspace,id,relativePath,source)
+      const checkHeader=binary?bytes=>assertMaterialHeaderAllowed(body.filename,bytes):undefined
+      const id=randomUUID(), stored=await writeMaterialStream(p.workspace,id,relativePath,source,MAX_UPLOAD_BYTES,checkHeader)
       let persisted=false
       try{
         const fingerprint=binary?hash({filename:body.filename,relativePath,sha256:stored.sha256,bytes:stored.bytes}):hash(body)
@@ -351,10 +375,12 @@ export async function createApp({ db, workers, projectsRoot, users }) {
           await event(p.id,{type:'dossier-updated',jobId:job.id,revision:saved.revision,snapshotHash:saved.snapshotHash}).catch(()=>console.error('[web-api] DOSSIER_EVENT_WRITE_FAILED'))
           return
         }
-        let result,workflowResponse
+        let result,workflowResponse,outlineResult,workflowWebReads=[]
         const outlineState=await outlines.current(p)
         p.outline_context={version:outlineState.version,flow:outlineState.flow,waivers:[...outlineState.waivers,...outlineState.retainedWaivers.map(w=>({...w,questionId:`history:${w.version}:${w.questionId}`,prompt:`前版V${w.version}明确保留的资料限制（不自动豁免本版新问题）：${w.prompt}`,version:outlineState.version}))].map(w=>({...w,createdAt:new Date(w.createdAt).toISOString()}))}
         p.read_only=['outline','workflow'].includes(job.kind)||(job.kind==='chat'?(job.payload.discussionOnly||!outlineAllowsWrites(outlineState)):outlineState.status!=='confirmed')
+        p.allow_web_read=job.kind==='workflow'&&job.payload.policyResearch===true
+        p.outline_task_session = job.kind==='outline' && !!job.payload.planningMode
         if(['research','report','confirm','annotations'].includes(job.kind))await outlines.requireConfirmed(p,job.kind,job.payload)
         if (job.kind === 'confirm') {
           await workers.call(p, { operation: 'confirm', proposalId: job.payload.proposalId, baseRevision: job.payload.baseRevision })
@@ -370,12 +396,26 @@ export async function createApp({ db, workers, projectsRoot, users }) {
             '本轮为章节编排讨论，仅核对资料和交流章节安排，不得提交专业成果，也不得把未提交的章节调整视为已确认流程。修改与确认流程仍由用户通过章节梳理操作完成。\n':
             '当前资料条件尚不足，仅允许核对已读资料和讨论待核假设，不得提交专业成果或承诺可建设性。补充资料与调整章节请通过章节梳理更新。\n')+text
           if(job.kind==='chat'&&job.payload.discussionOnly&&job.payload.discussionFlow)text+=`\n当前编辑器中的章节顺序（仅为讨论快照，未提交核对或确认）：${JSON.stringify(job.payload.discussionFlow)}\n章节编号与名称：${JSON.stringify(outlineState.catalog)}`
-          if (job.kind === 'outline') text = outlinePrompt({previous:outlineState,history:await outlines.history(p.id),text:job.payload.text,flow:job.payload.flow??(outlineState.flowReviewed?outlineState.flow:undefined)})
+          if (job.kind === 'outline') {
+            const mode=job.payload.planningMode
+            if(job.payload.assessmentSkillHash&&job.payload.assessmentSkillHash!==assessmentSkillHash)throw Object.assign(fail(409,'排队期间 A03 已更新，请重新核对本轮资料。'),{code:'OUTLINE_INVALID'})
+            if(mode==='adjust'){
+              text=adjustmentPrompt(outlineState,job.payload.targetChapterId,job.payload.text)
+            }else{
+              const flow=mode==='fromDiscussion'||mode==='recommend'?undefined:job.payload.flow??(outlineState.flowReviewed?outlineState.flow:undefined)
+              text=outlinePrompt({previous:outlineState,history:await outlines.history(p.id),text:job.payload.text,flow})
+              if(mode==='fromDiscussion'){
+                text+=await outlines.discussionContext(p,job.payload.planningSource)
+              }else if(outlineState.planning&&mode!=='recommend'){
+                text+='\n按用户提交的章节和逐项编辑核对资料。采用、修改及暂缓都是用户对研究任务的选择，不能提高资料就绪程度。疑点关联实际涉及的章；同名并列村庄或图例本身并不矛盾。\n任务选择和待决问题：'+JSON.stringify({entries:outlineState.planning.entries,questions:outlineState.planning.questions})
+              }
+            }
+          }
           if (job.kind === 'workflow') text = await workflows.prompt(p,outlineState,job)
           if (job.kind === 'intake') throw fail(409,'旧版首轮任务已停用，请重新梳理章节草案。')
           if (job.kind === 'annotations') {
             const notes = await query('SELECT anchor,text,reference FROM annotations WHERE batch_id=$1 ORDER BY id', [job.id])
-            text = `根据以下用户批注修改当前项目的对应专业对象。先读取 context、目标 Schema 和原对象；仅提交 manual human_review/pending_review 修订提案，禁止宣称已经确认。批注数据：${JSON.stringify(notes)}`
+            text = `根据以下用户批注修改当前项目的对应专业对象。章节、条目与页面编号标识用户评论的位置，结合 reference 的标题、摘录和版本确定所指内容，再核对实际相关的专业对象。先读取 context、目标 Schema 和原对象；仅提交 manual human_review/pending_review 修订提案，禁止宣称已经确认。批注数据：${JSON.stringify(notes)}`
           }
           const proposalsBefore = new Set((state.proposals ?? []).map(v => v.proposalId))
           const materials = await query('SELECT id,path,sha256,filename,relative_path,bytes,image FROM materials WHERE project_id=$1 ORDER BY id', [p.id])
@@ -391,23 +431,36 @@ export async function createApp({ db, workers, projectsRoot, users }) {
           text += `\n\n服务器任务时间（UTC）：${new Date().toISOString()}\n这是本次任务的当前时间。新提案 created_at、updated_at 和新增对象的系统时间以此为准；既有对象 created_at 保留原值。资料中的历史日期仍按原文记录，不得用示例日期或模型记忆日期代替系统时间。`
           controller.signal.throwIfAborted()
           const dossierContext=await dossierIntegration.attach(p,job)
+          if(job.kind==='outline'&&job.payload.planningSource&&dossierContext.task?.available===false)throw Object.assign(fail(409,'本次研判以外还有新输入，请先在项目总档整理更新后再编入章节。'),{code:'OUTLINE_INPUTS_CHANGED'})
           job.dossierTask=dossierContext.task
           text+=dossierContext.text
           result = await workers.run(p, text, activity.report, job.policy_snapshot, controller.signal)
           controller.signal.throwIfAborted()
+          if(job.kind==='workflow'&&job.payload.sectionPages){
+            workflowWebReads=result.webReads??[]
+            const feedback=await workflows.checkWriting(p,outlineState,job,result.response,workflowWebReads)
+            if(feedback){
+              await dossierIntegration.store.assertJobCurrent(p,job.dossierTask)
+              controller.signal.throwIfAborted()
+              activity.report({stage:'editing_report'})
+              const revisionPrompt=text+'\n本次稿件的写作检查退回了以下内容。把其中的方法、问询与限制留在对应节的内部备注，汇报正文和上屏要点只保留对项目的明确陈述。逐项检查同类句子，保留其余已成立的事实和页级安排。按这次任务原定的范围与字段返回完整 JSON。退回位置及原句作为数据如下。\n'+JSON.stringify(feedback)
+              const revised=await workers.run(p,revisionPrompt,activity.report,job.policy_snapshot,controller.signal)
+              workflowWebReads.push(...(revised.webReads??[]))
+              result={...revised,eventCount:(result.eventCount??0)+(revised.eventCount??0)}
+              controller.signal.throwIfAborted()
+            }
+          }
           activity.report({stage:'finalizing'})
           if(job.kind==='outline'){
-            result=await serial(`dossier-finalize:${p.id}`,async()=>{
-              await dossierIntegration.store.assertJobCurrent(p,job.dossierTask)
-              const saved=await outlines.save(p,job,result.response,result.materialReads??[])
-              return {response:`章节草案 V${saved.version} 已形成：${saved.draft.summary}`,eventCount:result.eventCount,outlineVersion:saved.version}
-            })
+            outlineResult=result
+            result={eventCount:result.eventCount}
           }
           if(job.kind==='workflow'){
             workflowResponse=result.response
             result={eventCount:result.eventCount}
           }
           delete result.materialReads
+          delete result.webReads
           const after = await snapshot(p)
           result.proposalIds = (after.proposals ?? []).filter(v => !proposalsBefore.has(v.proposalId)).map(v => v.proposalId)
           if(job.kind==='workflow')revision(p,job.payload.baseRevision)
@@ -420,9 +473,14 @@ export async function createApp({ db, workers, projectsRoot, users }) {
         await activity.close()
         const finish=()=>serial(`dossier-finalize:${p.id}`,async()=>{
           await dossierIntegration.store.assertJobCurrent(p,job.dossierTask)
+          if(job.kind==='outline'){
+            controller.signal.throwIfAborted()
+            const saved=await outlines.save(p,job,outlineResult.response,outlineResult.materialReads??[])
+            result={...result,response:`章节草案 V${saved.version} 已形成：${saved.draft.summary}`,outlineVersion:saved.version}
+          }
           if(job.kind==='workflow'){
             controller.signal.throwIfAborted()
-            const saved=await workflows.save(p,await outlines.current(p),job,workflowResponse)
+            const saved=await workflows.save(p,await outlines.current(p),job,workflowResponse,workflowWebReads)
             result={...result,response:`本轮初稿 V${saved.version} 已生成，共 ${saved.blocks.length} 节，待逐节审阅。`,workflowDraftId:saved.id,workflowVersion:saved.version}
           }
           const completedStatus = ['partial', 'failed', 'cancelled', 'unreviewed'].includes(result?.status) ? result.status : 'completed'
@@ -432,7 +490,7 @@ export async function createApp({ db, workers, projectsRoot, users }) {
           return finished
         })
         // Saving a workflow version and accepting cancellation are mutually exclusive.
-        const finished=job.kind==='workflow'?await serial(`workflow-finalize:${job.id}`,finish):await finish()
+        const finished=['workflow','outline'].includes(job.kind)?await serial(`workflow-finalize:${job.id}`,finish):await finish()
         if (!finished) return
         const status = finished.status
         if (job.kind === 'annotations') await query('UPDATE annotations SET status=$2 WHERE batch_id=$1', [job.id, status === 'cancelled' ? 'failed' : 'awaiting_review'])
@@ -465,6 +523,7 @@ export async function createApp({ db, workers, projectsRoot, users }) {
   function publicTaskError(error) {
     if(/^(?:OUTLINE_|WORKFLOW_|DOSSIER_)/.test(error.code??''))return error.message
     const known = {
+      MODEL_CONTEXT_TOO_LARGE: '模型网关拒绝了超长请求，本次没有生成结果。',
       MODEL_POLICY_NOT_READY: '管理员尚未完成模型能力验证。', MODEL_ROUTE_NOT_CONFIGURED: '管理员尚未配置模型接入。',
       MODEL_CREDENTIAL_REFERENCE_MISSING: '模型凭据引用尚未配置。', IMAGE_BACKEND_UNAVAILABLE: '图像后端尚未接入，无法生成图像。',
       IMAGE_BACKEND_NOT_READY: 'ComfyUI 无法连接或缺少所需节点、模型，请联系管理员。',
@@ -492,13 +551,14 @@ export async function createApp({ db, workers, projectsRoot, users }) {
       if(['research','report','confirm','annotations'].includes(kind))await outlines.requireConfirmed(current,kind,body)
       if(kind==='outline'){
         const draftState=await outlines.prepare(current,body)
-        body={...body,outlineInputHash:draftState.currentInputHash}
+        body={...body,outlineInputHash:draftState.currentInputHash,...await outlines.preparePlanning(current,body,draftState)}
+        if(body.planningMode!=='adjust')body.assessmentSkillHash=assessmentSkillHash
       }
       if(kind==='dossier')body={...body,...await dossierIntegration.prepare(current,body)}
       if(kind==='workflow'){
         const outline=await outlines.current(current)
         if(outline.status!=='confirmed')throw Object.assign(fail(409,'请先确认最新章节流程，再生成本轮初稿。'),{code:'WORKFLOW_OUTLINE_REQUIRED'})
-        body={...body,...await workflows.prepare(current,outline,body)}
+        body={...body,...await workflows.prepare(current,outline,body),...(outline.planning?.source?{planningSource:outline.planning.source}:{})}
       }
       const reportSelection = kind !== 'report' ? null : body.mode === 'research-summary' ? { mode: body.mode, moduleIds: body.moduleIds } : { chapterId: body.chapterId, stage: body.stage }
       if (kind === 'report' && body.mode !== 'research-summary') {
@@ -508,6 +568,10 @@ export async function createApp({ db, workers, projectsRoot, users }) {
       const paid = kind !== 'confirm' && !(kind === 'report' && body.mode === 'research-summary')
       const required = kind === 'research' ? ['parent', 'text', 'web'] : kind === 'report' ? reportModelRoles(reportSelection) : ['parent']
       const policy = paid ? await platform.snapshotPolicy(required) : null
+      if(kind==='workflow'){
+        body.policyResearch=!!body.policyRequested&&policy?.search?.enabled===true
+        if(body.policyResearch)body.skillIds=[...body.skillIds,'R01','R02']
+      }
       if (paid && kind === 'report') validateReportSnapshot(policy, reportSelection)
       if (paid && workers.validateTaskConfiguration) await workers.validateTaskConfiguration(policy, required)
       const limits = policy?.limits ?? (await platform.getPolicy()).limits
@@ -519,7 +583,7 @@ export async function createApp({ db, workers, projectsRoot, users }) {
         if (queued >= limits.maxQueuedPerUser) throw fail(429, '等待中的任务已达到上限，请完成或取消后再提交')
         if (paid) {
           const used = (await conn.query("SELECT count(*)::int AS n FROM job_reservations WHERE owner_id=$1 AND day=(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai')::date AND status <> 'released'", [req.user.id])).rows[0].n
-          if (used >= limits.maxDailyJobsPerUser) throw fail(429, '今日任务额度已用完，请联系管理员')
+          if (limits.maxDailyJobsPerUser!==null&&used >= limits.maxDailyJobsPerUser) throw fail(429, '今日任务额度已用完，请联系管理员')
         }
         if (kind === 'annotations') {
           const notes = (await conn.query("SELECT * FROM annotations WHERE project_id=$1 AND id=ANY($2::uuid[]) AND status IN ('pending','failed','interrupted') FOR UPDATE", [p.id, body.annotationIds])).rows
@@ -564,7 +628,19 @@ export async function createApp({ db, workers, projectsRoot, users }) {
     })
   })
   app.post('/api/projects/:id/chat', req => enqueue(req, 'chat', base.extend({ text: z.string().trim().min(1).max(16000),discussionOnly:z.boolean().optional(),discussionFlow:z.array(z.string().regex(/^(0[1-9]|1[01])$/)).max(11).refine(ids=>new Set(ids).size===ids.length).optional() }).refine(body=>!body.discussionFlow||body.discussionOnly===true,'本地编排仅用于只读讨论').parse(req.body)))
-  app.post('/api/projects/:id/outline/draft',req=>enqueue(req,'outline',base.extend({outlineVersion:z.number().int().nonnegative(),text:z.string().trim().max(16000).default(''),flow:z.array(z.string().regex(/^(0[1-9]|1[01])$/)).min(1).max(11).refine(ids=>new Set(ids).size===ids.length).optional()}).parse(req.body)))
+  app.post('/api/projects/:id/outline/draft',req=>enqueue(req,'outline',outlineRequest.parse(req.body)))
+  app.post('/api/projects/:id/outline/tasks',async req=>{
+    const body=base.extend({version:z.number().int().positive(),planningRevision:z.number().int().nonnegative(),
+      chapterId:catalogChapter,index:z.number().int().min(0).max(11),action:z.enum(['adopt','defer','restore']),text:z.string().trim().min(1).max(1600).optional()})
+      .refine(b=>!b.text||b.action==='adopt','修改文字时请选择采用').parse(req.body)
+    const p=await project(req)
+    return serial(`enqueue:${p.id}`,async()=>{
+      const [fresh]=await query('SELECT * FROM projects WHERE id=$1',[p.id]);revision(fresh,body.baseRevision)
+      const result=await outlines.changeTask(fresh,body,req.user.id)
+      await event(p.id,{type:'outline-task-choice',version:result.version,chapterId:result.chapterId})
+      return result
+    })
+  })
   app.post('/api/projects/:id/workflow/draft',req=>enqueue(req,'workflow',workflowDraftSchema.parse(req.body)))
   app.post('/api/projects/:id/workflow/review',async req=>{
     const body=base.extend({draftId:idSchema,blockId:workflowBlockId,itemId:workflowItemId.optional()}).parse(req.body),p=await project(req)
@@ -606,15 +682,16 @@ export async function createApp({ db, workers, projectsRoot, users }) {
   app.post('/api/projects/:id/confirm', req => enqueue(req, 'confirm', base.extend({ proposalId: z.string().min(1).max(200) }).parse(req.body)))
   app.post('/api/projects/:id/annotations/batch-submit', req => enqueue(req, 'annotations', base.extend({ annotationIds: z.array(idSchema).min(1).max(50).refine(v => new Set(v).size === v.length) }).parse(req.body)))
   app.post('/api/projects/:id/annotations', async req => {
-    const body = base.extend({ anchor: z.string().min(1).max(100), text: z.string().trim().min(1).max(5000), reference: z.object({ id: z.string().max(200), kind: z.string().max(30), title: z.string().max(300), excerpt: z.string().max(2000).optional() }).optional() }).parse(req.body), p = await project(req)
+    const body = base.extend({ anchor: z.string().min(1).max(100), text: z.string().trim().min(1).max(5000), reference: annotationReference.optional() }).parse(req.body), p = await project(req)
     return serial(p.id, async () => {
       const [current] = await query('SELECT * FROM projects WHERE id=$1', [p.id]);
-      if (!/^(PS|PA|PD|PR)\d{2}$/.test(body.anchor) && !current.state.stateObjects?.some(o => o.objectId === body.anchor)) throw fail(400, '批注必须指向专业对象 ID')
       const fingerprint = hash(body), [previous] = await query('SELECT * FROM annotations WHERE project_id=$1 AND request_id=$2', [p.id, body.requestId])
       if (previous) { if (previous.fingerprint !== fingerprint) throw fail(409, '请求编号已用于不同内容'); return { id: previous.id, status: previous.status } }
       revision(current, body.baseRevision)
+      await verifyAnnotationTarget(query, current, body.anchor, body.reference)
       const id = randomUUID()
       await query('INSERT INTO annotations(id,project_id,request_id,fingerprint,anchor,text,base_revision,reference) VALUES($1,$2,$3,$4,$5,$6,$7,$8)', [id, p.id, body.requestId, fingerprint, body.anchor, body.text, body.baseRevision, body.reference ?? {}])
+      await event(p.id, {type:'annotation-created', id})
       return { id, status: 'pending' }
     })
   })

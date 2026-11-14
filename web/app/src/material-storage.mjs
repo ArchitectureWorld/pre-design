@@ -2,6 +2,7 @@ import {mkdir,open,realpath,rm,rmdir} from 'node:fs/promises'
 import {constants} from 'node:fs'
 import {join,extname} from 'node:path'
 import {createHash} from 'node:crypto'
+import {materialUploadIssue} from './material-policy.mjs'
 export const MAX_UPLOAD_BYTES=512*1024*1024
 const fail=(statusCode,message)=>Object.assign(new Error(message),{statusCode})
 export function validateMaterialPath(filename,relativePath=filename){
@@ -9,7 +10,7 @@ export function validateMaterialPath(filename,relativePath=filename){
  if(!filename||Buffer.byteLength(relativePath)>2048||parts.length>32||/^[a-z]:/i.test(relativePath)||/[\\\x00-\x1f\x7f]/u.test(relativePath)||parts.some(p=>!p||p==='.'||p==='..'||Buffer.byteLength(p)>255)||parts.at(-1)!==filename||filename.includes('/'))throw fail(400,'文件路径不合法，请使用文件夹内的相对路径')
  return relativePath
 }
-export async function writeMaterialStream(workspace,id,relativePath,source,maxBytes=MAX_UPLOAD_BYTES){
+export async function writeMaterialStream(workspace,id,relativePath,source,maxBytes=MAX_UPLOAD_BYTES,validateHeader){
  if(!/^[a-zA-Z0-9_-]+$/.test(id))throw fail(400,'资料编号不合法')
  const parts=relativePath.split('/');validateMaterialPath(parts.at(-1),relativePath)
  let directory=join(workspace,'原始资料')
@@ -20,17 +21,26 @@ export async function writeMaterialStream(workspace,id,relativePath,source,maxBy
   if(await realpath(directory)!==directory)throw fail(409,'资料目录不是安全目录')
  }
  const path=join(directory,parts.at(-1)),digest=createHash('sha256');let handle,bytes=0
+ let header=validateHeader?Buffer.alloc(512):null
  try{
   handle=await open(path,constants.O_WRONLY|constants.O_CREAT|constants.O_EXCL|constants.O_NOFOLLOW,0o600)
   for await(const chunk of source.iterator?source.iterator({destroyOnReturn:false}):source){
-   bytes+=chunk.length;if(bytes>maxBytes)throw fail(413,'单个文件超过512 MB，请拆分后上传')
+   if(bytes+chunk.length>maxBytes)throw fail(413,'单个文件超过512 MB，请拆分后上传')
+   if(header){
+    header.set(chunk.subarray(0,header.length-bytes),bytes)
+    if(bytes+chunk.length>=header.length){validateHeader(header);header=null}
+   }
+   bytes+=chunk.length
    digest.update(chunk);await handle.writeFile(chunk)
   }
+  if(header)validateHeader(header.subarray(0,bytes))
   await handle.sync();await handle.close();handle=null
   return {path,bytes,sha256:digest.digest('hex')}
  }catch(error){if(handle){await handle.close().catch(()=>{});await rm(path,{force:true});await rmdir(directory).catch(()=>{})}source.resume?.();throw error}
 }
 export function materialProcessing(filename,bytes,image){
+ const issue=materialUploadIssue(filename)
+ if(issue)return {status:'conversion_required',label:issue.message}
  const ext=extname(filename).toLowerCase(),raster=['.png','.jpg','.jpeg','.webp'].includes(ext)
  const readable=['.pdf','.txt','.md','.csv','.json','.geojson','.yaml','.yml','.xml'].includes(ext)
  if(bytes===0)return {status:'empty',label:'空文件已保存'}

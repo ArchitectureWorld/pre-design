@@ -1,0 +1,61 @@
+.annotation-composer[hidden]{display:none}
+.annotation-composer{
+  position:fixed;z-index:135;isolation:isolate;box-sizing:border-box;pointer-events:none;color:var(--ink);
+  --expand:300ms cubic-bezier(.32,.04,.17,1);
+}
+.annotation-skin,.annotation-content{position:absolute;inset:0}
+.annotation-skin{
+  background:#fafcff;border-radius:var(--chip-radius);box-shadow:0 7px 26px #314c8229,inset 0 0 0 1px #b1c3ea;
+  transform-origin:0 0;transform:var(--chip-offset) var(--chip-scale);will-change:transform;
+  transition:transform var(--expand),border-radius var(--expand);
+}
+.annotation-content{
+  clip-path:var(--chip-clip);will-change:clip-path;
+  transition:clip-path var(--expand);pointer-events:auto;
+}
+.annotation-composer[data-phase=editing] .annotation-skin{transform:translate3d(0,0,0) scale(1);border-radius:17px}
+.annotation-composer[data-phase=editing] .annotation-content{clip-path:inset(0 round 17px)}
+.annotation-composer[data-phase=closing]{--expand:205ms cubic-bezier(.36,0,.3,1);pointer-events:none}
+.annotation-trigger{
+  position:absolute;top:0;left:0;display:flex;align-items:center;gap:7px;height:36px;width:108px;padding:0 13px;white-space:nowrap;
+  background:transparent;border:0;border-radius:inherit;color:#385cba;font-size:13px;font-weight:650;
+  text-align:left;transform:var(--chip-offset);transition:transform var(--expand),color .18s;
+}
+.annotation-trigger:focus-visible{outline:2px solid #7597e4;outline-offset:-3px}
+.annotation-composer[data-phase=editing] .annotation-trigger{transform:translate3d(0,0,0);color:var(--ink);pointer-events:none}
+.annotation-form{
+  position:absolute;inset:35px 0 0;
+  display:flex;flex-direction:column;gap:7px;padding:0 13px 12px;min-height:0;
+  opacity:0;transform:translateY(-5px);pointer-events:none;
+  transition:opacity 90ms ease-out,transform 140ms ease-out;
+}
+.annotation-composer[data-phase=editing] .annotation-form{
+  opacity:1;transform:translateY(0);pointer-events:auto;
+  transition:opacity 175ms ease-out 80ms,transform 220ms cubic-bezier(.2,.8,.2,1) 45ms;
+}
+.annotation-target{color:#626e85;font-size:11.5px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.annotation-form textarea{
+  flex:1;width:100%;min-height:25px;resize:none;outline:0;
+  border:1px solid #ced8ea;border-radius:9px;padding:8px 10px;
+  background:white;color:var(--ink);font-size:14px;line-height:1.5;
+}
+.annotation-form textarea:focus{border-color:#809fe4;box-shadow:0 0 0 2px #567be416}
+.annotation-actions{display:flex;align-items:center;gap:7px}
+.annotation-actions [role=alert]{flex:1;max-height:3em;overflow:auto;color:#a63e50;font-size:11px;line-height:1.45}
+.annotation-actions button{flex:none;min-height:29px;padding:4px 10px;border:0;border-radius:7px;background:transparent;color:#626e85;font-size:12px;font-weight:600}
+.annotation-actions [type=submit]{color:white;background:#476fd4}
+.annotation-actions button:focus-visible,.annotation-trigger:focus-visible{outline:2px solid #7597e4;outline-offset:-2px}
+.annotation-list blockquote{margin:6px 0;padding-left:9px;border-left:2px solid #a9bce4;font-size:11px;color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere}
+.annotation-list .annotation-item p{white-space:pre-wrap;overflow-wrap:anywhere}
+#previewSheet .script-paragraphs{cursor:text}
+.annotation-consult-library .annotation-drawer{position:relative;inset:auto;width:100%;height:100%;border-radius:inherit}
+.annotation-consult-library{width:min(430px,94vw);height:min(560px,82dvh);padding:0;border:1px solid var(--line);border-radius:18px;background:var(--glass-strong);color:var(--ink)}
+.annotation-consult-library::backdrop{background:#26355330}
+body.theme-dark .annotation-skin{background:#283449;box-shadow:0 8px 30px #111c3290,inset 0 0 0 1px #576c90}
+body.theme-dark .annotation-trigger{color:#acc4ff}
+body.theme-dark .annotation-target,body.theme-dark .annotation-actions [data-cancel]{color:#c1cce0}
+body.theme-dark .annotation-form textarea{background:#202b3e;border-color:#5d749d;color:var(--ink)}
+body.theme-dark .annotation-actions [role=alert]{color:#ffc2ca}
+@media(prefers-reduced-motion:reduce){
+  .annotation-skin,.annotation-content,.annotation-form,.annotation-composer[data-phase=editing] .annotation-form,.annotation-trigger{transition:none}
+}

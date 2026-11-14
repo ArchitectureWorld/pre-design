@@ -37,6 +37,14 @@ export function registerDossierRoutes({app,integration,project,enqueue,event,fin
   await project(req);
   const current=await store.current(await project(req));
   return {version:'r5.1',chapters:CHAPTERS,matrix:integration.registry,progress:{revision:current.revision,latestJob:current.jobs[0]??null,hasUnmergedInputs:current.hasUnmergedInputs},capabilities:[
+   {id:'R01',name:'研究问题与检索组织',state:'connected_limited',boundary:'含项目基本情况的整稿调用平台搜索，检索所在地与项目对象相关的官方政策。'},
+   {id:'R02',name:'外部证据适用性核验',state:'connected_limited',boundary:'政策采用实际网页读取收执与逐字引用，保存原文快照、链接及日期。适用判断由模型给出，待用户审阅。'},
+   {id:'C01.02',name:'项目阶段与已知条件概况',state:'connected_limited',boundary:'基本情况包含独立政策背景，衔接已核实的公共政策与上位规划。'},
+   {id:'V09',name:'内容分组与分页计划',state:'connected_limited',boundary:'每个页脚本绑定一页成果，初次生成采用脚本指定的呈现方式。'},
+   {id:'W01',name:'汇报论证与篇章组织',state:'connected_limited',boundary:'确认流程进入阶段稿时，与 W02、W03 联合生成业务报告名和各节短标题。'},
+   {id:'W02',name:'章节目条结构化正文',state:'connected_limited',boundary:'按章分节并保存独立汇报正文。每份页脚本保存主题、结论、上屏内容与呈现方式。'},
+   {id:'W03',name:'内部备注与条件说明',state:'connected_limited',boundary:'问询与待决项进入内部备注；对外文字保留影响结论的实质条件。'},
+   {id:'A03',name:'任务适用性与资料充分性',state:'connected_limited',boundary:'章节推荐和资料核对逐章保存本轮深度、依据和限制。在章节详情查看；旧专业模块执行前仍单独核对条件。'},
    {id:'D01',name:'资料登记',state:'connected',boundary:'复用上传原件与哈希；未解析不算已读'},
    {id:'D02',name:'原文读取',state:'connected_limited',boundary:'复用DSH真实读取收执；Office/CAD/OCR仍按既有工具能力显示限制'},
    {id:'D03',name:'交互归纳',state:'connected_limited',boundary:'DSH语义候选；原文及显式用户更正由程序校验'},

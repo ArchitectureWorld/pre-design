@@ -44,3 +44,6 @@
  .workflow-panes .script-doc-aside{border-left:0}
  .workflow-panes[data-active-pane=body] [data-workflow-pane=notes],.workflow-panes[data-active-pane=notes] [data-workflow-pane=body]{display:none}
 }
+.workflow-page-links{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:18px;font-size:12px}
+.workflow-page-links>span{color:var(--muted)}
+[data-workflow-body] h4{margin:.9em 0 .25em}

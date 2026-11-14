@@ -87,3 +87,21 @@ test('章节preflight在无输入时阻断模型任务，返回准备入口所�
   const status=await handle({operation:'report-status'})
   assert.equal(status.chapters.find(row=>row.chapterId==='site').prepared,false)
 })
+
+test('独立核对会话只按服务器配置绑定原项目，其他会话和业务写入无法借此访问',async t=>{
+  const workspace=await mkdtemp(join(tmpdir(),'web-outline-task-bridge-'));t.after(()=>rm(workspace,{recursive:true,force:true}))
+  const sessionId='parent-outline-job',parent='parent',agent={id:sessionId,session:{header:{cwd:workspace}}},bindings=new Map([[parent,'primary-core']]);let binds=0
+  const ctx={agents:new Map([[sessionId,agent]]),preplanning:{repository:{
+    readContext(id){if(!bindings.has(id))throw Object.assign(new Error('unbound'),{code:'session-not-bound'});return {project:{projectId:bindings.get(id)},binding:{sessionId:id}}},
+    async bindSession(id,project){binds++;bindings.set(id,project)},
+  },runtime:{snapshot:()=>({})}}}
+  const handle=bridge.createBridgeHandler(ctx,{workspace,sessionId,outlineProjectSession:parent,snapshot:policy()})
+  assert.equal((await handle({operation:'bind-outline-task'})).projectId,'primary-core')
+  await handle({operation:'bind-outline-task'});assert.equal(binds,1)
+  assert.equal((await handle({operation:'state'})).binding.sessionId,parent)
+  await assert.rejects(handle({operation:'bind-outline-task',projectId:'arbitrary'}),e=>e.code==='OPERATION_FORBIDDEN')
+  await assert.rejects(handle({operation:'confirm',proposalId:'x',baseRevision:0}),e=>e.code==='WEB_OUTLINE_READ_ONLY')
+  bindings.set(sessionId,'other-core');await assert.rejects(handle({operation:'bind-outline-task'}),e=>e.code==='WORKER_SESSION_MISMATCH')
+  const normal=bridge.createBridgeHandler(ctx,{workspace,sessionId,snapshot:policy()})
+  await assert.rejects(normal({operation:'bind-outline-task'}),e=>e.code==='OPERATION_FORBIDDEN')
+})

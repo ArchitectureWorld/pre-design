@@ -3,7 +3,8 @@ const metrics={
  root:{minW:200,maxW:320,minH:80,inset:28,extraH:48,fontSize:13,lineHeight:20},
  chapter:{minW:216,maxW:448,minH:64,inset:66,extraH:42,fontSize:12,lineHeight:18},
  section:{minW:240,maxW:576,minH:60,inset:44,extraH:40,fontSize:12,lineHeight:18},
- script:{minW:320,maxW:320,minH:116,inset:28,extraH:120,fontSize:11,lineHeight:17},
+ article:{minW:200,maxW:384,minH:56,inset:36,extraH:26,fontSize:12,lineHeight:18},
+ script:{minW:320,maxW:320,minH:116,inset:28,extraH:68,fontSize:11,lineHeight:17},
  artifact:{minW:228,maxW:320,minH:84,inset:28,extraH:62,fontSize:11,lineHeight:17},
 }
 
@@ -48,13 +49,13 @@ export function layoutWorkflowGraph({chapters=[],records={},projectName='',measu
  const title=String(projectName||'项目')
  const groups=chapters.map((chapter,index)=>({
   chapter,index,sections:(chapter.sections??[]).map(section=>{
-   const sectionTitle=numberedTitle(section.number,section.name),scripts=[]
+   const sectionTitle=numberedTitle(section.numbered===false?'':section.number,section.name),scripts=[]
    if(Array.isArray(section.scripts)){
     for(const entry of section.scripts){
      const record=entry.record??scriptRecord(records,entry.id)
      if(!entry.id||!String(record?.body??'').trim())continue
      const subdivided=section.scripts.length>1
-     const scriptTitle=numberedTitle(subdivided?entry.number:section.number,subdivided?entry.title:section.name)
+     const scriptTitle=numberedTitle(entry.number??section.number,subdivided||record.item?.presentation?entry.title:section.name)
      const visual=entry.visual?.id&&entry.visual.itemId===entry.id?entry.visual:null
      const visualTitle=visual?numberedTitle(visual.number,visual.displayTitle??(subdivided?visual.item?.title??entry.title:section.name)):''
      scripts.push({id:entry.id,entry,record,scriptTitle,visual,visualTitle,subdivided})
@@ -70,12 +71,13 @@ export function layoutWorkflowGraph({chapters=[],records={},projectName='',measu
  const visuals=scripts.filter(script=>script.visual)
  const titles={
   root:[title],chapter:groups.map(group=>String(group.chapter.name??'')),
-  section:sections.map(row=>row.sectionTitle),script:scripts.filter(script=>!script.legacy&&script.subdivided).map(script=>script.scriptTitle),
+  section:sections.map(row=>row.sectionTitle),article:scripts.filter(script=>script.subdivided).map(script=>script.scriptTitle),script:[],
   artifact:visuals.map(script=>script.visualTitle),
  }
  const columns={},measures={},padding=32,columnGap=72,rowGap=22,chapterGap=42
  let x=padding
  for(const [kind,spec] of Object.entries(metrics)){
+  if(kind==='article'&&!titles.article.length)continue
   const cache=new Map()
   const measure=text=>{
    if(!cache.has(text)){
@@ -105,7 +107,7 @@ export function layoutWorkflowGraph({chapters=[],records={},projectName='',measu
   const rows=group.sections.map(row=>{
    let nextScriptY=0
    const scripts=row.scripts.map(script=>{
-    const h=Math.max(columns.script.h,script.visual?columns.artifact.h:0)
+    const h=Math.max(columns.script.h,script.subdivided?columns.article.h:0,script.visual?columns.artifact.h:0)
     const centerY=nextScriptY+h/2
     nextScriptY+=h+rowGap
     return {...script,centerY}
@@ -142,7 +144,12 @@ export function layoutWorkflowGraph({chapters=[],records={},projectName='',measu
    for(const {id,entry,record,scriptTitle,visual,visualTitle,legacy,subdivided,centerY:offsetY} of scripts){
     const scriptCenterY=group.sectionY+scriptY+offsetY
     const script=node('script',id,scriptTitle,scriptCenterY-columns.script.h/2,{chapter,section,entry,record,legacy,subdivided})
-    edges.push(connection(sectionNode,script))
+    let parent=sectionNode
+    if(subdivided){
+     parent=node('article','article:'+id,scriptTitle,scriptCenterY-columns.article.h/2,{chapter,section,entry,record})
+     edges.push(connection(sectionNode,parent))
+    }
+    edges.push(connection(parent,script))
     if(visual){
      const page=node('artifact',visual.id,visualTitle,scriptCenterY-columns.artifact.h/2,{chapter,section,entry,visual})
      edges.push(connection(script,page))
@@ -207,14 +214,15 @@ function titleMarkup(node){return node.titleLines.map(line=>`<span class="workfl
 function defaultScriptMarkup(item){
  const {section,record,legacy,subdivided}=item
  const excerpt=record.item?[...(record.item.paragraphs??[]),...(record.item.points??[])].join(' · '):record.body
- if(!legacy)return `<div class="script-top"><strong>文字脚本${subdivided?'':` <span>${escape(section.number)}</span>`}</strong><em class="script-status ${record.approved?'approved':'draft'}">${record.stale?'旧版初稿':record.approved?'已审阅':'待审阅'}</em></div>${subdivided?`<strong class="workflow-script-title">${titleMarkup(item)}</strong>`:''}<div class="script-excerpt">${escape(excerpt)}</div><div class="script-bottom">双击查看${subdivided?'本条':'本节'}内容 <span>↗</span></div>`
+ if(record.item?.presentation)return `<div class="script-top"><strong>${escape(record.item.title)}</strong><em class="script-status ${record.approved?'approved':'draft'}">${record.stale?'旧版初稿':record.approved?'已审阅':'待审阅'}</em></div><div class="script-excerpt">${escape(excerpt)}</div><div class="script-bottom">页脚本${item.entry?.pageNumber?' · 第 '+escape(item.entry.pageNumber)+' 页':''} <span>↗</span></div>`
+ if(!legacy)return `<div class="script-top"><strong>文字脚本</strong><em class="script-status ${record.approved?'approved':'draft'}">${record.stale?'旧版初稿':record.approved?'已审阅':'待审阅'}</em></div><div class="script-excerpt">${escape(excerpt)}</div><div class="script-bottom">双击查看${subdivided?'本条':'本节'}内容 <span>↗</span></div>`
  return `<div class="script-top"><strong>文字脚本 <span>${escape(section.number)}</span></strong><em class="script-status ${record.approved?'approved':'draft'}">${record.stale?'旧版初稿':record.approved?'已审阅':'待审阅'}</em></div><div class="script-excerpt">${escape(record.body)}</div><div class="script-bottom">双击查看本节内容 <span>↗</span></div>`
 }
 
 /** Render into the accepted prototype layers; callers retain selection and reference state. */
 export function renderWorkflowGraph({board,nodeLayer,edgeLayer,makeNode,renderScriptNode,onOpenScript,onOpenVisual,onSelectEdge,onSelectNode,...input}){
  const layout=layoutWorkflowGraph(input),document=nodeLayer.ownerDocument
- const classes={root:'rootnode',chapter:'chapnode',section:'sectionnode',script:'scriptnode',artifact:'artnode workflow-visual-node'}
+ const classes={root:'rootnode',chapter:'chapnode',section:'sectionnode',article:'sectionnode workflow-article',script:'scriptnode',artifact:'artnode workflow-visual-node'}
  const colors=[['#e8eefa','#6185c8'],['#e3f1ed','#568f7e'],['#f0eaf8','#8d77b2'],['#f6eee2','#ae8b5e']]
  nodeLayer.replaceChildren();edgeLayer.replaceChildren();board.classList.add('workflow-graph-board')
  board.style.width=layout.boardW+'px';board.style.height=layout.boardH+'px'
@@ -224,8 +232,10 @@ export function renderWorkflowGraph({board,nodeLayer,edgeLayer,makeNode,renderSc
   if(item.kind==='root')html=`<div class="root-head">PRE—DESIGN / 项目</div><div class="root-name">${titleMarkup(item)}</div><div class="root-meta">${input.chapters?.length??0} 章 · ${layout.sectionCount} 节</div>`
   else if(item.kind==='chapter'){
    const [background,color]=colors[item.index%colors.length]
-   html=`<div class="chap-num" style="--chap-bg:${background};--chap-clr:${color}">${String(item.index+1).padStart(2,'0')}</div><div class="chap-label"><strong>${titleMarkup(item)}</strong><span>${item.chapter.sections?.length??0} 节${item.scriptCount?` · ${item.scriptCount} 份脚本`:''}</span></div>`
-  }else if(item.kind==='section')html=`<div class="sec-bullet"></div><div class="workflow-section-label"><div class="sec-main">${titleMarkup(item)}</div><div class="sec-info">大纲 · 章节标题</div></div>`
+   const badge=input.chapters.length>1?`<div class="chap-num" style="--chap-bg:${background};--chap-clr:${color}">${String(item.index+1).padStart(2,'0')}</div>`:''
+   html=`${badge}<div class="chap-label"><strong>${titleMarkup(item)}</strong><span>${item.chapter.sections?.length??0} 节${item.scriptCount?` · ${item.scriptCount} 份脚本`:''}</span></div>`
+  }else if(item.kind==='section')html=`<div class="sec-bullet"></div><div class="workflow-section-label"><div class="sec-main">${titleMarkup(item)}</div><div class="sec-info">${item.section.sectionBody?'汇报正文':'大纲 · 章节标题'}</div></div>`
+  else if(item.kind==='article')html=`<strong class="sec-main">${titleMarkup(item)}</strong>`
   else if(item.kind==='script')html=(item.legacy?renderScriptNode?.(item.section):renderScriptNode?.(item.entry,item.section,titleMarkup(item)))??defaultScriptMarkup(item)
   else html=`<div class="workflow-visual-label"><span class="art-fmt">HTML</span><span>汇报页</span></div><strong class="workflow-script-title">${titleMarkup(item)}</strong><div class="script-bottom">双击预览 <span>↗</span></div>`
   const element=makeNode?makeNode(classes[item.kind],item.id,item.x,item.y,html):document.createElement('div')
@@ -236,7 +246,8 @@ export function renderWorkflowGraph({board,nodeLayer,edgeLayer,makeNode,renderSc
   }
   element.dataset.nodeId=item.id;element.dataset.nodeKind=item.kind;element.title=item.title;element.setAttribute('aria-label',item.title)
   Object.assign(element.style,{left:item.x+'px',top:item.y+'px',width:item.w+'px',height:item.h+'px'})
-  if(item.kind==='script'){
+  if(item.kind==='section'&&item.section.sectionBody)element.addEventListener('dblclick',event=>{event.stopPropagation();onOpenScript?.(item.section)})
+  if(['article','script'].includes(item.kind)){
    if(item.record.workflowDraftId)element.dataset.workflowDraftId=item.record.workflowDraftId
    element.addEventListener('dblclick',event=>{
     event.stopPropagation()

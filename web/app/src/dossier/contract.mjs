@@ -31,6 +31,22 @@ export function validateQuery(q){
  requireThat(q.all===true||['fields','entityKeys','recordIds','chapters'].some(k=>q[k]?.length),'QUERY','查询范围不能为空',400);
  return clone(q);
 }
+// A material tool receipt supplies the absolute line offset for this read segment.
+function exactLineLocator(receipts,quote){
+ let found;
+ const span=quote.split('\n').length-1;
+ for(const r of receipts){
+  if(r.kind!=='text'||r.truncated||typeof r.text!=='string')continue;
+  const text=r.text.replace(/\r\n/g,'\n');
+  for(let pos=text.indexOf(quote);pos!==-1;pos=text.indexOf(quote,pos+1)){
+   const startLine=r.startLine+text.slice(0,pos).split('\n').length-1,endLine=startLine+span;
+   if(endLine>r.endLine)continue;
+   if(found&&found.startLine!==startLine)return null;
+   found={startLine,endLine};
+  }
+ }
+ return found;
+}
 function sourceEvidence(raw,sources,reads){
  exactKeys(raw,['sourceId','quote','startLine','endLine','pages'],['sourceId','quote']);
  const source=sources.find(s=>s.sourceId===raw.sourceId);
@@ -52,7 +68,11 @@ function sourceEvidence(raw,sources,reads){
  }else{
   requireThat(Number.isSafeInteger(raw.startLine)&&Number.isSafeInteger(raw.endLine)&&raw.startLine>=1&&raw.endLine>=raw.startLine,'LOCATOR','文本引用缺少准确起止行');
   const ok=matching.filter(r=>r.kind==='text'&&r.startLine<=raw.startLine&&r.endLine>=raw.endLine).some(r=>norm(r.text).split('\n').slice(raw.startLine-r.startLine,raw.endLine-r.startLine+1).join('\n').includes(norm(raw.quote)));
-  requireThat(ok,'QUOTE','引文不在已读取的对应行内');
+  if(!ok){
+   const located=exactLineLocator(matching,norm(raw.quote));
+   requireThat(located,'QUOTE','引文不在已读取的对应行内');
+   return {...clone(raw),...located,quote:norm(raw.quote),sourceHash:source.sha256,sourceKind:source.kind};
+  }
  }
  return {...clone(raw),quote:norm(raw.quote),sourceHash:source.sha256,sourceKind:source.kind};
 }
@@ -61,7 +81,15 @@ export function validateCandidate(response,{projectId,sources,reads=[]}){
  let candidate;try{candidate=JSON.parse(response.trim().replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,''));}catch{throw problem('JSON','模型未返回有效JSON；当前总档保持不变');}
  exactKeys(candidate,['records','limitations'],['records']);
  requireThat(Array.isArray(candidate.records)&&candidate.records.length<=160,'RECORDS','候选记录数不合法');
- if(candidate.limitations!==undefined)requireThat(Array.isArray(candidate.limitations)&&candidate.limitations.length<=30&&candidate.limitations.every(t=>typeof t==='string'&&t.length<=2000),'LIMITATIONS','限制说明不合法');
+ const rawLimits=candidate.limitations===undefined?[]:candidate.limitations;
+ requireThat(Array.isArray(rawLimits)&&rawLimits.length<=30,'LIMITATIONS','限制说明不合法');
+ const limitations=rawLimits.map(limit=>{
+  if(typeof limit==='string'){requireThat(limit.length<=2000,'LIMITATIONS','限制说明过长');return limit;}
+  exactKeys(limit,['sourceId','reason'],['sourceId','reason']);
+  requireThat(sources.some(s=>s.sourceId===limit.sourceId&&!s.withdrawn),'SOURCE','限制引用了不属于本轮输入的来源');
+  boundedString(limit.reason,'限制说明',2000);
+  return limit.sourceId+' · '+limit.reason;
+ });
  const records=candidate.records.map(r=>{
   exactKeys(r,['entityKey','entityLabel','field','label','scope','valueText','informationClass','chapters','evidence'],['entityKey','entityLabel','field','label','valueText','informationClass','chapters','evidence']);
   id(r.entityKey);id(r.field);id(r.scope??'project');boundedString(r.entityLabel,'对象名称',300);boundedString(r.label,'字段名称',300);boundedString(r.valueText,'原值',4000);
@@ -85,7 +113,7 @@ export function validateCandidate(response,{projectId,sources,reads=[]}){
   }
   unique.set(r.recordId,r);
  }
- return {records:[...unique.values()],limitations:candidate.limitations??[]};
+ return {records:[...unique.values()],limitations};
 }
 export function inputFingerprint(inputs){return digest({metadata:inputs.metadata??{},sources:inputs.sources.map(s=>({id:s.sourceId,hash:s.sha256,kind:s.kind,intent:s.intent??null,withdrawn:!!s.withdrawn})).sort((a,b)=>a.id.localeCompare(b.id))});}
 const groupKey=r=>[r.entityKey,r.field,r.scope].join('|');

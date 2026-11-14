@@ -8,8 +8,11 @@ import {join} from 'node:path'
 import {createApp} from '../src/server.mjs'
 import {confirmedOutlineFixture,draft} from './fixtures/outline.mjs'
 const connection={host:'/tmp/pre-design-pg-1000',port:55439,database:'pre_design_web',user:'zetta'}
-const item=(id,title)=>({id,title,paragraphs:[],points:['项目名称：少潭河水库','项目区位：湖北省武汉市新洲区'],evidenceIndexes:[0]})
-const content=()=>({blocks:[{id:'outline-01-1',items:[item('outline-01-1-item-1','项目概况'),item('outline-01-1-item-2','历史资料适用范围')],internalNotes:['本次研究范围待明确。']},{id:'outline-03-1',items:[item('outline-03-1-item-1','历史管理主题')],internalNotes:['边界与管控仍需核实。']}]})
+const item=(id,title)=>({id,title,paragraphs:['区位信息与项目材料相符。'],points:['项目名称：少潭河水库','项目区位：湖北省武汉市新洲区'],presentation:{layout:'focus',note:'先呈现项目名称，再列地区。'},evidenceIndexes:[0]})
+const content=()=>({reportTitle:'少潭河水库初步研判',blocks:[
+ ['outline-01-1','项目情况',['项目概况','历史资料适用范围']],['outline-01-2','项目区位',['行政区位']],
+ ['outline-03-1','管理沿革',['历史管理主题']],['outline-03-2','服务方向',['服务对象']]
+].map(([id,heading,titles])=>({id,heading,sectionText:heading+'有原件记录。',sectionEvidenceIndexes:[0],items:titles.map((t,i)=>item(id+'-item-'+(i+1),t)),internalNotes:['本次研究范围待明确。']}))})
 async function fixture(t){
  const pool=new pg.Pool(connection),schema='structured_'+randomUUID().replaceAll('-','');await pool.query(`CREATE SCHEMA ${schema}`)
  const db=new pg.Pool({...connection,options:`-c search_path=${schema}`}),root=await mkdtemp(join(tmpdir(),'structured-')),contexts=new Map()
@@ -34,15 +37,15 @@ test('整稿确认是首次可视化门槛，首次必须覆盖全部条目，�
  assert.equal((await f.post('/workflow/visuals',{draftId,pageIds:['visual-page-outline-01-1-item-1']})).statusCode,400)
  assert.equal((await f.request('POST',f.base+'/workflow/approve',{requestId:'foreign',baseRevision:0,draftId},'b')).statusCode,404)
  for(const block of f.first.blocks)for(const item of block.items)assert.equal((await f.post('/workflow/review',{draftId,blockId:block.id,itemId:item.id})).statusCode,200)
- const reviewed=(await f.state()).workflow.current;assert.deepEqual(reviewed.reviewedBlockIds,['outline-01-1','outline-03-1']);assert.equal(reviewed.approval,null)
+ const reviewed=(await f.state()).workflow.current;assert.deepEqual(reviewed.reviewedBlockIds,['outline-01-1','outline-01-2','outline-03-1','outline-03-2']);assert.equal(reviewed.approval,null)
  assert.equal((await f.post('/workflow/visuals',{draftId})).statusCode,409,'individual reviews do not silently approve the whole script')
  const draftFile=await f.request('GET',`${f.base}/artifacts/workflow-${draftId}-md`);assert.match(draftFile.body,/已审阅阶段稿/);assert.doesNotMatch(draftFile.body,/本节待审阅/)
  const draftFiles=(await f.request('GET',`${f.base}/artifacts`)).json().filter(file=>file.kind==='workflow-draft');assert.ok(draftFiles.every(file=>file.status==='reviewed'))
  const approval={requestId:'approve-all',draftId},approved=await f.post('/workflow/approve',approval);assert.equal(approved.statusCode,200,approved.body)
  assert.deepEqual((await f.post('/workflow/approve',approval)).json(),approved.json())
  const body={requestId:'visual-all',draftId},created=await f.post('/workflow/visuals',body);assert.equal(created.statusCode,200,created.body)
- const visual=(await f.state()).workflow.visuals.current;assert.equal(visual.pages.length,3);assert.equal(visual.draftId,draftId);assert.equal(visual.theme.id,'pre-design-report-v1');assert.equal(visual.stale,false)
- assert.deepEqual(visual.pages.map(page=>page.itemId),['outline-01-1-item-1','outline-01-1-item-2','outline-03-1-item-1'])
+ const visual=(await f.state()).workflow.visuals.current;assert.equal(visual.pages.length,5);assert.equal(visual.draftId,draftId);assert.equal(visual.theme.id,'pre-design-report-v1');assert.equal(visual.stale,false)
+ assert.deepEqual(visual.pages.map(page=>page.layout),f.first.blocks.flatMap(b=>b.items.map(item=>item.presentation.layout)));assert.deepEqual(visual.pages.map(page=>page.itemId),['outline-01-1-item-1','outline-01-1-item-2','outline-01-2-item-1','outline-03-1-item-1','outline-03-2-item-1'])
  assert.deepEqual((await f.post('/workflow/visuals',body)).json(),created.json())
  const file=await f.request('GET',`${f.base}/artifacts/workflow-visual-${visual.id}-html`);assert.equal(file.statusCode,200,file.body);assert.match(file.body,/项目概况/);assert.match(file.body,/历史资料适用范围/);assert.doesNotMatch(file.body,/本次研究范围待明确/)
  assert.equal((await f.request('GET',`${f.base}/artifacts/workflow-visual-${visual.id}-html`,undefined,'b')).statusCode,404)

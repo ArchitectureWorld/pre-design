@@ -1,14 +1,15 @@
+import {researchDepthLabel} from './outline-readiness.mjs'
 const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
 const list=rows=>rows.length?`<ul>${rows.map(row=>`<li>${escape(row)}</li>`).join('')}</ul>`:'<p>暂无已记录事项。</p>'
 const conditions=[['study_area','本次研究范围'],['project_boundary','项目红线 / 实施边界'],['land_use','用地性质（现状与规划）'],['planning_controls','规划管控线及适用条件']]
-export const chapterCapabilityLabel=c=>c.disposition==='exclude'?'本轮不适用':c.disposition==='defer'?'缺条件暂缓':({ready:'可开展本轮任务',limited:'仅可先梳理',blocked:'缺条件暂缓'}[c.readiness]??'资料能力待核实')
+export const chapterCapabilityLabel=c=>c.disposition==='exclude'?'本轮不适用':c.disposition==='defer'?(c.assessment?'本轮暂缓':'缺条件暂缓'):researchDepthLabel(c.assessment?.level)??({ready:'可开展本轮任务',limited:'仅可先梳理',blocked:'缺条件暂缓'}[c.readiness]??'资料能力待核实')
 export function outlineMarkup(outline,materials=[]){
  const draft=outline?.draft
  if(!draft)return `<p>${outline?.busy?'正在读取资料并梳理章节，请等待首版草案。':'先读取已上传资料，整理本项目的章节任务、依据和缺口，再询问影响流程的疑点。'}</p>`
  const counts={ready:0,limited:0,blocked:0};for(const c of draft.chapters){if(c.disposition==='exclude')continue;const key=c.disposition==='defer'?'blocked':c.readiness??'blocked';counts[key]++}
  const names=new Map(materials.map(m=>[m.id,m.relativePath??m.filename]))
  return `<div data-outline-version="${outline.version}"><strong>章节流程草案 V${outline.version} · ${outline.status==='confirmed'?'已确认':outline.status==='stale'?'资料或讨论已更新，需重新梳理':'待你审阅确认'}</strong>
- <p data-outline-capability-counts>本轮：可开展 ${counts.ready} 章 · 仅可先梳理 ${counts.limited} 章 · 缺条件暂缓 ${counts.blocked} 章</p>
+ <p data-outline-capability-counts>本轮：可开展 ${counts.ready} 章 · 受限开展 ${counts.limited} 章 · 缺条件暂缓 ${counts.blocked} 章</p>
  <div data-outline-conditions><p><b>先核实条件，再确定本轮能做到哪里</b></p>${conditions.map(([id,title])=>{const c=draft.conditions?.find(c=>c.id===id);return `<p><b>${title}：${({supported:'已有内容依据，按所述范围使用',unverified:'尚未核实',missing:'明确缺失',conflicting:'存在待澄清差异'}[c?.status]??'尚未评估')}</b><br>${escape(c?.detail??'旧版未评估此条件，请更新草案。')}</p>`}).join('')}<p>研究范围、项目红线、规划管控线不能相互替代。确认目录不会补齐资料，也不会解锁受限专业任务。</p></div>
  <details><summary>已知条件与资料差异</summary><p>${escape(draft.summary)}</p></details>
  <details><summary>资料依据与读取限制（${draft.evidence.length} 项）</summary>${list(draft.evidence.map(ref=>`${names.get(ref.materialId)||ref.materialId} · ${ref.locator} · ${ref.kind==='inventory'?'仅登记原件':ref.kind==='metadata'?'仅元数据':'读取内容'}：${ref.summary}${ref.quote?'；原文：“'+ref.quote+'”':''}`))}</details>

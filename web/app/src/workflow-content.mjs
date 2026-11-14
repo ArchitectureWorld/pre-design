@@ -2,6 +2,19 @@ const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
 })[char])
 
+export function outlineNumber(parent,index,count){
+  if(count===1)return parent
+  return parent ? `${parent}.${index+1}` : String(index+1)
+}
+export function reportHierarchy(doc){
+  return doc.flow.map((id,i)=>{
+    const number=outlineNumber('',i,doc.flow.length)
+    const blocks=doc.blocks.filter(block=>block.chapterId===id)
+    return {id,title:doc.chapters?.find(c=>c.id===id)?.title??id,number,
+      sections:blocks.map((block,j)=>({block,number:outlineNumber(number,j,blocks.length),numbered:blocks.length>1}))}
+  })
+}
+export const presentationLayouts={points:'要点',columns:'分栏对照',focus:'重点陈述'}
 export function workflowBlockItems(block) {
   if (Array.isArray(block?.items)) return block.items
   if (!block?.body?.trim()) return []
@@ -37,7 +50,7 @@ export function renderWorkflowItem(item, headingLevel = 3) {
 
 export function workflowItemPresentation(block, index, sectionNumber) {
   const items = workflowBlockItems(block), subdivided = items.length > 1
-  return {subdivided, number: subdivided ? `${sectionNumber}.${index+1}` : sectionNumber, title: subdivided ? items[index]?.title : block.title}
+  return {subdivided, number:outlineNumber(sectionNumber,index,items.length), title:subdivided||items[index]?.presentation?items[index]?.title:block.title}
 }
 
 const noteTopics = [
@@ -72,6 +85,11 @@ export function compactWorkflowNotes(record) {
     .filter(note => typeof note === 'string' && note.trim())
   const groups = new Map()
   for (const note of notes) {
+    if (note.startsWith('待用户决定：')) {
+      if (!groups.has('decision')) groups.set('decision',{kind:'decision',title:'待用户决定',details:[]})
+      groups.get('decision').details.push(note.slice('待用户决定：'.length))
+      continue
+    }
     const matches = noteTopics.flatMap(topic => {
       const terms = topic.terms.filter(([, pattern]) => pattern.test(note)).map(([label]) => label)
       return terms.length ? [{...topic, terms}] : []
@@ -91,6 +109,7 @@ export function compactWorkflowNotes(record) {
     group.details.push(note)
   }
   return [...groups.values()].map(({kind, title, action, terms, details}) => {
+    if (kind==='decision') return {kind,title,summary:details.length===1?details[0]:`${details.length} 个待决问题`,details}
     const shortNote = details.length === 1 && details[0].length <= 60 && !/本轮暂缺|处理方式|[？?\n]/u.test(details[0])
     const summary = shortNote ? details[0] : action ? `${action}：${[...terms].join('、')}。` : '展开查看具体限制与待补事项。'
     return {kind, title, summary, details}

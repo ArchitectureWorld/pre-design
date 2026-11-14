@@ -28,6 +28,11 @@ test('实际工具守卫覆盖父子Agent、越界软链接和伪造提案身份
   assert.equal(readOnlyGuard({agent:parent,name:'preplanning_get_context',arguments:{}}),undefined)
   assert.equal(readOnlyGuard({agent:parent,name:'preplanning_apply_commands',arguments:{envelope}}),'WEB_OUTLINE_READ_ONLY')
   assert.equal(readOnlyGuard({agent:child,name:'comfyui_pic',arguments:{}}),'WEB_OUTLINE_READ_ONLY')
+  const policyGuard=boundary.createProjectToolGuard({workspace,sessionId:'parent',agents,readOnly:true,allowWebRead:true,readContext:()=>({project:{projectId:'p1',currentRevision:2}})})
+  assert.equal(policyGuard({agent:parent,name:'web_search',arguments:{queries:['政策']}}),undefined)
+  assert.equal(policyGuard({agent:parent,name:'web_fetch',arguments:{url:'https://www.wuhan.gov.cn/policy'}}),undefined)
+  assert.match(policyGuard({agent:parent,name:'web_fetch',arguments:{url:'http://127.0.0.1/'}}),/WEB_/)
+  assert.equal(policyGuard({agent:parent,name:'preplanning_apply_commands',arguments:{envelope}}),'WEB_OUTLINE_READ_ONLY')
   for (const update of [{ project_id: 'p2' }, { expected_revision: 1 }, { requested_state: 'confirmed' }, { actor: { actor_id: 'other', role: 'agent' } }]) assert.match(call('preplanning_apply_commands', { envelope: { ...envelope, ...update } }), /WEB_/)
   assert.match(call('preplanning_apply_commands', { envelope }, child), /WEB_/)
   assert.match(call('comfyui_pic', {mode:'generate',prompt:'x'}), /WEB_/)
@@ -54,4 +59,8 @@ test('父会话保留研究子Agent继承所需的网页工具，父prompt仍隐
   const assembled={tools:[{name:'preplanning_read_material'},{name:'web_fetch'},{name:'comfyui_pic'}],sections:[]}
   await hooks.get('system-prompt/assemble')(undefined,{agent:{id:'parent'}},async()=>assembled)
   assert.deepEqual(assembled.tools.map(t=>t.name),['preplanning_read_material'])
+})
+test('系统网页查询规则承认只读会话实际提供的直接检索工具',async()=>{
+ const {PREPLANNING_SYSTEM_PROMPT}=await import('../../../src/prompts/preplanning-system.ts')
+ assert.match(PREPLANNING_SYSTEM_PROMPT,/未提供 preplanning_web_query.*web_search.*web_fetch/u)
 })

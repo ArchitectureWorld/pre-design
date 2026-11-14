@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import vm from 'node:vm'
 import { webcrypto } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
-import {partitionMaterialUploads,isCadMaterial,CAD_CONVERSION_MESSAGE} from '../src/material-policy.mjs'
+import {partitionMaterialUploads,materialUploadIssue} from '../src/material-policy.mjs'
 import {flowEditorState} from '../src/outline-flow.js'
 import {chapterCapabilityLabel} from '../src/outline-view.js'
 import {currentWorkflowVisual} from '../src/workflow-ui.js'
@@ -18,7 +18,7 @@ test('discards a dead worker after a failed bridge call without replaying that o
 })
 function ui(){
  const actions=[],elements=new Map();const el=()=>({classList:{add(){},remove(){},toggle(){}},value:'',textContent:'',style:{}})
- const context=vm.createContext({console,currentWorkflowVisual,chapterCapabilityLabel,partitionMaterialUploads,isCadMaterial,CAD_CONVERSION_MESSAGE,flowEditorState,crypto:{randomUUID:()=>String(Math.random())},sessionStorage:{getItem:()=>null,setItem(){},removeItem(){}},document:{addEventListener(){}},setTimeout,AbortController,
+ const context=vm.createContext({console,currentWorkflowVisual,chapterCapabilityLabel,partitionMaterialUploads,materialUploadIssue,flowEditorState,crypto:{randomUUID:()=>String(Math.random())},sessionStorage:{getItem:()=>null,setItem(){},removeItem(){}},document:{addEventListener(){}},setTimeout,AbortController,
  state:{currentProjectId:'A',stage:'overview',scripts:{},annotations:[]},projectRecords:[{id:'A',name:'A'}],$:(id)=>{if(!elements.has(id))elements.set(id,el());return elements.get(id)},closeProjectMenu(){},closeLibrary(){},setStage(stage){context.state.stage=stage;actions.push(stage)},enterWorkspace(){actions.push('workspace')},toast(){}})
  return {context,actions,elements}
 }
@@ -80,11 +80,11 @@ test('a cancelled creation does not upload files from the next project',async()=
  resolve({id:'A'});await creation
  assert.deepEqual(calls,['/projects']);assert.equal(context.state.currentProjectId,null)
 })
-test('folder selection retains same-name files in different directories and filters CAD for PDF or image replacement',()=>{
+test('folder selection retains same-name files in different directories and filters DWG for PDF replacement',()=>{
  const {context}=ui();context.state.files=[];context.renderFiles=()=>{}
  vm.runInContext(source+'\nglobalThis.test={addFiles};renderFiles=()=>{};',context)
  context.test.addFiles([{name:'平面.dwg',size:12*1024*1024,type:'',webkitRelativePath:'资料/建筑/平面.dwg'},{name:'平面.dwg',size:12*1024*1024,type:'',webkitRelativePath:'资料/结构/平面.dwg'},{name:'模型.rvt',size:1,type:''},{name:'README',size:0,type:''}])
- assert.equal(context.state.files.length,2);assert.equal(context.state.cadReplacements.length,2)
- assert.equal(context.state.cadReplacements[0],'资料/建筑/平面.dwg')
- assert.equal(context.state.cadReplacements[1],'资料/结构/平面.dwg')
+ assert.equal(context.state.files.length,2);assert.equal(context.state.rejectedMaterials.length,2)
+ assert.equal(context.state.rejectedMaterials[0].path,'资料/建筑/平面.dwg')
+ assert.equal(context.state.rejectedMaterials[1].path,'资料/结构/平面.dwg')
 })

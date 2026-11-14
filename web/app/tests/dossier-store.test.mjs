@@ -4,6 +4,50 @@ import {randomUUID} from 'node:crypto';
 import {createTestDb,createBaseTables} from './support/dossier-db.mjs';
 import {createDossierStore} from '../src/dossier/store.mjs';
 import {validateCandidate} from '../src/dossier/contract.mjs';
+test('历史DWG和压缩包留在来源清单，默认整理只选可用输入，显式复核原件不会入队',async t=>{
+ const f=await fixture(t);
+ const ids={};
+ for(const [i,name] of ['原图.DWG','资料.RAR','原图.pdf'].entries()){
+  const id=randomUUID();ids[name]='material:'+id;
+  await f.db.query('INSERT INTO materials(id,project_id,filename,path,sha256,bytes) VALUES($1,$2,$3,$4,$5,$6)',[id,f.p.id,name,f.p.workspace+'/原始资料/'+id+'/'+name,String(i+1).repeat(64),100]);
+ }
+ await f.store.addInteraction(f.p,{requestId:randomUUID(),intent:'requirement',text:'使用本轮可读资料'},'tester');
+ const current=await f.store.current(f.p);
+ assert.match(current.inventory.find(s=>s.sourceId===ids['原图.DWG']).preparation?.message??'',/DWG.*PDF/);
+ assert.match(current.inventory.find(s=>s.sourceId===ids['资料.RAR']).preparation?.message??'',/解压/);
+ const prepared=await f.store.prepare(f.p,{expectedDossierRevision:0});
+ assert.deepEqual(prepared.dossierSourceIds,current.pendingSources.map(s=>s.sourceId));
+ assert.equal(prepared.dossierSourceIds.length,3);
+ assert.ok(prepared.dossierSourceIds.includes(ids['原图.pdf']));
+ for(const name of ['原图.DWG','资料.RAR'])await assert.rejects(f.store.prepare(f.p,{expectedDossierRevision:0,sourceIds:[ids[name]]}),e=>e.statusCode===415);
+ const original=await f.store.source(f.p,ids['资料.RAR']);assert.equal(original.name,'资料.RAR');
+});
+
+test('含受限原件的旧空结果批次把原话列回待复核，一次独立复核后即退出',async t=>{
+ const f=await fixture(t),state=await publishUser(f);
+ const materialId=randomUUID(),materialSource='material:'+materialId;
+ await f.db.query('INSERT INTO materials(id,project_id,filename,path,sha256,bytes) VALUES($1,$2,$3,$4,$5,$6)',[materialId,f.p.id,'测绘.rar',f.p.workspace+'/原始资料/测绘.rar','a'.repeat(64),12]);
+ const note=await f.store.addInteraction(f.p,{requestId:randomUUID(),text:'待核对的项目要求',intent:'requirement'},'tester');
+ // Reproduce an older version that captured the text but published zero records
+ // after a batch containing the now-excluded archive.
+ const oldJob={id:randomUUID(),payload:{...(await f.store.prepare(f.p,{expectedDossierRevision:state.snapshot.revision})),dossierSourceIds:[materialSource,note.sourceId]}};
+ await f.db.query('INSERT INTO jobs(id,project_id,kind,payload,status) VALUES($1,$2,$3,$4,$5)',[oldJob.id,f.p.id,'dossier',oldJob.payload,'running']);
+ const sourceList=[await f.store.source(f.p,materialSource),await f.store.source(f.p,note.sourceId)];
+ const prior=await f.store.publish(f.p,oldJob,{records:[],limitations:['旧批次未处理原话']},sourceList,[]);
+ let current=await f.store.current(f.p);
+ assert.deepEqual(current.pendingSources.map(s=>s.sourceId),[note.sourceId]);
+ assert.equal(current.inventory.find(s=>s.sourceId===note.sourceId).reviewPreviousBatch,true);
+ const next={id:randomUUID(),payload:await f.store.prepare(f.p,{expectedDossierRevision:prior.revision})};
+ assert.deepEqual(next.payload.dossierSourceIds,[note.sourceId]);
+ await f.db.query('INSERT INTO jobs(id,project_id,kind,payload,status) VALUES($1,$2,$3,$4,$5)',[next.id,f.p.id,'dossier',next.payload,'running']);
+ const context=await f.store.inputsForJob(f.p,next);
+ // A clean text-only review can legitimately decide there is no new fact.
+ const saved=await f.store.publish(f.p,next,{records:[],limitations:[]},context.sources,[]);
+ current=await f.store.current(f.p);
+ assert.equal(current.pendingSources.length,0);
+ assert.deepEqual((await f.store.version(f.p,prior.revision)).snapshotHash,prior.snapshotHash);
+ assert.equal(saved.previousHash,prior.snapshotHash);
+});
 async function fixture(t){const env=await createTestDb();t.after(env.close);await createBaseTables(env.db);const p={id:randomUUID(),name:'隔离总档测试项目',workspace:'/isolated/project'},other={id:randomUUID(),workspace:'/isolated/other'};await env.db.query('INSERT INTO projects(id,name,metadata) VALUES($1,$2,$3)',[p.id,p.name,{}]);await env.db.query('INSERT INTO projects(id,name,metadata) VALUES($1,$2,$3)',[other.id,'另一个项目',{}]);const store=await createDossierStore(env.db);return {...env,p,other,store};}
 async function publishUser(f,text='服务对象为周边居民。',field='audience'){
  await f.store.addInteraction(f.p,{requestId:randomUUID(),text,intent:'requirement'},'tester');const before=await f.store.current(f.p);

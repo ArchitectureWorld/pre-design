@@ -28,12 +28,12 @@ const workers={
   const targets=workflowTargets(outline).filter(target=>!job.payload.blockId||target.id===job.payload.blockId)
   onEvent({stage:'generating'})
   const longText='任务书列出工程位置与周边交通条件，现有资料可以支持项目区位与道路衔接的基本描述。'.repeat(21)
-  return {response:JSON.stringify({blocks:targets.map(target=>({id:target.id,
+  return {response:JSON.stringify({reportTitle:'片区策划阶段研判',blocks:targets.map(target=>({id:target.id,heading:['项目区位','现状交通','实施条件'][target.taskIndex],sectionText:'本项目'+target.title+'有任务书依据。',sectionEvidenceIndexes:[0],
    items:[1,2].map(index=>{
     const explanation=target.id==='outline-01-1'?longText:'既有资料记载该项现状。'
     return {
     id:`${target.id}-item-${index}`,title:index===1?'项目区位与交通条件':'建设范围与实施条件',
-    paragraphs:[`${job.payload.itemId?'修订后汇报正文':'汇报正文'}：任务书提供项目所在地。本节以既有资料为基础描述 ${target.title}。${explanation}`,explanation,explanation],
+    paragraphs:[`${job.payload.itemId?'修订后汇报正文':'汇报正文'}：任务书提供项目所在地。本节以既有资料为基础描述 ${target.title}。${explanation}`],presentation:{layout:'points',note:'列示区位与现状条件。'},
     points:['保留现状道路出入口。','方案阶段核对交通衔接。'],evidenceIndexes:[0],
     }
    }).filter(item=>!job.payload.itemId||item.id===job.payload.itemId),
@@ -65,6 +65,27 @@ page.on('response',response=>{if(response.status()>=500)httpErrors.push({path:ne
 const openProject=async()=>{await page.getByRole('button',{name:'打开历史项目 成果流程浏览器验收',exact:true}).click();await page.locator('#workspaceStage:not(.workspace-transitioning)').waitFor({state:'visible'})}
 const settleAnimations=()=>page.evaluate(()=>Promise.all(document.getAnimations().filter(animation=>animation.effect?.getTiming().iterations!==Infinity).map(animation=>animation.finished.catch(()=>{}))))
 const waitVersion=version=>page.waitForFunction(version=>document.querySelector('[data-workflow-state]')?.textContent.includes(`V${version}`),version,{timeout:20000})
+async function dragPhrase(locator,from,to){
+ await locator.evaluate(el=>el.scrollIntoView({block:'start'}))
+ const pick=await locator.evaluate((el,[from,to])=>{
+  const doc=el.ownerDocument,node=el.firstChild,frame=doc.defaultView.frameElement,box=frame?.getBoundingClientRect()
+  const caret=index=>{
+   const range=doc.createRange();range.setStart(node,index);range.collapse(true)
+   const r=range.getBoundingClientRect()
+   return {x:r.left+(box?.left??0)+(frame?.clientLeft??0),y:r.top+r.height/2+(box?.top??0)+(frame?.clientTop??0)}
+  }
+  return {start:caret(from),end:caret(to),text:node.textContent.slice(Math.min(from,to),Math.max(from,to))}
+ },[from,to])
+ // Send native mouse input. Playwright's drag interception injects script into frames, which the report sandbox disables.
+ const mouse=await page.context().newCDPSession(page)
+ try{
+  await mouse.send('Input.dispatchMouseEvent',{type:'mouseMoved',...pick.start})
+  await mouse.send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',buttons:1,clickCount:1,...pick.start})
+  await mouse.send('Input.dispatchMouseEvent',{type:'mouseMoved',button:'left',buttons:1,...pick.end})
+  await mouse.send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',buttons:0,clickCount:1,...pick.end})
+ }finally{await mouse.detach()}
+ return pick.text
+}
 async function checkGraph(expectedScripts,expectedVisuals=0){
  const result=await page.evaluate(()=>{
   const data=[...document.querySelectorAll('#nodeLayer .mapnode')].map(node=>({id:node.dataset.nodeId,kind:node.dataset.nodeKind,x:Number.parseFloat(node.style.left),y:Number.parseFloat(node.style.top),w:node.offsetWidth,h:node.offsetHeight,title:node.title,text:node.textContent,scrollW:node.scrollWidth,clientW:node.clientWidth,scrollH:node.scrollHeight,clientH:node.clientHeight}))
@@ -76,13 +97,52 @@ async function checkGraph(expectedScripts,expectedVisuals=0){
  }
  assert.equal(result.visuals,expectedVisuals);assert.ok(result.data.every(node=>[node.x,node.y,node.w,node.h].every(Number.isFinite)))
  assert.ok(result.paths.every(path=>!/[CQSTA]/i.test(path)&&!path.includes('NaN')),'only straight/chamfered paths')
- for(const node of result.data.filter(node=>['chapter','section'].includes(node.kind))){assert.ok(node.text.includes(node.title),node.id);assert.ok(node.scrollW<=node.clientW+1,node.id+' horizontal overflow');assert.ok(node.scrollH<=node.clientH+1,node.id+' vertical overflow')}
+ for(const node of result.data.filter(node=>['chapter','section','article'].includes(node.kind))){assert.ok(node.text.includes(node.title),node.id);assert.ok(node.scrollW<=node.clientW+1,node.id+' horizontal overflow');assert.ok(node.scrollH<=node.clientH+1,node.id+' vertical overflow')}
  const last=[1,2,3].map(i=>result.data.find(node=>node.id===`section-5-${i}`).y);assert.ok(last[0]<last[1]&&last[1]<last[2],'5.3 must follow 5.2')
  return result
 }
 try{
  await page.goto(url);await page.locator('#accessToken').fill(token);await page.getByRole('button',{name:'进入项目空间'}).click();await page.locator('#accessDialog').waitFor({state:'detached'});await openProject()
  const initialGraph=await checkGraph(0)
+ const composer=page.locator('.annotation-composer'),trigger=composer.getByRole('button',{name:'添加批注'}),field=composer.getByRole('textbox',{name:'批注意见'})
+ const chapter=page.locator('[data-node-id="chapter-1"]'),chatDraft='会话草稿保留在这里'
+ await page.locator('#chatInput').fill(chatDraft)
+ await chapter.click({button:'right'})
+ await trigger.waitFor()
+ // Seek the real CSS transition on its own timeline so rendering speed on CI does not change the assertion.
+ await trigger.evaluate(button=>button.addEventListener('click',()=>{
+  const skin=button.closest('.annotation-composer').querySelector('.annotation-skin')
+  const motion=skin.getAnimations().find(animation=>animation.transitionProperty==='transform')
+  const duration=motion.effect.getTiming().duration
+  motion.pause()
+  window.noteFrames=[0,.2,.4,.6,.8,1].map(fraction=>{
+   motion.currentTime=duration*fraction
+   return skin.getBoundingClientRect().width
+  })
+  motion.finish()
+ },{once:true}))
+ await trigger.click();await field.fill('请注明本章的资料来源。')
+ const samples=await page.evaluate(()=>window.noteFrames)
+ assert.ok(Math.abs(samples[0]-108)<1&&Math.abs(samples.at(-1)-336)<1,JSON.stringify(samples))
+ assert.ok(samples.slice(1).every((width,index)=>width>samples[index]),JSON.stringify(samples))
+ assert.equal(await field.evaluate(el=>el===document.activeElement),true)
+ await composer.getByRole('button',{name:'提交批注'}).click()
+ await composer.waitFor({state:'hidden'})
+ assert.equal(await page.locator('#chatInput').inputValue(),chatDraft)
+ let saved=await state()
+ assert.equal(saved.jobs.length,before.jobs.length);assert.equal(saved.annotations.length,1)
+ assert.equal(saved.annotations[0].anchor,'chapter-01');assert.equal(saved.annotations[0].reference.outlineVersion,1)
+ const bounds=await chapter.boundingBox()
+ await page.mouse.move(bounds.x+20,bounds.y+12);await page.mouse.down({button:'right'});await page.mouse.move(bounds.x+24,bounds.y+48,{steps:5});await page.mouse.up({button:'right'})
+ assert.equal(await composer.isVisible(),false)
+ await page.locator('#openAnnotationDrawer').click()
+ const libraryNote=page.locator('[data-annotation-id]').filter({hasText:'请注明本章的资料来源。'})
+ await libraryNote.getByRole('button',{name:'编辑'}).click();await field.fill('请注明本章的资料版本。')
+ await field.press('Control+Enter');await composer.waitFor({state:'hidden'})
+ assert.ok((await page.locator('#annotationList').innerText()).includes('请注明本章的资料版本。'))
+ await page.locator('#closeAnnotationDrawer').click()
+ await page.reload();await openProject()
+ assert.equal(await page.locator('#annotationCount').innerText(),'1')
  const viewport=await page.locator('#graphViewport').boundingBox(),oldTransform=await page.locator('#graphBoard').evaluate(element=>element.style.transform)
  await page.mouse.move(viewport.x+20,viewport.y+20);await page.mouse.down();await page.mouse.move(viewport.x+110,viewport.y+85,{steps:10});await page.mouse.up()
  assert.notEqual(await page.locator('#graphBoard').evaluate(element=>element.style.transform),oldTransform,'left drag pans')
@@ -96,7 +156,52 @@ try{
  const targetItem=first.blocks[0].items[0].id,approveWhole=page.locator('[data-workflow-approve]'),generateVisuals=page.locator('[data-workflow-visuals]')
  assert.equal(await generateVisuals.isDisabled(),true)
  assert.equal(await page.locator('[data-workflow-layout]').isVisible(),false)
- await page.locator('#pipelineBtn').click();await page.locator('[data-workflow-body]').waitFor({state:'visible'})
+ await page.locator('#pipelineBtn').click();await page.locator('[data-open-page-script]').first().click();await page.locator('[data-workflow-body]').waitFor({state:'visible'})
+ const paragraph=page.locator('[data-workflow-body] p').first()
+ await page.locator('#chatInput').fill(chatDraft)
+ await paragraph.click({position:{x:6,y:5}})
+ assert.equal(await composer.isVisible(),false,'a click without a selection does not start a word annotation')
+ const firstExcerpt=await dragPhrase(paragraph,1,4)
+ await trigger.waitFor({timeout:3500})
+ assert.equal(await paragraph.evaluate(el=>el.ownerDocument.getSelection().toString()),firstExcerpt)
+ const excerpt=await dragPhrase(paragraph,9,5)
+ await trigger.waitFor({timeout:3500})
+ assert.equal(await paragraph.evaluate(el=>el.ownerDocument.getSelection().toString()),excerpt)
+ assert.equal(await page.getByRole('button',{name:'引用正文'}).count(),0)
+ await trigger.click()
+ assert.ok((await composer.locator('.annotation-target').textContent()).includes(excerpt))
+ assert.equal(await field.evaluate(el=>el===document.activeElement),true)
+ await field.fill('请保留这段原文的时间口径。')
+ const annotationUrl=url+base+'/annotations'
+ let persistedId
+ await page.route(annotationUrl,async route=>{
+  const response=await route.fetch();assert.equal(response.status(),200)
+  persistedId=(await response.json()).id
+  await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'连接中断，请重试。'})})
+ },{times:1})
+ await field.press('Control+Enter');await composer.getByRole('alert').filter({hasText:'连接中断，请重试。'}).waitFor()
+ assert.equal(await field.inputValue(),'请保留这段原文的时间口径。')
+ await composer.getByRole('button',{name:'提交批注'}).click();await composer.waitFor({state:'hidden'})
+ saved=await state()
+ const quotedNote=saved.annotations.find(n=>n.id===persistedId)
+ assert.equal(saved.annotations.length,2);assert.equal(saved.workflow.current.id,first.id);assert.equal(calls.length,1)
+ assert.equal(quotedNote.reference.kind,'quote');assert.equal(quotedNote.reference.excerpt,excerpt)
+ assert.equal(await page.locator('#chatInput').inputValue(),chatDraft)
+ assert.equal(await page.locator('#referenceChips').isVisible(),false)
+ await page.locator('#openAnnotationDrawer').click()
+ assert.equal(await page.locator(`[data-annotation-id="${persistedId}"] blockquote`).innerText(),excerpt)
+ await page.locator('#closeAnnotationDrawer').click()
+ await page.locator('#previewQuoteBtn').click()
+ assert.equal(await field.evaluate(el=>el===document.activeElement),true)
+ await field.fill('取消此条');await field.press('Escape');await composer.waitFor({state:'hidden'})
+ assert.equal(await page.locator('#previewOverlay').isVisible(),true)
+ assert.equal((await state()).annotations.length,2)
+ assert.equal(quotedNote.reference.workflowDraftId,first.id);assert.equal(quotedNote.anchor,targetItem)
+ const replay=await app.inject({method:'POST',url:base+'/annotations',headers,payload:{
+  requestId:'foreign-draft',baseRevision:0,anchor:targetItem,text:'引用版本核验',reference:{...quotedNote.reference,workflowDraftId:randomUUID()}
+ }})
+ assert.equal(replay.statusCode,409);assert.equal((await state()).annotations.length,2)
+ assert.equal(await page.locator('#previewOverlay').isVisible(),true)
  assert.match(await page.locator('[data-workflow-body]').textContent(),/汇报正文/);assert.doesNotMatch(await page.locator('[data-workflow-body]').textContent(),/内部疑问|本轮暂不提供/)
  await page.setViewportSize({width:1060,height:630})
  const body=page.locator('[data-workflow-pane="body"]'),notes=page.locator('[data-workflow-pane="notes"]')
@@ -120,7 +225,7 @@ try{
  assert.equal(await notes.isVisible(),false)
  await page.getByRole('button',{name:'内部备注',exact:true}).click()
  assert.equal(await notes.isVisible(),true);assert.equal(await body.isVisible(),false)
- await page.getByRole('button',{name:'汇报正文',exact:true}).click()
+ await page.getByRole('button',{name:'页脚本',exact:true}).click()
  assert.equal(await body.isVisible(),true);assert.equal(await notes.isVisible(),false)
  await page.setViewportSize({width:1552,height:1052})
  await page.locator('#previewNext').click()
@@ -133,7 +238,7 @@ try{
  assert.deepEqual(second.blocks[0].items.slice(1),first.blocks[0].items.slice(1))
  assert.deepEqual(second.blocks.slice(1),first.blocks.slice(1));assert.deepEqual(second.reviewedItemIds,[])
  assert.equal(calls[1].payload.itemId,targetItem)
- await page.locator('#pipelineBtn').click();await page.locator('[data-workflow-body]').waitFor();assert.match(await page.locator('[data-workflow-body]').textContent(),/修订后/)
+ await page.locator('#pipelineBtn').click();await page.locator('[data-open-page-script]').first().click();await page.locator('[data-workflow-body]').waitFor();assert.match(await page.locator('[data-workflow-body]').textContent(),/修订后/)
  await settleAnimations();await page.screenshot({path:join(evidence,'body-and-internal-notes.png')})
  await page.locator('#scriptApproveBtn').click();await page.waitForFunction(()=>document.querySelector('#scriptApproveBtn').textContent.includes('已审阅'))
  await page.locator('#closePreview').click()
@@ -160,6 +265,15 @@ try{
  const visualParagraph=visualFrame.getByText(/^修订后汇报正文/).first()
  await visualHeading.waitFor({state:'visible',timeout:5000})
  await visualParagraph.waitFor({state:'visible',timeout:5000})
+ await visualParagraph.click({button:'right',position:{x:12,y:8}})
+ await trigger.click();await field.press('Escape');await composer.waitFor({state:'hidden'})
+ const visualExcerpt=await dragPhrase(visualParagraph,2,3)
+ await trigger.waitFor({timeout:3500})
+ await trigger.click();await field.fill('请调整这一页的正文行距。');await field.press('Control+Enter')
+ await composer.waitFor({state:'hidden'})
+ const visualNote=(await state()).annotations.find(n=>n.reference.visualId===firstDeck.id)
+ assert.equal(visualNote.reference.pageId,firstDeck.pages[0].id);assert.equal(visualNote.reference.itemId,targetItem)
+ assert.equal(visualNote.reference.kind,'quote');assert.equal(visualNote.reference.excerpt,visualExcerpt)
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))
  const [frameBox,headingBox,paragraphBox]=await Promise.all([page.locator('iframe.workflow-visual-preview').boundingBox(),visualHeading.boundingBox(),visualParagraph.boundingBox()])
  assert.ok(frameBox?.width>300&&frameBox.height>100)
@@ -212,7 +326,8 @@ try{
  await openVisual.click();assert.match(await page.locator('#previewTitle').textContent(),/HTML 汇报页 · 1 项目区位.*V3/)
  await page.locator('#closePreview').click();await page.locator('[data-open="tasks"]').click();await downloadDeck()
  const final=await state();assert.deepEqual(final.workflow.current.reviewedItemIds,[targetItem]);assert.deepEqual(final.workflow.visuals.current,finalDeck);assert.equal(final.revision,0);assert.deepEqual(final.core.proposals,[])
- assert.deepEqual(final.outline,before.outline);assert.equal(calls.length,2);assert.ok(calls.every(call=>call.kind==='workflow'&&call.readOnly));assert.deepEqual(errors,[]);assert.deepEqual(httpErrors,[])
+ assert.equal(final.annotations.find(n=>n.id===persistedId).reference.excerpt,excerpt,'a quote survives refresh and later manuscript versions')
+ assert.deepEqual(final.outline,before.outline);assert.equal(calls.length,2);assert.ok(calls.every(call=>call.kind==='workflow'&&call.readOnly));assert.deepEqual(errors,[]);assert.deepEqual(httpErrors,[{path:base+'/annotations',status:503}])
  await page.screenshot({path:join(evidence,'reloaded.png')})
  await writeFile(join(evidence,'report.json'),JSON.stringify({model:'controlled-test-double',realBrowserApiDatabase:true,flow,chapters:5,sections:15,noPrematureScripts:true,noPrematureVisualizations:true,visualPages:30,wholeDraftApproval:true,singleAndMultiPageLayout:true,independentScroll:true,mobileTabs:true,fullTitlesEqualWidths:true,straightChamferedEdges:true,leftButtonPan:true,realProgress:true,bodyAndNotesSeparate:true,targetedRevision:true,review:true,downloads:['html','md','visual-html'],reloadRecovery:true,revision:final.revision,versions:final.workflow.history.length,errors,httpErrors,initialGraph},null,2))
  console.log('PASS five chapters / 15 sections, titles, panning, generation, progress, revision, review, download, refresh, whole-draft approval, 30-page HTML deck and single/multi-page layout')

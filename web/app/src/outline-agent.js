@@ -14,6 +14,8 @@ export function publicAgentText(value){
 
 export function agentUserMessage(job){
  const text=publicAgentText(job.user_text)
+ if(job.kind==='outline'&&job.planning_mode==='fromDiscussion')return {label:'操作',text:'把会话研判编入章节'}
+ if(job.kind==='outline'&&job.planning_mode==='adjust')return {label:'你',text:`调整第${job.target_chapter_id}章 · ${text}`}
  if(job.kind==='outline'&&!text)return {label:'操作',text:'根据资料推荐章节'}
  if(job.kind==='outline'&&text==='用户通过流程编辑器提交流程，请严格保留选择与顺序，逐章比对已有资料并询问必要缺项。')return {label:'操作',text:'已提交流程'}
  return {label:'你',text}
@@ -24,9 +26,9 @@ export function consultMessageMode(outline,{dirty=false,requestedMode='chat'}={}
  return requestedMode==='outline'&&outline?.flowReviewed&&!dirty&&(outline.status!=='stale'||updating)?'outline':'chat'
 }
 
-export function consultContentKey(value,cadReplacements=[]){
+export function consultContentKey(value,rejectedMaterials=[]){
  const {busy:_busy,lastJob:_lastJob,...outline}=value.outline??{}
- return JSON.stringify([value.id,outline,value.materials,cadReplacements,outline.draft?null:!!_busy])
+ return JSON.stringify([value.id,outline,value.materials,rejectedMaterials,outline.draft?null:!!_busy])
 }
 
 export function createConsultDrafts(storage){
@@ -91,7 +93,7 @@ export function watchProjectEvents({url,headers,refresh,onProgress,onConnection,
  return {abort(){stopped=true;clearInterval(poll);clearTimeout(refreshTimer);clearTimeout(retryTimer);retryResolve?.();streamController?.abort()}}
 }
 
-export function mountOutlineAgent(bottom,{input,sendButton,onCancel,onModeChange,storage=sessionStorage}){
+export function mountOutlineAgent(bottom,{input,sendButton,onCancel,onModeChange,onDiscussToOutline,storage=sessionStorage}){
  const panel=document.createElement('section');panel.id='outlineAgentPanel';panel.className='outline-agent';panel.setAttribute('aria-label','Agent 沟通与运行状态')
  panel.innerHTML='<div class="outline-agent-status"><strong data-agent-state>Agent</strong><span data-agent-time></span><span data-agent-queue></span><span class="outline-agent-activity" data-agent-activity></span><span data-agent-connection></span><button type="button" data-agent-cancel hidden>中止</button></div><div class="outline-agent-history" data-agent-history role="log" aria-label="项目讨论记录" aria-live="polite" aria-relevant="additions text"></div><div class="outline-agent-notice" data-agent-notice role="status" hidden></div>'
  bottom.insertBefore(panel,input.closest('#consultComposer'))
@@ -101,6 +103,7 @@ export function mountOutlineAgent(bottom,{input,sendButton,onCancel,onModeChange
  for(const button of modes.querySelectorAll('button'))button.onclick=()=>onModeChange(button.dataset.agentMode)
  const sendText=document.createElement('span');sendText.dataset.agentSendLabel='';sendButton.append(sendText);sendButton.classList.add('outline-agent-send')
  const drafts=createConsultDrafts(storage),find=selector=>panel.querySelector(selector),history=find('[data-agent-history]')
+ history.addEventListener('click',event=>{const button=event.target.closest?.('[data-discussion-to-outline]');if(button)onDiscussToOutline?.(button.dataset.discussionToOutline)})
  let current={jobs:[],connection:'connecting',mode:'chat',busy:false,sending:false},projectId=null,historyKey='',notice='',cancelPending=false
  let followLatest=true,pendingHistoryScroll=true,historyPosition=0,historyFrame=0
  const historyAtEnd=()=>history.scrollHeight-history.scrollTop-history.clientHeight<28
@@ -142,13 +145,13 @@ export function mountOutlineAgent(bottom,{input,sendButton,onCancel,onModeChange
  }
  function updateHistory(){
   // Progress labels and timestamps never replace a conversation or the canvas.
-  const key=JSON.stringify([projectId,current.jobs.map(j=>[j.id,j.kind,j.status,j.user_text,j.result?.response,j.error])])
+  const key=JSON.stringify([projectId,current.planningSourceJobId,current.jobs.map(j=>[j.id,j.kind,j.status,j.user_text,j.result?.response,j.error])])
   if(key===historyKey){scheduleHistoryPosition();return}
   if(history.clientHeight>0&&!pendingHistoryScroll){followLatest=historyAtEnd();historyPosition=history.scrollTop}
   historyKey=key
   history.innerHTML=current.jobs.map(job=>{
    const user=agentUserMessage(job),response=publicAgentText(job.result?.response),error=publicAgentText(job.error),result=response||error||`${kinds[job.kind]??'任务'} · ${labels[job.status]??job.status}`
-   return `${user.text?`<div class="outline-agent-message is-user"><b>${user.label}</b><p>${escape(user.text)}</p></div>`:''}<div class="outline-agent-message ${error?'is-error':''}" data-agent-job="${escape(job.id)}"><b>Agent</b><p>${escape(result)}</p><small>${escape(labels[job.status]??job.status)}</small></div>`
+   return `${user.text?`<div class="outline-agent-message is-user"><b>${user.label}</b><p>${escape(user.text)}</p></div>`:''}<div class="outline-agent-message ${error?'is-error':''}" data-agent-job="${escape(job.id)}"><b>Agent</b><p>${escape(result)}</p><small>${escape(labels[job.status]??job.status)}</small>${job.kind==='chat'&&job.status==='completed'&&response&&onDiscussToOutline?`<button type="button" class="link-like" data-discussion-to-outline="${escape(job.id)}">${current.planningSourceJobId===job.id?'查看章节建议':'编入章节'}</button>`:''}</div>`
   }).join('')||'<div class="outline-agent-empty">在这里与 Agent 交流</div>'
   pendingHistoryScroll=true;scheduleHistoryPosition()
  }

@@ -8,7 +8,9 @@ test('production uses the accepted prototype CSS byte-for-byte and retains its s
  const original = await readFile(resolve(root,'../index.html'),'utf8'), built = await readFile(resolve(dist,'index.html'),'utf8')
  assert.equal(await readFile(resolve(dist,'prototype.css'),'utf8'), original.match(/<style>([\s\S]*?)<\/style>/)[1])
  const ids = html => [...html.matchAll(/\bid="([^"]+)"/g)].map(x=>x[1])
- assert.deepEqual(ids(built).filter(id=>!['chooseFolderBtn','createFolderInput','outlineFileInput'].includes(id)), ids(original.split('<script>')[0].replace(/<style>[\s\S]*?<\/style>/, '')))
+ const mergedControls=['selectionPopover','selectionQuoteBtn']
+ assert.ok(mergedControls.every(id=>!ids(built).includes(id)))
+ assert.deepEqual(ids(built).filter(id=>!['chooseFolderBtn','createFolderInput','outlineFileInput'].includes(id)), ids(original.split('<script>')[0].replace(/<style>[\s\S]*?<\/style>/, '')).filter(id=>!mergedControls.includes(id)))
  assert.match(built,/id="createFolderInput"[^>]+webkitdirectory/);assert.match(built,/id="chooseFolderBtn"/);
  for (const stage of ['overviewStage','entryStage','consultStage','workspaceStage','previewOverlay','annotationDrawer']) assert.ok(built.includes(`id="${stage}"`))
 })

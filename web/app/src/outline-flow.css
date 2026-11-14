@@ -18,3 +18,18 @@
 #consultStage .flow-editing #confirmOutline{display:none}
 
 #consultStage .consult-help{display:none}#consultStage .consult-bottom{padding-top:8px}#consultStage .consult-confirm{min-height:32px;padding:7px 14px;font-size:12px;margin-top:7px}.flow-track .flow-step:last-child{min-width:0}
+
+/* A recommendation opens the chapter in place, within the existing flow canvas. */
+.flow-step .flow-node:has(.flow-proposal-preview){height:auto;min-height:80px;row-gap:3px}.flow-proposal-preview{grid-column:1/-1}
+.flow-proposal-preview{display:block;width:100%;max-width:100%;border:0;background:transparent;color:var(--muted,#52657e);font:inherit;text-align:left;padding:2px 0;line-height:1.4;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer}
+.flow-proposal-preview b{color:#4264b0}.plan-original{white-space:pre-wrap}
+.plan-reason,.plan-questions,.plan-sources,.plan-feedback{margin:10px 0}
+.plan-tasks{display:grid;gap:6px}.plan-task{border:1px solid var(--line);border-radius:9px;padding:8px 12px}
+.plan-task>div:first-child{display:flex;gap:8px;align-items:baseline}.plan-task small{white-space:nowrap;color:var(--muted,#52657e)}
+.plan-task.is-deferred [data-plan-text]{text-decoration:line-through;opacity:.7}
+.plan-row-actions{display:flex;gap:6px;margin-top:5px}.plan-row-actions[hidden]{display:none}
+.plan-row-actions button,.plan-line-editor button{border:1px solid var(--line);border-radius:6px;background:var(--glass,#fff);color:var(--ink);padding:3px 9px;cursor:pointer}
+.plan-line-editor textarea,.plan-feedback textarea{display:block;width:100%;margin:4px 0;padding:7px 9px;background:var(--glass,#fff);color:var(--ink);border:1px solid var(--line);border-radius:7px;font:inherit}
+.plan-questions ul,.plan-sources ul{padding-left:18px;margin:3px 0}.plan-feedback{border-top:1px solid var(--line);padding-top:10px}.plan-feedback button{margin-top:4px}
+
+.flow-question-state{display:inline-block;font-size:10px;font-weight:500;color:var(--muted,#52657e)}

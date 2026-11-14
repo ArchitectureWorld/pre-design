@@ -206,6 +206,19 @@ test('concurrent submissions cannot oversubscribe the persistent daily user rese
   assert.equal((await db.query('SELECT count(*)::int AS count FROM jobs')).rows[0].count, 1)
 })
 
+test('管理员可取消每日次数限制，已有任务记录继续留存且配置重启后生效',async t=>{
+ const f=await fixture(t)
+ await f.configure(p=>{p.limits.maxDailyJobsPerUser=1})
+ const p=await f.create(),submit=requestId=>f.request('alice','POST',`/api/projects/${p.id}/chat`,{requestId,baseRevision:0,text:'讨论项目'})
+ assert.equal((await submit('limited-1')).statusCode,200);await f.app.waitForJobs()
+ assert.equal((await submit('limited-2')).statusCode,429)
+ await f.configure(p=>{p.limits.maxDailyJobsPerUser=null})
+ await f.restart()
+ for(const id of ['unlimited-1','unlimited-2']){assert.equal((await submit(id)).statusCode,200);await f.app.waitForJobs()}
+ assert.equal((await f.db.query('SELECT count(*)::int AS n FROM job_reservations')).rows[0].n,3)
+ assert.equal((await f.request('admin','GET','/api/admin/models')).json().limits.maxDailyJobsPerUser,null)
+})
+
 test('restart preserves a paid-task receipt and never automatically repeats an unknown result', async t => {
   const f = await fixture(t, { hold: true })
   const policy = await f.configure(), p = await f.create()

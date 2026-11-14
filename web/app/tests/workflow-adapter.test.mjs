@@ -16,7 +16,7 @@ function setup(t,project=makeProject()){
  dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new dom.window.Event('close'))}
  const previous={document:globalThis.document};globalThis.document=dom.window.document
  const calls=[],notices=[],state={currentProjectId:project.id,stage:'test',scripts:{},annotations:[],selected:null}
- const context=vm.createContext({document:dom.window.document,window:dom.window,sessionStorage:dom.window.sessionStorage,crypto:globalThis.crypto,setInterval,clearInterval,setTimeout,clearTimeout,requestAnimationFrame:fn=>fn(),state,graphData:[],ICON:{close:'×'},$:selector=>dom.window.document.querySelector(selector),escapeHTML:value=>String(value??'').replaceAll('<','&lt;').replaceAll('>','&gt;'),chapterCapabilityLabel:()=> '资料梳理',updateProjectSwitcher(){},toast:text=>notices.push(text),setReference:ref=>{state.selected=ref},clearReference:()=>{state.selected=null},closePreview(){},updatePreviewNav(){},showPreviewAction(){},clearPreviewAction(){},...workflow,...content,fetch:async(url,options)=>{if(options.method==='POST')calls.push({url,body:JSON.parse(options.body)});return {ok:true,json:async()=>url.endsWith('/state')?project:{id:'job-1'}}}})
+ const context=vm.createContext({document:dom.window.document,window:dom.window,sessionStorage:dom.window.sessionStorage,crypto:globalThis.crypto,setInterval,clearInterval,setTimeout,clearTimeout,requestAnimationFrame:fn=>fn(),state,graphData:[],ICON:{close:'×'},$:selector=>dom.window.document.querySelector(selector),escapeHTML:value=>String(value??'').replaceAll('<','&lt;').replaceAll('>','&gt;'),chapterCapabilityLabel:()=> '资料梳理',updateProjectSwitcher(){},toast:text=>notices.push(text),setReference:ref=>{state.selected=ref},clearReference:()=>{state.selected=null},closePreview(){},updatePreviewNav(){},clearGraphAction(){},clearPreviewAction(){},...workflow,...content,fetch:async(url,options)=>{if(options.method==='POST')calls.push({url,body:JSON.parse(options.body)});return {ok:true,json:async()=>url.endsWith('/state')?project:{id:'job-1'}}}})
  vm.runInContext(source.replace(/^import .+$/gm,''),context)
  // The API adapter is real; the unrelated outline canvas is outside this test boundary.
  vm.runInContext('updateFlowConfirmation=()=>{}; renderConsult=()=>{}; startConsult=()=>{}; renderGraph=()=>{graphData=buildData()};',context)
@@ -116,7 +116,7 @@ test('未生成的任务不进入脚本预览，阶段稿和专业文字均不�
  assert.equal(first.api.buildData()[0].sections[0].artifact.generated,false)
 })
 
-test('同一节有两条脚本，预览引用绑定具体条目',async t=>{
+test('同一节有两条脚本，从工具栏添加的批注绑定当前条目和版本',async t=>{
  const p=makeProject(),d=p.workflow.current,b=d.blocks[0]
  d.formatVersion=2
  b.items=['区位条件','建设范围'].map((title,index)=>({id:b.id+'-item-'+(index+1),title,paragraphs:[title+'正文'],points:[],evidenceIndexes:[]}))
@@ -124,18 +124,19 @@ test('同一节有两条脚本，预览引用绑定具体条目',async t=>{
  const section=api.buildData()[0].sections[0]
  assert.equal(section.scripts.length,2)
  const entries=api.allScriptEntries().filter(entry=>entry.record?.workflowDraft)
- assert.deepEqual(Array.from(entries,entry=>entry.number),['1.1.1','1.1.2'])
+ assert.deepEqual(Array.from(entries,entry=>entry.number),['1','2'])
  assert.equal(api.allVisualEntries().length,0)
  state.activeScript=entries[1];api.renderScriptPage()
  assert.match(document.querySelector('[data-workflow-body]').textContent,/建设范围正文/)
- document.querySelector('#previewQuoteBtn').click()
- assert.equal(state.selected.itemId,b.items[1].id)
- assert.equal(state.selected.blockId,b.id)
- assert.equal(state.selected.workflowDraftId,d.id)
- document.querySelector('#chatInput').value='更新建设范围。'
- api.handleChatSubmit();await settle()
- assert.equal(calls[0]?.body.itemId,b.items[1].id)
- assert.equal(calls[0]?.body.blockId,b.id)
+ let target
+ api.server.noteComposer={offer(note){target=note},dismissOffer(){}}
+ const button=document.querySelector('#previewQuoteBtn')
+ assert.equal(button.textContent,'添加批注');button.click()
+ assert.equal(target.anchor,b.items[1].id)
+ assert.equal(target.reference.itemId,b.items[1].id)
+ assert.equal(target.reference.blockId,b.id)
+ assert.equal(target.reference.workflowDraftId,d.id)
+ assert.equal(state.selected,null);assert.equal(calls.length,0)
 })
 
 test('单页沿用节标题和节编号，不产生第三层标题或摘要中的Markdown标记',t=>{
@@ -143,7 +144,7 @@ test('单页沿用节标题和节编号，不产生第三层标题或摘要中�
  d.formatVersion=2
  b.items=[{id:b.id+'-item-1',title:'额外条标题',paragraphs:[],points:['已核实的正文。'],evidenceIndexes:[]}]
  const {api,document,state}=setup(t,p),entry=api.allScriptEntries().find(entry=>entry.record?.workflowDraft)
- assert.equal(entry.number,'1.1');assert.equal(entry.name,b.title)
+ assert.equal(entry.number,'');assert.equal(entry.name,b.title)
  state.activeScript=entry;api.renderScriptPage()
  assert.equal(document.querySelector('[data-workflow-pane=body] h2').textContent,b.title)
  assert.equal(document.querySelector('[data-workflow-body] h3'),null)

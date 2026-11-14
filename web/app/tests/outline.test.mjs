@@ -22,6 +22,14 @@ test('确认只绑定最新、无阻断疑点、资料未变化的具体版本',
  state.status='stale';assert.throws(()=>outline.assertOutlineConfirmable(state,{version:2,inputHash:state.inputHash}),/资料/)
  state.status='draft';state.busy=true;assert.throws(()=>outline.assertOutlineConfirmable(state,{version:2,inputHash:state.inputHash}),/处理中/)
 })
+test('模型复述章号顺序不干预服务器保存的编排，其他未知字段和无效章号仍被拒绝',()=>{
+ const input=draft(material.id),parse=extra=>outline.parseOutline(JSON.stringify({...input,...extra}),[material],[readFixture(material)])
+ const result=parse({flow:['03','01']})
+ assert.equal(Object.hasOwn(result,'flow'),false)
+ assert.deepEqual(result.chapters.map(c=>c.id),input.chapters.map(c=>c.id))
+ assert.throws(()=>parse({approved:true}))
+ assert.throws(()=>parse({flow:['21']}))
+})
 test('资料内容必须来自实际成功读取的页行和原文；元数据不能冒充影像理解；流程不得成环',()=>{
  const value=draft(material.id)
  assert.throws(()=>outline.parseOutline(JSON.stringify(value),[material],[]),/读取/)

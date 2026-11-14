@@ -39,13 +39,28 @@ test('导出沿用真实章顺序，带来源、限制、审阅标记并转义�
 const item=(title,fields={})=>({title,paragraphs:[],points:['项目名称：示例水库'],evidenceIndexes:[0],...fields})
 const section=(id,items)=>({id,items,internalNotes:[]})
 const reply=(...blocks)=>JSON.stringify({blocks})
+test('汇报节名独立于研究任务，条标题与正文必须可以直接交付',()=>{
+ const state=outline(),id='outline-03-1',options={requireStructured:true,requireReport:true}
+ const proposed={id,heading:'水库周边的使用机会',items:[{title:'居民日常使用',paragraphs:[],points:['居民服务值得先从日常通行需求切入。'],evidenceIndexes:[0]}],internalNotes:['请核实平日是否有人通行？']}
+ const [block]=module.parseWorkflowResponse(reply(proposed),state,id,options)
+ assert.equal(block.title,proposed.heading);assert.equal(block.taskTitle,state.draft.chapters[2].tasks[0])
+ assert.equal(block.internalNotes[0],proposed.internalNotes[0])
+ for(const title of ['请编制一张表，说明需要核实什么。','地'.repeat(43)])assert.throws(()=>module.parseWorkflowResponse(reply({...proposed,heading:title}),state,id,options),/标题/)
+ for(const points of [['请问您能提供范围图吗？'],['原文线索：位置来自摘录。'],['最小核验：请补充人员记录。']]){
+  assert.throws(()=>module.parseWorkflowResponse(reply({...proposed,items:[{...proposed.items[0],points}]}),state,id,options),/正文/)
+ }
+ const longHeading='应先编制机会比选表，逐项列明前置条件'
+ assert.throws(()=>module.parseWorkflowResponse(reply({...proposed,heading:longHeading}),state,id,options),/标题/)
+ const data=JSON.parse(reply(proposed));data.reportTitle='区域机会研判'
+ assert.equal(module.parseWorkflowResponse(JSON.stringify(data),{...state,flow:['03']},undefined,options)[0].title,proposed.heading)
+})
 
 test('单页导出直接使用节标题，多页才有编号完整的条标题，正文与引用完整保留',()=>{
  const state=outline(),blocks=module.parseWorkflowResponse(reply(section('outline-03-1',[item('单页额外标题')]),section('outline-01-1',[item('条甲'),item('条乙')])),state)
  const doc={id:'draft',version:4,outlineVersion:6,projectName:'测试',createdAt:'2026-11-04',flow:state.flow,chapters:state.draft.chapters,blocks,limitations:[],evidence:[{filename:'原件.pdf'}]}
  const html=module.renderWorkflowArtifact(doc,'html'),md=module.renderWorkflowArtifact(doc,'md')
  assert.doesNotMatch(html,/<h4>[^<]*单页额外标题/);assert.doesNotMatch(md,/####[^\n]*单页额外标题/)
- assert.match(html,/<h4>2\.1\.1 条甲<\/h4>/);assert.match(md,/#### 2\.1\.2 条乙/)
+ assert.match(html,/<h4>2\.1 条甲<\/h4>/);assert.match(md,/#### 2\.2 条乙/)
  assert.equal((html.match(/项目名称：示例水库/g)??[]).length,3)
  assert.match(md,/依据：\[1\]/)
 })
@@ -141,4 +156,26 @@ test('导出从条级审阅推导节和全稿状态，独立保留整稿确认',
   assert.match(approved,/本条随整稿确认/)
   assert.doesNotMatch(approved,/待审阅/)
  }
+})
+
+test('可后续补充的取舍随相关章进入内部备注，不会变成正文、既定方向或重复的跳过项',()=>{
+ const s=outline(),targets=module.workflowTargets(s)
+ const pending='是否同时开展教育条件调查？',skipped='本次研究边界是否已明确？'
+ s.draft.questions=[
+  {id:'later',prompt:pending,reason:'影响方向比较',blocking:false,chapterIds:['03']},
+  {id:'boundary',prompt:skipped,reason:'影响空间判断',blocking:false,chapterIds:['03']},
+  {id:'reserve',prompt:'备用章专属问题',reason:'备用',blocking:false,chapterIds:['10']},
+ ]
+ s.waivers=[{questionId:'boundary',prompt:skipped,reason:'另行提供',chapterIds:['03']}]
+ const blocks=module.parseWorkflowResponse(JSON.stringify({blocks:targets.map(t=>({id:t.id,body:'已核实的材料摘录。',evidenceIndexes:[]}))}),s)
+ const direction=blocks.find(b=>b.chapterId==='03'),basic=blocks.find(b=>b.chapterId==='01')
+ assert.ok(direction.limitations.some(t=>t.includes(pending)))
+ assert.equal(direction.limitations.filter(t=>t.includes(skipped)).length,1)
+ assert.ok(!basic.limitations.some(t=>t.includes(pending)||t.includes(skipped)))
+ assert.ok(!module.workflowLimitations(s).some(t=>t.includes('备用章专属问题')))
+ const prompt=module.workflowPrompt({name:'示例'},s,{payload:{}})
+ assert.ok(prompt.includes(pending))
+ const md=module.renderWorkflowArtifact({id:'sample',version:1,outlineVersion:1,flow:s.flow,createdAt:'2026-11-13',projectName:'示例',chapters:s.draft.chapters,evidence:[],blocks,limitations:module.workflowLimitations(s)},'md')
+ const [main,notes]=md.split('## 内部备注')
+ assert.ok(!main.includes(pending));assert.ok(notes.includes(pending))
 })

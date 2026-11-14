@@ -29,18 +29,17 @@ test('mixed batches remove CAD while retaining the same files, folder entries an
   const folderCad = Object.freeze({file: cad, relativePath: '项目/图纸/总图.DWG'})
   const input = Object.freeze([pdf, folderCad, folderImage, rar])
   const result = partitionMaterialUploads(input)
-  assert.deepEqual(result.accepted, [pdf, folderImage, rar])
-  assert.deepEqual(result.rejected, [folderCad])
+  assert.deepEqual(result.accepted, [pdf, folderImage])
+  assert.deepEqual(result.rejected, [folderCad, rar])
   assert.equal(result.accepted[0], pdf)
   assert.equal(result.accepted[1], folderImage)
   assert.equal(result.accepted[1].file, jpg)
   assert.equal(result.accepted[1].relativePath, '项目/现场照片/现场.JPG')
   assert.equal(result.rejected[0].file, cad)
-  assert.match(result.message, /1/)
+  assert.match(result.message, /2/)
   assert.match(result.message, /PDF/)
-  assert.match(result.message, /PNG/)
-  assert.match(result.message, /JPEG/)
-  assert.match(result.message, /WebP/)
+  assert.match(result.message, /解压/)
+  assert.doesNotMatch(result.message, /图像|PNG|JPEG|WebP/)
 })
 
 test('empty, accepted and all-CAD selections return clear batch results', () => {
@@ -57,18 +56,29 @@ test('new CAD uploads fail with structured HTTP 415 and actionable conversion gu
     assert.throws(() => assertMaterialUploadAllowed(...args), error => {
       assert.equal(error.statusCode, 415)
       assert.equal(error.code, 'MATERIAL_CAD_CONVERSION_REQUIRED')
-      assert.match(error.message, /CAD/)
       assert.match(error.message, /PDF/)
-      assert.match(error.message, /PNG/)
-      assert.match(error.message, /JPEG/)
-      assert.match(error.message, /WebP/)
+      if (args[0]==='场地.dwg') assert.doesNotMatch(error.message, /PNG|JPEG|WebP|图像/)
+      else assert.match(error.message, /图像/)
       return true
     })
   }
 })
 
 test('PDF, images and non-CAD originals remain eligible without implying parsing success', () => {
-  for (const filename of ['任务书.pdf', '现场.JPG', '照片.png', '封面.webp', '资料.rar', '说明.txt']) {
+  for (const filename of ['任务书.pdf', '现场.JPG', '照片.png', '封面.webp', '说明.txt', '设计.zip/清单.xlsx', '总图.dwg.pdf', '模型.rvt']) {
     assert.doesNotThrow(() => assertMaterialUploadAllowed(filename))
   }
+})
+
+test('压缩包、复合扩展名和分卷被筛出，解压后文件保持目录和顺序', () => {
+  const archives=['资料.ZiP','图纸.RAR','底图.7z','库区.TAR.Gz','底图.tbz2','模型.zip.001','包.7Z.002','地形.r00','分卷.z01','调查.tar.zst']
+  for (const name of archives) {
+    assert.throws(() => assertMaterialUploadAllowed({filename:name,relativePath:'收件/'+name}), error =>
+      error.statusCode===415 && error.code==='MATERIAL_ARCHIVE_NOT_ALLOWED' && /解压/.test(error.message))
+  }
+  const extracted={file:new File(['pdf'],'总图.pdf'),relativePath:'资料.zip/底图/总图.pdf'}
+  const hiddenArchive={file:new File(['rar'],'设计.rar'),relativePath:'包/伪装.txt'}
+  const result=partitionMaterialUploads([hiddenArchive,extracted,...archives])
+  assert.deepEqual(result.accepted,[extracted])
+  assert.equal(result.rejected.length,archives.length+1)
 })

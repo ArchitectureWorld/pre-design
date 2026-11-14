@@ -329,9 +329,22 @@ export function mountAdminControls({ request, notify = () => {}, container, iden
     const limits = section('任务限制', '限制由服务端执行；更改后应用于新任务的配置与调度。'), grid = create('div', 'pd-admin-limits')
     for (const [name, label] of Object.entries(limitNames)) {
       const input = create('input', 'pd-admin-input'); input.type = 'number'; input.min = '1'; input.max = String(Number.MAX_SAFE_INTEGER); input.step = '1'; input.required = true
-      input.value = draft.limits[name]; input.setAttribute('aria-label', label)
+      input.value = draft.limits[name]??''; input.setAttribute('aria-label', label)
       input.addEventListener('input', () => { draft.limits[name] = Number(input.value); changed() })
-      grid.append(labelField(label, input))
+      const field=labelField(label,input)
+      if(name==='maxDailyJobsPerUser'){
+        const choice=create('label','pd-admin-capabilities'),unlimited=create('input')
+        unlimited.type='checkbox';unlimited.checked=draft.limits[name]===null;unlimited.setAttribute('aria-label','每日任务次数不限')
+        input.disabled=unlimited.checked
+        unlimited.addEventListener('change',()=>{
+          input.disabled=unlimited.checked
+          if(unlimited.checked)draft.limits[name]=null
+          else{input.value ||= '25';draft.limits[name]=Number(input.value)}
+          changed()
+        })
+        choice.append(unlimited,document.createTextNode('不限'));field.append(choice)
+      }
+      grid.append(field)
     }
     limits.append(grid); editFields.append(routesSection, renderSearch(), renderCatalog(), limits); policyForm.append(editFields)
     panes.policy.replaceChildren(policyForm); updateState()

@@ -30,6 +30,22 @@ const app = await createApp({ db, workers, projectsRoot: root, users: accounts }
 const headers = { authorization: `Bearer ${'a'.repeat(40)}` }
 const post = (url, payload, more = {}) => app.inject({ method: 'POST', url, headers: { ...headers, ...more }, payload })
 after(async () => { await app.close(); await db.end(); await pool.query(`DROP SCHEMA ${schema} CASCADE`); await pool.end(); await rm(root, { recursive: true, force: true }) })
+test('章节批注按项目和目录版本落库，重试只保存一次', async () => {
+  const created = await post('/api/projects', {requestId:'inline-note-project', name:'章节批注验收'})
+  const projectId = created.json().id
+  await confirmedOutlineFixture(db,projectId)
+  const path = `/api/projects/${projectId}/annotations`
+  const payload = {requestId:'inline-chapter',baseRevision:0,anchor:'chapter-03',text:'请补充方向依据。',
+    reference:{kind:'chapter',id:'chapter-03',title:'项目发展方向',outlineVersion:1}}
+  const first = await post(path,payload)
+  assert.equal(first.statusCode,200,first.body)
+  assert.deepEqual((await post(path,payload)).json(),first.json())
+  assert.equal((await post(path,{...payload,requestId:'wrong-version',reference:{...payload.reference,outlineVersion:7}})).statusCode,409)
+  assert.equal((await post(path,{...payload,requestId:'missing-section',anchor:'outline-03-99'})).statusCode,409)
+  const saved = (await db.query('SELECT anchor,reference,status FROM annotations WHERE project_id=$1',[projectId])).rows
+  assert.deepEqual(saved,[{anchor:payload.anchor,reference:payload.reference,status:'pending'}])
+  assert.equal((await db.query('SELECT id FROM jobs WHERE project_id=$1',[projectId])).rowCount,0)
+})
 test('requires identity, creates one isolated project, rejects payload reuse and cross-user access', async () => {
   assert.equal((await app.inject('/api/projects')).statusCode, 401)
   const body = { requestId: 'create-1', name: '测试项目' }
@@ -85,6 +101,14 @@ test('binary folder upload filters new CAD and preserves legacy CAD and other fi
  const upload=(name,path,id,bytes=data,extra={})=>app.inject({method:'POST',url:`/api/projects/${p.id}/materials?`+new URLSearchParams({filename:name,relativePath:path,requestId:id,baseRevision:'0'}),headers:{...headers,'content-type':'application/octet-stream',...extra},payload:bytes})
  const denied=await upload('原图.DWG','资料/原图.DWG','cad-block');assert.equal(denied.statusCode,415);assert.equal(denied.json().code,'MATERIAL_CAD_CONVERSION_REQUIRED');assert.match(denied.json().error,/PDF/)
  const legacyDenied=await post(`/api/projects/${p.id}/materials`,{requestId:'cad-json',baseRevision:0,filename:'图纸.dxf',content:'eA=='});assert.equal(legacyDenied.statusCode,415)
+ const blockedZip=await upload('附件.ZIP','资料/附件.ZIP','archive-binary',Buffer.from('PK'))
+ assert.equal(blockedZip.statusCode,415);assert.equal(blockedZip.json().code,'MATERIAL_ARCHIVE_NOT_ALLOWED')
+ const blockedRar=await post(`/api/projects/${p.id}/materials`,{requestId:'archive-json',baseRevision:0,filename:'资料.rar',content:'eA=='})
+ assert.equal(blockedRar.statusCode,415);assert.match(blockedRar.json().error,/解压/)
+ const fakePdf=await upload('图纸.pdf','资料/图纸.pdf','fake-pdf',Buffer.from('AC1032\0\0\0\0'))
+ assert.equal(fakePdf.statusCode,415);assert.match(fakePdf.json().error,/DWG.*PDF/)
+ const renamedZip=await post(`/api/projects/${p.id}/materials`,{requestId:'zip-pdf',baseRevision:0,filename:'报告.pdf',content:Buffer.from([0x50,0x4b,3,4]).toString('base64')})
+ assert.equal(renamedZip.statusCode,415);assert.equal(renamedZip.json().code,'MATERIAL_ARCHIVE_NOT_ALLOWED')
  const a=await upload('平面.bin','资料/建筑/平面.bin','folder-a');assert.equal(a.statusCode,200,a.body)
  const b=await upload('平面.bin','资料/结构/平面.bin','folder-b');assert.equal(b.statusCode,200,b.body);assert.notEqual(a.json().id,b.json().id)
  assert.equal((await upload('平面.bin','资料/建筑/平面.bin','folder-a')).json().id,a.json().id)

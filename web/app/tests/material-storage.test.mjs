@@ -32,8 +32,8 @@ test('paths cannot escape the project or follow directory symlinks; oversized pa
  }finally{await rm(root,{recursive:true,force:true});await rm(outside,{recursive:true,force:true})}
 })
 test('real large CAD archives report missing parsers while large photos can attempt metadata reads',()=>{
- assert.match(materialProcessing('地形图.rar',188075048,null).label,/待转换或专用解析/)
- assert.match(materialProcessing('三区三线.DWG',68054284,null).label,/待转换或专用解析/)
+ assert.match(materialProcessing('地形图.rar',188075048,null).label,/解压/)
+ assert.match(materialProcessing('三区三线.DWG',68054284,null).label,/PDF/)
  assert.equal(materialProcessing('影像.jpg',21053110,null).status,'metadata_pending')
  assert.match(materialProcessing('影像.jpg',21053110,null).label,/元数据/)
  assert.match(materialProcessing('长报告.pdf',70*1024*1024,null).label,/拆分/)

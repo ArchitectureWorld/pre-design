@@ -1,5 +1,5 @@
 // Creates a clearly named upload verification project; does not run a model.
-import {isCadMaterial} from '../src/material-policy.mjs'
+import {materialUploadIssue} from '../src/material-policy.mjs'
 import {chromium} from '@playwright/test'
 import {readFile,readdir,mkdir,writeFile} from 'node:fs/promises'
 import {createReadStream} from 'node:fs'
@@ -12,7 +12,7 @@ const root=resolve(folder),url='http://192.168.6.45:4320',evidence=resolve('.cac
 await mkdir(evidence,{recursive:true})
 const expected=new Map()
 async function digest(stream){const h=createHash('sha256');for await(const part of stream)h.update(part);return h.digest('hex')}
-async function visit(dir){for(const e of await readdir(dir,{withFileTypes:true})){const file=join(dir,e.name);if(e.isDirectory())await visit(file);else if(e.isFile()&&!isCadMaterial(e.name))expected.set(`${basename(root)}/${relative(root,file).split('\\').join('/')}`,await digest(createReadStream(file)))}}
+async function visit(dir){for(const e of await readdir(dir,{withFileTypes:true})){const file=join(dir,e.name);if(e.isDirectory())await visit(file);else if(e.isFile()&&!materialUploadIssue(e.name))expected.set(`${basename(root)}/${relative(root,file).split('\\').join('/')}`,await digest(createReadStream(file)))}}
 await visit(root);assert.ok(expected.size)
 const config=JSON.parse(await readFile('.local/web/config.json'));const user=config.users.find(u=>u.role==='admin')||config.users[0];const headers={authorization:`Bearer ${user.token}`}
 const browser=await chromium.launch({executablePath:'/home/zetta/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome',headless:true,args:['--no-proxy-server']})

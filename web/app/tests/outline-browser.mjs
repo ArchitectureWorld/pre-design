@@ -14,7 +14,23 @@ await pool.query(`CREATE SCHEMA ${schema}`)
 const db=new pg.Pool({...connection,options:`-c search_path=${schema}`}),root=await mkdtemp(join(tmpdir(),'outline-browser-')),contexts=new Map(),calls=[]
 const token=randomUUID()+randomUUID(),users=[{id:'test',role:'admin',token}]
 let sequence=0
-const workers={async call(p,b){if(b.operation==='create')contexts.set(p.id,{project:{projectId:p.id,currentRevision:0},proposals:[],stateObjects:[]});return contexts.get(p.id)},async run(p,text){calls.push({readOnly:p.read_only,text});const files=(await db.query('SELECT * FROM materials WHERE project_id=$1',[p.id])).rows;const value=draft(files[0].id);++sequence;for(const c of value.chapters)if(!['01','03','06'].includes(c.id)){c.disposition='defer';c.readiness='blocked'};return{response:JSON.stringify(value),materialReads:[readFixture({...files[0],sourceRelativePath:relative(p.workspace,files[0].path)})]}},async closeAll(){}}
+const workers={
+ async call(p,b){if(b.operation==='create')contexts.set(p.id,{project:{projectId:p.id,currentRevision:0},proposals:[],stateObjects:[]});return contexts.get(p.id)},
+ async run(p,text){
+  calls.push({readOnly:p.read_only,text})
+  const job=(await db.query('SELECT kind,payload FROM jobs WHERE id=$1',[p.task_id])).rows[0]
+  if(job.kind==='chat')return {response:'建议调查通行需求，教育方向待讨论。',eventCount:1}
+  if(job.payload.planningMode==='adjust')return {response:JSON.stringify({changes:[
+   {id:'03',reason:'按反馈调整重点',tasks:['复核管护边界'],evidenceIndexes:[0],questions:['先调研哪些人？']},
+   {id:'04',reason:'补充人群调查',tasks:['访谈实际使用者'],evidenceIndexes:[0],questions:[]}
+  ]}),eventCount:1}
+  const files=(await db.query('SELECT * FROM materials WHERE project_id=$1',[p.id])).rows,value=draft(files[0].id)
+  ++sequence
+  if(job.payload.planningMode==='fromDiscussion')value.chapters[2].tasks=['调查通行需求','核查村内教育条件']
+  for(const c of value.chapters)if(!['01','03','06'].includes(c.id)){c.disposition='defer';c.readiness='blocked'}
+  return {response:JSON.stringify(value),materialReads:[readFixture({...files[0],sourceRelativePath:relative(p.workspace,files[0].path)})]}
+ },async closeAll(){}
+}
 const app=await createApp({db,workers,projectsRoot:root,users});await app.register(serveStatic,{root:resolve(process.env.PRE_WEB_BUILD_DIR||'web/app/dist')})
 await app.listen({host:'127.0.0.1',port:0});const base=app.server.address(),url=`http://127.0.0.1:${base.port}`,headers={authorization:`Bearer ${token}`}
 const policy=(await app.inject({url:'/api/admin/models',headers})).json(),model=policy.models.find(m=>m.provider==='SenseNova'&&m.model==='sensenova-6.8-flash-lite');model.status='verified';model.capabilities.tools=true
@@ -33,6 +49,40 @@ try{
  const dragBefore=async(source,target)=>{const locator=page.locator(`[data-flow-node="${target}"]`),box=await locator.boundingBox(),direction=await locator.evaluate(n=>Number(n.closest('.flow-step').dataset.flowDirection));await page.locator(`[data-flow-node="${source}"]`).dragTo(locator,{targetPosition:{x:direction===1?8:box.width-8,y:box.height/2}})}
  const waitVersion=v=>page.locator(`#consultStage .outline-flow-editor[data-outline-version="${v}"]`).waitFor({timeout:20000})
  await waitVersion(1);assert.deepEqual(await order(),['01','03','06'])
+ const card=page.locator('[data-flow-node="03"] .flow-node-heading')
+ await card.click({button:'right'})
+ const composer=page.locator('.annotation-composer')
+ await composer.getByRole('button',{name:'添加批注'}).click()
+ await composer.getByRole('textbox').fill('优先核实本章依据。')
+ await composer.getByRole('button',{name:'提交批注'}).click()
+ await composer.waitFor({state:'hidden'})
+ await page.locator('[data-consult-notes]').click()
+ const library=page.getByRole('dialog',{name:'批注库'})
+ await library.getByText('优先核实本章依据。').waitFor()
+ await library.getByRole('button',{name:'编辑'}).click()
+ await library.getByRole('textbox').fill('优先核实本章的资料范围。')
+ await library.getByRole('button',{name:'保存修改'}).click()
+ await library.getByText('优先核实本章的资料范围。',{exact:true}).waitFor()
+ await library.getByRole('button',{name:'删除'}).click()
+ await library.getByText('暂无记录').waitFor()
+ await library.locator('#closeAnnotationDrawer').click()
+ assert.equal(calls.length,1,'saving and editing a chapter note must not start a job')
+ await page.locator('[data-flow-detail="03"]').click()
+ const chapterDialog=page.locator('[data-note-chapter="03"][open]')
+ const chapterText=chapterDialog.locator('p').first()
+ const word=await chapterText.evaluate(el=>{
+  const walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT,nodeFilter)
+  function nodeFilter(node){return node.length>=4?NodeFilter.FILTER_ACCEPT:NodeFilter.FILTER_SKIP}
+  const node=walker.nextNode(),range=document.createRange()
+  range.setStart(node,0);range.setEnd(node,3)
+  const r=range.getBoundingClientRect()
+  return {text:range.toString(),x:r.left+.2,last:r.right-.2,y:r.top+r.height/2}
+ })
+ await page.mouse.move(word.x,word.y);await page.mouse.down();await page.mouse.move(word.last,word.y,{steps:5});await page.mouse.up()
+ await chapterDialog.getByRole('button',{name:'添加批注',exact:true}).click()
+ assert.equal(await composer.locator('.annotation-target').innerText(),'“'+word.text+'”')
+ await composer.getByRole('button',{name:'取消'}).click();await composer.waitFor({state:'hidden'})
+ assert.equal(await chapterDialog.isVisible(),true);await page.keyboard.press('Escape')
  assert.equal(await page.locator('[data-flow-question]').count(),0,'questions appear only after the user submits a flow')
  assert.equal(await page.locator('#confirmOutline').isDisabled(),true)
  await dragBefore('06','01')
@@ -64,6 +114,24 @@ try{
  const versions=(await db.query('SELECT version,flow,flow_reviewed,confirmed_at FROM outline_versions ORDER BY version')).rows
  assert.deepEqual(versions.at(-1).flow,['06','08','01','03']);assert.ok(versions.at(-1).confirmed_at)
  assert.equal(calls.length,3);assert.ok(calls.every(c=>c.readOnly));assert.deepEqual(errors,[])
- await writeFile(join(evidence,'interactive-report.json'),JSON.stringify({model:'test-double',realBrowserAndApi:true,flow:versions.at(-1).flow,versions:3,confirmedVersion:3,skippedQuestions:1,cadFiltered:true,localEditsReloaded:true,errors},null,2))
- console.log('PASS browser: CAD filter → recommendation → drag reorder/add → reload → submit → revise/resubmit → explicit skip → confirm → selected flow and limitations → reload')
-}catch(e){await page.screenshot({path:join(evidence,'failure.png')});throw e}finally{await browser.close();await app.close();await db.end();await pool.query(`DROP SCHEMA ${schema} CASCADE`);await pool.end();await rm(root,{recursive:true,force:true})}
+ await page.locator('#chatInput').fill('讨论本轮方向，给出一条可编排建议');await page.locator('#chatSubmit').click()
+ const convert=page.locator('#chatHistory [data-discussion-to-outline]').last();await convert.waitFor();const sourceId=await convert.getAttribute('data-discussion-to-outline')
+ await convert.click();await waitVersion(4)
+ assert.deepEqual(await order(),['06','08','01','03']);assert.equal(await page.locator('#confirmOutline').isDisabled(),true)
+ await page.locator('[data-plan-source]').click();assert.match(await page.locator('[data-flow-inspector=source]').innerText(),/教育方向待讨论/);await page.keyboard.press('Escape')
+ await page.locator('[data-plan-open="03"]').click();const panel=page.locator('[data-flow-inspector=task][open]')
+ await panel.locator('[data-plan-edit="0"]').click();await panel.locator('.plan-line-editor textarea').fill('核实村民通行点位');await panel.getByRole('button',{name:'保存并采用'}).click()
+ await panel.locator('[data-plan-row="0"] small').filter({hasText:'已采用'}).waitFor()
+ await panel.locator('[data-plan-choice=defer][data-index="1"]').click();await panel.locator('[data-plan-row="1"].is-deferred').waitFor()
+ await panel.locator('[data-plan-adjust] textarea').fill('补充人群访谈，与本章联动');await panel.getByRole('button',{name:'更新章节建议'}).click()
+ await waitVersion(5);await panel.locator('[data-plan-row="2"]').waitFor()
+ assert.match(await panel.innerText(),/复核管护边界/);assert.match(await panel.innerText(),/先调研哪些人/);assert.match(await panel.innerText(),/核实村民通行点位/);await page.keyboard.press('Escape')
+ await page.reload();await page.getByRole('button',{name:'打开历史项目 章节流程浏览器验收'}).click();await waitVersion(5)
+ await page.locator('[data-flow-detail="04"]').click();assert.match(await panel.innerText(),/访谈实际使用者/);await page.keyboard.press('Escape')
+ assert.equal(await page.locator('[data-flow-assessment]').isVisible(),false)
+ const row=(await db.query('SELECT planning,flow_reviewed,confirmed_at FROM outline_versions WHERE version=5')).rows[0]
+ assert.equal(row.planning.source.jobId,sourceId);assert.equal(row.flow_reviewed,false);assert.equal(row.confirmed_at,null);assert.deepEqual(row.planning.changed,['03','04']);assert.deepEqual(errors,[])
+ await page.screenshot({path:join(evidence,'chapter-planning-return.png')})
+ await writeFile(join(evidence,'interactive-report.json'),JSON.stringify({model:'test-double',realBrowserAndApi:true,flow:versions.at(-1).flow,versions:3,confirmedVersion:3,skippedQuestions:1,cadFiltered:true,localEditsReloaded:true,discussionToChapters:sourceId,planningVersion:5,unconfirmedPlanning:true,editedAndDeferredPersist:true,errors},null,2))
+ console.log('PASS browser: chapter choice, checks and confirmation; discussion → unsubmitted chapter plan → edit/defer → linked chapter feedback → reload')
+}catch(e){console.error(JSON.stringify({errors,stage:await page.locator('.stage:visible').first().getAttribute('id'),notice:await page.locator('#toast').textContent(),jobs:(await db.query('SELECT kind,status,error FROM jobs ORDER BY created_at')).rows}));await page.screenshot({path:join(evidence,'failure.png')});throw e}finally{await browser.close();await app.close();await db.end();await pool.query(`DROP SCHEMA ${schema} CASCADE`);await pool.end();await rm(root,{recursive:true,force:true})}

@@ -34,7 +34,7 @@ export async function createWorkflowVisualStore(db,{currentDraft}){
     pages=source.pages.map(page=>ids.has(page.id)?{...page,layout:body.layout}:page)
    }else{
     let number=0
-    pages=draft.flow.flatMap(chapterId=>draft.blocks.filter(block=>block.chapterId===chapterId).flatMap(block=>workflowBlockItems(block).map(item=>({id:'visual-page-'+item.id,itemId:item.id,blockId:block.id,itemCount:workflowBlockItems(block).length,number:++number,chapterTitle:draft.chapters.find(chapter=>chapter.id===chapterId)?.title??chapterId,sectionTitle:block.title,item,layout:'points'}))))
+    pages=draft.flow.flatMap(chapterId=>draft.blocks.filter(block=>block.chapterId===chapterId).flatMap(block=>workflowBlockItems(block).map(item=>({id:'visual-page-'+item.id,itemId:item.id,blockId:block.id,itemCount:workflowBlockItems(block).length,number:++number,chapterTitle:draft.chapters.find(chapter=>chapter.id===chapterId)?.title??chapterId,sectionTitle:block.title,item,layout:item.presentation?.layout??'points'}))))
    }
    if(!pages.length)throw workflowError('当前脚本没有可生成的条目。')
    const id=randomUUID(),version=(previous?.version??0)+1,createdAt=new Date().toISOString(),document={id,version,projectName:draft.projectName,draftId:draft.id,draftVersion:draft.version,theme:source?.theme??VISUAL_THEME,pages,evidence:draft.evidence,createdAt,sourceVisualId:source?.id??null}

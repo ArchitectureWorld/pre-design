@@ -28,7 +28,7 @@ function success(result) {
   }
   return value
 }
-export function createBridgeHandler(ctx, { workspace, sessionId, snapshot, callerUserId, imageAvailability, searchAvailability }) {
+export function createBridgeHandler(ctx, { workspace, sessionId, outlineProjectSession, snapshot, callerUserId, imageAvailability, searchAvailability }) {
   installOutlinePrompts(ctx.preplanning.subagents)
   let mutation = false, report = { status: 'idle', artifacts: [] }, reportController
   const context = () => ctx.preplanning.repository.readContext(sessionId)
@@ -56,11 +56,22 @@ export function createBridgeHandler(ctx, { workspace, sessionId, snapshot, calle
   }
   async function handle(input) {
     const keys = { create: ['name'], state: [], sync: [], confirm: ['proposalId', 'baseRevision'], 'research-plan': ['selection'], 'research-status': [], 'research-run': ['selection','jobId','outlineContext'], 'research-cancel': [], 'report-status': [], 'report-run': ['selection','jobId','outlineContext'], 'report-preflight':['selection'], 'chapter-prepare':['chapterId','message','feedback','assets'], 'execution-trace': ['since'], 'material-read-receipts':[] }
+    if(outlineProjectSession)keys['bind-outline-task']=[]
     if (!input || !Object.hasOwn(keys, input.operation) || Object.keys(input).some(key => key !== 'operation' && !keys[input.operation].includes(key))) throw researchError('OPERATION_FORBIDDEN')
+    if(outlineProjectSession&&!['bind-outline-task','state','execution-trace','material-read-receipts'].includes(input.operation))throw researchError('WEB_OUTLINE_READ_ONLY')
     const outline = validateOutlineContext(input.outlineContext)
     const generation = action => withOutlineGeneration(ctx,{workspace,projectId:context().project.projectId,jobId:input.jobId,operation:input.operation,outline},action)
     const agent = ctx.agents.get(sessionId)
     if (!agent) throw researchError('SESSION_NOT_READY')
+    if(input.operation==='bind-outline-task'){
+      if(await realpath(agent.session?.header?.cwd??'')!==workspace)throw researchError('WORKER_SESSION_MISMATCH')
+      const repo=ctx.preplanning.repository, owner=repo.readContext(outlineProjectSession).project.projectId
+      let existing
+      try{existing=repo.readContext(sessionId).project.projectId}catch(e){if(e.code!=='session-not-bound')throw e}
+      if(existing!==undefined && existing!==owner)throw researchError('WORKER_SESSION_MISMATCH')
+      if(existing===undefined)await repo.bindSession(sessionId,owner,new Date().toISOString())
+      return {projectId:owner}
+    }
     if(input.operation==='material-read-receipts')return materialReadReceipts(agent.session?.snapshotEvents?.()??[])
     if (input.jobId !== undefined && (typeof input.jobId !== 'string' || !/^[A-Za-z0-9._-]{1,128}$/u.test(input.jobId))) throw researchError('JOB_ID_INVALID')
     if (input.operation === 'execution-trace') return collectExecutionTrace(agent, ctx.preplanning.agentClasses, context().project.projectId, { since: input.since })
@@ -88,7 +99,10 @@ export function createBridgeHandler(ctx, { workspace, sessionId, snapshot, calle
         availability: { image: imageAvailability ?? { status: 'not_ready', code: 'IMAGE_POLICY_NOT_READY' },
           web: { fetch: 'available', search: searchAvailability?.status === 'ready' ? 'configured' : searchAvailability?.status ?? 'not_ready', ...searchAvailability }, models: { status: snapshot ? 'configured' : 'not_ready' } } }
     }
-    if (input.operation === 'state') return { ...context(), workflow: ctx.preplanning.runtime.snapshot(context().project.projectId) }
+    if (input.operation === 'state') {
+      const state=ctx.preplanning.repository.readContext(outlineProjectSession??sessionId)
+      return {...state,workflow:ctx.preplanning.runtime.snapshot(state.project.projectId)}
+    }
     if (mutation) throw researchError('BRIDGE_BUSY', '项目正在处理上一项操作。', 409)
     mutation = true
     try {
@@ -167,9 +181,10 @@ export async function apply(ctx) {
       compileWorkflow: compileFlux3Workflow,
     } })
   }
-  installProjectBoundary(ctx, { sessionId, workspace, readOnly:process.env.PRE_WEB_READ_ONLY==='true' })
+  installProjectBoundary(ctx, { sessionId, workspace, readOnly:process.env.PRE_WEB_READ_ONLY==='true', allowWebRead:process.env.PRE_WEB_ALLOW_WEB_READ==='true' })
   await installModelBoundary(ctx, { sessionId, ...policy })
-  const handle = createBridgeHandler(ctx, { workspace, sessionId, ...policy, callerUserId:process.env.PRE_WEB_CALLER_USER_ID })
+  const handle = createBridgeHandler(ctx, { workspace, sessionId, ...policy, callerUserId:process.env.PRE_WEB_CALLER_USER_ID,
+    outlineProjectSession:process.env.PRE_WEB_READ_ONLY==='true'?process.env.PRE_WEB_OUTLINE_PROJECT_SESSION:undefined })
   const server = createServer(async (req, res) => {
     res.setHeader('content-type', 'application/json; charset=utf-8')
     const supplied = Buffer.from(req.headers.authorization ?? ''), expected = Buffer.from(`Bearer ${secret}`)

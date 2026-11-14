@@ -104,3 +104,33 @@ test('普通Agent从SDK session.event读取真实活动，只传固定标签而�
     assert.ok(!events.some(value=>['completed','failed','cancelled'].includes(value.stage)),'SDK活动不能决定API任务终态')
   }finally{await worker.closeAll()}
 })
+
+test('章节核对使用该项目和作业的只读会话，普通会话继续沿用项目历史', async () => {
+  const worker = new ProjectWorkers()
+  try {
+    const task = {...project, read_only:true, task_id:'b13a677f-0ddb-438d-9aa1-861dea57bc72', outline_task_session:true}
+    const primary = {rpc:()=>{}, harness:{close:async()=>{}}}
+    worker.start=async () => primary
+    await worker.open(project,snapshot())
+    let prepared
+    worker.start=async p => {prepared=p;return {rpc:()=>{},harness:{close:async()=>{}}}}
+    const isolated=await worker.open(task,snapshot())
+    assert.equal(prepared.task_id,task.task_id)
+    const second={...task,task_id:'dcc02998-7e31-4d8f-9ac6-4164c82f5d4e'}
+    assert.notEqual(await worker.open(second,snapshot()),isolated)
+    assert.equal(prepared.task_id,second.task_id)
+    assert.equal(await worker.open(project),await worker.instances.get(project.id))
+    await assert.rejects(worker.open({...task,read_only:false},snapshot()),/READ_ONLY/)
+  }finally{await worker.closeAll()}
+})
+
+test('模型明确拒绝过大的请求时准确报告原因，禁止把它误报成未确认的传输中断', async()=>{
+  class OversizeFixture extends ProjectWorkers {
+    async start(){return {harness:{close:async()=>{}},session:{run:async()=>({events:[{type:'turn/end',data:{
+      reason:{kind:'error',error:{code:'CONTEXT_WINDOW_EXCEEDED',message:'private upstream detail'}}
+    }}]})}}}
+  }
+  const w=new OversizeFixture()
+  try{await assert.rejects(w.run(project,'核对',()=>{},snapshot()),e=>e.code==='MODEL_CONTEXT_TOO_LARGE'&&!e.message.includes('private'))}
+  finally{await w.closeAll()}
+})

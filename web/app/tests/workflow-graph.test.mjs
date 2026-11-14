@@ -257,6 +257,27 @@ test('十五节按顺序累计多条脚本，每节及每章居中于所属条�
  assert.equal(result.edges.length,result.nodes.length-1)
 })
 
+test('多条的节使用独立标题节点连接文字脚本，单条的节直接打开正文',()=>{
+ const input=structuredFixture(),result=layout(input)
+ const multi=input.chapters[0].sections[1].scripts[0],single=input.chapters[0].sections[0].scripts[0]
+ const heading=result.nodes.find(n=>n.kind==='article'&&n.entry.id===multi.id)
+ assert.ok(heading);assert.match(heading.title,new RegExp(multi.number))
+ assert(result.edges.some(e=>e.source.id===heading.id&&e.target.id===multi.id))
+ assert(!result.nodes.some(n=>n.kind==='article'&&n.entry.id===single.id))
+})
+test('新版单页脚本的卡片显示实际页名，节卡片打开汇报正文',()=>{
+ const dom=new JSDOM('<div id="board"><svg id="edges"></svg><div id="nodes"></div></div>')
+ try{
+  const document=dom.window.document,input=structuredFixture(),section=input.chapters[0].sections[0],entry=section.scripts[0]
+  section.sectionBody=true;entry.record.item.presentation={layout:'focus',note:'用区位层级呈现。'}
+  entry.title=entry.record.item.title='水库行政区位'
+  graph.renderWorkflowGraph({...input,board:document.querySelector('#board'),nodeLayer:document.querySelector('#nodes'),edgeLayer:document.querySelector('#edges')})
+  const script=document.querySelector('[data-node-id="'+entry.id+'"]')
+  assert(script.querySelector('.script-top strong').textContent.includes(entry.title))
+  assert(script.querySelector('.script-bottom').textContent.includes('页脚本'))
+  assert(document.querySelector('[data-node-id="'+section.id+'"] .sec-info').textContent.includes('汇报正文'))
+ }finally{dom.window.close()}
+})
 test('只绘制已生成的真实视觉页，与对应脚本一对一对齐并保持条目顺序',()=>{
  const input=structuredFixture(),withoutPages=layout(input)
  const first=input.chapters[0].sections[1],second=input.chapters[4].sections[2]
@@ -286,9 +307,11 @@ test('完整显示并转义结构化条标题，双击打开对应的条或页�
    onOpenScript:(script,sourceSection)=>opened.push([script.id,sourceSection.id]),onOpenVisual:page=>opened.push([page.id,page.itemId])}
   const result=graph.renderWorkflowGraph(context)
   const script=document.querySelector('[data-node-id="'+entry.id+'"]'),page=document.querySelector('[data-node-id="'+entry.visual.id+'"]')
-  const scriptTitle=[...script.querySelectorAll('.workflow-graph-title-line')].map(line=>line.textContent).join('')
+  const article=document.querySelector('[data-node-id="article:'+entry.id+'"]')
+  assert.equal(script.querySelector('.workflow-script-title'),null)
+  const scriptTitle=[...article.querySelectorAll('.workflow-graph-title-line')].map(line=>line.textContent).join('')
   assert.equal(scriptTitle,'2.2.2 '+entry.title)
-  assert.ok(result.rects.get(entry.id).titleLines.length>1)
+  assert.ok(result.rects.get(article.dataset.nodeId).titleLines.length>1)
   assert.equal(document.querySelectorAll('img').length,0)
   script.dispatchEvent(new dom.window.MouseEvent('dblclick',{bubbles:true}))
   page.dispatchEvent(new dom.window.MouseEvent('dblclick',{bubbles:true}))

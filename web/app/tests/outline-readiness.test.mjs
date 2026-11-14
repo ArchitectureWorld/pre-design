@@ -5,7 +5,7 @@ import {draft,readFixture} from './fixtures/outline.mjs'
 import * as contract from '../src/outline-contract.mjs'
 import {outlineMarkup} from '../src/outline-view.js'
 const file={id:'a3a94266-8b52-4ffb-bfef-9377f98e497d',filename:'任务书.txt',sha256:'a'.repeat(64),bytes:12,sourceRelativePath:'原始资料/a/任务书.txt'}
-function limited(){const value=draft(file.id);value.conditions=['study_area','project_boundary','land_use','planning_controls'].map(id=>({id,status:'unverified',detail:'现有材料未核实本次项目的对应条件',evidenceIndexes:[]}));for(const c of value.chapters)Object.assign(c,{readiness:'limited',canDo:['整理历史资料和缺口'],cannotDo:['形成场地可开发结论'],unlockWhen:['取得本项目边界和用途依据'],requires:[]});return value}
+function limited(){const value=draft(file.id);value.conditions=['study_area','project_boundary','land_use','planning_controls'].map(id=>({id,status:'unverified',detail:'现有材料未核实本次项目的对应条件',evidenceIndexes:[]}));for(const c of value.chapters){delete c.assessment;Object.assign(c,{readiness:'limited',canDo:['整理历史资料和缺口'],cannotDo:['形成场地可开发结论'],unlockWhen:['取得本项目边界和用途依据'],requires:[]})}return value}
 const parse=value=>contract.parseOutline(JSON.stringify(value),[file],[readFixture(file)])
 test('章节适用性与可执行性分开；缺少项目边界不能宣称空间章已就绪',()=>{
  const value=limited();assert.equal(parse(value).chapters[7].readiness,'limited')

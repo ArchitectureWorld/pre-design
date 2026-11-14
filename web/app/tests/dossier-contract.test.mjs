@@ -5,6 +5,23 @@ const pid='11111111-1111-4111-8111-111111111111';
 const user=(text='服务对象为周边居民。',intent='requirement')=>({sourceId:'interaction:1',kind:'interaction',name:'用户补充',text,intent,sha256:digest(text)});
 const raw=(source=user(),extra={})=>({entityKey:'project',entityLabel:'本项目',field:'audience',label:'服务对象',scope:'project',valueText:'周边居民',informationClass:'user_requirement',chapters:['04'],evidence:{sourceId:source.sourceId,quote:source.text,startLine:1,endLine:1},...extra});
 const validate=(r,s=[user()],reads=[])=>validateCandidate(JSON.stringify({records:[r]}),{projectId:pid,sources:s,reads});
+test('原件完整文本收执中唯一的逐字引文可校准行号，歧义或未读片段不得猜测',()=>{
+ const m={sourceId:'material:1',kind:'material',name:'点位.txt',path:'原始资料/点位.txt',sha256:'a'.repeat(64)}
+ const r=raw(user(),{informationClass:'document_statement',evidence:{sourceId:m.sourceId,quote:'周边居民',startLine:22,endLine:22}})
+ const receipt={sourceRelativePath:m.path,contentHash:m.sha256,status:'ok',kind:'text',startLine:20,endLine:23,text:'点位说明\n周边居民\n下一节\n结束',truncated:false}
+ const ref=validate(r,[m],[receipt,receipt]).records[0].evidence
+ assert.equal(ref.startLine,21);assert.equal(ref.endLine,21);assert.equal(ref.quote,'周边居民')
+ assert.throws(()=>validate(r,[m],[{...receipt,text:'周边居民\n周边居民\n下一节\n结束'}]),{code:'DOSSIER_QUOTE'})
+ assert.throws(()=>validate(r,[m],[{...receipt,truncated:true}]),{code:'DOSSIER_QUOTE'})
+ assert.throws(()=>validate(r,[m],[{...receipt,text:'点位说明\n居民\n下一节\n结束'}]),{code:'DOSSIER_QUOTE'})
+})
+test('带来源的限制可发布，保留关联并拒绝未选择的来源',()=>{
+ const src=user(),ctx={projectId:pid,sources:[src]},value={records:[],limitations:['未实测',{sourceId:src.sourceId,reason:'原件未载明测量精度'}]}
+ const parsed=validateCandidate(JSON.stringify(value),ctx)
+ assert.deepEqual(parsed.limitations,['未实测',src.sourceId+' · 原件未载明测量精度'])
+ value.limitations[1].sourceId='foreign'
+ assert.throws(()=>validateCandidate(JSON.stringify(value),ctx),/来源/)
+})
 const base=()=>{const sources=[user()],records=validate(raw()).records,inputs={metadata:{},sources};return nextSnapshot(null,{projectId:pid,inputHash:inputFingerprint(inputs),sources,records,coverage:sourceCoverage(sources,[],records)},'2026-11-06T00:00:00Z');};
 test('用户原话可以形成带引文的需求条目，不标为独立事实',()=>{const out=validate(raw());assert.equal(out.records[0].informationClass,'user_requirement');assert.equal(out.records[0].independentlyVerified,false);});
 test('字段原值不能由模型凭空归纳',()=>assert.throws(()=>validate(raw(user(),{valueText:'外地游客'})),{code:'DOSSIER_VALUE'}));

@@ -58,6 +58,18 @@ test('普通用户不创建模型管理入口、不创建弹窗，也不请求�
   assert.deepEqual(calls, [])
   assert.doesNotThrow(() => controls.dispose())
 })
+test('每日任务不限可切换并保存为明确的空上限，回读后数值框禁用',async t=>{
+ const {document,window,calls,open}=fixture(t);await open()
+ change(window,byLabel(document,'每日任务次数不限'),true)
+ assert.equal(byLabel(document,'每用户每日任务上限').disabled,true)
+ button(document,'保存策略').click();await settle(()=>calls.some(c=>c.options.method==='PUT'))
+ assert.equal(calls.find(c=>c.options.method==='PUT').options.body.policy.limits.maxDailyJobsPerUser,null)
+ await settle(()=>byLabel(document,'每日任务次数不限')?.checked===true)
+ change(window,byLabel(document,'每日任务次数不限'),false)
+ change(window,byLabel(document,'每用户每日任务上限'),30)
+ button(document,'保存策略').click();await settle(()=>calls.filter(c=>c.options.method==='PUT').length===2)
+ assert.equal(calls.filter(c=>c.options.method==='PUT').at(-1).options.body.policy.limits.maxDailyJobsPerUser,30)
+})
 
 test('管理员填写独立搜索和 ComfyUI 地址，仅提交凭据引用并保留工作流版本',async t=>{
   const {document,window,calls,open}=fixture(t,{policy:defaultPolicy()});await open()

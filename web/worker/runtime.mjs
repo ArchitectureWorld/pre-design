@@ -15,12 +15,22 @@ import { materializeSearchRuntime } from './search-runtime.mjs'
 import { ComfyUIClient } from './comfyui-client.mjs'
 import { readSearchAudit } from './search-audit.mjs'
 import { readImageReceipts } from './image-receipts.mjs'
-import {materialReadReceipts} from './material-read-receipts.mjs'
+import {materialReadReceipts,publicWebReceipts} from './material-read-receipts.mjs'
 import {agentActivity} from '../app/src/task-progress.mjs'
 import { listProjectArtifacts, readProjectArtifact } from './research-artifacts.mjs'
 const workerRoot = dirname(fileURLToPath(import.meta.url))
 const signature = value => createHash('sha256').update(JSON.stringify(value ?? null)).digest('hex')
 const terminal = new Set(['completed','partial','cancelled','failed','unreviewed'])
+
+// Planning jobs already freeze the dossier, chapter choices, source discussion and user feedback.
+// Keep their DSH transcripts alongside the project, without replaying unrelated PDF tool results.
+function outlineSession(project) {
+  if (!project.outline_task_session) return null
+  if (!project.read_only || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(project.task_id)) {
+    throw researchError('OUTLINE_TASK_READ_ONLY', 'OUTLINE_TASK_READ_ONLY: 核对必须绑定有效的只读作业。', 409)
+  }
+  return `${project.session_id}-outline-${project.task_id}`
+}
 
 export class ProjectWorkers {
   constructor(config = {}) {
@@ -55,11 +65,12 @@ export class ProjectWorkers {
       web: { fetch: 'available', search: search.status === 'ready' ? 'configured' : search.status, ...search },
       models: { status: policy ? 'configured' : 'not_ready' } })
   }
-  open(project, snapshot, requiredRoles = ['parent'], signal) {
+  async open(project, snapshot, requiredRoles = ['parent'], signal) {
     signal?.throwIfAborted()
     const closing = this.closing.get(project.id)
     if (closing) return closing.then(() => this.open(project, snapshot, requiredRoles, signal))
-    const previous = this.instances.get(project.id), key = signature({ snapshot, requiredRoles, readOnly:!!project.read_only })
+    const taskSession = outlineSession(project)
+    const previous = this.instances.get(project.id), key = signature({ snapshot, requiredRoles, readOnly:!!project.read_only, allowWebRead:!!project.allow_web_read, taskSession })
     if (previous && (snapshot === undefined || this.snapshots.get(project.id) === key)) return previous
     if (previous && this.active.has(project.id)) return Promise.reject(researchError('WORKER_TASK_BUSY', '项目已有运行中的模型任务。', 409))
     const pending = (async () => {
@@ -78,6 +89,7 @@ export class ProjectWorkers {
     const workspace = await realpath(project.workspace)
     if (workspace !== resolve(project.workspace)) throw researchError('WORKER_PROJECT_INVALID')
     const home = join(privateRoot, project.id)
+    const taskSession = outlineSession(project), sessionId = taskSession ?? project.session_id
     await mkdir(home, { recursive: true, mode: 0o700 })
     const { model: materialized, search } = await this.configuration(snapshot, requiredRoles)
     signal?.throwIfAborted()
@@ -95,10 +107,15 @@ export class ProjectWorkers {
     const temp = await mkdtemp(join(tmpdir(), 'pre-web-'))
     const socket = join(temp, 'bridge.sock'), secret = randomBytes(32).toString('hex')
     const patch = join(home, 'web.cordis.yml'), policyFile = join(home, 'task-policy.json')
+    const compactTargets = (snapshot ? [snapshot.routes.parent.primary, ...snapshot.routes.parent.fallbacks] : [])
+      .map(ref => snapshot.models.find(m => m.provider === ref.provider && m.model === ref.model))
+      .filter(row => row?.maxOutputTokens)
+      .map(row => ({provider:row.runtimeProvider,model:row.model,maxTokens:Math.min(4096,row.maxOutputTokens)}))
     await writeFile(policyFile, JSON.stringify({ snapshot, classRoutes: materialized.classRoutes, classFallbacks: materialized.classFallbacks,
       imageBackend: materialized.imageBackend, imageAvailability: materialized.imageAvailability, searchPolicy: snapshot?.search, searchAvailability: search.availability }), { mode: 0o600 })
     await writeFile(patch, JSON.stringify([
       { id: 'llm-pi-ai', config: { providers: materialized.providers } },
+      ...(compactTargets.length ? [{id:'compaction-basic',config:{modelPolicies:compactTargets}}] : []),
       ...search.patches,
       { insert: [{ id: 'preplanning-agent', name: join(workerRoot, '.host-build/lib/index.mjs') }, { id: 'preplanning-web-bridge', name: join(workerRoot, 'web-bridge.mjs') }] },
       { id: 'sdk-jsonrpc-server', inject: ['sdkAppStartup', 'loader', 'preplanningWebBridgeReady'] },
@@ -107,8 +124,9 @@ export class ProjectWorkers {
     const parentModel = snapshot?.models.find(row => row.runtimeProvider === parent.provider && row.model === parent.model)
     const harness = new DeepSeekHarness({ profile: 'sdk', patches: [patch], dshHome: join(home, 'dsh'), cwd: workspace, processCwd: workspace,
       ...parent, ...(parentModel?.maxOutputTokens ? { maxTokens: parentModel.maxOutputTokens } : {}), initializeTimeoutMs: 60000,
-      env: { ...isolatedEnvironment(), ...materialized.env, ...search.env, PRE_WEB_SOCKET: socket, PRE_WEB_BRIDGE_SECRET: secret, PRE_WEB_SESSION_ID: project.session_id,
-        PRE_WEB_WORKSPACE: workspace, PRE_WEB_POLICY_FILE: policyFile, PRE_WEB_READ_ONLY:project.read_only?'true':'false', ...(project.owner_id ? {PRE_WEB_CALLER_USER_ID:String(project.owner_id)} : {}), PRE_DESIGN_PRESENTATION_PROJECT_ROOT: workspace, DSH_MAX_TOKENS_AS_SUCCESS: 'false' } })
+      env: { ...isolatedEnvironment(), ...materialized.env, ...search.env, PRE_WEB_SOCKET: socket, PRE_WEB_BRIDGE_SECRET: secret, PRE_WEB_SESSION_ID: sessionId,
+        ...(taskSession ? {PRE_WEB_OUTLINE_PROJECT_SESSION:project.session_id} : {}),
+        PRE_WEB_WORKSPACE: workspace, PRE_WEB_POLICY_FILE: policyFile, PRE_WEB_READ_ONLY:project.read_only?'true':'false', PRE_WEB_ALLOW_WEB_READ:project.allow_web_read?'true':'false', ...(project.owner_id ? {PRE_WEB_CALLER_USER_ID:String(project.owner_id)} : {}), PRE_DESIGN_PRESENTATION_PROJECT_ROOT: workspace, DSH_MAX_TOKENS_AS_SUCCESS: 'false' } })
     try {
       signal?.throwIfAborted()
       await harness.start()
@@ -116,9 +134,10 @@ export class ProjectWorkers {
       const marker = join(home, 'session-ready')
       const previous = await readFile(marker, 'utf8').catch(error => { if (error.code === 'ENOENT') return undefined; throw error })
       if (previous && previous !== project.session_id) throw researchError('WORKER_SESSION_MISMATCH')
-      const session = previous ? await harness.resumeSession(project.session_id) : harness.session(project.session_id)
+      if (taskSession && !previous) throw researchError('WORKER_SESSION_MISMATCH')
+      const session = !taskSession && previous ? await harness.resumeSession(sessionId) : harness.session(sessionId)
       await session.setWorkingDirectory(workspace)
-      await writeFile(marker, project.session_id, { mode: 0o600 })
+      if (!taskSession) await writeFile(marker, project.session_id, { mode: 0o600 })
       const rpc = body => new Promise((done, reject) => {
         const req = request({ socketPath: socket, path: '/', method: 'POST', headers: { authorization: `Bearer ${secret}`, 'content-type': 'application/json' }, timeout: 70000 }, res => {
           let text = ''
@@ -128,11 +147,20 @@ export class ProjectWorkers {
         req.on('timeout', () => req.destroy(new Error('BRIDGE_TIMEOUT')))
         req.on('error', reject); req.end(JSON.stringify(body))
       })
-      return { harness, session, rpc, temp }
+      if (taskSession) await rpc({operation:'bind-outline-task'})
+      return { harness, session, rpc, temp, taskSession }
     } catch (error) { await harness.close(); await rm(temp, { recursive: true, force: true }); throw error }
   }
   async call(project, body) {
-    try { return publicBusinessData(await (await this.open(project)).rpc(body), [project.workspace]) }
+    try {
+      const cached=this.instances.get(project.id)
+      // A control or write operation always runs on the project's own session.
+      if(cached && body.operation!=='state' && (await cached).taskSession) {
+        if(this.active.has(project.id))throw researchError('WORKER_TASK_BUSY','项目已有运行中的任务。',409)
+        await this.close(project.id)
+      }
+      return publicBusinessData(await (await this.open(project)).rpc(body), [project.workspace])
+    }
     catch (error) {
       // A transport failure leaves the mutation outcome unknown. Drop the dead
       // process but never retry the operation; normal Core rejections keep it alive.
@@ -152,7 +180,11 @@ export class ProjectWorkers {
       this.active.add(project.id)
       const instance = await pending
       signal?.throwIfAborted()
-      return publicBusinessData(await job(instance), [project.workspace])
+      const result=await job(instance),publicResult=publicBusinessData(result,[project.workspace])
+      // Server-only fetch receipts keep their original bytes for quote/hash verification.
+      // The API accepts only verified official sources and removes these transport fields.
+      if(project.allow_web_read&&result.webReads)publicResult.webReads=result.webReads
+      return publicResult
     } catch (error) {
       if (signal?.aborted) { await (cleanup ??= this.close(project.id)); throw signal.reason }
       if (!error.statusCode || error.statusCode >= 500 && error.statusCode !== 503) await (cleanup ??= this.close(project.id))
@@ -174,11 +206,14 @@ export class ProjectWorkers {
       } })
       signal?.throwIfAborted()
       const ended = result.events.findLast(event => event.type === 'turn/end')
+      if(ended?.data?.reason?.kind==='error' && ended.data.reason.error?.code==='CONTEXT_WINDOW_EXCEEDED') {
+        throw researchError('MODEL_CONTEXT_TOO_LARGE','模型网关拒绝了超长请求，本次没有生成结果。',409)
+      }
       if (ended?.data?.reason?.kind !== 'completed') throw researchError('AGENT_TURN_NOT_COMPLETED', '模型任务未完成；保留真实终态。', 409)
       // Resumed conversations may cite prior successful reads. Use the trusted
       // bound session log, then let the API recheck source path/hash/page/quote.
       const materialReads=project.read_only?await instance.rpc({operation:'material-read-receipts'}):undefined
-      return { response: result.finalResponse, eventCount: result.events.length, ...(project.read_only?{materialReads:[...materialReads,...materialReadReceipts(result.events)]}:{}) }
+      return { response: result.finalResponse, eventCount: result.events.length, ...(project.read_only?{materialReads:[...materialReads,...materialReadReceipts(result.events)]}:{}),...(project.allow_web_read?{webReads:publicWebReceipts(result.events)}:{}) }
     }, ['parent'])
   }
   async monitor(instance, operation, started, onEvent, signal) {

@@ -131,7 +131,7 @@ export function mountPlatform({ request, mutate, getProject, getIdentity, notify
   }
   function renderArtifacts(artifacts) {
     const target = dialog?.querySelector('[data-artifacts]'); if (!target) return
-    target.innerHTML = (artifacts ?? []).map(a => {const visual=String(a.id).startsWith('workflow-visual-'),workflow=String(a.id).startsWith('workflow-'),status=visual?(a.stale||a.status==='stale'?'旧版 HTML 汇报页集':'HTML 汇报页集'):workflow?(a.stale||a.status==='stale'?'旧版初稿':a.status==='approved'?'阶段初稿 · 整稿已确认':a.status==='reviewed'?'阶段初稿 · 已审阅':'阶段初稿 · 待审阅'):(labels[a.status]??a.status??a.kind),format=workflow?/\.html$/iu.test(a.filename)?' HTML':/\.md$/iu.test(a.filename)?' Markdown':'':'';return `<div class="platform-artifact"><div><strong>${escape(a.filename)}</strong><small>${a.kind === 'generated-concept' ? 'AI 概念图 · ' : ''}${escape(status)} · ${Math.ceil((a.bytes ?? 0) / 1024)} KB</small></div><div>${/\.(md|txt|json)$/iu.test(a.filename) ? `<button type="button" data-preview-artifact="${escape(a.id)}">预览文字</button> ` : ''}<button type="button" data-artifact="${escape(a.id)}">下载${format}</button></div></div>`}).join('') || '<p>暂无成果。生成本轮初稿后，可下载 HTML 或 Markdown。</p>'
+    target.innerHTML = (artifacts ?? []).map(a => {const visual=String(a.id).startsWith('workflow-visual-'),workflow=String(a.id).startsWith('workflow-'),status=a.kind==='client-report'?'对外汇报稿':visual?(a.stale||a.status==='stale'?'旧版 HTML 汇报页集':'HTML 汇报页集'):workflow?(a.stale||a.status==='stale'?'旧版初稿':a.status==='approved'?'阶段初稿 · 整稿已确认':a.status==='reviewed'?'阶段初稿 · 已审阅':'阶段初稿 · 待审阅'):(labels[a.status]??a.status??a.kind),format=a.kind==='client-report'?' PDF':workflow?/\.html$/iu.test(a.filename)?' HTML':/\.md$/iu.test(a.filename)?' Markdown':'':'';return `<div class="platform-artifact"><div><strong>${escape(a.filename)}</strong><small>${a.kind === 'generated-concept' ? 'AI 概念图 · ' : ''}${escape(status)}${a.bytes==null?'':' · '+Math.ceil(a.bytes/1024)+' KB'}</small></div><div>${/\.(md|txt|json)$/iu.test(a.filename) ? `<button type="button" data-preview-artifact="${escape(a.id)}">预览文字</button> ` : ''}<button type="button" data-artifact="${escape(a.id)}">下载${format}</button></div></div>`}).join('') || '<p>暂无成果。生成本轮初稿后，可下载 HTML 或 Markdown。</p>'
     for (const button of target.querySelectorAll('[data-preview-artifact]')) button.onclick = () => void perform(async () => {
       const id = panelProject, file = await request(`/projects/${id}/artifacts/${button.dataset.previewArtifact}`, { download: true })
       const content = await file.blob.text()
@@ -140,10 +140,13 @@ export function mountPlatform({ request, mutate, getProject, getIdentity, notify
       if (!preview?.hasAttribute('data-preview-content')) { preview = document.createElement('pre'); preview.dataset.previewContent = ''; preview.className = 'platform-artifact-preview'; button.closest('.platform-artifact').after(preview) }
       preview.textContent = content.length > 200000 ? content.slice(0, 200000) + '\n\n预览已截断，请下载完整文件。' : content
     })
-    for (const button of target.querySelectorAll('[data-artifact]')) button.onclick = () => void perform(async () => {
-      const file = await request(`/projects/${panelProject}/artifacts/${button.dataset.artifact}`, { download: true })
-      const url = URL.createObjectURL(file.blob), anchor = document.createElement('a'); anchor.href = url; anchor.download = file.filename; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
-    })
+    for (const button of target.querySelectorAll('[data-artifact]')) button.onclick = () => void perform(()=>downloadArtifact(panelProject,button.dataset.artifact))
+  }
+  async function downloadArtifact(projectId,artifactId){
+    const file=await request(`/projects/${projectId}/artifacts/${artifactId}`,{download:true})
+    if(getProject()?.id!==projectId)return
+    const url=URL.createObjectURL(file.blob),anchor=document.createElement('a')
+    anchor.href=url;anchor.download=file.filename;anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
   }
   async function openChapters() {
     if(getProject()?.outline?.status!=='confirmed'){notify('请先确认章节流程，再准备章节成果。');openOutline();return}
@@ -211,7 +214,7 @@ export function mountPlatform({ request, mutate, getProject, getIdentity, notify
   controls.querySelector('[data-open="tasks"]').onclick = () => void openTasks()
   controls.querySelector('[data-open="chapters"]').onclick = () => void openChapters()
   return {
-    openResearch, openTasks,
+    openResearch, openTasks, downloadArtifact,
     async authenticated() {
       try { const identity = await getIdentity(); if (currentIdentity?.id === identity.id && currentIdentity?.role === identity.role) return
         currentIdentity = identity; admin?.dispose(); admin = mountAdmin({ request, notify, container, identity })

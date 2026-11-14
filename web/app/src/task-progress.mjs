@@ -2,14 +2,14 @@
 // tool names/arguments/results, paths, or provider diagnostics into it.
 const labels=Object.freeze({
   queued:'等待执行',preparing:'正在准备任务',agent_running:'Agent 已开始处理',
-  generating:'正在生成回复',reading_material:'正在读取资料',reading_context:'正在读取项目信息',
+  generating:'正在生成回复',editing_report:'正在修订汇报措辞',reading_material:'正在读取资料',reading_context:'正在读取项目信息',searching_policy:'正在检索公开政策',reading_policy:'正在读取政策原文',
   tool_running:'正在执行工具',tool_result:'已收到工具结果',response_received:'已收到模型回复',
   research_running:'正在执行研究',report_running:'正在生成报告',finalizing:'正在保存结果',
   cancelling:'正在取消任务',completed:'任务已完成',partial:'任务部分完成',
   unreviewed:'任务已结束，结果待审阅',failed:'任务执行失败',cancelled:'任务已取消',
   interrupted:'执行中断，结果待检查',recovered:'已恢复实际成果',
 })
-const activityStages=new Set(['preparing','agent_running','generating','reading_material','reading_context',
+const activityStages=new Set(['preparing','agent_running','generating','editing_report','reading_material','reading_context','searching_policy','reading_policy',
   'tool_running','tool_result','response_received','research_running','report_running','finalizing'])
 
 export function taskProgress(stage,now=Date.now()){
@@ -27,7 +27,7 @@ export function agentActivity(notification){
     case'step/start':stage='generating';break
     case'tool/call':
       if(typeof event.data?.name!=='string')return null
-      stage=event.data.name==='preplanning_read_material'?'reading_material':
+      stage=event.data.name==='web_search'?'searching_policy':event.data.name==='web_fetch'?'reading_policy':event.data.name==='preplanning_read_material'?'reading_material':
         event.data.name==='preplanning_get_context'?'reading_context':'tool_running'
       break
     case'tool/result':stage='tool_result';break

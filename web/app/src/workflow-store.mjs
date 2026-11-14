@@ -1,8 +1,9 @@
 import {randomUUID,createHash} from 'node:crypto'
 import {outlineInputHash} from './outline-contract.mjs'
-import {workflowError,workflowFingerprint,workflowTargets,workflowLimitations,workflowPrompt,parseWorkflowResponse,renderWorkflowArtifact} from './workflow-contract.mjs'
+import {workflowError,workflowFingerprint,workflowTargets,workflowLimitations,workflowPrompt,parseWorkflowResult,renderWorkflowArtifact,reportSkillHash,reportSkills} from './workflow-contract.mjs'
 import {workflowBlockItems,workflowBodyMarkdown} from './workflow-content.mjs'
 import {createWorkflowVisualStore} from './workflow-visual-store.mjs'
+import {clientReportPdf} from './client-report.mjs'
 
 export async function createWorkflowStore(db){
  const query=async(sql,args=[])=> (await db.query(sql,args)).rows
@@ -52,7 +53,12 @@ export async function createWorkflowStore(db){
    if(body.itemId&&!workflowBlockItems(previous.document.blocks.find(b=>b.id===body.blockId)).some(item=>item.id===body.itemId))throw workflowError('该条不属于选定章节，请重新引用当前内容。')
   }
   workflowTargets(outline)
-  return {formatVersion:2,outlineInputHash:outline.currentInputHash,inputFingerprint:workflowFingerprint(outline),baseDraftId:previous?.id??null}
+  const sectionPages=!body.blockId||previous?.document.clientReport?.sectionPages===true
+  const publicEvidence=body.blockId?(previous?.document.evidence??[]).filter(e=>e.kind==='official_policy'):[]
+  return {formatVersion:2,sectionPages,reportSkillHash,skillIds:reportSkills,outlineInputHash:outline.currentInputHash,inputFingerprint:workflowFingerprint(outline),baseDraftId:previous?.id??null,
+   policyRequested:!body.blockId&&outline.flow.includes('01'),
+   ...(body.blockId?{publicEvidence,policySections:previous?.document.blocks.some(b=>b.policyTopic)??false}:{}),
+  }
  }
  function checkSnapshot(outline,job){
   requireOutline(outline)
@@ -60,13 +66,24 @@ export async function createWorkflowStore(db){
  }
  async function prompt(p,outline,job){
   checkSnapshot(outline,job)
+  if(job.payload.reportSkillHash&&job.payload.reportSkillHash!==reportSkillHash)throw workflowError('排队期间写稿 Skill 已更新，请重新生成。')
   const previous=job.payload.baseDraftId?(await query('SELECT document FROM workflow_drafts WHERE project_id=$1 AND id=$2',[p.id,job.payload.baseDraftId]))[0]?.document:undefined
   if(job.payload.blockId&&!previous)throw workflowError('待修改的初稿不存在。',404)
   return workflowPrompt(p,outline,job,previous)
  }
- async function save(p,outline,job,response){
+ function readResponse(response,outline,job,previous,webReads=[]){
+  const {blockId,itemId,sectionPages}=job.payload
+  return parseWorkflowResult(response,outline,blockId,{requireStructured:true,itemId,sectionPages,requireReport:!!job.payload.reportSkillHash,existingSectionText:previous?.blocks.find(b=>b.id===blockId)?.sectionText,
+   policyResearch:job.payload.policyResearch,policySections:job.payload.policySections,policyRequested:job.payload.policyRequested,publicEvidence:job.payload.publicEvidence,webReads})
+ }
+ async function checkWriting(p,outline,job,response,webReads){
+  const previous=job.payload.itemId?(await query('SELECT document FROM workflow_drafts WHERE project_id=$1 AND id=$2',[p.id,job.payload.baseDraftId]))[0]?.document:undefined
+  try{readResponse(response,outline,job,previous,webReads)}
+  catch(error){if(error.editorialFeedback)return error.editorialFeedback;throw error}
+ }
+ async function save(p,outline,job,response,webReads){
   checkSnapshot(outline,job)
-  const generated=parseWorkflowResponse(response,outline,job.payload.blockId,{requireStructured:true,itemId:job.payload.itemId}),conn=await db.connect()
+  const conn=await db.connect()
   let row
   try{
    await conn.query('BEGIN')
@@ -80,16 +97,19 @@ export async function createWorkflowStore(db){
    if(!currentOutline?.confirmed_at||currentOutline.version!==job.payload.outlineVersion||outlineInputHash(project,files)!==job.payload.outlineInputHash)throw workflowError('资料或章节版本已改变，本次初稿未保存。')
    const previous=(await conn.query('SELECT * FROM workflow_drafts WHERE project_id=$1 ORDER BY version DESC LIMIT 1',[p.id])).rows[0]
    if((previous?.id??null)!==(job.payload.baseDraftId??null))throw workflowError('已有更新的初稿，本次结果未覆盖新版本。')
+   const {blocks:generated,reportTitle,evidence,policyResearch}=readResponse(response,outline,job,previous?.document,webReads)
+   if(job.payload.blockId&&!job.payload.itemId&&job.payload.sectionPages&&previous.document.blocks.some(b=>b.id!==job.payload.blockId&&b.chapterId===generated[0].chapterId&&(b.title===generated[0].title||b.sectionText===generated[0].sectionText)))throw workflowError('本章已有相同的节标题或正文，当前稿保留。')
    const blocks=job.payload.blockId?previous.document.blocks.map(b=>{
     if(b.id!==job.payload.blockId)return b
     if(!job.payload.itemId)return generated[0]
     const items=workflowBlockItems(b).map(item=>item.id===job.payload.itemId?generated[0].items[0]:item)
-    return {...b,items,body:workflowBodyMarkdown(items),evidenceIndexes:[...new Set(items.flatMap(item=>item.evidenceIndexes))],internalNotes:[...new Set([...(b.internalNotes??[]),...generated[0].internalNotes])]}
+    return {...b,items,body:b.sectionText??workflowBodyMarkdown(items),evidenceIndexes:[...new Set(items.flatMap(item=>item.evidenceIndexes))],internalNotes:[...new Set([...(b.internalNotes??[]),...generated[0].internalNotes])]}
    }):generated
+   const report=job.payload.blockId?previous.document.clientReport:job.payload.reportSkillHash?{title:reportTitle,skillHash:job.payload.reportSkillHash,skills:job.payload.skillIds??reportSkills,sectionPages:!!job.payload.sectionPages,...(policyResearch?{policyResearch}:{})}:undefined
    const id=randomUUID(),version=(previous?.version??0)+1,createdAt=new Date().toISOString(),byId=new Map(files.map(f=>[f.id,f]))
    const document={id,formatVersion:blocks.every(block=>Array.isArray(block.items))?2:1,projectName:project.name,version,outlineVersion:outline.version,inputHash:outline.currentInputHash,jobId:job.id,createdAt,flow:[...outline.flow],
-    chapters:outline.flow.map(chapterId=>{const chapter=outline.draft.chapters.find(c=>c.id===chapterId);return {id:chapter.id,title:chapter.title}}),blocks,
-    evidence:outline.draft.evidence.map(e=>({...e,filename:byId.get(e.materialId)?.relative_path??byId.get(e.materialId)?.filename??'资料'})),
+    ...(report?{clientReport:report}:{}),chapters:outline.flow.map(chapterId=>{const chapter=outline.draft.chapters.find(c=>c.id===chapterId);return {id:chapter.id,title:chapter.title}}),blocks,
+    evidence:evidence.map(e=>({...e,filename:e.kind==='official_policy'?e.filename:byId.get(e.materialId)?.relative_path??byId.get(e.materialId)?.filename??'资料'})),
     limitations:workflowLimitations(outline),sourceDraftId:previous?.id??null,changedBlockId:job.payload.blockId??null,changedItemId:job.payload.itemId??null}
    row=(await conn.query('INSERT INTO workflow_drafts(id,project_id,job_id,version,outline_version,input_hash,document,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',[id,p.id,job.id,version,outline.version,outline.currentInputHash,document,createdAt])).rows[0]
    await conn.query('COMMIT')
@@ -124,19 +144,28 @@ export async function createWorkflowStore(db){
   }catch(error){await conn.query('ROLLBACK');throw error}finally{conn.release()}
  }
  const filename=(doc,format)=>`${doc.projectName.replace(/[<>:"/\\|?*\u0000-\u001f]/g,'_').slice(0,90)}_阶段初稿_V${doc.version}.${format}`
+ const reportFilename=doc=>doc.clientReport.title.replace(/[<>:"/\\|?*\u0000-\u001f]/g,'_')+'_V'+doc.version+'.pdf'
  async function listArtifacts(p){
   const rows=await query('SELECT * FROM workflow_drafts WHERE project_id=$1 ORDER BY version DESC',[p.id]),artifacts=[]
-  for(const row of rows){const doc=await hydrate(row);for(const format of ['html','md'])artifacts.push({id:`workflow-${row.id}-${format}`,filename:filename(doc,format),bytes:Buffer.byteLength(renderWorkflowArtifact(doc,format)),kind:'workflow-draft',status:doc.approval?.draftId===doc.id||doc.reviewedBlockIds.length===doc.blocks.length?'reviewed':'draft',createdAt:doc.createdAt,version:doc.version,outlineVersion:doc.outlineVersion})}
+  for(const row of rows){
+   const doc=await hydrate(row)
+   if(doc.clientReport)artifacts.push({id:`workflow-${doc.id}-pdf`,draftId:doc.id,filename:reportFilename(doc),kind:'client-report',createdAt:doc.createdAt,version:doc.version,outlineVersion:doc.outlineVersion})
+   for(const format of ['html','md'])artifacts.push({id:`workflow-${row.id}-${format}`,filename:filename(doc,format),bytes:Buffer.byteLength(renderWorkflowArtifact(doc,format)),kind:'workflow-draft',status:doc.approval?.draftId===doc.id||doc.reviewedBlockIds.length===doc.blocks.length?'reviewed':'draft',createdAt:doc.createdAt,version:doc.version,outlineVersion:doc.outlineVersion})
+  }
   return [...artifacts,...await visuals.listArtifacts(p)]
  }
  async function readArtifact(p,id){
   if(id.startsWith('workflow-visual-'))return visuals.readArtifact(p,id)
-  const match=/^workflow-([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})-(html|md)$/.exec(id)
+  const match=/^workflow-([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})-(html|md|pdf)$/.exec(id)
   if(!match)throw workflowError('阶段稿文件不存在。',404)
   const row=(await query('SELECT * FROM workflow_drafts WHERE project_id=$1 AND id=$2',[p.id,match[1]]))[0]
   if(!row)throw workflowError('阶段稿文件不存在。',404)
   const doc=await hydrate(row),format=match[2]
+  if(format==='pdf'){
+   if(!doc.clientReport)throw workflowError('此历史版本没有对外汇报稿。',404)
+   return {data:await clientReportPdf(doc),filename:reportFilename(doc),contentType:'application/pdf'}
+  }
   return {data:Buffer.from(renderWorkflowArtifact(doc,format)),filename:filename(doc,format),contentType:format==='html'?'text/html; charset=utf-8':'text/markdown; charset=utf-8'}
  }
- return {current,prepare,prompt,save,review,approve,generateVisuals:visuals.generate,listArtifacts,readArtifact}
+ return {current,prepare,prompt,checkWriting,save,review,approve,generateVisuals:visuals.generate,listArtifacts,readArtifact}
 }
