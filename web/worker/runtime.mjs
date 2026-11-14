@@ -1,3 +1,4 @@
+import {runLayoutReference} from './layout-reference-runner.mjs'
 import { DeepSeekHarness } from '@deepseek-ai/dsh-sdk-client'
 import { parse } from 'yaml'
 import { mkdir, readFile, writeFile, mkdtemp, rm, realpath } from 'node:fs/promises'
@@ -268,5 +269,6 @@ export class ProjectWorkers {
     this.closing.set(id, closing)
     return closing
   }
-  async closeAll() { await Promise.allSettled([...this.instances.keys()].map(id => this.close(id))) }
+  runLayoutReference(input){return runLayoutReference(this,input)}
+  async closeAll() { await Promise.allSettled([...this.instances.keys()].map(id => this.close(id)).concat([...(this.layoutRuns??new Map()).values()].map(h=>h.close()))) }
 }

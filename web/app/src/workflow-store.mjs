@@ -5,7 +5,7 @@ import {workflowBlockItems,workflowBodyMarkdown} from './workflow-content.mjs'
 import {createWorkflowVisualStore} from './workflow-visual-store.mjs'
 import {clientReportPdf} from './client-report.mjs'
 
-export async function createWorkflowStore(db){
+export async function createWorkflowStore(db,{layoutLibrary,verifyLayoutPages,resolveLayoutAssets}={}){
  const query=async(sql,args=[])=> (await db.query(sql,args)).rows
  await query(`CREATE TABLE IF NOT EXISTS workflow_drafts(
   id uuid PRIMARY KEY,project_id uuid NOT NULL REFERENCES projects(id),job_id uuid NOT NULL UNIQUE REFERENCES jobs(id),
@@ -17,7 +17,7 @@ export async function createWorkflowStore(db){
   PRIMARY KEY(project_id,request_id));
  ALTER TABLE workflow_reviews ADD COLUMN IF NOT EXISTS item_id text;
  CREATE TABLE IF NOT EXISTS workflow_approvals(project_id uuid NOT NULL REFERENCES projects(id),draft_id uuid NOT NULL REFERENCES workflow_drafts(id),request_id text NOT NULL,fingerprint text NOT NULL,result jsonb NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(project_id,request_id));`)
- const visuals=await createWorkflowVisualStore(db,{currentDraft:async p=>(await current(p,false)).current})
+ const visuals=await createWorkflowVisualStore(db,{layoutLibrary,verifyLayoutPages,resolveLayoutAssets,currentDraft:async p=>(await current(p,false)).current})
  const latest=p=>query('SELECT * FROM workflow_drafts WHERE project_id=$1 ORDER BY version DESC LIMIT 1',[p.id]).then(rows=>rows[0])
  async function hydrate(row){
   if(!row)return null

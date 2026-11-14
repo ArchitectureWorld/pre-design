@@ -37,6 +37,8 @@ export function registerDossierRoutes({app,integration,project,enqueue,event,fin
   await project(req);
   const current=await store.current(await project(req));
   return {version:'r5.1',chapters:CHAPTERS,matrix:integration.registry,progress:{revision:current.revision,latestJob:current.jobs[0]??null,hasUnmergedInputs:current.hasUnmergedInputs},capabilities:[
+   {id:'V14',name:'参考样稿解析与模板提炼',state:'connected_limited',boundary:'任务外原生JSON/PPTX解析及受控DSH文字参考提炼；只生成候选。PDF/截图视觉提炼和原PPT母版保真不在本版。'},
+   ...['V07','V08','V10','V11','V12','V13','Q07'].map(id=>({id,name:integration.registry.skills.find(s=>s.id===id)?.name??id,state:'connected_limited',boundary:'原生版式库、固定1600×900 HTML、属性覆盖、不可变资源/成果版本和实际浏览器检查；不表示全部专业场景已验收。'})),
    {id:'R01',name:'研究问题与检索组织',state:'connected_limited',boundary:'含项目基本情况的整稿调用平台搜索，检索所在地与项目对象相关的官方政策。'},
    {id:'R02',name:'外部证据适用性核验',state:'connected_limited',boundary:'政策采用实际网页读取收执与逐字引用，保存原文快照、链接及日期。适用判断由模型给出，待用户审阅。'},
    {id:'C01.02',name:'项目阶段与已知条件概况',state:'connected_limited',boundary:'基本情况包含独立政策背景，衔接已核实的公共政策与上位规划。'},

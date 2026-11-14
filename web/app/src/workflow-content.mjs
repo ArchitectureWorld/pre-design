@@ -14,7 +14,7 @@ export function reportHierarchy(doc){
       sections:blocks.map((block,j)=>({block,number:outlineNumber(number,j,blocks.length),numbered:blocks.length>1}))}
   })
 }
-export const presentationLayouts={points:'要点',columns:'分栏对照',focus:'重点陈述'}
+export const presentationLayouts={points:'要点',columns:'分栏对照',focus:'重点陈述','image-left':'左图右文',table:'数据比较'}
 export function workflowBlockItems(block) {
   if (Array.isArray(block?.items)) return block.items
   if (!block?.body?.trim()) return []
@@ -33,6 +33,8 @@ export function workflowBodyMarkdown(items, {headings = true} = {}) {
     headings ? `#### ${item.title}` : '',
     ...item.paragraphs,
     item.points.map(point => `- ${point}`).join('\n'),
+    item.table ? [item.table.columns,...item.table.rows].map(row=>'| '+row.map(value=>String(value).replaceAll('|','\\|').replaceAll('\n',' ')).join(' | ')+' |').join('\n') : '',
+    item.figure ? `图像：${item.figure.caption}（资料ID：${item.figure.materialId}）` : '',
   ].filter(Boolean).join('\n\n')).join('\n\n')
 }
 
@@ -45,7 +47,9 @@ export function renderWorkflowItem(item, headingLevel = 3) {
   const lines = text => escape(text).replaceAll('\n', '<br>')
   const paragraphs = item.paragraphs.map(paragraph => `<p>${lines(paragraph)}</p>`).join('')
   const points = item.points.length ? `<ul>${item.points.map(point => `<li>${lines(point)}</li>`).join('')}</ul>` : ''
-  return `${heading ? `<${heading}>${escape(item.title)}</${heading}>` : ''}${paragraphs}${points}`
+  const table=item.table?`<table class="workflow-script-table"><thead><tr>${item.table.columns.map(v=>`<th>${escape(v)}</th>`).join('')}</tr></thead><tbody>${item.table.rows.map(row=>`<tr>${row.map(v=>`<td>${escape(v)}</td>`).join('')}</tr>`).join('')}</tbody></table>`:''
+  const figure=item.figure?`<p class="workflow-script-figure">图像：${escape(item.figure.caption)}（资料ID：${escape(item.figure.materialId)}；输出前核验原件）</p>`:''
+  return `${heading ? `<${heading}>${escape(item.title)}</${heading}>` : ''}${paragraphs}${points}${table}${figure}`
 }
 
 export function workflowItemPresentation(block, index, sectionNumber) {

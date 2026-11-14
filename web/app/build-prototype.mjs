@@ -52,6 +52,7 @@ html=html.replace('拖入文件，或点击选择','拖入文件或文件夹，�
 html=html.replace('</body>','<input type="file" id="outlineFileInput" class="hidden" multiple><input type="file" id="createFolderInput" class="hidden" webkitdirectory directory multiple></body>')
 html=html.replace(/(<button id="chatAttachBtn"[^>]*>)[\s\S]*?(<\/button>)/,'$1<svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.7" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 16v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" stroke-linecap="round" stroke-linejoin="round"/></svg>$2')
 html = html.replace('</head>', '<link rel="stylesheet" href="/dossier-ui.css"><link rel="stylesheet" href="/platform-ui.css"><link rel="stylesheet" href="/admin-ui.css"><link rel="stylesheet" href="/outline-flow.css"><link rel="stylesheet" href="/outline-agent.css"><link rel="stylesheet" href="/workflow-ui.css"><link rel="stylesheet" href="/workflow-graph.css"></head>')
+html=html.replace('</head>','<link rel="stylesheet" href="/layout-library/ui.css"></head>')
 html=html.replaceAll('批注箱','批注库').replace('</head>','<link rel="stylesheet" href="/annotation-composer.css"></head>')
 html=html.replace(/<div class="selection-popover hidden"[^>]*>[\s\S]*?<\/button><\/div>/,'')
   .replace(/(<button id="previewQuoteBtn"[^>]*>)[^<]+<\/button>/,'$1添加批注</button>')
@@ -60,6 +61,7 @@ await mkdir(outputRoot, { recursive: true })
 await writeFile(resolve(outputRoot, 'index.html'), html)
 await writeFile(resolve(outputRoot, 'prototype.css'), css)
 const bootstrap = `
+import { mountLayoutLibrary } from './layout-library/ui.js';
 import { mountDossier } from './dossier-ui.js';
 import { mountPlatform } from './platform-ui.js';
 import { mountAdminControls } from './admin-ui.js';
@@ -71,6 +73,9 @@ globalThis.prePlatform = mountPlatform({
     return response.json();
   },
   mutate, getProject:()=>server.current?.id===state.currentProjectId?server.current:null, getIdentity:()=>api('/me'), notify:toast, mountAdmin:mountAdminControls, openOutline:startConsult,
+});
+globalThis.preLayout=mountLayoutLibrary({getProject:()=>server.current?.id===state.currentProjectId?server.current:null,notify:toast,mutate,refresh:refreshCurrent,
+ request:async(path,options={})=>{const response=await fetch('/api'+path,{method:options.method??'GET',headers:{Authorization:'Bearer '+server.token,...(options.body===undefined?{}:{'Content-Type':'application/json'})},...(options.body===undefined?{}:{body:JSON.stringify(options.body)})});if(!response.ok){const x=await response.json();throw Object.assign(new Error(x.error||'请求失败'),{status:response.status})}if(options.download)return {blob:await response.blob(),filename:response.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1]??'layout.json'};return response.json()}
 });
 globalThis.preDossier=mountDossier({
   getProject:()=>server.current?.id===state.currentProjectId?server.current:null,notify:toast,
@@ -89,3 +94,6 @@ for(const name of ['annotation-composer.js','annotation-composer.css','outline-r
 
 // PRE_DESIGN_DOSSIER_R5_1
 for(const name of ['dossier-ui.js','dossier-ui.css'])await writeFile(resolve(outputRoot,name),await readFile(resolve(root,'src/dossier',name)))
+
+await mkdir(resolve(outputRoot,'layout-library'),{recursive:true});
+for(const name of ['ui.js','ui.css','render.mjs'])await writeFile(resolve(outputRoot,'layout-library',name),await readFile(resolve(root,'src/layout-library',name)));

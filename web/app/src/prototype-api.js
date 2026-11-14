@@ -31,7 +31,7 @@ async function mutate(path, extra={}) {
  let result;try{result=await api(`/projects/${id}/${path}`,body)}catch(error){if(error.status>=400&&error.status<500){pendingMutations.delete(key);savePendingMutations()}throw error}
  pendingMutations.delete(key);savePendingMutations();if(state.currentProjectId===id)await refreshCurrent().catch(()=>toast('操作已保存，状态刷新失败，请重新打开项目。'));return result;
 }
-function invalidateNavigation(){clearAnnotationContext();server.navigation++;server.operation++;server.loading=false;server.watch?.abort();server.graphNodeDrag?.destroy();server.graphNodeDrag=null;server.flowEditor?.destroy();server.flowEditor=null;server.workflowUI?.destroy();server.workflowUI=null;server.renderedConsult=null;server.visualDialog?.remove();server.visualDialog=null;globalThis.prePlatform?.reset();}
+function invalidateNavigation(){clearAnnotationContext();server.navigation++;server.operation++;server.loading=false;server.watch?.abort();server.graphNodeDrag?.destroy();server.graphNodeDrag=null;server.flowEditor?.destroy();server.flowEditor=null;server.workflowUI?.destroy();server.workflowUI=null;server.renderedConsult=null;server.visualDialog?.remove();server.visualDialog=null;globalThis.prePlatform?.reset();globalThis.preLayout?.reset();}
 function goOverview(){invalidateNavigation();prototypeGoOverview();void refreshProjects().catch(error=>toast(error.message))}
 function openNewProject(){invalidateNavigation();state.rejectedMaterials=[];prototypeOpenNewProject()}
 function loadProjectRecords(){return []}

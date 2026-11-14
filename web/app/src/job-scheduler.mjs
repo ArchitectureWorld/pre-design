@@ -9,11 +9,11 @@ export function createJobScheduler({ db, getLimits, execute }) {
       await conn.query("SELECT pg_advisory_xact_lock(hashtext(current_database() || ':' || current_schema() || ':job-dispatch'))")
       const count = (await conn.query("SELECT count(*)::int AS n FROM jobs WHERE status IN ('running','cancelling')")).rows[0].n
       if (count >= limits.globalConcurrency) { await conn.query('COMMIT'); return }
-      const job = (await conn.query(`SELECT j.* FROM jobs j JOIN projects p ON p.id=j.project_id
+      const job = (await conn.query(`SELECT j.* FROM jobs j LEFT JOIN projects p ON p.id=j.project_id
         WHERE j.status='queued'
           AND NOT EXISTS(SELECT 1 FROM jobs active WHERE active.project_id=j.project_id AND active.status IN ('running','cancelling'))
-          AND (SELECT count(*) FROM jobs active JOIN projects ap ON ap.id=active.project_id
-            WHERE ap.owner_id=p.owner_id AND active.status IN ('running','cancelling')) < $1
+          AND (SELECT count(*) FROM jobs active LEFT JOIN projects ap ON ap.id=active.project_id
+            WHERE COALESCE(ap.owner_id,active.owner_id)=COALESCE(p.owner_id,j.owner_id) AND active.status IN ('running','cancelling')) < $1
         ORDER BY j.created_at,j.id LIMIT 1 FOR UPDATE OF j SKIP LOCKED`, [limits.perUserConcurrency])).rows[0]
       if (job) {
         await conn.query("UPDATE jobs SET status='running',started_at=now() WHERE id=$1", [job.id])

@@ -1,3 +1,4 @@
+import {nativeTableSchema,nativeFigureSchema} from './layout-library/contract.mjs'
 import {createHash} from 'node:crypto'
 import {readFileSync} from 'node:fs'
 import {z} from 'zod'
@@ -52,7 +53,8 @@ const legacyBlockSchema=z.object({
 const itemSchema=z.object({
  id:itemIdSchema.optional(),title:textSchema(100).refine(title=>!/[\r\n\u2028\u2029]/u.test(title)),paragraphs:z.array(textSchema(2000)).max(3),
  points:z.array(textSchema(500)).max(8),evidenceIndexes:evidenceSchema,
- presentation:z.object({layout:z.enum(['points','columns','focus']),note:textSchema(320)}).strict().optional(),
+ table:nativeTableSchema.optional(),figure:nativeFigureSchema.optional(),
+ presentation:z.object({layout:z.enum(['points','columns','focus','image-left','table']),note:textSchema(320)}).strict().optional(),
 }).strict().refine(item=>item.paragraphs.length||item.points.length)
 const structuredBlockSchema=z.object({
  id:blockIdSchema,heading:textSchema(120).optional(),items:z.array(itemSchema).min(1).max(8),internalNotes:z.array(textSchema(180)).max(5),
@@ -112,6 +114,8 @@ export function parseWorkflowResult(response,outline,blockId,{requireStructured=
    }
    items=value.items.map((item,index)=>{
     const id=itemId??`${target.id}-item-${index+1}`
+    if((item.table||item.figure)&&!item.evidenceIndexes.length)throw workflowError('图像或表格须绑定实际来源依据。')
+    if(item.table&&item.figure)throw workflowError('当前版式不支持同时放置独立图片和表格，请在页脚本中拆成互补页面。')
     if(requireReport)checkHeading(item.title,'条标题',36)
     if(requireReport||sectionPages)for(const text of [...item.paragraphs,...item.points])checkPublicText(text,id)
     if(sectionPages){
@@ -160,7 +164,7 @@ ${job.payload.policyResearch?`本次执行 R01 公开政策检索、R02 原文�
 按上述 Skill 给出简洁、独立的项目陈述。资料引用只用已核验的编号，缺项及待决问题写入 internalNotes。首次生成的每个输入 ID 都必须完整返回。旧版局部稿件沿用所给 JSON 格式；本次明确输出 sectionText 时，正文和逐页脚本必须分别撰写。
 ${job.payload.policyRequested?'若已读取的本地原件包含政策，把其 evidence 索引列入 policyEvidenceIndexes 并写政策节。有本地政策原文时可以复用。仅在本地政策与官方网页原文均未取得时省略额外 policyTopic 节，在 policyGaps 中说明原因。':''}
 ${itemId?`只修改任务 ${blockId} 的指定条目 ${itemId}，落实用户意见。只返回该任务和该条，item.id 必须精确匹配；其他任务和条目不返回。若无新增备注，internalNotes 返回空数组。`:blockId?'只返回指定任务，落实用户意见并为该节返回全部条目。':'每个给定的节 ID 单独写标题、正文及页脚本。保持 ID 与顺序，不得遗漏节 ID 或自行添加研究任务。'}
-最终严格返回JSON：${JSON.stringify(shape)}。paragraphs、points、internalNotes 都须为字符串数组。evidenceIndexes 为资料数组的零起始编号；项目输入可用空数组。不得调用提交、确认、研究执行或专业写入工具。
+有实际来源且本页需要表格时，可额外返回 item.table={columns:[列名],rows:[[逐行文字或数值]]}；每行列数一致，最多8列40行。需要真实图片时，可返回 item.figure={materialId:平台上传账本中的图片UUID,caption:真实图注}。两者都需要evidenceIndexes；不得臆造数值、图像ID或图片内容；同页不要同时返回独立table和figure。无此类内容时省略字段。表格用table布局、图片用image-left布局，不能把图文要求只写在note而不返回对应数据。最终严格返回JSON：${JSON.stringify(shape)}。paragraphs、points、internalNotes 都须为字符串数组。evidenceIndexes 为资料数组的零起始编号；项目输入可用空数组。不得调用提交、确认、研究执行或专业写入工具。
 任务数据：${JSON.stringify(input)}`
 }
 export function renderWorkflowArtifact(doc,format){

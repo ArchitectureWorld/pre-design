@@ -1,0 +1,51 @@
+{
+  "schemaVersion": "pre-design.layout-skill-bindings.v1",
+  "resourceSchema": "pre-design.layout-package.v1",
+  "renderer": "pre-design-native-html-v1.0",
+  "bindings": {
+    "V14": {
+      "module": "reference.mjs / jobs.mjs",
+      "output": "native package candidate"
+    },
+    "V07": {
+      "read": "canvas, formats",
+      "supported": "1600x900 HTML"
+    },
+    "V08": {
+      "read": "theme",
+      "output": "effective theme after property inheritance"
+    },
+    "V09": {
+      "read": "layouts slots",
+      "constraint": "one approved item -> one page; overcapacity returns to script"
+    },
+    "V10": {
+      "module": "contract.mjs#chooseLayout",
+      "read": "layouts, item type"
+    },
+    "V11": {
+      "module": "render.mjs#renderNativePage",
+      "read": "frozen spec + approved item + project assets"
+    },
+    "V12": {
+      "module": "../workflow-visual-store.mjs",
+      "output": "immutable deck + renderedHtml + binding revision"
+    },
+    "V13": {
+      "module": "store.mjs#saveBindings",
+      "read": "typed explicit manual overrides",
+      "scope": "no automatic adoption of pending free-text annotations"
+    },
+    "Q07": {
+      "module": "validation.mjs",
+      "proof": "actual Chromium measurements and negative overflow fixture"
+    },
+    "Q05": {
+      "status": "human-reference-and-rights-review"
+    },
+    "V06_Q08": {
+      "format": "html",
+      "limit": "editable PPTX and styled PDF not certified"
+    }
+  }
+}

@@ -1,3 +1,7 @@
+import {createLayoutLibrary} from './layout-library/store.mjs'
+import {registerLayoutRoutes} from './layout-library/routes.mjs'
+import {createLayoutJobs} from './layout-library/jobs.mjs'
+import {createLayoutAssetResolver} from './layout-library/assets.mjs'
 import Fastify from 'fastify'
 // PRE_DESIGN_DOSSIER_R5_1
 import {createDossierIntegration} from './dossier/service.mjs'
@@ -91,6 +95,8 @@ export async function createApp({ db, workers, projectsRoot, users }) {
     ALTER TABLE materials ADD COLUMN IF NOT EXISTS relative_path text;
     CREATE TABLE IF NOT EXISTS jobs(id uuid PRIMARY KEY, project_id uuid REFERENCES projects(id), request_id text NOT NULL, fingerprint text NOT NULL,
       kind text NOT NULL, payload jsonb NOT NULL, status text NOT NULL, result jsonb, error text, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(project_id, request_id));
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS owner_id text;
+    CREATE UNIQUE INDEX IF NOT EXISTS layout_reference_request_unique ON jobs(owner_id,request_id) WHERE kind='layout-reference';
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS policy_snapshot jsonb;
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS started_at timestamptz;
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS finished_at timestamptz;
@@ -114,7 +120,8 @@ export async function createApp({ db, workers, projectsRoot, users }) {
   await db.query("UPDATE jobs SET progress=$1 WHERE status='interrupted' AND progress IS NULL",[taskProgress('interrupted')])
   const platform = await createPlatformStore(db, users)
   const outlines = await createOutlineStore(db)
-  const workflows = await createWorkflowStore(db)
+  const layoutLibrary=await createLayoutLibrary(db)
+  const workflows = await createWorkflowStore(db,{layoutLibrary,resolveLayoutAssets:createLayoutAssetResolver(db)})
   const dossierIntegration = await createDossierIntegration({db, workers, verifyMaterial:openVerifiedMaterial})
   const query = async (sql, params = []) => (await db.query(sql, params)).rows
   const event = async (id, data) => { await query('INSERT INTO events(project_id,data) VALUES($1,$2)', [id, data]); await query('UPDATE projects SET updated_at=now() WHERE id=$1', [id]) }
@@ -203,9 +210,9 @@ export async function createApp({ db, workers, projectsRoot, users }) {
     return platform.savePolicy(body.policy, body.expectedRevision, req.user.id)
   })
   app.get('/api/admin/users', async req => { requireAdmin(req); return platform.listUsers() })
-  app.get('/api/admin/jobs', async req => { requireAdmin(req); return query(`SELECT j.id,j.project_id,p.owner_id,j.kind,j.status,j.created_at,j.started_at,j.finished_at,
+  app.get('/api/admin/jobs', async req => { requireAdmin(req); return query(`SELECT j.id,j.project_id,COALESCE(p.owner_id,j.owner_id) AS owner_id,j.kind,j.status,j.created_at,j.started_at,j.finished_at,
     j.policy_snapshot->'revision' AS policy_revision,j.policy_snapshot->'routes' AS routes,j.execution_metadata,j.error
-    FROM jobs j JOIN projects p ON p.id=j.project_id ORDER BY j.created_at DESC LIMIT 200`) })
+    FROM jobs j LEFT JOIN projects p ON p.id=j.project_id ORDER BY j.created_at DESC LIMIT 200`) })
   app.get('/api/projects', async req => (await query("SELECT p.*, (SELECT count(*) FROM annotations a WHERE a.project_id=p.id AND a.status IN ('pending','failed','interrupted')) AS pending_count FROM projects p WHERE owner_id=$1 ORDER BY name", [req.user.id])).map(publicProject))
   app.post('/api/projects', async req => {
     const body = z.object({ requestId: requestSchema, name: z.string().trim().min(1).max(120).regex(/^[^\r\n]+$/), metadata: z.object({ type: z.string().max(60), location: z.string().max(200), regionDetail: z.string().max(200), brief: z.string().max(5000) }).strict().optional() }).strict().parse(req.body)
@@ -337,6 +344,7 @@ export async function createApp({ db, workers, projectsRoot, users }) {
   })
   const controllers = new Map()
   async function execute(job) {
+    if(job.kind==='layout-reference')return layoutJobs.execute(job)
     const controller = new AbortController(); controllers.set(job.id, controller)
     const startedAt = new Date().toISOString()
     const activity=createTaskProgressReporter({write:progress=>query(`
@@ -542,6 +550,9 @@ export async function createApp({ db, workers, projectsRoot, users }) {
     return '本次执行未完成，请查看研究状态或由管理员检查运行记录。'
   }
   const scheduler = createJobScheduler({ db, getLimits: async () => (await platform.getPolicy()).limits, execute })
+  const layoutJobs=createLayoutJobs({db,platform,workers,library:layoutLibrary,serial,controllers,kick:()=>scheduler.kick()})
+  registerLayoutRoutes({app,library:layoutLibrary,project,workflows,serial,event,
+    enqueueReference:layoutJobs.enqueue,listReferenceJobs:layoutJobs.list,cancelReference:layoutJobs.cancel})
   async function enqueue(req, kind, body) {
     const p = await project(req)
     const job = await serial(`enqueue:${p.id}`, () => serial(`dossier-finalize:${p.id}`, async () => {
@@ -579,7 +590,7 @@ export async function createApp({ db, workers, projectsRoot, users }) {
       try {
         await conn.query('BEGIN')
         await conn.query("SELECT pg_advisory_xact_lock(hashtext(current_database() || ':' || current_schema() || ':owner:' || $1))", [req.user.id])
-        const queued = (await conn.query("SELECT count(*)::int AS n FROM jobs j JOIN projects p ON p.id=j.project_id WHERE p.owner_id=$1 AND j.status='queued'", [req.user.id])).rows[0].n
+        const queued = (await conn.query("SELECT count(*)::int AS n FROM jobs j LEFT JOIN projects p ON p.id=j.project_id WHERE COALESCE(p.owner_id,j.owner_id)=$1 AND j.status='queued'", [req.user.id])).rows[0].n
         if (queued >= limits.maxQueuedPerUser) throw fail(429, '等待中的任务已达到上限，请完成或取消后再提交')
         if (paid) {
           const used = (await conn.query("SELECT count(*)::int AS n FROM job_reservations WHERE owner_id=$1 AND day=(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai')::date AND status <> 'released'", [req.user.id])).rows[0].n
@@ -655,8 +666,8 @@ export async function createApp({ db, workers, projectsRoot, users }) {
   })
   for(const operation of ['approve','visuals'])app.post(`/api/projects/:id/workflow/${operation}`,async req=>{
     const approval=base.extend({draftId:idSchema})
-    const visual=approval.extend({baseVisualId:idSchema.optional(),pageIds:z.array(z.string().max(150)).min(1).max(1056).refine(ids=>new Set(ids).size===ids.length).optional(),layout:z.enum(['points','columns','focus']).optional()})
-      .refine(body=>body.baseVisualId?!!body.pageIds&&!!body.layout:!body.pageIds&&!body.layout,'首次生成必须整套，后续修改须指定成果版本、页面和版式')
+    const visual=approval.extend({applyLibrary:z.boolean().optional(),expectedBindingRevision:z.number().int().nonnegative().optional(),baseVisualId:idSchema.optional(),pageIds:z.array(z.string().max(150)).min(1).max(1056).refine(ids=>new Set(ids).size===ids.length).optional(),layout:z.enum(['points','columns','focus']).optional()})
+      .refine(body=>body.applyLibrary?body.expectedBindingRevision!==undefined&&!body.pageIds&&!body.layout:body.baseVisualId?!!body.pageIds&&!!body.layout:!body.pageIds&&!body.layout,'首次生成必须整套；库版式应用须指定配置版本；普通修改须指定页面及版式')
     const body=(operation==='approve'?approval:visual).parse(req.body),p=await project(req)
     return serial(`enqueue:${p.id}`,async()=>{
       if((await query("SELECT id FROM jobs WHERE project_id=$1 AND status IN ('queued','running','cancelling') LIMIT 1",[p.id])).length)throw Object.assign(fail(409,'项目任务正在执行，请结束后继续。'),{code:'WORKFLOW_BUSY'})
