@@ -7,7 +7,7 @@ const classRoles = { text: 'text', web: 'web', review: 'vision' }
 export function isolatedEnvironment(source = process.env) {
   return Object.fromEntries(['PATH', 'HOME', 'LANG', 'LC_ALL', 'TZ', 'TMPDIR', 'SSL_CERT_FILE', 'SSL_CERT_DIR', 'NODE_EXTRA_CA_CERTS', 'FONTCONFIG_PATH'].filter(key => typeof source[key] === 'string').map(key => [key, source[key]]))
 }
-export function materializeModelRuntime(snapshot, settings = {}, credentials = {}, requiredRoles = ['parent']) {
+export function materializeModelRuntime(snapshot, settings = {}, credentials = {}, requiredRoles = ['parent'], {parentRole='parent'} = {}) {
   const result = { providers: {}, env: {}, parent: null, classRoutes: { text: null, web: null, review: null, image: null },
     classFallbacks: { text: [], web: [], review: [], image: [] }, imageAvailability: { status: 'not_ready', code: 'IMAGE_POLICY_NOT_READY', reason: '本次任务未配置图像服务。' }, imageBackend: null }
   if (!snapshot) return result
@@ -27,7 +27,7 @@ export function materializeModelRuntime(snapshot, settings = {}, credentials = {
     if (rows.some(row => row.status !== 'verified')) return []
     return rows.map(row => { active.set(keyOf(row), row); return { provider: row.runtimeProvider, model: row.model } })
   }
-  const parents = chain('parent'); result.parent = parents[0] ?? null
+  const parents = chain(parentRole); result.parent = parents[0] ?? null
   for (const [classId, role] of Object.entries(classRoles)) {
     const routes = requiredRoles.includes(role) ? chain(role) : []
     result.classRoutes[classId] = routes[0] ?? null; result.classFallbacks[classId] = routes.slice(1)
@@ -67,13 +67,13 @@ export function materializeModelRuntime(snapshot, settings = {}, credentials = {
   return result
 }
 
-export async function installModelBoundary(ctx, { sessionId, snapshot, classRoutes, classFallbacks, agentClasses }) {
-  const policy = snapshot ? validateSnapshot(snapshot, ['parent']) : undefined
+export async function installModelBoundary(ctx, { sessionId, snapshot, classRoutes, classFallbacks, agentClasses, parentRole='parent' }) {
+  const policy = snapshot ? validateSnapshot(snapshot, [parentRole]) : undefined
   const models = new Map(policy?.models.map(row => [keyOf(row), row]) ?? [])
   const allowed = new Map()
   const classReferences = Object.entries(classRoutes ?? {}).flatMap(([classId, route]) => route ? [route, ...(classFallbacks?.[classId] ?? [])] : [])
   const activeIdentities = new Set(classReferences.map(row => row.llm ?? row).map(row => `${row.provider}\0${row.model}`))
-  for (const ref of policy ? [policy.routes.parent.primary, ...policy.routes.parent.fallbacks] : []) {
+  for (const ref of policy ? [policy.routes[parentRole].primary, ...policy.routes[parentRole].fallbacks] : []) {
     const row = models.get(keyOf(ref)); activeIdentities.add(`${row.runtimeProvider}\0${row.model}`)
   }
   for (const role of ['parent', 'text', 'web', 'vision', 'imageLlm']) {
@@ -83,7 +83,7 @@ export async function installModelBoundary(ctx, { sessionId, snapshot, classRout
     if (rows.some(row => row.status !== 'verified')) continue
     for (const row of rows) if (activeIdentities.has(`${row.runtimeProvider}\0${row.model}`)) allowed.set(`${row.runtimeProvider}\0${row.model}`, row)
   }
-  const parents = policy ? [policy.routes.parent.primary, ...policy.routes.parent.fallbacks].map(ref => models.get(keyOf(ref))) : []
+  const parents = policy ? [policy.routes[parentRole].primary, ...policy.routes[parentRole].fallbacks].map(ref => models.get(keyOf(ref))) : []
   let parentIndex = 0
   const deny = () => { throw researchError('MODEL_ROUTE_FORBIDDEN', 'MODEL_ROUTE_FORBIDDEN: 任务模型调用不属于固定快照。', 503) }
   ctx.on('agent/request', async ({ agent }, next) => {
@@ -96,8 +96,9 @@ export async function installModelBoundary(ctx, { sessionId, snapshot, classRout
   }, { prepend: true })
   ctx.on('agent/request-error', async ({ agent, provider, failure }, next) => {
     const current = parents[parentIndex]
+    const interruptedProvider=failure?.code==='PI_AI_ERROR'&&/^(?:Provider stream interrupted or invalid|Invalid provider response)$/i.test(failure.message??'')
     if (String(agent.id) === sessionId && current?.runtimeProvider === provider && parentIndex + 1 < parents.length
-      && ['AUTH', 'MISSING_CREDENTIAL', 'INVALID_CREDENTIAL', 'NO_ADAPTER', 'MODEL_NOT_FOUND', 'PROVIDER_NOT_FOUND', 'QUOTA', 'TRANSPORT', 'NETWORK', 'CONNECTION', 'RATE_LIMIT', 'SERVER'].includes(failure?.code)) {
+      && (interruptedProvider||['AUTH', 'MISSING_CREDENTIAL', 'INVALID_CREDENTIAL', 'NO_ADAPTER', 'MODEL_NOT_FOUND', 'PROVIDER_NOT_FOUND', 'QUOTA', 'TRANSPORT', 'NETWORK', 'CONNECTION', 'RATE_LIMIT', 'SERVER'].includes(failure?.code))) {
       parentIndex += 1
       return { kind: 'retry' }
     }

@@ -23,7 +23,7 @@ async function fixture(t){
  const req=(method,url,payload,user=0)=>app.inject({method,url,headers:{authorization:'Bearer '+users[user].token},...(payload===undefined?{}:{payload})})
  const policy=(await req('GET','/api/admin/models')).json();const model=policy.models.find(x=>x.provider==='SenseNova'&&x.model==='sensenova-6.8-flash-lite');model.status='verified';model.capabilities.tools=true
  assert.equal((await req('PUT','/api/admin/models',{expectedRevision:policy.revision,policy})).statusCode,200)
- return {db,req,worker,calls,get app(){return app},async restart(){await app.close();app=await createApp({db,workers:worker,projectsRoot:root,users})}}
+ return {db,root,req,worker,calls,get app(){return app},async restart(){await app.close();app=await createApp({db,workers:worker,projectsRoot:root,users})}}
 }
 
 test('真实PG/完整服务器：任务外预置、发布、整稿应用、来源版本固化与重启回读',{skip:!enabled,timeout:120000},async t=>{
@@ -188,4 +188,35 @@ test('未生成的版式可删除与撤销；资源删除后迟到模型结果�
  const record=(await f.req('GET','/api/layout-library/reference-jobs')).json().find(j=>j.id===job.json().id);assert.equal(record.status,'failed')
  assert(!(await f.req('GET',base)).json().conversations.some(c=>c.resourceId===r.id))
  assert.equal((await f.req('GET','/api/layout-library/'+r.id+'/1')).json().latestVersion,1)
+})
+
+test('参考图片上传保留原件、跨用户隔离，并通过视觉角色交给模型',{skip:!enabled,timeout:60000},async t=>{
+ const f=await fixture(t),sharp=(await import('sharp')).default
+ const bytes=await sharp({create:{width:180,height:90,channels:3,background:'#235740'}}).png().toBuffer(),body={requestId:randomUUID(),filename:'参考版式.png',content:bytes.toString('base64')}
+ const uploaded=await f.req('POST','/api/layout-library/reference-files',body);assert.equal(uploaded.statusCode,200,uploaded.body)
+ const file=uploaded.json();assert.equal(file.hasImages,true);assert.equal(file.name,body.filename)
+ const secondBytes=await sharp({create:{width:180,height:90,channels:3,background:'#3454a0'}}).png().toBuffer()
+ const second=(await f.req('POST','/api/layout-library/reference-files',{...body,requestId:randomUUID(),content:secondBytes.toString('base64')})).json()
+ assert.equal((await f.req('POST','/api/layout-library/reference-files',body)).json().id,file.id)
+ const downloaded=await f.req('GET','/api/layout-library/reference-files/'+file.id+'/download');assert.equal(downloaded.statusCode,200);assert.deepEqual(downloaded.rawPayload,bytes)
+ assert.equal((await f.req('GET','/api/layout-library/reference-files/'+file.id+'/download',undefined,1)).statusCode,404)
+ const originalRun=f.worker.runLayoutReference;f.worker.runLayoutReference=async input=>{const result=await originalRun(input);return {...result,response:'已根据参考页面调整。\n```json\n'+JSON.stringify({reply:'已读取参考图片。',package:JSON.parse(result.response)})+'\n```'}}
+ const request={requestId:randomUUID(),text:'按两份同名图片提炼版式',files:[{id:file.id},{id:second.id}],allowModel:true}
+ assert.equal((await f.req('POST','/api/layout-library/conversations',request,1)).statusCode,404)
+ const started=await f.req('POST','/api/layout-library/conversations',request);assert.equal(started.statusCode,200,started.body);await f.app.waitForJobs()
+ assert.equal(f.calls.length,1);assert.equal(f.calls[0].modelRole,'vision');assert.equal(f.calls[0].images.length,2);assert.deepEqual(f.calls[0].images.map(i=>i.fileId),[file.id,second.id])
+ assert.match(f.calls[0].prompt,/参考版式.png/)
+ await f.restart();const conversation=(await f.req('GET','/api/layout-library/conversations/'+started.json().conversationId)).json()
+ assert.deepEqual(conversation.referenceFiles.map(f=>f.id),[file.id,second.id]);assert.equal(conversation.referenceFiles[0].hasImages,true);assert.equal(conversation.turns[0].status,'completed')
+ assert.equal((await f.req('POST','/api/layout-library/reference-files',{...body,requestId:randomUUID(),content:Buffer.from('伪装图片').toString('base64')})).statusCode,415)
+})
+
+test('上传原件变化后停止读取与模型调用，失败文件不会伪装成可用参考',{skip:!enabled,timeout:60000},async t=>{
+ const f=await fixture(t),{writeFile}=await import('node:fs/promises'),sharp=(await import('sharp')).default
+ const bytes=await sharp({create:{width:64,height:48,channels:3,background:'#ffffff'}}).png().toBuffer()
+ const up=await f.req('POST','/api/layout-library/reference-files',{requestId:randomUUID(),filename:'受保护参考.png',content:bytes.toString('base64')});assert.equal(up.statusCode,200,up.body)
+ await writeFile(join(f.root,'.layout-references',up.json().id,'source'),Buffer.from('原件被改变'))
+ assert.equal((await f.req('GET','/api/layout-library/reference-files/'+up.json().id+'/download')).statusCode,409)
+ const start=await f.req('POST','/api/layout-library/conversations',{requestId:randomUUID(),files:[{id:up.json().id}],text:'提炼参考',allowModel:true});assert.equal(start.statusCode,200,start.body);await f.app.waitForJobs()
+ const conversation=(await f.req('GET','/api/layout-library/conversations/'+start.json().conversationId)).json();assert.equal(conversation.turns[0].status,'failed');assert.match(conversation.turns[0].error,/文件已变化/);assert.equal(f.calls.length,0)
 })

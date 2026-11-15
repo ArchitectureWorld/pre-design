@@ -1,5 +1,6 @@
 import {mountNativePreview} from './preview-ui.js'
 import {mountLayoutConversation} from './conversation-ui.js'
+import {readReferenceBase64} from './upload-request.js'
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
 const rid=()=>crypto.randomUUID?.()??Array.from(crypto.getRandomValues(new Uint8Array(16)),x=>x.toString(16).padStart(2,'0')).join('')
 const stateName=r=>r.retired?'已归档':r.published?'已发布':r.validation?.status==='passed'?'检查通过':'草稿'
@@ -10,15 +11,15 @@ const equal=(a,b)=>JSON.stringify(ordered(a))===JSON.stringify(ordered(b))
 export function mountLayoutLibrary({request,notify}){
  const entry=document.createElement('button');entry.type='button';entry.className='ll-entry';entry.textContent='版式库';entry.dataset.layoutLibraryOpen=''
  document.querySelector('.top-right')?.prepend(entry)
- let dialog,identity,resources=[],conversations=[],selected=null,working=null,chat,previewHandle,previewLayout='',layoutChosen=false,picker=null,generation=0,previewGeneration=0,previewTimer,busy=false,modelBusy=false,historyViewing=false,viewEpoch=0,lastDeletion=null
+ let dialog,identity,resources=[],conversations=[],selected=null,working=null,chat,previewHandle,previewLayout='',layoutChosen=false,picker=null,generation=0,previewGeneration=0,previewTimer,busy=false,modelBusy=false,historyViewing=false,viewEpoch=0,lastDeletion=null,activityLabel='正在生成版式…'
  const pending=new Map()
  const msg=text=>{const el=dialog?.querySelector('[data-ll-status]');if(el)el.textContent=text}
  const own=()=>!selected||selected.ownerId===identity?.id||identity?.role==='admin'
  function close(){generation++;viewEpoch++;clearTimeout(previewTimer);previewHandle?.dispose();chat?.dispose();dialog?.close();dialog?.remove();dialog=null;chat=null;pending.clear();picker=null}
  async function run(action){if(busy)return;busy=true;try{await action()}catch(error){msg(error.message);notify(error.message)}finally{busy=false}}
- async function post(path,body={}){
+ async function post(path,body={},options={}){
   const key=JSON.stringify([path,body]);let requestId=pending.get(key);if(!requestId){requestId=rid();pending.set(key,requestId)}
-  try{const result=await request(path,{method:'POST',body:{...body,requestId}});pending.delete(key);return result}catch(error){if(error.status>=400&&error.status<500)pending.delete(key);throw error}
+  try{const result=await request(path,{...options,method:'POST',body:{...body,requestId}});pending.delete(key);return result}catch(error){if(error.status>=400&&error.status<500)pending.delete(key);throw error}
  }
  async function reload(){
   const token=generation
@@ -53,7 +54,7 @@ export function mountLayoutLibrary({request,notify}){
     },
     onDraft:async pkg=>{if(token!==generation||working)return;working=structuredClone(pkg);renderResult();await preview()},
     onImport:importFile,
-    onState:state=>{modelBusy=state.busy;updateControls();if(!working)renderResult()},
+    onState:state=>{modelBusy=state.busy;activityLabel=state.phase==='uploading'?'正在处理参考文件…':'正在生成版式…';updateControls();if(!working)renderResult()},
     onChange:()=>{void reload().catch(e=>msg(e.message))},
    })
    const seed=dialog.querySelector('[data-seed]');seed.hidden=identity.role!=='admin';seed.onclick=()=>void run(async()=>{await post('/layout-library/seed');await reload();msg('预置版式已保存。')})
@@ -124,7 +125,7 @@ export function mountLayoutLibrary({request,notify}){
   if(!dialog)return
   previewHandle?.dispose();previewHandle=null
   const panel=dialog.querySelector('[data-layout-results]')
-  if(!working){panel.innerHTML=`<div class="ll-result-empty"><strong>${modelBusy?'正在生成版式…':'上传参考后，在这里预览版式'}</strong><button data-manual ${modelBusy?'disabled':''}>手动创建</button></div>`;panel.querySelector('[data-manual]').onclick=()=>void run(async()=>{working=(await request('/layout-library/starter')).package;working.name='我的自定义版式';selected=null;renderResult();await preview()});return}
+  if(!working){panel.innerHTML=`<div class="ll-result-empty"><strong>${modelBusy?activityLabel:'上传参考后，在这里预览版式'}</strong><button data-manual ${modelBusy?'disabled':''}>手动创建</button></div>`;panel.querySelector('[data-manual]').onclick=()=>void run(async()=>{working=(await request('/layout-library/starter')).package;working.name='我的自定义版式';selected=null;renderResult();await preview()});return}
   const pkg=working;previewLayout=pkg.layouts.some(l=>l.id===previewLayout)?previewLayout:pkg.layouts[0].id
   panel.innerHTML=`<div class="ll-result-heading"><input data-resource-name aria-label="版式名称" value="${esc(pkg.name)}" maxlength="100"><span>${selected?'V'+selected.version+' · '+stateName(selected):'新建版式'}</span>${selected&&own()?`<select data-history aria-label="历史版本">${Array.from({length:selected.latestVersion},(_,i)=>`<option value="${i+1}" ${selected.version===i+1?'selected':''}>V${i+1}</option>`).join('')}</select>`:''}</div>
    <div class="ll-preview-controls"><select data-layout aria-label="预览布局">${pkg.layouts.map(l=>`<option value="${l.id}" ${l.id===previewLayout?'selected':''}>${esc(l.label)}</option>`).join('')}</select><button data-preview>更新预览</button></div>
@@ -173,14 +174,21 @@ export function mountLayoutLibrary({request,notify}){
   if(token!==generation||revision!==previewGeneration||!box.isConnected)return
   previewHandle?.dispose();previewHandle=mountNativePreview(box,result.html,{onSelect:selection=>chat.focusSelection(selection)})
  }
- async function importFile(file){
+ async function importFile(file,options={}){
   const epoch=viewEpoch
-  if(file.size>8*1024*1024)throw Error('参考文件超过8 MiB。')
-  const data=new Uint8Array(await file.arrayBuffer());let binary='';for(let i=0;i<data.length;i+=8192)binary+=String.fromCharCode(...data.subarray(i,i+8192))
-  const result=await post('/layout-library/import',{filename:file.name,content:btoa(binary)})
-  const resource=await request('/layout-library/'+result.id+'/'+result.version)
+  const content=await readReferenceBase64(file,{signal:options.signal,onProgress:options.onUploadProgress,maxBytes:8*1024*1024})
+  options.onUploadProgress?.({phase:'uploading',loaded:0,total:0})
+  const result=await post('/layout-library/import',{filename:file.name,content},options)
+  const resource=await request('/layout-library/'+result.id+'/'+result.version,{signal:options.signal})
+  if(options.signal?.aborted)throw new DOMException('操作已取消','AbortError')
   if(!dialog||epoch!==viewEpoch)return result
-  selected=resource;working=structuredClone(selected.package);previewLayout='';historyViewing=false;renderResult();await preview();await reload();return result
+  const layoutId=resource.package.layouts[0].id
+  const rendered=await request('/layout-library/preview',{method:'POST',body:{package:resource.package,layoutId},signal:options.signal})
+  if(options.signal?.aborted)throw new DOMException('操作已取消','AbortError')
+  if(!dialog||epoch!==viewEpoch)return result
+  selected=resource;working=structuredClone(selected.package);previewLayout=layoutId;historyViewing=false;previewGeneration++;renderResult()
+  previewHandle=mountNativePreview(dialog.querySelector('[data-preview-box]'),rendered.html,{onSelect:selection=>chat.focusSelection(selection)})
+  void reload().catch(error=>msg(error.message));return result
  }
  function download(file){const url=URL.createObjectURL(file.blob),a=document.createElement('a');a.href=url;a.download=file.filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
  entry.onclick=()=>void run(()=>open())

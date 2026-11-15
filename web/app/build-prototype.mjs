@@ -63,6 +63,7 @@ await writeFile(resolve(outputRoot, 'prototype.css'), css)
 const bootstrap = `
 import { mountLayoutLibrary } from './layout-library/ui.js';
 import { mountCanvasLayouts } from './layout-library/canvas-ui.js';
+import { createLayoutRequest } from './layout-library/upload-request.js';
 import { mountDossier } from './dossier-ui.js';
 import { mountPlatform } from './platform-ui.js';
 import { mountAdminControls } from './admin-ui.js';
@@ -75,7 +76,7 @@ globalThis.prePlatform = mountPlatform({
   },
   mutate, getProject:()=>server.current?.id===state.currentProjectId?server.current:null, getIdentity:()=>api('/me'), notify:toast, mountAdmin:mountAdminControls, openOutline:startConsult,
 });
-const layoutRequest=async(path,options={})=>{const response=await fetch('/api'+path,{method:options.method??'GET',headers:{Authorization:'Bearer '+server.token,...(options.body===undefined?{}:{'Content-Type':'application/json'})},...(options.body===undefined?{}:{body:JSON.stringify(options.body)})});if(!response.ok){const x=await response.json();throw Object.assign(new Error(x.error||'请求失败'),{status:response.status})}if(options.download)return {blob:await response.blob(),filename:response.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1]??'layout.json'};return response.json()};
+const layoutRequest=createLayoutRequest({getToken:()=>server.token});
 globalThis.preLayout=mountLayoutLibrary({request:layoutRequest,notify:toast});
 globalThis.preLayoutCanvas=mountCanvasLayouts({request:layoutRequest,notify:toast,mutate,refresh:refreshCurrent,
  nodeLayer:document.querySelector('#nodeLayer'),viewport:document.querySelector('#graphViewport'),
@@ -101,4 +102,4 @@ for(const name of ['annotation-composer.js','annotation-composer.css','outline-r
 for(const name of ['dossier-ui.js','dossier-ui.css'])await writeFile(resolve(outputRoot,name),await readFile(resolve(root,'src/dossier',name)))
 
 await mkdir(resolve(outputRoot,'layout-library'),{recursive:true});
-for(const name of ['ui.js','ui.css','render.mjs','conversation-ui.js','preview-ui.js','canvas-ui.js'])await writeFile(resolve(outputRoot,'layout-library',name),await readFile(resolve(root,'src/layout-library',name)));
+for(const name of ['ui.js','ui.css','render.mjs','conversation-ui.js','preview-ui.js','canvas-ui.js','upload-request.js'])await writeFile(resolve(outputRoot,'layout-library',name),await readFile(resolve(root,'src/layout-library',name)));

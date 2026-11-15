@@ -2,6 +2,7 @@ import {createLayoutLibrary} from './layout-library/store.mjs'
 import {registerLayoutRoutes} from './layout-library/routes.mjs'
 import {createLayoutJobs} from './layout-library/jobs.mjs'
 import {createLayoutAssetResolver} from './layout-library/assets.mjs'
+import {createReferenceUploads} from './layout-library/reference-uploads.mjs'
 import Fastify from 'fastify'
 // PRE_DESIGN_DOSSIER_R5_1
 import {createDossierIntegration} from './dossier/service.mjs'
@@ -121,6 +122,7 @@ export async function createApp({ db, workers, projectsRoot, users }) {
   const platform = await createPlatformStore(db, users)
   const outlines = await createOutlineStore(db)
   const layoutLibrary=await createLayoutLibrary(db)
+  const layoutUploads=await createReferenceUploads(db,{root:join(root,'.layout-references')})
   const resolveLayoutAssets=createLayoutAssetResolver(db)
   const workflows = await createWorkflowStore(db,{layoutLibrary,resolveLayoutAssets})
   const dossierIntegration = await createDossierIntegration({db, workers, verifyMaterial:openVerifiedMaterial})
@@ -551,8 +553,8 @@ export async function createApp({ db, workers, projectsRoot, users }) {
     return '本次执行未完成，请查看研究状态或由管理员检查运行记录。'
   }
   const scheduler = createJobScheduler({ db, getLimits: async () => (await platform.getPolicy()).limits, execute })
-  const layoutJobs=createLayoutJobs({db,platform,workers,library:layoutLibrary,serial,controllers,kick:()=>scheduler.kick()})
-  registerLayoutRoutes({app,library:layoutLibrary,project,workflows,serial,event,resolveLayoutAssets,
+  const layoutJobs=createLayoutJobs({db,platform,workers,library:layoutLibrary,uploads:layoutUploads,serial,controllers,kick:()=>scheduler.kick()})
+  registerLayoutRoutes({app,library:layoutLibrary,uploads:layoutUploads,project,workflows,serial,event,resolveLayoutAssets,
     enqueueReference:layoutJobs.enqueue,listReferenceJobs:layoutJobs.list,cancelReference:layoutJobs.cancel,
     referenceConfiguration:layoutJobs.configuration,retryReference:layoutJobs.retry,
     listConversations:layoutJobs.conversations,getConversation:layoutJobs.conversation,recordReferenceImport:layoutJobs.imported})

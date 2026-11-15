@@ -17,13 +17,14 @@ export PRE_LAYOUT_SCREENSHOTS="$OUT/screens"
 export PRE_LAYOUT_TEST_NO_SANDBOX=1
 node --check web/app/src/server.mjs
 node --check web/worker/layout-reference-runner.mjs
-node --test --test-concurrency=1 web/app/tests/layout-library*.test.mjs web/app/tests/layout-canvas.test.mjs web/app/tests/layout-conversation-ui.test.mjs | tee "$OUT/layout-postgres.tap"
+node --test --test-concurrency=1 web/app/tests/layout-*.test.mjs web/app/tests/research-model-runtime.test.mjs web/app/tests/service-policy.test.mjs | tee "$OUT/layout-postgres.tap"
 node --test --test-concurrency=1 web/app/tests/workflow-contract.test.mjs web/app/tests/workflow-section-pages.test.mjs web/app/tests/material-policy.test.mjs web/app/tests/material-storage.test.mjs web/app/tests/workflow-api.test.mjs web/app/tests/workflow-structured-api.test.mjs web/app/tests/recovery.test.mjs | tee "$OUT/regression.tap"
 PRE_WEB_BUILD_DIR="$OUT/dist" node web/app/build-prototype.mjs | tee "$OUT/build.log"
 PRE_WEB_BUILD_DIR="$OUT/dist" PRE_LAYOUT_SCREENSHOTS="$OUT/screens-postgres" node web/app/tests/layout-library-ui.browser.mjs | tee "$OUT/ui-postgres.json" "$OUT/ui.json"
+PRE_WEB_BUILD_DIR="$OUT/dist" PRE_LAYOUT_SCREENSHOTS="$OUT/screens-upload" node web/app/tests/layout-upload.browser.mjs | tee "$OUT/upload-ui.json"
 node --input-type=module - "$OUT" <<'NODE'
 import {writeFileSync,readFileSync} from 'node:fs';import {execFileSync} from 'node:child_process';import {createHash} from 'node:crypto';
 const root=process.argv[2];const hash=p=>createHash('sha256').update(readFileSync(p)).digest('hex');
-const receipt={schema:'pre-design.layout-ci.v1',testedAt:new Date().toISOString(),sourceCommit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),node:process.version,database:'disposable PostgreSQL, isolated schemas',result:'passed',realModelVerified:false,productionDeployed:false,tests:['native layout PostgreSQL contracts/API/server/scheduler','selected existing Web regressions','actual Chromium rendering and UI','existing Web build'],files:{postgres:hash(root+'/layout-postgres.tap'),regression:hash(root+'/regression.tap'),uiPostgres:hash(root+'/ui-postgres.json'),ui:hash(root+'/ui.json')}};
+const receipt={schema:'pre-design.layout-ci.v1',testedAt:new Date().toISOString(),sourceCommit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),node:process.version,database:'disposable PostgreSQL, isolated schemas',result:'passed',realModelVerified:false,productionDeployed:false,tests:['native layout PostgreSQL contracts/API/server/scheduler','selected existing Web regressions','actual Chromium rendering and UI','existing Web build'],files:{postgres:hash(root+'/layout-postgres.tap'),regression:hash(root+'/regression.tap'),uiPostgres:hash(root+'/ui-postgres.json'),ui:hash(root+'/ui.json'),uploadUi:hash(root+'/upload-ui.json')}};
 writeFileSync(root+'/receipt.json',JSON.stringify(receipt,null,2)+'\n');
 NODE

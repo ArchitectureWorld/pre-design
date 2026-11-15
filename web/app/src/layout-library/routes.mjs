@@ -4,12 +4,23 @@ import {createPackage,validatePackage,patchSchema,fail,exportReusable} from './c
 import {samplePages,validatePublication} from './validation.mjs'
 import {renderNativeDocument} from './render.mjs'
 import {importReference} from './reference.mjs'
+import {MAX_REFERENCE_UPLOAD_BYTES} from './reference-uploads.mjs'
 const id=z.string().uuid(),version=z.number().int().positive(),requestId=z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/)
 const target=z.object({requestId,id,version}).strict()
 const mutation=z.object({requestId}).strict()
 const ref=z.object({resourceId:id,version}).strict().nullable()
 const binding=z.object({requestId,baseRevision:z.number().int().nonnegative(),draftId:id,expectedRevision:z.number().int().nonnegative(),scope:z.enum(['global','local','manual']),pageIds:z.array(z.string().max(150)).min(1).max(200).refine(a=>new Set(a).size===a.length).optional(),resource:ref.optional(),overrides:patchSchema.optional(),remove:z.boolean().optional()}).strict()
-export function registerLayoutRoutes({app,library,project,workflows,serial,event,enqueueReference,listReferenceJobs,cancelReference,referenceConfiguration,retryReference,listConversations,getConversation,recordReferenceImport,resolveLayoutAssets=async pages=>pages,validator=validatePublication}){
+export function registerLayoutRoutes({app,library,uploads,project,workflows,serial,event,enqueueReference,listReferenceJobs,cancelReference,referenceConfiguration,retryReference,listConversations,getConversation,recordReferenceImport,resolveLayoutAssets=async pages=>pages,validator=validatePublication}){
+ if(uploads){
+  app.post('/api/layout-library/reference-files',{bodyLimit:Math.ceil(MAX_REFERENCE_UPLOAD_BYTES/3)*4+16384},async req=>{
+   const body=mutation.extend({filename:z.string().min(1).max(180),content:z.string().max(Math.ceil(MAX_REFERENCE_UPLOAD_BYTES/3)*4)}).strict().parse(req.body)
+   return serial('layout-upload:'+req.user.id,()=>uploads.create(req.user,body))
+  })
+  app.get('/api/layout-library/reference-files/:fileId/download',async(req,reply)=>{
+   const file=await uploads.download(req.user,id.parse(req.params.fileId))
+   reply.header('Content-Disposition',`attachment; filename*=UTF-8''${encodeURIComponent(file.name)}`).header('Content-Security-Policy',"sandbox; default-src 'none'").type('application/octet-stream');return file.data
+  })
+ }
  app.get('/api/layout-library',async req=>({resources:await library.list(req.user)}))
  app.get('/api/layout-library/starter',async()=>({package:createPackage()}))
  app.post('/api/layout-library',async req=>{const b=mutation.extend({package:z.unknown()}).parse(req.body);return library.create(req.user,b)})
@@ -118,7 +129,7 @@ export function registerLayoutRoutes({app,library,project,workflows,serial,event
   app.post('/api/layout-library/conversations',async req=>{
    const b=mutation.extend({conversationId:id.optional(),resourceId:id.optional(),resourceVersion:version.optional(),package:z.unknown().optional(),
     name:z.string().trim().min(1).max(100).optional(),text:z.string().trim().max(16000).default(''),
-    files:z.array(z.object({name:z.string().min(1).max(180),text:z.string().min(1).max(16000)}).strict()).max(8).default([]),
+    files:z.array(z.union([z.object({id}).strict(),z.object({name:z.string().min(1).max(180),text:z.string().min(1).max(16000)}).strict()])).max(8).default([]),
     selection:z.object({layoutId:z.string().max(48),slot:z.enum(['title','claim','body','image','table','source'])}).strict().nullable().optional(),
     allowModel:z.literal(true)}).strict().refine(b=>b.text||b.files.length,'请输入消息或上传参考文件').refine(b=>!b.resourceId||b.resourceVersion,'请选择具体版式版本').parse(req.body)
    return enqueueReference(req,{...b,mode:'conversation'})

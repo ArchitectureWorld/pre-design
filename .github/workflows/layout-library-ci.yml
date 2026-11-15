@@ -5,7 +5,13 @@ on:
     paths:
       - '.github/workflows/layout-library-ci.yml'
       - 'web/app/src/layout-library/**'
-      - 'web/app/tests/layout-library*'
+      - 'web/app/tests/layout-*'
+      - 'web/app/tests/fixtures/reference-pdf.mjs'
+      - 'web/app/build-prototype.mjs'
+      - 'web/worker/layout-reference*'
+      - 'web/worker/model-runtime.mjs'
+      - 'web/worker/runtime.mjs'
+      - 'web/app/src/skills/layout-reference/**'
       - 'scripts/layout-library/**'
   workflow_dispatch:
 permissions:

@@ -41,7 +41,7 @@ export class ProjectWorkers {
     this.closing = new Map()
     this.active = new Set()
   }
-  async configuration(snapshot, requiredRoles = ['parent']) {
+  async configuration(snapshot, requiredRoles = ['parent'], options = {}) {
     const { settings, credentials } = this.config
     let settingsData = {}, credentialsData = {}
     if (snapshot) {
@@ -50,14 +50,14 @@ export class ProjectWorkers {
       try { settingsData = parse(await readFile(settings, 'utf8')); credentialsData = parse(await readFile(credentials, 'utf8')) }
       catch { throw researchError('MODEL_NOT_READY', 'MODEL_NOT_READY: 无法读取指定的模型配置或凭据。', 503) }
     }
-    const model = materializeModelRuntime(snapshot, settingsData, credentialsData, requiredRoles)
+    const model = materializeModelRuntime(snapshot, settingsData, credentialsData, requiredRoles, options)
     const search = materializeSearchRuntime(snapshot?.search, credentialsData, { proxyURL: this.config.searchProxyURL })
     if (snapshot?.search?.enabled && requiredRoles.includes('web') && search.availability.status !== 'ready') {
       throw researchError(search.availability.code, search.availability.reason, 503)
     }
     return { model, search }
   }
-  async validateTaskConfiguration(snapshot, requiredRoles) { await this.configuration(snapshot, requiredRoles) }
+  async validateTaskConfiguration(snapshot, requiredRoles, options) { await this.configuration(snapshot, requiredRoles, options) }
   async availability(policy) {
     let credentials = {}
     if (this.config.credentials) { try { credentials = parse(await readFile(this.config.credentials, 'utf8')) } catch { /* Availability reports a missing explicit reference. */ } }

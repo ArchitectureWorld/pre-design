@@ -173,3 +173,9 @@ PDF 与文本可尝试提取文字，PNG/JPEG/WebP 可读取影像元数据。Of
 `workflow_drafts`、`workflow_reviews`、`workflow_approvals`、`workflow_visuals` 存于现有 PostgreSQL。文本修订复用真实任务队列，页面版式从已确认内容确定性生成；HTML 页集不自动调用生图服务。刷新恢复稿件、审批、页集及下载。
 
 2026-11-15：SenseNova 的模型 ID 已按用户确认修正为 `deepseek-flash`、`glm-5.3`，对应历史任务快照保留原 ID。当前六项的真实调用、工具与 DSH 接入结果见 `docs/development/2026-11-15-sensenova-model-verification.md`。
+
+### 版式参考文件
+
+版式库右侧支持 PDF、DOCX、JPG/JPEG、PNG、WebP、TXT/Markdown（单文件24 MiB），以及原有JSON/PPTX导入（8 MiB）。每轮最多添加8份参考；当前分析最多包含16张页面图像、96000字符参考文字。PDF默认分析前4页并显示实际范围，原件完整保留；DOCX读取正文文字，图片经规范化后送入已配置的图片理解主备链。服务器需安装 `poppler-utils`（pdfinfo、pdftotext、pdftoppm），本机与CI已具备。
+
+上传进度来自浏览器实际字节事件；解析与Agent运行单独呈现。文件保存于 `projectsRoot/.layout-references`，按拥有者鉴权并在分析/下载前校验哈希。原件及派生文件需随项目数据一起备份。
