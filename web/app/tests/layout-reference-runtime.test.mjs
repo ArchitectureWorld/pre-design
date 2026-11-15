@@ -34,3 +34,33 @@ test('版式调用记录实际模型及网关失败，已配置状态与运行�
  assert.equal(trace.requestedPolicyRevision,policy.revision)
  assert.equal(reference.layoutReferenceExecution([],{sessionId,policy}).actualRoute,null)
 })
+
+test('真实DSH启动后版式约束已就绪，发往Responses接口的请求没有工具且包含版式边界',{timeout:60000},async t=>{
+ const {createServer}=await import('node:http'),{mkdtemp,rm}=await import('node:fs/promises'),{tmpdir}=await import('node:os'),{join}=await import('node:path'),{randomUUID}=await import('node:crypto')
+ const root=await mkdtemp(join(tmpdir(),'layout-runtime-test-')),requests=[],policy=defaultPolicy(),row=policy.models[0];let broken=false
+ row.status='verified';row.capabilities.tools=true;row.maxOutputTokens=8192;policy.routes.parent={primary:{provider:row.provider,model:row.model},fallbacks:[]}
+ const server=createServer(async(req,res)=>{
+  let raw='';for await(const chunk of req)raw+=chunk;requests.push(JSON.parse(raw));res.writeHead(200,{'content-type':'text/event-stream'})
+  const text='{"reply":"连接验证"}',part={type:'output_text',text,annotations:[]},item={type:'message',id:'msg_fixture',role:'assistant',status:'completed',content:[part]},response={id:'resp_fixture',model:row.model,status:'in_progress',output:[]}
+  const send=(type,data)=>res.write('event: '+type+'\ndata: '+JSON.stringify({type,...data})+'\n\n')
+  send('response.created',{response});send('response.output_item.added',{output_index:0,item:{...item,status:'in_progress',content:[]}})
+  send('response.content_part.added',{output_index:0,content_index:0,item_id:item.id,part:{...part,text:''}})
+  send('response.output_text.delta',{output_index:0,content_index:0,item_id:item.id,delta:text})
+  send('response.output_text.done',{output_index:0,content_index:0,item_id:item.id,text})
+  send('response.output_item.done',{output_index:0,item})
+  if(broken){send('error',{error:{type:'provider_error',message:'Provider stream interrupted or invalid'}});res.end();return}
+  send('response.completed',{response:{...response,status:'completed',output:[item],usage:{input_tokens:10,output_tokens:8,total_tokens:18}}});res.end()
+ })
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve))
+ t.after(async()=>{await new Promise(resolve=>server.close(resolve));await rm(root,{recursive:true,force:true})})
+ const workers={config:{privateRoot:root},configuration:async()=>({model:{parent:{provider:row.runtimeProvider,model:row.model},providers:{[row.runtimeProvider]:{api:'openai-responses',baseURL:'http://127.0.0.1:'+server.address().port+'/v1',apiKeyEnv:'LOCAL_TEST_KEY',models:[{id:row.model,maxTokens:8192,input:['text']}]}},env:{LOCAL_TEST_KEY:'local-fixture'}}})}
+ const result=await reference.runLayoutReference(workers,{jobId:randomUUID(),prompt:'仅回复JSON。',policy,signal:AbortSignal.timeout(40000)})
+ assert.equal(result.execution.outcome,'completed');assert.equal(result.response,'{"reply":"连接验证"}')
+ assert.equal(requests.length,1);assert.equal(requests[0].model,row.model);assert.equal(requests[0].max_output_tokens,8192)
+ assert.equal(requests[0].tools?.length??0,0,'版式参考会话不能携带项目或系统工具')
+ assert.match(JSON.stringify(requests[0].input),/当前是版式库的只读参考提炼/)
+ broken=true
+ await assert.rejects(reference.runLayoutReference(workers,{jobId:randomUUID(),prompt:'仅回复JSON。',policy,signal:AbortSignal.timeout(40000)}),error=>{
+  assert.equal(error.execution.outcome,'error');assert.equal(error.execution.failure.category,'provider_stream_invalid');assert.equal(error.execution.toolPolicy,'none');return true
+ })
+})

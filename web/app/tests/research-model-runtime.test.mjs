@@ -45,7 +45,7 @@ test('父会话与子Agent调用均受固定快照控制，失败不能退回外
   const listeners = new Map()
   const ctx = { on: (name, handler) => listeners.set(name, handler), preplanning: { agentClasses: { settings: () => ({ revision: 0 }), save: async (_revision, routes) => { assert.equal(routes.text.provider, 'sensenova-local'); assert.equal(routes.image, null) } } } }
   const policy = configured()
-  await runtime.installModelBoundary(ctx, { sessionId: 'root', snapshot: policy, classRoutes: { text: { provider: 'sensenova-local', model: 'sensenova-6.8-flash-lite' }, web: { provider: 'sensenova-local', model: 'sensenova-6.8-flash-lite' }, review: null, image: null }, classFallbacks: {text:[],web:[],review:[],image:[]} })
+  await runtime.installModelBoundary(ctx, { agentClasses:ctx.preplanning.agentClasses,sessionId: 'root', snapshot: policy, classRoutes: { text: { provider: 'sensenova-local', model: 'sensenova-6.8-flash-lite' }, web: { provider: 'sensenova-local', model: 'sensenova-6.8-flash-lite' }, review: null, image: null }, classFallbacks: {text:[],web:[],review:[],image:[]} })
   const request = listeners.get('agent/request')
   const config = await request({ agent: { id: 'root' } }, async () => ({ provider: 'gpt', model: 'gpt-5' }))
   assert.equal(config.provider, 'sensenova-local'); assert.equal(config.maxTokens, 65536)
@@ -60,7 +60,7 @@ test('父会话只沿已验证备用链切换，并采用备用模型自己的�
   Object.assign(fallback,{status:'verified',runtimeProvider:'sensenova-local',capabilities:{text:true,tools:true,vision:false,image:false}})
   policy.routes.parent.fallbacks=[{provider:'SenseNova',model:'kimi-k3'}]
   const hooks=new Map(),ctx={on:(name,handler)=>hooks.set(name,handler),preplanning:{agentClasses:{settings:()=>({revision:0}),save:async()=>{}}}}
-  await runtime.installModelBoundary(ctx,{sessionId:'root',snapshot:policy,classRoutes:{text:null,web:null,review:null,image:null},classFallbacks:{}})
+  await runtime.installModelBoundary(ctx,{agentClasses:ctx.preplanning.agentClasses,sessionId:'root',snapshot:policy,classRoutes:{text:null,web:null,review:null,image:null},classFallbacks:{}})
   const fallbackDecision=await hooks.get('agent/request-error')({agent:{id:'root'},provider:'sensenova-local',failure:{code:'RATE_LIMIT'}},async()=>undefined)
   assert.deepEqual(fallbackDecision,{kind:'retry'})
   const next=await hooks.get('agent/request')({agent:{id:'root'}},async()=>({provider:'gpt',model:'gpt-old',maxTokens:1}))

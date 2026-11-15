@@ -120,7 +120,8 @@ export function createLayoutJobs({db,platform,workers,library,serial,controllers
   if(!previous)throw fail('任务不存在。',404)
   if(!['failed','interrupted','cancelled'].includes(previous.status))throw fail('此任务仍在运行或已经生成版式。',409)
   const p=previous.payload
-  return enqueue(req,{requestId:body.requestId,name:p.name,text:p.text,allowModel:true,...(p.mode==='conversation'?{mode:p.mode,conversationId:p.conversationId,resourceId:p.baseResource?.id,resourceVersion:p.baseResource?.version,package:p.basePackage,files:p.files,selection:p.selection}: {})})
+  return enqueue(req,{requestId:body.requestId,name:p.name,text:p.text,allowModel:true,mode:'conversation',conversationId:p.conversationId??req.params.jobId,
+   resourceId:p.baseResource?.id,resourceVersion:p.baseResource?.version,package:p.basePackage,files:p.files,selection:p.selection})
  }
  async function cancel(req){
   const id=req.params.jobId;if(!/^[a-f0-9-]{36}$/.test(id))throw fail('任务编号不合法。')
@@ -139,6 +140,7 @@ export function createLayoutJobs({db,platform,workers,library,serial,controllers
 
 function referenceFailure(error,timedOut){
  const failure=error.execution?.failure
+ if(failure?.category==='provider_stream_invalid')return '模型网关返回的响应未正常结束，暂未生成版式。'
  if(failure?.httpStatus===504)return '模型服务超时（HTTP 504），可重试。'
  if(failure?.httpStatus===429)return '模型服务限流（HTTP 429），可稍后重试。'
  if(failure?.httpStatus>=500)return '模型服务暂时不可用（HTTP '+failure.httpStatus+'），可重试。'

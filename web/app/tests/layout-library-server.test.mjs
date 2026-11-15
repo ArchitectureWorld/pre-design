@@ -90,10 +90,13 @@ test('自定义版式显示已绑定模型，保留失败原因、真实路由�
  f.worker.runLayoutReference=async({onEvent})=>{onEvent({stage:'generating'});return {response:JSON.stringify(createPackage('候选')),execution:{scope:'layout-library',actualRoute:failure.actualRoute}}}
  const again=await f.req('POST',path+'/'+j.id+'/retry',{requestId:'retry-current'})
  assert.equal(again.statusCode,200);await f.app.waitForJobs()
+ assert.equal(again.json().conversationId,j.id)
  const next=(await f.req('GET',path)).json().find(x=>x.id===again.json().id)
  assert.equal(next.status,'completed');assert.equal(next.progress.stage,'completed')
  assert.equal(next.modelName,'sensenova-6.8-flash-lite')
  assert.equal((await f.req('POST',path+'/'+j.id+'/retry',{requestId:'retry-current'})).json().id,next.id)
+ const history=(await f.req('GET','/api/layout-library/conversations/'+j.id)).json()
+ assert.equal(history.turns.length,2);assert.equal(history.resource.id,next.result.id)
 })
 
 test('上传参考后连续对话修订同一版式，纯讨论保留版本并可重开历史',{skip:!enabled,timeout:60000},async t=>{

@@ -182,7 +182,7 @@ export async function apply(ctx) {
     } })
   }
   installProjectBoundary(ctx, { sessionId, workspace, readOnly:process.env.PRE_WEB_READ_ONLY==='true', allowWebRead:process.env.PRE_WEB_ALLOW_WEB_READ==='true' })
-  await installModelBoundary(ctx, { sessionId, ...policy })
+  await installModelBoundary(ctx, { sessionId, ...policy, agentClasses: ctx.preplanning.agentClasses })
   const handle = createBridgeHandler(ctx, { workspace, sessionId, ...policy, callerUserId:process.env.PRE_WEB_CALLER_USER_ID,
     outlineProjectSession:process.env.PRE_WEB_READ_ONLY==='true'?process.env.PRE_WEB_OUTLINE_PROJECT_SESSION:undefined })
   const server = createServer(async (req, res) => {

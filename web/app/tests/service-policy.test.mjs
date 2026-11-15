@@ -47,7 +47,7 @@ test('图像任务装配 ComfyUI 与配套 LLM，ComfyUI 不作为文本提供�
   assert.equal(result.env.PRE_WEB_COMFY_CREDENTIAL,'image-secret')
   assert.ok(!JSON.stringify(result.imageBackend).includes('image-secret'))
   const hooks=new Map(),ctx={on:(name,fn)=>hooks.set(name,fn),preplanning:{agentClasses:{settings:()=>({revision:1}),save:async()=>{}}}}
-  await installModelBoundary(ctx,{sessionId:'root',snapshot:p,...result})
+  await installModelBoundary(ctx,{agentClasses:ctx.preplanning.agentClasses,sessionId:'root',snapshot:p,...result})
   assert.equal((await hooks.get('agent/request')({agent:{id:'image-child'}},async()=>result.classRoutes.image.llm)).model,'sensenova-6.8-flash-lite')
   await assert.rejects(hooks.get('agent/request')({agent:{id:'image-child'}},async()=>({provider:'Comfyui-PIC',model:'Klein'})),/MODEL_ROUTE_FORBIDDEN/)
 })

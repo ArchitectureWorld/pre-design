@@ -77,3 +77,17 @@ V14 已通过正式页面实际提交给平台配置的 `yaoguang-codex / yaogua
 32 项版式专项与会话回归通过；21 项真实 HTTP / PostgreSQL / Chromium 交互检查通过，其中模型使用受控替身。正式 4320 页面另行完成选择版式恢复会话、文件选择器、删除→撤销→再次删除→刷新验证；临时验收资源已从列表移除，原版式列表、12 份稿件、112 份资料及私有配置核对一致。本轮没有调用生产模型。
 
 备份位于 `.local/deploy-backups/2026-11-15-layout-polish-yodfpb51/`，截图与验收记录位于 `.cache/layout-library-polish-20261115/`。
+
+## 模型接入逐层排查 — 2026-11-15
+
+检查实际 Worker、DSH 会话日志、模型协议、凭据装配和网关原始返回，区分了两项问题。
+
+本地版式保护插件误访问未注入的项目服务 `preplanning`，Cordis 报错后该插件未激活，SDK 仍接收任务。已改为由项目桥接显式传入 Agent 类服务，独立版式 Worker 不再读取项目依赖；SDK 现在等待版式模块提供就绪标记。实际 DSH 子进程的 HTTP 回归先复现请求携带 25 个工具、缺少版式边界，修复后工具数为 0、边界生效、完整 Responses 响应正常结束。已输出正文但随后收到错误时仍判定失败。
+
+网关问题独立复现：当前配置模型在 `/v1/models` 中可见且认证通过；最小输入只要求返回一个短 JSON。Responses 流式与 Chat Completions 流式均返回正文后再发送 `provider_error: Provider stream interrupted or invalid`，Responses 非流式返回 HTTP 502 `Invalid provider response`。直连请求不经过 DSH，证明这部分失败发生在网关或其上游，不能靠放宽本地完成判定解决。内部错误分支仍需网关维护方按请求编号查看日志。
+
+504 项 Web 回归通过，0 失败、0 跳过。真实 DSH 回归包含协议转换、启动就绪、禁止工具和错误终态；模型服务输出使用本地受控响应。随后从正式页面重试用户看到的旧版失败记录，作业 `784022c4-d2fd-4cc6-9324-7d9b5bd3816d` 仍由策略 V16 的 `yaoguang-codex / yaoguang02-gpt-6-astra` 执行。实际请求工具数 0，版式约束已加载，但终态仍为网关错误。真实模型生成仍未通过验收。
+
+旧任务重试现在接回原版式会话，保留之前的失败记录。新错误显示为“模型网关返回的响应未正常结束，暂未生成版式”，运行记录保留原始 `PI_AI_ERROR` 和明确的 `provider_stream_invalid` 分类。
+
+修复已部署到原 HTTP 4320 服务，DSH HTTPS 3080 不变。模型配置、12 份稿件与112份资料核对一致。备份 `.local/deploy-backups/2026-11-15-layout-model-8nikcrpj/`；原始响应、请求编号、浏览器截图和本地排查报告位于 `.cache/layout-model-diagnosis-20261115/`，未将凭据和原始响应提交到仓库。

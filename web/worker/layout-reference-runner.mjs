@@ -13,11 +13,12 @@ export function layoutReferenceExecution(events,{sessionId,policy}){
   const failure=e.type==='llm/retry'?e.data?.failure:e.type==='turn/end'?e.data?.reason?.error:null
   if(!failure)return []
   const httpStatus=Number(/\b(4\d\d|5\d\d)\b/.exec(failure.message??'')?.[1])||null
-  return [{code:failure.code??'LAYOUT_MODEL_ERROR',httpStatus}]
+  return [{code:failure.code??'LAYOUT_MODEL_ERROR',httpStatus,
+   ...(/Provider stream interrupted or invalid|Invalid provider response/i.test(failure.message??'')?{category:'provider_stream_invalid'}:{})}]
  })
  return {scope:'layout-library',sessionId,requestedPolicyRevision:policy.revision,requestedRoute:policy.routes.parent.primary,
   actualRoute:last?{provider:last.provider,model:last.model}:null,parent:{status:last?'recorded':'not_recorded',requests},
-  actualUsage:null,eventCount:events.length,toolPolicy:'none',outcome:outcome?.kind??'incomplete',failure:failures.at(-1)??null}
+  actualUsage:null,eventCount:events.length,toolPolicy:events.some(e=>e.type==='request/header'&&e.data?.header?.tools?.length)?'present':'none',outcome:outcome?.kind??'incomplete',failure:failures.at(-1)??null}
 }
 
 /** Reuses platform model materialization and routing in a project-free session. */
@@ -35,7 +36,7 @@ export async function runLayoutReference(workers,{jobId,prompt,policy,signal,onE
  await writeFile(patch,JSON.stringify([
   {id:'llm-pi-ai',config:{providers:model.providers}},
   {insert:[{id:'layout-reference-guard',name:new URL('./layout-reference-guard.mjs',import.meta.url).pathname}]},
-  {id:'sdk-jsonrpc-server',inject:['sdkAppStartup','loader']},
+  {id:'sdk-jsonrpc-server',inject:['sdkAppStartup','loader','preLayoutReferenceReady']},
  ]),{mode:0o600})
  const selected=policy.models.find(m=>m.provider===policy.routes.parent.primary.provider&&m.model===policy.routes.parent.primary.model)
  const harness=new DeepSeekHarness({profile:'sdk',patches:[patch],dshHome:join(folder,'dsh'),cwd:folder,processCwd:folder,

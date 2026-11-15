@@ -67,7 +67,7 @@ export function materializeModelRuntime(snapshot, settings = {}, credentials = {
   return result
 }
 
-export async function installModelBoundary(ctx, { sessionId, snapshot, classRoutes, classFallbacks }) {
+export async function installModelBoundary(ctx, { sessionId, snapshot, classRoutes, classFallbacks, agentClasses }) {
   const policy = snapshot ? validateSnapshot(snapshot, ['parent']) : undefined
   const models = new Map(policy?.models.map(row => [keyOf(row), row]) ?? [])
   const allowed = new Map()
@@ -109,6 +109,5 @@ export async function installModelBoundary(ctx, { sessionId, snapshot, classRout
     if (row.maxOutputTokens && options.maxTokens > row.maxOutputTokens) deny()
     yield* next()
   }, { prepend: true })
-  const classes = ctx.preplanning?.agentClasses
-  if(classes)await classes.save(classes.settings().revision, classRoutes ?? { text: null, web: null, review: null, image: null }, classFallbacks ?? { text: [], web: [], review: [], image: [] })
+  if(agentClasses)await agentClasses.save(agentClasses.settings().revision, classRoutes ?? { text: null, web: null, review: null, image: null }, classFallbacks ?? { text: [], web: [], review: [], image: [] })
 }
