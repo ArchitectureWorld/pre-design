@@ -8,7 +8,7 @@ const admin={id:'admin',role:'admin'},user={id:'owner',role:'user'},other={id:'o
 async function fixture(t){
  const env=await createTestDb();t.after(env.close)
  // Adapt ONLY JSON columns, never fake SQL or permission results.
- const wrap=c=>({query:async(...a)=>{const r=await c.query(...a);r.rows=r.rows.map(x=>{for(const k of ['document','validation'])if(typeof x[k]==='string')x[k]=JSON.parse(x[k]);return x});return r},release:()=>c.release?.()})
+ const wrap=c=>({query:async(...a)=>{const r=await c.query(...a);if(Array.isArray(r))return {rows:[]};r.rows=(r.rows??[]).map(x=>{for(const k of ['document','validation'])if(typeof x[k]==='string')x[k]=JSON.parse(x[k]);return x});return r},release:()=>c.release?.()})
  const db={...wrap(env.db),connect:async()=>wrap(await env.db.connect())}
  const store=await createLayoutLibrary(db);return {store,db}
 }

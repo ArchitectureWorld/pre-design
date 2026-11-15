@@ -1,0 +1,31 @@
+name: Verify native layout library V1
+on:
+  push:
+    branches: [codex/layout-library-v1]
+    paths:
+      - '.github/workflows/layout-library-verify.yml'
+      - 'web/app/src/layout-library/**'
+      - 'web/app/tests/layout-library*'
+      - 'web/app/tests/layout-library/**'
+      - 'scripts/layout-library/**'
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.11.0'
+      - name: Install pinned dependencies in isolated runner
+        run: bash scripts/layout-library/ci-install.sh
+      - name: Verify PostgreSQL, Fastify, visual rendering and Web regressions
+        run: bash scripts/layout-library/ci-check.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-layout-staging-tests
+          path: ${{ runner.temp }}/layout-evidence/
+          retention-days: 7

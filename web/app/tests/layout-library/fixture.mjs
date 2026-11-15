@@ -6,7 +6,7 @@ import {registerLayoutRoutes} from '../../src/layout-library/routes.mjs'
 import {createWorkflowVisualStore} from '../../src/workflow-visual-store.mjs'
 export async function libraryFixture(){
  const env=await createTestDb()
- const wrap=c=>({query:async(...a)=>{const r=await c.query(...a);r.rows=r.rows.map(x=>{for(const k of ['document','validation'])if(typeof x[k]==='string')x[k]=JSON.parse(x[k]);return x});return r},release:()=>c.release?.()})
+ const wrap=c=>({query:async(...a)=>{const r=await c.query(...a);if(Array.isArray(r))return {rows:[]};r.rows=(r.rows??[]).map(x=>{for(const k of ['document','validation'])if(typeof x[k]==='string')x[k]=JSON.parse(x[k]);return x});return r},release:()=>c.release?.()})
  const db={...wrap(env.db),connect:async()=>wrap(await env.db.connect())}
  await db.query('CREATE TABLE projects(id uuid PRIMARY KEY,owner_id text);CREATE TABLE workflow_drafts(id uuid PRIMARY KEY);CREATE TABLE jobs(id uuid PRIMARY KEY,project_id uuid,status text);')
  const p={id:randomUUID(),owner_id:'owner',state:{project:{currentRevision:0}}},draft={id:randomUUID(),version:1,projectName:'集成验收项目',formatVersion:2,approval:{approved:true},stale:false,flow:['01'],chapters:[{id:'01',title:'项目基本情况'}],blocks:[{id:'outline-01-1',chapterId:'01',title:'项目区位',items:[{id:'outline-01-1-item-1',title:'项目区位',paragraphs:['项目位于既有城市片区。'],points:['此处使用合成数据验收版式。'],evidenceIndexes:[0]}]}],evidence:[{filename:'验收.txt',locator:'1'}]}
