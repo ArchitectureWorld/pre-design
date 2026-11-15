@@ -66,10 +66,10 @@ export function mountLayoutLibrary({request,getProject,notify,mutate,refresh=asy
  function download(file){const u=URL.createObjectURL(file.blob),a=document.createElement('a');a.href=u;a.download=file.filename;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)}
  async function preview(){
   if(!dialog?.querySelector('[data-preview-box]')||!working)return
-  const generation=ticket,r=await request('/layout-library/preview',{method:'POST',body:{package:working,layoutId:dialog.querySelector('[data-layout]').value}})
-  if(generation!==ticket||!dialog?.querySelector('[data-preview-box]'))return
-  const box=dialog.querySelector('[data-preview-box]');box.innerHTML='<iframe title="原生版式实际试排" sandbox=""></iframe>';const frame=box.querySelector('iframe');frame.srcdoc=r.html
-  const fit=()=>{frame.style.transform=`scale(${box.clientWidth/1640})`};frame.style.width='1640px';frame.style.height='940px';observer?.disconnect();observer=new ResizeObserver(fit);observer.observe(box);fit()
+  console.log('LL-PREVIEW-REQUEST');const generation=ticket,r=await request('/layout-library/preview',{method:'POST',body:{package:working,layoutId:dialog.querySelector('[data-layout]').value}})
+  console.log('LL-PREVIEW-RESPONSE',r.html?.length);if(generation!==ticket||!dialog?.querySelector('[data-preview-box]'))return
+  const box=dialog.querySelector('[data-preview-box]');box.innerHTML='<iframe title="原生版式实际试排" sandbox=""></iframe>';const frame=box.querySelector('iframe');frame.srcdoc=r.html;console.log('LL-PREVIEW-SRCDOC')
+  const fit=()=>{frame.style.transform=`scale(${box.clientWidth/1640})`};frame.style.width='1640px';frame.style.height='940px';observer?.disconnect();observer=null;fit();console.log('LL-PREVIEW-FIT')
  }
  async function showProject(){
   const p=getProject();if(!p?.id){detail('<h3>当前没有打开项目</h3><p>可以先在“浏览与管理”中准备版式，再进入项目选用。</p>');return}
