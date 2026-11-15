@@ -23,12 +23,12 @@ jobs:
           node-version: '24.11.0'
       - name: Install pinned dependencies in isolated runner
         run: bash scripts/layout-library/ci-install.sh
-      - name: Ensure PDF regression's actual text extractor is available
+      - name: Install CJK fonts and PDF text extractor for true legacy regression
         run: |
-          if ! command -v pdftotext >/dev/null 2>&1; then
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq poppler-utils
-          fi
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq poppler-utils fonts-noto-cjk
+          fc-cache -f >/dev/null
+          fc-match 'Noto Sans CJK SC'
           command -v pdftotext
       - name: Verify PostgreSQL, Fastify, visual rendering and Web regressions
         run: bash scripts/layout-library/ci-check.sh
