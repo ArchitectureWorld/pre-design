@@ -1,7 +1,11 @@
 // Installed only in an isolated, project-free reference session.
+import {readFile} from 'node:fs/promises'
+import {installModelBoundary} from './model-runtime.mjs'
 export const name='pre-design-layout-reference-guard'
-export const inject=['agents','tools']
-export function apply(ctx){
+export const inject=['agents','tools','llm']
+export async function apply(ctx){
+ const snapshot=JSON.parse(await readFile(process.env.PRE_WEB_LAYOUT_POLICY_FILE,'utf8'))
+ await installModelBoundary(ctx,{sessionId:process.env.PRE_WEB_LAYOUT_SESSION_ID,snapshot,classRoutes:{},classFallbacks:{}})
  ctx.tools.guard(()=> 'LAYOUT_REFERENCE_TOOLS_FORBIDDEN')
  ctx.on('agent/created',({agent})=>{
   agent.ctx.tools.restrict({allow:[]})

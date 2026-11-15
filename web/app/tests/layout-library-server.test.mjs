@@ -73,3 +73,25 @@ test('真实PG/共享调度器：任务外DSH提炼、候选隔离、幂等、�
  assert.equal((await f.req('POST',path+'/'+waiting.json().id+'/cancel',{})).statusCode,200);await f.app.waitForJobs()
  assert.equal((await f.req('GET',path)).json().find(x=>x.id===waiting.json().id).status,'cancelled')
 })
+
+test('自定义版式显示已绑定模型，保留失败原因、真实路由和进度，用户可按最新策略重试',{skip:!enabled,timeout:60000},async t=>{
+ const f=await fixture(t),path='/api/layout-library/reference-jobs'
+ const config=await f.req('GET','/api/layout-library/reference-config')
+ assert.equal(config.statusCode,200);assert.equal(config.json().configured,true)
+ assert.equal(config.json().modelName,'sensenova-6.8-flash-lite')
+ const failure={scope:'layout-library',actualRoute:{provider:'SenseNova',model:'sensenova-6.8-flash-lite'},failure:{code:'SERVER',httpStatus:504},parent:{status:'recorded',requests:[{provider:'SenseNova',model:'sensenova-6.8-flash-lite'}]}}
+ f.worker.runLayoutReference=async({onEvent})=>{onEvent({stage:'generating'});throw Object.assign(new Error('provider failure'),{execution:failure})}
+ const start=await f.req('POST',path,{requestId:'failed-visible',name:'自定义蓝灰',text:'白色背景、蓝灰色标题与深色正文，保留完整的资料引用区。',allowModel:true})
+ assert.equal(start.statusCode,200);await f.app.waitForJobs()
+ const j=(await f.req('GET',path)).json().find(j=>j.id===start.json().id)
+ assert.equal(j.status,'failed');assert.match(j.error,/504/);assert.equal(j.name,'自定义蓝灰');assert.equal(j.progress.stage,'failed')
+ assert.deepEqual(j.execution_metadata,failure)
+ assert.equal((await f.req('POST',path+'/'+j.id+'/retry',{requestId:'other-retry'},1)).statusCode,404)
+ f.worker.runLayoutReference=async({onEvent})=>{onEvent({stage:'generating'});return {response:JSON.stringify(createPackage('候选')),execution:{scope:'layout-library',actualRoute:failure.actualRoute}}}
+ const again=await f.req('POST',path+'/'+j.id+'/retry',{requestId:'retry-current'})
+ assert.equal(again.statusCode,200);await f.app.waitForJobs()
+ const next=(await f.req('GET',path)).json().find(x=>x.id===again.json().id)
+ assert.equal(next.status,'completed');assert.equal(next.progress.stage,'completed')
+ assert.equal(next.modelName,'sensenova-6.8-flash-lite')
+ assert.equal((await f.req('POST',path+'/'+j.id+'/retry',{requestId:'retry-current'})).json().id,next.id)
+})

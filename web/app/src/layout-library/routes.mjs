@@ -9,7 +9,7 @@ const target=z.object({requestId,id,version}).strict()
 const mutation=z.object({requestId}).strict()
 const ref=z.object({resourceId:id,version}).strict().nullable()
 const binding=z.object({requestId,baseRevision:z.number().int().nonnegative(),draftId:id,expectedRevision:z.number().int().nonnegative(),scope:z.enum(['global','local','manual']),pageIds:z.array(z.string().max(150)).min(1).max(200).refine(a=>new Set(a).size===a.length).optional(),resource:ref.optional(),overrides:patchSchema.optional(),remove:z.boolean().optional()}).strict()
-export function registerLayoutRoutes({app,library,project,workflows,serial,event,enqueueReference,listReferenceJobs,cancelReference,validator=validatePublication}){
+export function registerLayoutRoutes({app,library,project,workflows,serial,event,enqueueReference,listReferenceJobs,cancelReference,referenceConfiguration,retryReference,validator=validatePublication}){
  app.get('/api/layout-library',async req=>({resources:await library.list(req.user)}))
  app.get('/api/layout-library/starter',async()=>({package:createPackage()}))
  app.post('/api/layout-library',async req=>{const b=mutation.extend({package:z.unknown()}).parse(req.body);return library.create(req.user,b)})
@@ -81,11 +81,16 @@ export function registerLayoutRoutes({app,library,project,workflows,serial,event
   return library.create(req.user,{requestId:b.requestId,package:exportReusable(page,b.name)})
  })
  if(enqueueReference){
+  app.get('/api/layout-library/reference-config',referenceConfiguration)
   app.post('/api/layout-library/reference-jobs',async req=>{
-   const b=mutation.extend({name:z.string().trim().min(1).max(100),text:z.string().trim().min(10).max(16000),allowModel:z.literal(true)}).parse(req.body)
+   const b=mutation.extend({name:z.string().trim().min(1).max(100),text:z.string().trim().min(1).max(16000),allowModel:z.literal(true)}).parse(req.body)
    return enqueueReference(req,b)
   })
   app.get('/api/layout-library/reference-jobs',listReferenceJobs)
   app.post('/api/layout-library/reference-jobs/:jobId/cancel',cancelReference)
+  app.post('/api/layout-library/reference-jobs/:jobId/retry',req=>{
+   id.parse(req.params.jobId)
+   return retryReference(req,mutation.parse(req.body))
+  })
  }
 }

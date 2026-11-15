@@ -5,9 +5,10 @@ const visibility={private:'个人',shared:'共享',official:'官方'}
 export function mountLayoutLibrary({request,getProject,notify,mutate,refresh=async()=>{}}){
  const button=document.createElement('button');button.type='button';button.className='ll-entry';button.textContent='版式库';button.dataset.layoutLibraryOpen=''
  document.querySelector('.top-right')?.prepend(button)
- let dialog,identity,resources=[],selected=null,working=null,busy=false,mode='library',ticket=0,pending=new Map(),observer
+ let dialog,identity,resources=[],selected=null,working=null,busy=false,mode='library',ticket=0,pending=new Map(),observer,referenceTimer
+ const referenceDraft={name:'',text:'',filename:''}
  const msg=t=>{const el=dialog?.querySelector('[data-ll-status]');if(el)el.textContent=t}
- function close(){ticket++;observer?.disconnect();dialog?.close();dialog?.remove();dialog=null;pending.clear()}
+ function close(){ticket++;clearTimeout(referenceTimer);observer?.disconnect();dialog?.close();dialog?.remove();dialog=null;pending.clear()}
  async function run(fn){if(busy)return;busy=true;try{await fn()}catch(e){msg(e.message);notify(e.message)}finally{busy=false}}
  async function post(path,body={}){
   const key=JSON.stringify([path,body]);let id=pending.get(key);if(!id){id=rid();pending.set(key,id)}
@@ -16,12 +17,12 @@ export function mountLayoutLibrary({request,getProject,notify,mutate,refresh=asy
  async function reload(){resources=(await request('/layout-library')).resources;renderList()}
  async function open(){
   
-  close();const generation=ticket;dialog=document.createElement('dialog');dialog.className='ll-dialog';dialog.dataset.layoutLibrary='';dialog.setAttribute('aria-label','版式资源库')
-  dialog.innerHTML=`<header class="ll-head"><div><small>PRE—DESIGN · NATIVE LAYOUTS</small><h2>版式资源库</h2></div><nav><button data-mode="library">浏览与管理</button><button data-mode="project">当前项目应用</button><button data-mode="reference">参考文字提炼</button></nav><button data-close aria-label="关闭版式库">×</button></header><p class="ll-status" role="status" data-ll-status>正在连接平台…</p><div class="ll-main"><aside class="ll-sidebar"><div class="ll-tools"><input data-search type="search" placeholder="搜索名称、标签"><select data-filter><option value="all">全部可见资源</option><option value="mine">我的</option><option value="official">官方</option><option value="shared">共享</option></select><button data-new>新建原生版式</button><button data-seed hidden>预置3套官方候选</button><label class="ll-file">导入JSON / PPTX<input data-import type="file" accept=".json,.pptx" multiple hidden></label></div><div data-list class="ll-list"></div></aside><section class="ll-inspector" data-detail></section></div>`
+  close();mode='library';const generation=ticket;dialog=document.createElement('dialog');dialog.className='ll-dialog';dialog.dataset.layoutLibrary='';dialog.setAttribute('aria-label','版式资源库')
+  dialog.innerHTML=`<header class="ll-head"><div><small>PRE—DESIGN · NATIVE LAYOUTS</small><h2>版式资源库</h2></div><nav><button data-mode="library">浏览与管理</button><button data-mode="project">当前项目应用</button><button data-mode="reference">自定义版式</button></nav><button data-close aria-label="关闭版式库">×</button></header><p class="ll-status" role="status" data-ll-status>正在连接平台…</p><div class="ll-main"><aside class="ll-sidebar"><div class="ll-tools"><input data-search type="search" placeholder="搜索名称、标签"><select data-filter><option value="all">全部可见资源</option><option value="mine">我的</option><option value="official">官方</option><option value="shared">共享</option></select><button data-new class="ll-primary">自定义版式</button><button data-seed hidden>预置3套官方候选</button><label class="ll-file">导入JSON / PPTX<input data-import type="file" accept=".json,.pptx" multiple hidden></label></div><div data-list class="ll-list"></div></aside><section class="ll-inspector" data-detail></section></div>`
   document.body.append(dialog);dialog.showModal();dialog.querySelector('[data-close]').onclick=close;dialog.oncancel=e=>{e.preventDefault();close()}
   dialog.querySelector('[data-search]').oninput=renderList;dialog.querySelector('[data-filter]').onchange=renderList
-  dialog.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>void run(async()=>{mode=b.dataset.mode;renderMode()}))
-  dialog.querySelector('[data-new]').onclick=()=>void run(async()=>{working=(await request('/layout-library/starter')).package;selected=null;mode='library';renderEditor();await preview()})
+  dialog.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>void run(async()=>{mode=b.dataset.mode;await renderMode()}))
+  dialog.querySelector('[data-new]').onclick=()=>void run(async()=>{mode='reference';await renderMode()})
   dialog.querySelector('[data-import]').onchange=e=>void run(async()=>{
    const files=[...e.target.files];if(files.length>10)throw Error('每批最多导入10份参考文件。')
    for(const f of files){if(f.size>8*1024*1024)throw Error(f.name+'超过8 MiB。');const data=new Uint8Array(await f.arrayBuffer());let binary='';for(let i=0;i<data.length;i+=8192)binary+=String.fromCharCode(...data.subarray(i,i+8192));const r=await post('/layout-library/import',{filename:f.name,content:btoa(binary)});await reload();await select(r.id,r.version)}
@@ -36,8 +37,14 @@ export function mountLayoutLibrary({request,getProject,notify,mutate,refresh=asy
   dialog.querySelector('[data-list]').innerHTML=rows.map(r=>`<button class="ll-card ${selected?.id===r.id?'selected':''}" data-id="${r.id}" data-version="${r.version}"><span class="ll-swatch" style="background:${r.package.theme.background};border-left:5px solid ${r.package.theme.accent};color:${r.package.theme.ink}">Aa <i style="background:${r.package.theme.accent}"></i></span><b>${esc(r.package.name)}</b><small>${visibility[r.visibility]} · V${r.version} · ${stateName(r)}</small><small>${r.package.layouts.length}种页面 · 已用于${r.usageCount??0}页 · HTML</small></button>`).join('')||'<p class="ll-hint">没有符合条件的资源。</p>'
   dialog.querySelectorAll('.ll-card').forEach(b=>b.onclick=()=>void run(()=>select(b.dataset.id,Number(b.dataset.version))))
  }
- async function select(id,version){selected=await request(`/layout-library/${id}/${version}`);working=structuredClone(selected.package);renderList();if(mode==='library'){renderEditor();await preview()}else renderMode()}
- function renderMode(){dialog.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));if(mode==='project')void showProject();else if(mode==='reference')void showReference();else{renderEditor();void preview()}}
+ async function select(id,version){selected=await request(`/layout-library/${id}/${version}`);working=structuredClone(selected.package);renderList();if(mode==='library'){renderEditor();await preview()}else await renderMode()}
+ async function renderMode(){clearTimeout(referenceTimer);dialog.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));if(mode==='project')await showProject();else if(mode==='reference')await showReference();else{renderEditor();await preview()}}
+ async function newManual(){
+  clearTimeout(referenceTimer)
+  working=(await request('/layout-library/starter')).package
+  working.name='我的自定义版式';selected=null;mode='library'
+  await renderMode();msg('设置完成后保存到我的版式。')
+ }
  const detail=html=>{observer?.disconnect();dialog.querySelector('[data-detail]').innerHTML=html}
  function readForm(){
   const form=dialog.querySelector('[data-editor]');if(!form)return
@@ -54,12 +61,12 @@ export function mountLayoutLibrary({request,getProject,notify,mutate,refresh=asy
  function renderEditor(){
   if(!working){detail('<p>选择一个资源或新建原生版式。</p>');return}
   const owned=!selected||selected.ownerId===identity.id||identity.role==='admin',p=working
-  detail(`<div class="ll-detail-head"><div><h3>${selected?'资源 V'+selected.version:'新建候选'}</h3><p>${selected?stateName(selected):'不需要创建项目，即可制作与预置。'}</p></div>${selected&&owned?`<select data-history aria-label="历史版本">${Array.from({length:selected.latestVersion},(_,i)=>`<option value="${i+1}" ${selected.version===i+1?'selected':''}>V${i+1}</option>`).join('')}</select>`:''}</div><div class="ll-edit-grid"><div class="ll-edit-controls"><form data-editor class="ll-form"><label class="wide">资源名称<input name="name" value="${esc(p.name)}" maxlength="100"></label><label class="wide">分类标签<input name="tags" value="${esc(p.tags.join('，'))}" placeholder="用逗号分开"></label>${[['background','背景'],['ink','正文'],['accent','标题强调'],['muted','注释']].map(([k,l])=>`<label>${l}<input type="color" name="${k}" value="${p.theme[k]}"></label>`).join('')}<label>字体风格<select name="fontFamily"><option value="sans" ${p.theme.fontFamily==='sans'?'selected':''}>无衬线 / 黑体</option><option value="serif" ${p.theme.fontFamily==='serif'?'selected':''}>衬线 / 宋体</option></select></label>${[['titleSize','标题字号'],['bodySize','正文字号'],['captionSize','注释字号']].map(([k,l])=>`<label>${l}<input type="number" name="${k}" value="${p.theme[k]}"></label>`).join('')}<label>使用依据<select name="basis">${[['original','原创'],['licensed','取得许可'],['permission','明确授权'],['unknown','待确认']].map(([k,l])=>`<option value="${k}" ${p.rights.basis===k?'selected':''}>${l}</option>`).join('')}</select></label><label><span>共享授权</span><span><input type="checkbox" name="shareAllowed" ${p.rights.shareAllowed?'checked':''}>允许作为共享版式</span></label><label class="wide">授权说明<input name="rightsNote" value="${esc(p.rights.note)}" maxlength="600"></label><details class="wide"><summary>高级：原生内容位置与资源JSON</summary><p class="ll-hint">使用平台同一契约；禁止自由HTML、脚本及外部资源。只改布局不改项目事实。</p><textarea data-json rows="12">${esc(JSON.stringify(p,null,2))}</textarea></details></form><div class="ll-actions"><select data-layout>${p.layouts.map(l=>`<option value="${esc(l.id)}">${esc(l.label)}</option>`).join('')}</select><button data-preview>试排当前设置</button><button data-save class="ll-primary">${owned?'保存新版本':'保存到我的库'}</button>${selected?'<button data-export>导出原生JSON</button>':''}</div></div><div class="ll-live-preview"><div class="ll-preview" data-preview-box></div><div class="ll-actions">${selected&&owned?`<button data-validate>实际页面检查</button><select data-visibility><option value="private">个人使用</option>${identity.role==='admin'?'<option value="official">官方预置</option><option value="shared">授权共享</option>':''}</select><label><input type="checkbox" data-reviewed>已核对参考与授权</label><button data-publish>发布此版本</button><button data-share>提交共享审查</button><button data-retire>下架</button>`:''}</div><p class="ll-hint">${esc(p.source.limitations.join('；'))}</p><pre class="ll-receipt">${esc(selected?.validation?JSON.stringify(selected.validation,null,2):'尚未进行本版本的浏览器检查。')}</pre></div></div>`)
+  detail(`<div class="ll-detail-head"><div><h3>${selected?'资源 V'+selected.version:'新建自定义版式'}</h3><p>${selected?stateName(selected):'不需要创建项目，即可制作与预置。'}</p></div>${selected&&owned?`<select data-history aria-label="历史版本">${Array.from({length:selected.latestVersion},(_,i)=>`<option value="${i+1}" ${selected.version===i+1?'selected':''}>V${i+1}</option>`).join('')}</select>`:''}</div><div class="ll-edit-grid"><div class="ll-edit-controls"><form data-editor class="ll-form"><label class="wide">资源名称<input name="name" value="${esc(p.name)}" maxlength="100"></label><label class="wide">分类标签<input name="tags" value="${esc(p.tags.join('，'))}" placeholder="用逗号分开"></label>${[['background','背景'],['ink','正文'],['accent','标题强调'],['muted','注释']].map(([k,l])=>`<label>${l}<input type="color" name="${k}" value="${p.theme[k]}"></label>`).join('')}<label>字体风格<select name="fontFamily"><option value="sans" ${p.theme.fontFamily==='sans'?'selected':''}>无衬线 / 黑体</option><option value="serif" ${p.theme.fontFamily==='serif'?'selected':''}>衬线 / 宋体</option></select></label>${[['titleSize','标题字号'],['bodySize','正文字号'],['captionSize','注释字号']].map(([k,l])=>`<label>${l}<input type="number" name="${k}" value="${p.theme[k]}"></label>`).join('')}<label>使用依据<select name="basis">${[['original','原创'],['licensed','取得许可'],['permission','明确授权'],['unknown','待确认']].map(([k,l])=>`<option value="${k}" ${p.rights.basis===k?'selected':''}>${l}</option>`).join('')}</select></label><label><span>共享授权</span><span><input type="checkbox" name="shareAllowed" ${p.rights.shareAllowed?'checked':''}>允许作为共享版式</span></label><label class="wide">授权说明<input name="rightsNote" value="${esc(p.rights.note)}" maxlength="600"></label><details class="wide"><summary>高级：原生内容位置与资源JSON</summary><p class="ll-hint">使用平台同一契约；禁止自由HTML、脚本及外部资源。只改布局不改项目事实。</p><textarea data-json rows="12">${esc(JSON.stringify(p,null,2))}</textarea></details></form><div class="ll-actions"><select data-layout>${p.layouts.map(l=>`<option value="${esc(l.id)}">${esc(l.label)}</option>`).join('')}</select><button data-preview>试排当前设置</button><button data-save class="ll-primary">${selected&&owned?'保存新版本':'保存到我的版式'}</button>${selected?'<button data-export>导出原生JSON</button>':''}</div></div><div class="ll-live-preview"><div class="ll-preview" data-preview-box></div><div class="ll-actions">${selected&&owned?`<button data-validate>实际页面检查</button><select data-visibility><option value="private">个人使用</option>${identity.role==='admin'?'<option value="official">官方预置</option><option value="shared">授权共享</option>':''}</select><label><input type="checkbox" data-reviewed>已核对参考与授权</label><button data-publish>发布此版本</button><button data-share>提交共享审查</button><button data-retire>下架</button>`:''}</div><p class="ll-hint">${esc(p.source.limitations.join('；'))}</p><pre class="ll-receipt">${esc(selected?.validation?JSON.stringify(selected.validation,null,2):'尚未进行本版本的浏览器检查。')}</pre></div></div>`)
   const form=dialog.querySelector('[data-editor]');form.onsubmit=e=>e.preventDefault();form.querySelector('[data-json]').oninput=e=>e.target.dataset.dirty='true'
   dialog.querySelector('[data-history]')?.addEventListener('change',e=>void run(()=>select(selected.id,Number(e.target.value))))
   dialog.querySelector('[data-preview]').onclick=()=>void run(async()=>{readForm();await preview()})
   dialog.querySelector('[data-layout]').onchange=()=>void run(async()=>{readForm();await preview()})
-  dialog.querySelector('[data-save]').onclick=()=>void run(async()=>{readForm();const r=selected&&owned?await post(`/layout-library/${selected.id}/revisions`,{expectedVersion:selected.latestVersion,package:working}):await post('/layout-library',{package:working});await reload();await select(r.id,r.version);msg('已保存候选版本；尚未发布或改变项目成果。')})
+  dialog.querySelector('[data-save]').onclick=()=>void run(async()=>{readForm();const r=selected&&owned?await post(`/layout-library/${selected.id}/revisions`,{expectedVersion:selected.latestVersion,package:working}):await post('/layout-library',{package:working});await reload();await select(r.id,r.version);msg('已保存版式 V'+r.version+'。')})
   dialog.querySelector('[data-export]')?.addEventListener('click',()=>void run(async()=>download(await request(`/layout-library/${selected.id}/${selected.version}/export`,{download:true}))))
   dialog.querySelector('[data-validate]')?.addEventListener('click',()=>void run(async()=>{readForm();if(JSON.stringify(working)!==JSON.stringify(selected.package))throw Error('请先保存当前修改，再检查新版本。');msg('正在使用真实浏览器检查已保存版本…');const r=await request(`/layout-library/${selected.id}/${selected.version}/validate`,{method:'POST',body:{}});await reload();await select(selected.id,selected.version);msg(r.status==='passed'?'已保存版本检查通过；发布仍需核对授权。':'检查未通过，请查看问题记录。')}))
   dialog.querySelector('[data-publish]')?.addEventListener('click',()=>void run(async()=>{readForm();if(JSON.stringify(working)!==JSON.stringify(selected.package))throw Error('请先保存修改并检查新版本。');if(!dialog.querySelector('[data-reviewed]').checked)throw Error('请先核对参考适用性与授权。');await post(`/layout-library/${selected.id}/${selected.version}/publish`,{visibility:dialog.querySelector('[data-visibility]').value,reviewed:true});await reload();await select(selected.id,selected.version);msg('此版本已发布；旧项目不会自动升级。')}))
@@ -108,11 +115,90 @@ export function mountLayoutLibrary({request,getProject,notify,mutate,refresh=asy
   dialog.querySelector('[data-apply]').onclick=()=>void run(async()=>{check();const latest=await request(`/projects/${projectId}/layout-bindings`);await mutate('workflow/visuals',{draftId:draft.id,...(deck?{baseVisualId:deck.id}:{}),applyLibrary:true,expectedBindingRevision:latest.revision});await refresh();await showProject();msg('新成果已生成并通过实际页面检查，原成果版本保留。')})
   dialog.querySelector('[data-variant]')?.addEventListener('click',()=>void run(async()=>{check();const name=dialog.querySelector('[data-variant-name]').value.trim();if(!name)throw Error('请填写版式名称。');const r=await post(`/projects/${projectId}/layout-save-page`,{visualId:deck.id,pageId:dialog.querySelector('[data-save-page]').value,name});await reload();mode='library';await select(r.id,r.version);msg('已保存纯版式候选，不含本项目正文或图片。')}))
  }
+
  async function showReference(){
-  detail(`<h3>V14 · 在项目任务外提炼参考文字</h3><p>复用管理员配置的DSH模型、任务队列和额度。只生成个人候选，不自动发布，也不读取任何项目。</p><label>候选名称<input data-ref-name placeholder="例如：浅色城市更新汇报"></label><label>设计要求或参考文字<textarea data-ref-text rows="7" placeholder="描述希望沿用的配色、标题、留白、图文组织等。纯文字无法恢复未提供的视觉页面。"></textarea></label><label><input data-allow-model type="checkbox">允许本次实际模型调用</label><div class="ll-actions"><button data-ref-run class="ll-primary">提交参考提炼</button><button data-ref-refresh>刷新执行记录</button></div><div data-ref-jobs></div>`)
-  const jobs=async()=>{const rows=await request('/layout-library/reference-jobs');if(!dialog||mode!=='reference')return;dialog.querySelector('[data-ref-jobs]').innerHTML=rows.map(j=>`<div class="ll-job"><b>${esc(j.status)}</b> ${esc(j.error??'')} ${j.result?.id?`<button data-result="${j.result.id}" data-v="${j.result.version}">打开候选</button>`:''}${['queued','running','cancelling'].includes(j.status)?`<button data-cancel-job="${j.id}">取消</button>`:''}<small>${esc(j.id)}</small></div>`).join('')||'<p class="ll-hint">尚无参考提炼任务。</p>';dialog.querySelectorAll('[data-result]').forEach(b=>b.onclick=()=>void run(async()=>{await reload();mode='library';await select(b.dataset.result,Number(b.dataset.v))}));dialog.querySelectorAll('[data-cancel-job]').forEach(b=>b.onclick=()=>void run(async()=>{await request(`/layout-library/reference-jobs/${b.dataset.cancelJob}/cancel`,{method:'POST',body:{}});await jobs()}))}
-  dialog.querySelector('[data-ref-run]').onclick=()=>void run(async()=>{if(!dialog.querySelector('[data-allow-model]').checked)throw Error('请明确允许本次模型调用。');await post('/layout-library/reference-jobs',{name:dialog.querySelector('[data-ref-name]').value,text:dialog.querySelector('[data-ref-text]').value,allowModel:true});await jobs();msg('任务已入现有后台队列；关闭此窗口不影响任务，取消请使用取消按钮。')})
-  dialog.querySelector('[data-ref-refresh]').onclick=()=>void run(jobs);await jobs()
+  const generation=ticket
+  let configured=false,readingFile=false,uploadGeneration=0,jobGeneration=0
+  const active=()=>dialog&&mode==='reference'&&generation===ticket
+  detail(`<section class="ll-custom"><div class="ll-detail-head"><h3>自定义版式</h3><button data-manual>手动设置</button></div>
+   <label>版式名称<input data-ref-name maxlength="100" placeholder="给这套版式命名"></label>
+   <label>版式要求<textarea data-ref-text maxlength="16000" rows="5" placeholder="例如：白底墨绿标题，双栏对照，图片放左侧，引用放在底部。"></textarea></label>
+   <div class="ll-actions"><label class="ll-file">上传参考文本<input data-ref-file type="file" accept=".txt,.md,.markdown" hidden></label><span data-ref-file-name></span></div>
+   <p class="ll-model" data-ref-model role="status">正在读取模型设置…</p>
+   <div class="ll-actions"><button data-ref-run class="ll-primary" disabled>生成自定义版式</button><button data-ref-refresh>刷新记录</button></div>
+   <div data-ref-jobs></div></section>`)
+  const name=dialog.querySelector('[data-ref-name]'),input=dialog.querySelector('[data-ref-text]')
+  const submit=dialog.querySelector('[data-ref-run]'),fileInput=dialog.querySelector('[data-ref-file]')
+  name.value=referenceDraft.name;input.value=referenceDraft.text
+  dialog.querySelector('[data-ref-file-name]').textContent=referenceDraft.filename
+  const update=()=>{
+   referenceDraft.name=name.value;referenceDraft.text=input.value
+   submit.disabled=!configured||readingFile||!name.value.trim()||!input.value.trim()
+  }
+  name.oninput=update;input.oninput=update
+  dialog.querySelector('[data-manual]').onclick=()=>void run(newManual)
+  fileInput.onchange=async()=>{
+   const file=fileInput.files[0];if(!file)return
+   const upload=++uploadGeneration
+   readingFile=true;update()
+   try{
+    if(!/\.(txt|md|markdown)$/i.test(file.name))throw Error('请选择 TXT 或 Markdown 参考文本。')
+    if(file.size>128*1024)throw Error('参考文件较大，请保留需要的版式要求后上传。')
+    const bytes=new Uint8Array(await file.arrayBuffer())
+    let text
+    if(bytes[0]===255&&bytes[1]===254)text=new TextDecoder('utf-16le').decode(bytes)
+    else if(bytes[0]===254&&bytes[1]===255)text=new TextDecoder('utf-16be').decode(bytes)
+    else{
+     try{text=new TextDecoder('utf-8',{fatal:true}).decode(bytes)}
+     catch{text=new TextDecoder('gb18030',{fatal:true}).decode(bytes)}
+    }
+    if(text.length>16000)throw Error('参考文字最多16000字，请精简后上传。')
+    if(!active()||upload!==uploadGeneration)return
+    input.value=text
+    if(!name.value.trim())name.value=file.name.replace(/\.(txt|md|markdown)$/i,'').slice(0,100)
+    referenceDraft.filename=file.name
+    dialog.querySelector('[data-ref-file-name]').textContent=file.name
+    update();msg('')
+   }catch(error){if(active()&&upload===uploadGeneration){msg(error.message);notify(error.message)}}
+   finally{if(upload===uploadGeneration){readingFile=false;fileInput.value='';if(active())update()}}
+  }
+  const statusNames={queued:'排队中',running:'正在生成',cancelling:'取消中',completed:'已生成',failed:'失败',interrupted:'已中断',cancelled:'已取消'}
+  const jobs=async()=>{
+   const requestGeneration=++jobGeneration
+   clearTimeout(referenceTimer)
+   const rows=await request('/layout-library/reference-jobs')
+   if(!active()||requestGeneration!==jobGeneration)return
+   dialog.querySelector('[data-ref-jobs]').innerHTML=rows.map(j=>{
+    const running=['queued','running','cancelling'].includes(j.status)
+    const model=j.execution_metadata?.actualRoute?.model??j.modelName
+    const elapsed=running&&j.started_at?' · '+Math.max(0,Math.floor((Date.now()-Date.parse(j.started_at))/1000))+'秒':''
+    return `<div class="ll-job" data-reference-job="${esc(j.id)}"><div class="ll-job-heading"><strong>${esc(j.name??'自定义版式')}</strong><span>${esc(statusNames[j.status]??j.status)}${elapsed}</span></div>
+     ${model?`<small>模型　${esc(model)}</small>`:''}
+     ${running&&j.progress?.label?`<p role="status">${esc(j.progress.label)}</p>`:''}
+     ${j.error?`<p role="alert">${esc(j.error)}</p>`:''}
+     ${j.result?.id?`<button data-result="${j.result.id}" data-v="${j.result.version}">查看版式</button>`:''}
+     ${running?`<button data-cancel-job="${j.id}">取消</button>`:''}
+     ${['failed','interrupted','cancelled'].includes(j.status)?`<button data-retry-job="${j.id}">重试</button>`:''}</div>`
+   }).join('')
+   dialog.querySelectorAll('[data-result]').forEach(b=>b.onclick=()=>void run(async()=>{clearTimeout(referenceTimer);await reload();mode='library';await select(b.dataset.result,Number(b.dataset.v))}))
+   dialog.querySelectorAll('[data-cancel-job]').forEach(b=>b.onclick=()=>void run(async()=>{await request('/layout-library/reference-jobs/'+b.dataset.cancelJob+'/cancel',{method:'POST',body:{}});await jobs()}))
+   dialog.querySelectorAll('[data-retry-job]').forEach(b=>b.onclick=()=>void run(async()=>{await post('/layout-library/reference-jobs/'+b.dataset.retryJob+'/retry');await jobs();msg('已提交重试。')}))
+   if(rows.some(j=>['queued','running','cancelling'].includes(j.status)))referenceTimer=setTimeout(()=>{void jobs().catch(e=>{if(active())msg(e.message)})},2000)
+  }
+  submit.onclick=()=>void run(async()=>{
+   update()
+   if(submit.disabled)return
+   await post('/layout-library/reference-jobs',{name:name.value.trim(),text:input.value.trim(),allowModel:true})
+   await jobs();msg('已提交，生成状态会自动更新。')
+  })
+  dialog.querySelector('[data-ref-refresh]').onclick=()=>void run(jobs)
+  const config=await request('/layout-library/reference-config')
+  if(!active())return
+  configured=config.configured
+  const model=dialog.querySelector('[data-ref-model]')
+  model.textContent=config.configured?'使用模型　'+config.modelName:config.reason??'请先在模型管理中配置模型。'
+  model.title='模型管理 · V'+config.policyRevision
+  update();void jobs().catch(error=>{if(active())msg(error.message)})
  }
  button.onclick=()=>void run(open)
  return {open,reset:close,dispose(){close();button.remove()}}

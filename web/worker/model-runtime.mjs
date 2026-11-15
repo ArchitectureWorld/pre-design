@@ -109,6 +109,6 @@ export async function installModelBoundary(ctx, { sessionId, snapshot, classRout
     if (row.maxOutputTokens && options.maxTokens > row.maxOutputTokens) deny()
     yield* next()
   }, { prepend: true })
-  const classes = ctx.preplanning.agentClasses
-  await classes.save(classes.settings().revision, classRoutes ?? { text: null, web: null, review: null, image: null }, classFallbacks ?? { text: [], web: [], review: [], image: [] })
+  const classes = ctx.preplanning?.agentClasses
+  if(classes)await classes.save(classes.settings().revision, classRoutes ?? { text: null, web: null, review: null, image: null }, classFallbacks ?? { text: [], web: [], review: [], image: [] })
 }

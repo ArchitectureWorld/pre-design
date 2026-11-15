@@ -552,7 +552,8 @@ export async function createApp({ db, workers, projectsRoot, users }) {
   const scheduler = createJobScheduler({ db, getLimits: async () => (await platform.getPolicy()).limits, execute })
   const layoutJobs=createLayoutJobs({db,platform,workers,library:layoutLibrary,serial,controllers,kick:()=>scheduler.kick()})
   registerLayoutRoutes({app,library:layoutLibrary,project,workflows,serial,event,
-    enqueueReference:layoutJobs.enqueue,listReferenceJobs:layoutJobs.list,cancelReference:layoutJobs.cancel})
+    enqueueReference:layoutJobs.enqueue,listReferenceJobs:layoutJobs.list,cancelReference:layoutJobs.cancel,
+    referenceConfiguration:layoutJobs.configuration,retryReference:layoutJobs.retry})
   async function enqueue(req, kind, body) {
     const p = await project(req)
     const job = await serial(`enqueue:${p.id}`, () => serial(`dossier-finalize:${p.id}`, async () => {
