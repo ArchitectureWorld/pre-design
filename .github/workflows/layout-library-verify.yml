@@ -38,3 +38,19 @@ jobs:
           name: native-layout-staging-tests
           path: ${{ runner.temp }}/layout-evidence/
           retention-days: 7
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pack staging working source for independent reproduction
+        run: |
+          mkdir -p "$RUNNER_TEMP/layout-src"
+          tar --exclude=.git --exclude=.layout-source --exclude=node_modules -czf "$RUNNER_TEMP/layout-src/staging-source.tar.gz" .
+          sha256sum "$RUNNER_TEMP/layout-src/staging-source.tar.gz" > "$RUNNER_TEMP/layout-src/source.sha256"
+          git rev-parse HEAD > "$RUNNER_TEMP/layout-src/SOURCE_COMMIT.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-layout-staging-source
+          path: ${{ runner.temp }}/layout-src/
+          retention-days: 3
