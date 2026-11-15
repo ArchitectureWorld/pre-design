@@ -20,7 +20,7 @@ node --check web/worker/layout-reference-runner.mjs
 node --test --test-concurrency=1 web/app/tests/layout-library*.test.mjs | tee "$OUT/layout-postgres.tap"
 node --test --test-concurrency=1 web/app/tests/workflow-contract.test.mjs web/app/tests/workflow-section-pages.test.mjs web/app/tests/material-policy.test.mjs web/app/tests/material-storage.test.mjs web/app/tests/workflow-api.test.mjs web/app/tests/workflow-structured-api.test.mjs web/app/tests/recovery.test.mjs | tee "$OUT/regression.tap"
 PRE_WEB_BUILD_DIR="$OUT/dist" node web/app/build-prototype.mjs | tee "$OUT/build.log"
-node web/app/tests/layout-library-ui.browser.mjs | tee "$OUT/ui.json"
+env -u PRE_DOSSIER_TEST_DATABASE node web/app/tests/layout-library-ui.browser.mjs | tee "$OUT/ui.json"
 node --input-type=module - "$OUT" <<'NODE'
 import {writeFileSync,readFileSync} from 'node:fs';import {execFileSync} from 'node:child_process';import {createHash} from 'node:crypto';
 const root=process.argv[2];const hash=p=>createHash('sha256').update(readFileSync(p)).digest('hex');
