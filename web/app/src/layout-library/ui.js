@@ -68,7 +68,7 @@ export function mountLayoutLibrary({request,getProject,notify,mutate,refresh=asy
   const generation=ticket,r=await request('/layout-library/preview',{method:'POST',body:{package:working,layoutId:dialog.querySelector('[data-layout]').value}})
   if(generation!==ticket||!dialog?.querySelector('[data-preview-box]'))return
   const box=dialog.querySelector('[data-preview-box]');box.innerHTML='<iframe title="原生版式实际试排" sandbox=""></iframe>';const frame=box.querySelector('iframe');frame.srcdoc=r.html
-  const fit=()=>{frame.style.transform=`scale(${box.clientWidth/1640})`;box.style.height=`${940*box.clientWidth/1640}px`};frame.style.width='1640px';frame.style.height='940px';observer?.disconnect();observer=new ResizeObserver(fit);observer.observe(box);fit()
+  const fit=()=>{frame.style.transform=`scale(${box.clientWidth/1640})`};frame.style.width='1640px';frame.style.height='940px';observer?.disconnect();observer=new ResizeObserver(fit);observer.observe(box);fit()
  }
  async function showProject(){
   const p=getProject();if(!p?.id){detail('<h3>当前没有打开项目</h3><p>可以先在“浏览与管理”中准备版式，再进入项目选用。</p>');return}
