@@ -27,7 +27,7 @@ export function mountLayoutLibrary({request,getProject,notify,mutate,refresh=asy
    for(const f of files){if(f.size>8*1024*1024)throw Error(f.name+'超过8 MiB。');const data=new Uint8Array(await f.arrayBuffer());let binary='';for(let i=0;i<data.length;i+=8192)binary+=String.fromCharCode(...data.subarray(i,i+8192));const r=await post('/layout-library/import',{filename:f.name,content:btoa(binary)});await reload();await select(r.id,r.version)}
    msg('已保存为个人候选。请核对来源与适用性，再检查、发布。')
   })
-  try{identity=await request('/me');dialog.querySelector('[data-seed]').hidden=identity.role!=='admin';dialog.querySelector('[data-seed]').onclick=()=>void run(async()=>{await post('/layout-library/seed');await reload();msg('已预置3套候选；检查并发布后才进入用户可用库。')});await reload();if(generation!==ticket)return;if(resources.length)await select(resources[0].id,resources[0].version);else{working=(await request('/layout-library/starter')).package;selected=null;renderEditor();await preview()};msg('已连接平台。预览、检查和项目制作使用同一原生渲染器。')}catch(e){console.log('LL-OPEN-ERROR',e.stack??e.message);msg(e.message)}
+  try{identity=await request('/me');dialog.querySelector('[data-seed]').hidden=identity.role!=='admin';dialog.querySelector('[data-seed]').onclick=()=>void run(async()=>{await post('/layout-library/seed');await reload();msg('已预置3套候选；检查并发布后才进入用户可用库。')});await reload();if(generation!==ticket)return;if(resources.length)await select(resources[0].id,resources[0].version);else{working=(await request('/layout-library/starter')).package;selected=null;renderEditor();await preview()};msg('已连接平台。预览、检查和项目制作使用同一原生渲染器。')}catch(e){msg(e.message)}
  }
  function renderList(){
   if(!dialog)return
@@ -36,7 +36,7 @@ export function mountLayoutLibrary({request,getProject,notify,mutate,refresh=asy
   dialog.querySelector('[data-list]').innerHTML=rows.map(r=>`<button class="ll-card ${selected?.id===r.id?'selected':''}" data-id="${r.id}" data-version="${r.version}"><span class="ll-swatch" style="background:${r.package.theme.background};border-left:5px solid ${r.package.theme.accent};color:${r.package.theme.ink}">Aa <i style="background:${r.package.theme.accent}"></i></span><b>${esc(r.package.name)}</b><small>${visibility[r.visibility]} · V${r.version} · ${stateName(r)}</small><small>${r.package.layouts.length}种页面 · 已用于${r.usageCount??0}页 · HTML</small></button>`).join('')||'<p class="ll-hint">没有符合条件的资源。</p>'
   dialog.querySelectorAll('.ll-card').forEach(b=>b.onclick=()=>void run(()=>select(b.dataset.id,Number(b.dataset.version))))
  }
- async function select(id,version){selected=await request(`/layout-library/${id}/${version}`);working=structuredClone(selected.package);renderList();if(mode==='library'){renderEditor();await preview();console.log('LL-PREVIEW-OK')}else renderMode()}
+ async function select(id,version){selected=await request(`/layout-library/${id}/${version}`);working=structuredClone(selected.package);renderList();if(mode==='library'){renderEditor();await preview()}else renderMode()}
  function renderMode(){dialog.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));if(mode==='project')void showProject();else if(mode==='reference')void showReference();else{renderEditor();void preview()}}
  const detail=html=>{observer?.disconnect();dialog.querySelector('[data-detail]').innerHTML=html}
  function readForm(){
@@ -111,6 +111,6 @@ export function mountLayoutLibrary({request,getProject,notify,mutate,refresh=asy
   dialog.querySelector('[data-ref-run]').onclick=()=>void run(async()=>{if(!dialog.querySelector('[data-allow-model]').checked)throw Error('请明确允许本次模型调用。');await post('/layout-library/reference-jobs',{name:dialog.querySelector('[data-ref-name]').value,text:dialog.querySelector('[data-ref-text]').value,allowModel:true});await jobs();msg('任务已入现有后台队列；关闭此窗口不影响任务，取消请使用取消按钮。')})
   dialog.querySelector('[data-ref-refresh]').onclick=()=>void run(jobs);await jobs()
  }
- button.onclick=()=>{console.log('LL-CLICK');void run(open)}
+ button.onclick=()=>void run(open)
  return {open,reset:close,dispose(){close();button.remove()}}
 }

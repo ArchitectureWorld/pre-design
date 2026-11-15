@@ -1,7 +1,7 @@
 name: Verify native layout library V1
 on:
   push:
-    branches: [codex/layout-library-v1]
+    branches: [codex/layout-library-v1, codex/web-v210]
     paths:
       - '.github/workflows/layout-library-verify.yml'
       - 'web/app/src/layout-library/**'
