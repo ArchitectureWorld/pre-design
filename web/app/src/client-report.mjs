@@ -1,13 +1,11 @@
-import {execFile} from 'node:child_process'
-import {promisify} from 'node:util'
-import {mkdtemp,readFile,rm,writeFile} from 'node:fs/promises'
+import {chromium} from 'playwright-core'
+import {mkdtemp,rm,writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {pathToFileURL} from 'node:url'
 import {resolveBrowserExecutable} from '../../../src/report/browser-executable.ts'
 import {renderWorkflowItem,reportHierarchy,outlineNumber} from './workflow-content.mjs'
 
-const run=promisify(execFile)
 const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
 
 export function clientReportHtml(doc){
@@ -41,17 +39,32 @@ export function clientReportHtml(doc){
  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><title>${title}</title><style>
  @page{size:A4;margin:16mm 19mm}*{box-sizing:border-box}body{margin:0;font:11pt/1.58 "Noto Sans CJK SC","Microsoft YaHei",sans-serif;color:#213046;overflow-wrap:anywhere}header{padding-bottom:4mm;border-bottom:2px solid #446392}h1{font-size:23pt;line-height:1.35;margin:0 0 2mm}time,small{font-size:8.5pt;color:#53647c}h2,h3,h4{break-after:avoid;line-height:1.45}h2{font-size:16pt;margin:4.5mm 0 1.5mm;color:#284b78}h3{font-size:13pt;margin:2.5mm 0 1mm}h4{font-size:11pt;margin:2.8mm 0 1mm}p,ul,ol{margin:1.2mm 0}p,li{orphans:2;widows:2}ul,ol{padding-left:1.4em}li{margin:.7mm 0}small{display:block;margin:.8mm 0 1.8mm}.sources{border-top:1px solid #cdd5df;margin-top:4mm}.sources li{font-size:9pt}
  main section,.sources{break-inside:avoid}sup{font-size:8pt;color:#53647c}
- </style></head><body><header><h1><span aria-hidden="true" style="display:inline-block;width:2px;font-size:1px">&nbsp;</span>${title}</h1><time>${escape(new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',year:'numeric',month:'long',day:'numeric'}).format(new Date(doc.createdAt)))}</time></header><main>${chapters.join('')}</main>${sources.length?`<section class="sources"><h2>资料来源</h2><ol>${sources.join('')}</ol></section>`:''}</body></html>`
+ </style></head><body><header><h1>${title}</h1><time>${escape(new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',year:'numeric',month:'long',day:'numeric'}).format(new Date(doc.createdAt)))}</time></header><main>${chapters.join('')}</main>${sources.length?`<section class="sources"><h2>资料来源</h2><ol>${sources.join('')}</ol></section>`:''}</body></html>`
 }
 
 export async function clientReportPdf(doc){
- const folder=await mkdtemp(join(tmpdir(),'pre-client-report-')),html=join(folder,'report.html'),pdf=join(folder,'report.pdf')
+ const folder=await mkdtemp(join(tmpdir(),'pre-client-report-')),html=join(folder,'report.html')
+ let browser
  try{
   await writeFile(html,clientReportHtml(doc),{mode:0o600})
-  await run(resolveBrowserExecutable(),['--headless=new','--disable-gpu','--disable-background-networking','--disable-extensions','--no-first-run','--no-default-browser-check','--no-pdf-header-footer','--user-data-dir='+join(folder,'profile'),'--print-to-pdf='+pdf,pathToFileURL(html).href],{timeout:45000,maxBuffer:1024*1024})
-  const data=await readFile(pdf)
+  browser=await chromium.launch({
+   executablePath:resolveBrowserExecutable(),
+   headless:true,
+   chromiumSandbox:process.env.PRE_LAYOUT_TEST_NO_SANDBOX!=='1',
+   args:['--disable-gpu','--disable-extensions','--disable-background-networking'],
+   timeout:20000,
+  })
+  const page=await browser.newPage({locale:'zh-CN'})
+  await page.goto(pathToFileURL(html).href,{waitUntil:'load',timeout:15000})
+  // Headless CLI may print before CJK fallback fonts finish loading.
+  await page.evaluate(()=>document.fonts.ready)
+  const data=Buffer.from(await page.pdf({format:'A4',preferCSSPageSize:true,printBackground:true,displayHeaderFooter:false,timeout:20000}))
   if(data.subarray(0,5).toString()!=='%PDF-')throw Error('empty PDF')
   return data
- }catch{throw Object.assign(new Error('汇报 PDF 暂未生成，请重试或检查 Chrome 打印服务。'),{statusCode:503})}
- finally{await rm(folder,{recursive:true,force:true,maxRetries:3}).catch(()=>{})}
+ }catch{
+  throw Object.assign(new Error('汇报 PDF 暂未生成，请重试或检查 Chrome 打印服务。'),{statusCode:503})
+ }finally{
+  await browser?.close().catch(()=>{})
+  await rm(folder,{recursive:true,force:true,maxRetries:3}).catch(()=>{})
+ }
 }
