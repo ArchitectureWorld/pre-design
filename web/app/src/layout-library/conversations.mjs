@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto'
 import {createPackage,validatePackage,fail} from './contract.mjs'
 import {referenceFileSummary} from './reference-uploads.mjs'
+import {MAX_REFERENCE_IMAGES,MAX_REFERENCE_TEXT} from './reference-limits.mjs'
 
 const active=status=>['queued','running','cancelling'].includes(status)
 const referenceOf=row=>row.result?.id?{id:row.result.id,version:row.result.version}:row.payload?.baseResource??null
@@ -32,8 +33,9 @@ export function createLayoutConversations(db,library,uploads){
   if(history.length&&!history[0].payload.mode)references.set('text:先前文字参考',{name:'先前文字参考',text:history[0].payload.text})
   for(const file of files)references.set(fileKey(file),{...file,sha256:file.id?file.sha256:createHash('sha256').update(file.text).digest('hex')})
   const referenceFiles=[...references.values()]
-  if(referenceFiles.reduce((n,f)=>n+(f.imageCount??0),0)>16)throw fail('本轮参考超过16张页面图像，请分批分析。',413)
-  if(referenceFiles.reduce((n,f)=>n+(f.text?.length??0),0)>96000)throw fail('本轮参考文字过多，请分批分析。',413)
+  if(referenceFiles.reduce((n,f)=>n+(f.imageCount??0),0)>MAX_REFERENCE_IMAGES)throw fail('本轮参考超过'+MAX_REFERENCE_IMAGES+'张页面图像，请分批分析。',413)
+  if(referenceFiles.reduce((n,f)=>n+(f.text?.length??0),0)>MAX_REFERENCE_TEXT)throw fail('本轮参考文字过多，请分批分析。',413)
+  await uploads?.validateImageBudget(actor,referenceFiles,c)
   return {mode:'conversation',conversationId:input.conversationId??jobId,name,text:input.text||'请根据上传参考生成版式。',files,
    referenceFiles,modelRole:referenceFiles.some(f=>f.hasImages)?'vision':'parent',basePackage,providedPackage:!!input.package||history.at(-1)?.payload.providedPackage===true,
    baseResource:resource?{id:resource.id,version:resource.version,hash:resource.hash,ownerId:resource.ownerId}:null,

@@ -12,9 +12,20 @@ const ref=z.object({resourceId:id,version}).strict().nullable()
 const binding=z.object({requestId,baseRevision:z.number().int().nonnegative(),draftId:id,expectedRevision:z.number().int().nonnegative(),scope:z.enum(['global','local','manual']),pageIds:z.array(z.string().max(150)).min(1).max(200).refine(a=>new Set(a).size===a.length).optional(),resource:ref.optional(),overrides:patchSchema.optional(),remove:z.boolean().optional()}).strict()
 export function registerLayoutRoutes({app,library,uploads,project,workflows,serial,event,enqueueReference,listReferenceJobs,cancelReference,referenceConfiguration,retryReference,listConversations,getConversation,recordReferenceImport,resolveLayoutAssets=async pages=>pages,validator=validatePublication}){
  if(uploads){
-  app.post('/api/layout-library/reference-files',{bodyLimit:Math.ceil(MAX_REFERENCE_UPLOAD_BYTES/3)*4+16384},async req=>{
+  app.post('/api/layout-library/reference-files',{bodyLimit:Math.ceil(MAX_REFERENCE_UPLOAD_BYTES/3)*4+16384},async(req,reply)=>{
+   const controller=new AbortController(),abort=()=>controller.abort(),closed=()=>{if(!reply.raw.writableEnded)abort()}
+   req.raw.once('aborted',abort);reply.raw.once('close',closed)
+   if(req.raw.aborted||reply.raw.destroyed)abort()
+   try{
+   if(req.headers['content-type']?.split(';')[0].trim()==='application/octet-stream'){
+    let filename;try{filename=decodeURIComponent(req.headers['x-reference-filename']??'')}catch{throw fail('文件名编码无效。')}
+    const body=mutation.extend({filename:z.string().min(1).max(180)}).strict().parse({requestId:req.headers['x-reference-request-id'],filename})
+    const declaredLength=req.headers['content-length']===undefined?undefined:Number(req.headers['content-length'])
+    return await serial('layout-upload:'+req.user.id,()=>uploads.createFromStream(req.user,body,req.body,declaredLength,{signal:controller.signal}))
+   }
    const body=mutation.extend({filename:z.string().min(1).max(180),content:z.string().max(Math.ceil(MAX_REFERENCE_UPLOAD_BYTES/3)*4)}).strict().parse(req.body)
-   return serial('layout-upload:'+req.user.id,()=>uploads.create(req.user,body))
+   return await serial('layout-upload:'+req.user.id,()=>uploads.create(req.user,body,{signal:controller.signal}))
+   }finally{req.raw.removeListener('aborted',abort);reply.raw.removeListener('close',closed)}
   })
   app.get('/api/layout-library/reference-files/:fileId/download',async(req,reply)=>{
    const file=await uploads.download(req.user,id.parse(req.params.fileId))

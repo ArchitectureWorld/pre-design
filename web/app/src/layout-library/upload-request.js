@@ -1,5 +1,4 @@
-const MAX_REFERENCE_BYTES = 24 * 1024 * 1024
-const UPLOAD_TIMEOUT_MS = 180000
+import {referenceByteLimit, UPLOAD_TIMEOUT_MS} from './reference-limits.mjs'
 
 function abortError() {
   return new DOMException('操作已取消', 'AbortError')
@@ -25,20 +24,37 @@ function downloadFilename(disposition) {
   return disposition?.match(/filename="([^"]+)"/)?.[1] ?? 'layout.json'
 }
 
-/** Use XHR only when the caller needs actual request-body upload progress. */
+function validateUploadFile(file, requestId) {
+  if (!file || !Number.isFinite(file.size) || file.size < 0) throw new TypeError('请选择有效文件')
+  if (typeof requestId !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(requestId)) throw new TypeError('请求编号不合法')
+  if (typeof file.name !== 'string' || !file.name.trim() || file.name.length > 180 || /[\x00-\x1f\x7f/\\]/u.test(file.name)) {
+    throw new TypeError('参考文件名不合法')
+  }
+  const maxBytes = referenceByteLimit(file.name)
+  if (file.size > maxBytes) throw new RangeError(`文件大小超过上限（${maxBytes / 1024 / 1024} MiB）`)
+}
+
+/** Send files directly with XHR; keep ordinary JSON requests on fetch. */
 export function createLayoutRequest({getToken, fetchImpl = globalThis.fetch, XMLHttpRequestCtor = globalThis.XMLHttpRequest}) {
   return async function request(path, options = {}) {
     throwIfAborted(options.signal)
     const hasBody = options.body !== undefined
+    const hasFile = options.file !== undefined
+    if (hasFile && hasBody) throw new TypeError('文件和 JSON 请求内容不能同时指定')
+    if (hasFile) validateUploadFile(options.file, options.requestId)
     const headers = {
       Authorization: 'Bearer ' + getToken(),
-      ...(hasBody ? {'Content-Type': 'application/json'} : {}),
+      ...(hasFile ? {
+        'Content-Type': 'application/octet-stream',
+        'X-Reference-Filename': encodeURIComponent(options.file.name),
+        'X-Reference-Request-Id': options.requestId,
+      } : hasBody ? {'Content-Type': 'application/json'} : {}),
     }
-    const body = hasBody ? JSON.stringify(options.body) : undefined
+    const body = hasFile ? options.file : hasBody ? JSON.stringify(options.body) : undefined
     const method = options.method ?? 'GET'
     const url = '/api' + path
 
-    if (hasBody && typeof options.onUploadProgress === 'function') {
+    if (hasFile || (hasBody && typeof options.onUploadProgress === 'function')) {
       if (typeof XMLHttpRequestCtor !== 'function') throw new Error('当前环境不支持上传进度')
       return xhrRequest(XMLHttpRequestCtor, url, {...options, method, headers, body})
     }
@@ -84,14 +100,14 @@ function xhrRequest(XMLHttpRequestCtor, url, {method, headers, body, signal, onU
     }
 
     xhr.upload.onprogress = event => {
-      if (!settled && !uploaded) onUploadProgress({
+      if (!settled && !uploaded && typeof onUploadProgress === 'function') onUploadProgress({
         phase: 'uploading', loaded: event.loaded, total: event.lengthComputable ? event.total : 0,
       })
     }
     xhr.upload.onload = () => {
       if (settled || uploaded) return
       uploaded = true
-      onUploadProgress({phase: 'parsing'})
+      if (typeof onUploadProgress === 'function') onUploadProgress({phase: 'parsing'})
     }
     xhr.onload = async () => {
       if (settled) return
@@ -188,7 +204,7 @@ function readFileBuffer(file, {signal, onProgress}) {
 }
 
 /** Return file bytes as base64 without data-URL metadata or DOM dependencies. */
-export async function readReferenceBase64(file, {signal, onProgress, maxBytes = MAX_REFERENCE_BYTES} = {}) {
+export async function readReferenceBase64(file, {signal, onProgress, maxBytes = referenceByteLimit(file?.name)} = {}) {
   throwIfAborted(signal)
   if (!Number.isFinite(maxBytes) || maxBytes < 0) throw new RangeError('文件大小上限无效')
   if (!file || !Number.isFinite(file.size) || file.size < 0) throw new TypeError('请选择有效文件')

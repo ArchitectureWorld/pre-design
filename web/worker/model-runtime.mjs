@@ -67,7 +67,7 @@ export function materializeModelRuntime(snapshot, settings = {}, credentials = {
   return result
 }
 
-export async function installModelBoundary(ctx, { sessionId, snapshot, classRoutes, classFallbacks, agentClasses, parentRole='parent' }) {
+export async function installModelBoundary(ctx, { sessionId, snapshot, classRoutes, classFallbacks, agentClasses, parentRole='parent', allowRequestSizeFallback=false }) {
   const policy = snapshot ? validateSnapshot(snapshot, [parentRole]) : undefined
   const models = new Map(policy?.models.map(row => [keyOf(row), row]) ?? [])
   const allowed = new Map()
@@ -97,8 +97,9 @@ export async function installModelBoundary(ctx, { sessionId, snapshot, classRout
   ctx.on('agent/request-error', async ({ agent, provider, failure }, next) => {
     const current = parents[parentIndex]
     const interruptedProvider=failure?.code==='PI_AI_ERROR'&&/^(?:Provider stream interrupted or invalid|Invalid provider response)$/i.test(failure.message??'')
+    const gatewayBodyLimit=allowRequestSizeFallback&&failure?.code==='CONTEXT_WINDOW_EXCEEDED'&&/API error \(413\):/.test(failure.message??'')&&/Request body exceeds the gateway limit/i.test(failure.message??'')
     if (String(agent.id) === sessionId && current?.runtimeProvider === provider && parentIndex + 1 < parents.length
-      && (interruptedProvider||['AUTH', 'MISSING_CREDENTIAL', 'INVALID_CREDENTIAL', 'NO_ADAPTER', 'MODEL_NOT_FOUND', 'PROVIDER_NOT_FOUND', 'QUOTA', 'TRANSPORT', 'NETWORK', 'CONNECTION', 'RATE_LIMIT', 'SERVER'].includes(failure?.code))) {
+      && (interruptedProvider||gatewayBodyLimit||['AUTH', 'MISSING_CREDENTIAL', 'INVALID_CREDENTIAL', 'NO_ADAPTER', 'MODEL_NOT_FOUND', 'PROVIDER_NOT_FOUND', 'QUOTA', 'TRANSPORT', 'NETWORK', 'CONNECTION', 'RATE_LIMIT', 'SERVER'].includes(failure?.code))) {
       parentIndex += 1
       return { kind: 'retry' }
     }

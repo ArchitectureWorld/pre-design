@@ -1,4 +1,3 @@
-import {readReferenceBase64} from './upload-request.js'
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
 const requestId=()=>crypto.randomUUID?.()??Array.from(crypto.getRandomValues(new Uint8Array(16)),x=>x.toString(16).padStart(2,'0')).join('')
 const roles={title:'标题',claim:'主结论',body:'正文',image:'图片',table:'表格',source:'引用'}
@@ -35,7 +34,7 @@ export function mountLayoutConversation({container,request,notify,getContext,onR
   if(t.state==='failed')return t.error
   if(t.state==='ready')return (t.result?fileDetail(t.result)+' · ':'')+'待分析'
   const percentage=t.total>0?Math.min(100,Math.round(t.loaded/t.total*100)):null
-  return (uploadState[t.state]??'')+(t.state==='uploading'&&percentage!==null?' '+percentage+'%':'')
+  return (uploadState[t.state]??'')+(t.state==='parsing'&&t.phaseStartedAt?' · '+Math.max(0,Math.floor((Date.now()-t.phaseStartedAt)/1000))+' 秒':'')+(t.state==='uploading'&&percentage!==null?' '+percentage+'%':'')
  }
  function paintTransfer(t){
   const row=find('[data-upload-row="'+t.localId+'"]');if(!row)return
@@ -118,7 +117,7 @@ export function mountLayoutConversation({container,request,notify,getContext,onR
     if(!valid(token))return
     if(transfer.state==='removed')continue
     transfer.controller=new AbortController();transfer.state='reading';transfer.loaded=0;transfer.total=0;renderFiles();controls()
-    const onProgress=progress=>{if(!valid(token)||transfer.state==='removed')return;transfer.state=progress.phase;transfer.loaded=progress.loaded??0;transfer.total=progress.total??0;paintTransfer(transfer);controls()}
+    const onProgress=progress=>{if(!valid(token)||transfer.state==='removed')return;if(transfer.state!==progress.phase)transfer.phaseStartedAt=Date.now();transfer.state=progress.phase;transfer.loaded=progress.loaded??0;transfer.total=progress.total??0;paintTransfer(transfer);controls()}
     try{
      const native=/\.(json|pptx)$/i.test(transfer.file.name)
      if(native){
@@ -132,9 +131,8 @@ export function mountLayoutConversation({container,request,notify,getContext,onR
       onChange(currentId)
      }else{
       if(!/\.(pdf|docx|jpe?g|png|webp|txt|md|markdown)$/i.test(transfer.file.name))throw Error('请选择 PDF、DOCX、图片或文本参考。')
-      const content=await readReferenceBase64(transfer.file,{signal:transfer.controller.signal,onProgress})
       onProgress({phase:'uploading',loaded:0,total:0})
-      const file=await request('/layout-library/reference-files',{method:'POST',body:{requestId:transfer.requestId,filename:transfer.file.name,content},signal:transfer.controller.signal,onUploadProgress:onProgress})
+      const file=await request('/layout-library/reference-files',{method:'POST',file:transfer.file,requestId:transfer.requestId,signal:transfer.controller.signal,onUploadProgress:onProgress})
       if(!valid(token))return
       if(transfer.state==='removed')continue
       if(!file.id)throw Error('未收到文件上传收执，请重试。')
@@ -167,7 +165,7 @@ export function mountLayoutConversation({container,request,notify,getContext,onR
  find('[data-layout-send]').onclick=()=>void send()
  find('[data-chat-stop]').onclick=async()=>{const job=running();if(!job)return;try{await request('/layout-library/reference-jobs/'+job.id+'/cancel',{method:'POST',body:{}});await load()}catch(error){notify(error.message)}}
  void request('/layout-library/reference-config').then(value=>{if(disposed)return;config=value;controls()}).catch(()=>{if(!disposed){config={configured:false};controls()}})
- const statusTimer=setInterval(()=>{if(running())controls()},1000)
+ const statusTimer=setInterval(()=>{if(running()||uploading()){for(const t of transfers)if(t.state==='parsing')paintTransfer(t);controls()}},1000)
  renderFiles();renderMessages();controls()
  return {select,refresh:load,get id(){return currentId},get busy(){return !!running()||submitting||uploading()},
   focusSelection(value){selection=value;find('[data-chat-selection]').innerHTML=`<span class="ll-selection">${esc(roles[value.slot]??value.slot)}<button aria-label="取消引用">×</button></span>`;find('[data-chat-selection] button').onclick=()=>{selection=null;find('[data-chat-selection]').replaceChildren()};input.focus()},

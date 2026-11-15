@@ -220,3 +220,44 @@ test('上传原件变化后停止读取与模型调用，失败文件不会伪�
  const start=await f.req('POST','/api/layout-library/conversations',{requestId:randomUUID(),files:[{id:up.json().id}],text:'提炼参考',allowModel:true});assert.equal(start.statusCode,200,start.body);await f.app.waitForJobs()
  const conversation=(await f.req('GET','/api/layout-library/conversations/'+start.json().conversationId)).json();assert.equal(conversation.turns[0].status,'failed');assert.match(conversation.turns[0].error,/文件已变化/);assert.equal(f.calls.length,0)
 })
+
+test('PDF二进制上传贯通30页与模型输入，下载和幂等保持原件，超限请求被拒绝',{skip:!enabled,timeout:120000},async t=>{
+ const f=await fixture(t),{pdf,paddedPdf}=await import('./fixtures/reference-pdf.mjs'),{PDF_REFERENCE_MAX_BYTES}=await import('../src/layout-library/reference-limits.mjs')
+ const bytes=paddedPdf(pdf(Array.from({length:31},(_,i)=>({text:'PAGE-'+(i+1)}))),25*1024*1024),requestId=randomUUID()
+ const headers={authorization:'Bearer '+'a'.repeat(40),'content-type':'application/octet-stream','x-reference-filename':encodeURIComponent('大文件参考.pdf'),'x-reference-request-id':requestId}
+ const send=(body,overrides={})=>f.app.inject({method:'POST',url:'/api/layout-library/reference-files',headers:{...headers,...overrides},payload:body})
+ const uploaded=await send(bytes);assert.equal(uploaded.statusCode,200,uploaded.body);const file=uploaded.json()
+ assert.equal(file.bytes,bytes.length);assert.equal(file.pageCount,31);assert.equal(file.imageCount,30);assert.equal(file.readPages.at(-1),30)
+ assert.equal((await send(bytes)).json().id,file.id)
+ const changed=await send(pdf([{text:'DIFFERENT'}]));assert.equal(changed.statusCode,409)
+ const original=await f.req('GET','/api/layout-library/reference-files/'+file.id+'/download');assert.deepEqual(original.rawPayload,bytes)
+ assert.equal((await send(Buffer.from('x'),{'x-reference-request-id':randomUUID(),'content-length':String(PDF_REFERENCE_MAX_BYTES+1)})).statusCode,413)
+ assert.equal((await send(Buffer.from('x'),{'x-reference-request-id':randomUUID(),'x-reference-filename':'bad%GG.pdf'})).statusCode,400)
+ const started=await f.req('POST','/api/layout-library/conversations',{requestId:randomUUID(),text:'分析30页参考',files:[{id:file.id}],allowModel:true});assert.equal(started.statusCode,200,started.body);await f.app.waitForJobs()
+ assert.equal(f.calls.length,1);assert.equal(f.calls[0].images.length,30);assert.equal(f.calls[0].images.at(-1).page,30);assert.match(f.calls[0].prompt,/PAGE-30/);assert.doesNotMatch(f.calls[0].prompt,/PAGE-31/)
+})
+
+test('解析中取消会传给解析器，清理原件且不留下半成品记录',{skip:!enabled,timeout:60000},async t=>{
+ const f=await fixture(t),{createReferenceUploads}=await import('../src/layout-library/reference-uploads.mjs'),{Readable}=await import('node:stream'),{readdir}=await import('node:fs/promises'),controller=new AbortController(),started=Promise.withResolvers(),root=join(f.root,'cancel-test')
+ const store=await createReferenceUploads(f.db,{root,extractor:async({signal})=>{started.resolve(signal);await new Promise((_,reject)=>signal.addEventListener('abort',()=>reject(signal.reason),{once:true}))}})
+ const pending=store.createFromStream({id:'admin'},{requestId:randomUUID(),filename:'取消.pdf'},Readable.from([Buffer.from('%PDF-test')]),undefined,{signal:controller.signal})
+ assert.equal(await started.promise,controller.signal);controller.abort();await assert.rejects(pending,error=>error.name==='AbortError')
+ assert.deepEqual(await readdir(root),[]);assert.equal((await f.db.query('SELECT count(*)::int AS n FROM layout_reference_uploads')).rows[0].n,0)
+})
+
+test('旧会话与新参考的图像总量在入队前校验，超出200MiB不创建付费任务',{skip:!enabled,timeout:60000},async t=>{
+ const f=await fixture(t),files=[]
+ // Seed trusted upload manifests to test admission without allocating 208 MiB of pixels.
+ for(let i=0;i<26;i++){
+  const id=randomUUID(),name='大图'+i+'.png',sha256=String(i).padStart(64,'0')
+  await f.db.query('INSERT INTO layout_reference_uploads(id,owner_id,request_id,fingerprint,filename,sha256,bytes,mime_type,document) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[id,'admin',randomUUID(),sha256,name,sha256,8*1024*1024,'image/png',{kind:'image',text:'',images:[{bytes:8*1024*1024,file:'page-1.png',sha256,mimeType:'image/png'}]}]);files.push({id,name,sha256,hasImages:true,imageCount:1})
+ }
+ const cid=randomUUID(),payload={mode:'conversation',conversationId:cid,name:'历史参考',text:'参考',referenceFiles:files.slice(0,24),basePackage:createPackage('历史参考')}
+ await f.db.query("INSERT INTO jobs(id,owner_id,request_id,fingerprint,kind,payload,status,result) VALUES($1,'admin',$2,'test','layout-reference',$3,'completed',$4)",[cid,randomUUID(),payload,{reply:'保留参考。'}])
+ const path='/api/layout-library/conversations',before=(await f.db.query('SELECT count(*)::int AS n FROM job_reservations')).rows[0].n
+ const rejected=await f.req('POST',path,{requestId:randomUUID(),conversationId:cid,text:'继续分析',files:files.slice(24).map(({id})=>({id})),allowModel:true})
+ assert.equal(rejected.statusCode,413,rejected.body);assert.match(rejected.json().error,/图像.*200 MiB/)
+ assert.equal((await f.db.query('SELECT count(*)::int AS n FROM jobs')).rows[0].n,1);assert.equal((await f.db.query('SELECT count(*)::int AS n FROM job_reservations')).rows[0].n,before);assert.equal(f.calls.length,0)
+ const {createReferenceUploads}=await import('../src/layout-library/reference-uploads.mjs'),{createLayoutConversations}=await import('../src/layout-library/conversations.mjs'),store=await createReferenceUploads(f.db,{root:join(f.root,'.layout-references')}),conversations=createLayoutConversations(f.db,{isRemoved:async()=>false},store)
+ const admitted=await conversations.prepare({id:'admin'},{conversationId:cid,text:'继续分析',files:[{id:files[24].id}]},randomUUID(),f.db);assert.equal(admitted.referenceFiles.length,25,'恰好200MiB可进入任务')
+})

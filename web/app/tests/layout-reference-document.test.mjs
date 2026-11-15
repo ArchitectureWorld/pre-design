@@ -1,9 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { deflateSync, crc32 } from 'node:zlib'
+import { setTimeout as delay } from 'node:timers/promises'
 import JSZip from 'jszip'
 import sharp from 'sharp'
 import { extractReferenceDocument, MAX_REFERENCE_BYTES } from '../src/layout-library/reference-document.mjs'
@@ -63,8 +64,10 @@ function pdf(pages, { encrypted = false } = {}) {
       const imageId = add(stream('/Type /XObject /Subtype /Image /Width 64 /Height 32 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode', page.image))
       resources += ` /XObject << /Scan ${imageId} 0 R >>`
       content = Buffer.from('q 320 0 0 160 40 70 cm /Scan Do Q')
+    } else if (page.lines) {
+      content = Buffer.from(`BT /F1 4 Tf 5 TL 20 280 Td ${page.lines.map((line, index) => `${index ? 'T* ' : ''}(${line}) Tj`).join(' ')} ET`)
     } else {
-      content = Buffer.from(`q 0.15 0.3 0.5 rg 20 20 360 30 re f Q BT /F1 18 Tf 32 240 Td (${page.text ?? ''}) Tj ET`)
+      content = Buffer.from(`q ${page.tint ?? '0.15 0.3 0.5'} rg 20 20 360 30 re f Q BT /F1 18 Tf 32 240 Td (${page.text ?? ''}) Tj ET`)
     }
     const contentId = add(stream('', content))
     pageIds.push(add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 300] /Resources << ${resources} >> /Contents ${contentId} 0 R >>`))
@@ -82,6 +85,31 @@ function pdf(pages, { encrypted = false } = {}) {
   const trailerExtra = encrypted ? ` /Encrypt ${encryptionId} 0 R /ID [<${'01'.repeat(16)}> <${'01'.repeat(16)}>]` : ''
   chunks.push(Buffer.from(`xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.slice(1).map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R${trailerExtra} >>\nstartxref\n${length}\n%%EOF\n`))
   return Buffer.concat(chunks)
+}
+
+function paddedPdf(source, length) {
+  // Whitespace between the xref records and trailer is legal and preserves every object offset.
+  const insertAt = source.lastIndexOf(Buffer.from('trailer\n')), padding = length - source.length
+  assert(insertAt > 0 && padding >= 0)
+  const output = Buffer.alloc(length, 0x20)
+  source.copy(output, 0, 0, insertAt)
+  source.copy(output, insertAt + padding, insertAt)
+  return output
+}
+
+async function waitForPdfChild(directory, tool) {
+  const deadline = performance.now() + 5000
+  while (performance.now() < deadline) {
+    const children = (await readFile(`/proc/${process.pid}/task/${process.pid}/children`, 'utf8')).trim().split(/\s+/).filter(Boolean)
+    for (const child of children) {
+      try {
+        const command = await readFile(`/proc/${child}/cmdline`, 'utf8')
+        if (command.startsWith(`/usr/bin/${tool}\0`) && command.includes(directory)) return Number(child)
+      } catch (error) { if (error.code !== 'ENOENT') throw error }
+    }
+    await delay(5)
+  }
+  throw new Error(`未观察到本测试启动的 ${tool} 子进程`)
 }
 
 test('UTF-8、UTF-16 与 GB18030 文本均保留中文内容', async () => {
@@ -120,9 +148,49 @@ test('空文件、超过原件上限、二进制文本与专用导入格式明�
   }
 })
 
+test('真实 PDF 可读到 100 MiB 边界，多一个字节明确拒绝', async () => {
+  const limit = 100 * 1024 * 1024
+  const source = paddedPdf(pdf([{ text: 'hundred-MiB-boundary' }]), limit)
+  const result = await parse(source, 'boundary.PDF')
+  assert.equal(result.kind, 'pdf'); assert.equal(result.pageCount, 1)
+  assert.match(result.text, /hundred-MiB-boundary/)
+  assert.equal(result.images.length, 1)
+  await assert.rejects(() => parse(Buffer.alloc(limit + 1), 'too-large.pdf'), status(413, /100 MiB/))
+})
+
+test('PDF 扩容后其他文件仍限制为 24 MiB', async () => {
+  const source = Buffer.alloc(24 * 1024 * 1024 + 1, 0x41)
+  for (const filename of ['image.png', 'photo.jpg', 'photo.jpeg', 'image.webp', 'notes.txt', 'notes.md', 'notes.markdown', 'document.docx']) {
+    await assert.rejects(() => parse(source, filename), status(413, /24 MiB/))
+  }
+  const text = await parse(source.subarray(0, 24 * 1024 * 1024), 'boundary.txt')
+  assert.equal(text.text.length, 24_000)
+})
+
 test('不足四字节的伪 ZIP 仍返回可供接口使用的中文格式错误', async () => {
   for (const bytes of [Buffer.from('P'), Buffer.from('PK'), Buffer.from([0x50, 0x4b, 3])]) {
     await assert.rejects(() => parse(bytes, 'truncated.docx'), status(415, /DOCX/))
+  }
+})
+
+test('所有格式开始解析前尊重取消并保留原始取消原因', async () => {
+  const png = await sharp({ create: { width: 16, height: 12, channels: 3, background: '#314253' } }).png().toBuffer()
+  const files = [[Buffer.from('reference text'), 'reference.txt'], [png, 'reference.png'], [await docx(), 'reference.docx'], [pdf([{ text: 'reference' }]), 'reference.pdf']]
+  const controller = new AbortController(), reason = new Error('用户取消解析')
+  controller.abort(reason)
+  for (const [bytes, filename] of files) {
+    await assert.rejects(() => extractReferenceDocument({ bytes, filename, signal: controller.signal }), error => error === reason)
+  }
+})
+
+test('图片、文本和 DOCX 完成时不会返回已取消的解析结果', async () => {
+  const png = await sharp({ create: { width: 1600, height: 1000, channels: 3, background: '#314253' } }).png().toBuffer()
+  const files = [[Buffer.from('reference text'), 'reference.txt'], [png, 'reference.png'], [await docx(), 'reference.docx']]
+  for (const [bytes, filename] of files) {
+    const controller = new AbortController(), reason = new Error('停止读取参考')
+    const pending = extractReferenceDocument({ bytes, filename, signal: controller.signal })
+    controller.abort(reason)
+    await assert.rejects(() => pending, error => error === reason)
   }
 })
 
@@ -171,21 +239,50 @@ test('PNG 不能通过谎报动画帧数把多帧内容作为静态图片上传'
   await assert.rejects(() => parse(animatedPng({ declaredFrames: 1 }), 'lying-animation.png'), status(400, /单帧|多帧/))
 })
 
-test('真实 PDF 只读取前四页文字与图像，并保留真实总页数', async () => {
-  const result = await parse(pdf(Array.from({ length: 6 }, (_, index) => ({ text: `layout-page-${index + 1}` }))), 'reference.pdf')
+test('真实 31 页 PDF 读取前 30 页，保留第 30 页文字和实际画面', async () => {
+  const result = await parse(pdf(Array.from({ length: 31 }, (_, index) => ({ text: `layout-page-${index + 1}`, tint: index === 29 ? '0.9 0.1 0.2' : undefined }))), 'reference.pdf')
   assert.equal(result.kind, 'pdf'); assert.equal(result.mimeType, 'application/pdf')
-  assert.equal(result.pageCount, 6); assert.deepEqual(result.readPages, [1, 2, 3, 4])
-  assert.match(result.text, /layout-page-1/); assert.match(result.text, /layout-page-4/)
-  assert.doesNotMatch(result.text, /layout-page-[56]/)
-  assert.equal(result.images.length, 4)
+  assert.equal(result.pageCount, 31)
+  assert.deepEqual(result.readPages, Array.from({ length: 30 }, (_, index) => index + 1))
+  for (let page = 1; page <= 30; page++) assert.match(result.text, new RegExp(`\\blayout-page-${page}\\b`))
+  assert.doesNotMatch(result.text, /\blayout-page-31\b/)
+  assert.equal(result.images.length, 30)
   for (const [index, image] of result.images.entries()) {
     assert.equal(image.page, index + 1); assert.equal(image.mimeType, 'image/jpeg')
     const info = await sharp(image.data).metadata()
     assert.equal(info.width, image.width); assert.equal(info.height, image.height)
     assert.equal(Math.max(info.width, info.height), 1600)
   }
-  assert.match(result.limitations.join(' '), /6.*4|4.*6/)
-  assert.match(result.summary, /6.*4|4.*6/)
+  const lastPagePixel = await sharp(result.images[29].data).extract({ left: 800, top: 1060, width: 1, height: 1 }).removeAlpha().raw().toBuffer()
+  assert(Math.abs(lastPagePixel[0] - 230) <= 5 && Math.abs(lastPagePixel[1] - 26) <= 5 && Math.abs(lastPagePixel[2] - 51) <= 5, '第 30 页应保留它独有的红色标记，不能重复其他页面')
+  assert.match(result.limitations.join(' '), /31.*30|30.*31/)
+  assert.match(result.summary, /31.*30|30.*31/)
+  assert.match(result.summary, /后 1 页未读取/)
+})
+
+test('PDF 正文可保留超过 24000 字，达到 96000 字时明确截断', async () => {
+  const pages = Array.from({ length: 25 }, (_, index) => ({ lines: Array.from({ length: 50 }, () => `page-${String(index + 1).padStart(2, '0')}: ${'A'.repeat(80)}`) }))
+  const result = await parse(pdf(pages), 'dense.pdf')
+  assert.equal(result.pageCount, 25); assert.equal(result.images.length, 25)
+  assert.equal(Array.from(result.text).length, 96_000)
+  assert.match(result.text, /page-20:/)
+  assert.match(result.limitations.join(' '), /96000|96,000/)
+  assert.match(result.summary, /截断.*96000|96000.*截断/)
+})
+
+test('PDF 超过旧 45 秒预算仍可继续，总计超过 5 分钟时明确超时', async context => {
+  for (const elapsed of [60_000, 300_001]) {
+    let reads = 0
+    const now = context.mock.method(Date, 'now', () => 1_000_000 + (reads++ === 0 ? 0 : elapsed))
+    try {
+      const pending = parse(pdf([{ text: 'timeout-budget' }]), 'timed.pdf')
+      if (elapsed < 300_000) {
+        const result = await pending
+        assert.match(result.text, /timeout-budget/)
+        assert.equal(result.images.length, 1)
+      } else await assert.rejects(() => pending, status(408, /超时/))
+    } finally { now.mock.restore() }
+  }
 })
 
 test('扫描 PDF 没有文字时仍返回真实页面图像供视觉分析', async () => {
@@ -220,6 +317,35 @@ test('PDF 成功、损坏与密码失败都清理临时文件且错误不泄漏�
   }
 })
 
+test('真实 PDF 渲染启动后取消会终止 Poppler 并清理全部临时文件', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'reference-document-cancel-')), previous = process.env.TMPDIR
+  const controller = new AbortController(), reason = new Error('用户停止 PDF 解析')
+  const source = pdf(Array.from({ length: 30 }, (_, index) => ({ lines: Array.from({ length: 50 }, () => `page-${index + 1}: ${'A'.repeat(80)}`) })))
+  process.env.TMPDIR = root
+  let pending
+  try {
+    pending = extractReferenceDocument({ bytes: source, filename: 'cancel.pdf', signal: controller.signal })
+    void pending.catch(() => {})
+    const child = await waitForPdfChild(root, 'pdftoppm')
+    assert((await readdir(root)).length > 0, '取消前应确实存在解析中的临时目录')
+    const cancelledAt = performance.now()
+    controller.abort(reason)
+    await assert.rejects(() => pending, error => error === reason || (error.name === 'AbortError' && error.cause === reason))
+    assert(performance.now() - cancelledAt < 2000, '取消应尽快终止解析，不等待剩余页面')
+    assert.throws(() => process.kill(child, 0), error => error.code === 'ESRCH', '解析返回时 Poppler 应已退出')
+    assert.deepEqual(await readdir(root), [])
+    const next = await parse(pdf([{ text: 'next-upload' }]), 'next.pdf')
+    assert.match(next.text, /next-upload/)
+    assert.deepEqual(await readdir(root), [])
+  } finally {
+    controller.abort(reason)
+    await pending?.catch(() => {})
+    if (previous === undefined) delete process.env.TMPDIR
+    else process.env.TMPDIR = previous
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('DOCX 提取段落、实体、制表符与换行，明确仅提取文字', async () => {
   const bytes = await docx(documentXml('<w:p><w:r><w:t>建筑 &amp; 城市</w:t></w:r></w:p><w:p><w:r><w:t>指标</w:t><w:tab/><w:t>20</w:t><w:br/><w:t>&#x6807;&#39064;</w:t></w:r></w:p>'))
   const result = await parse(bytes, 'reference.docx')
@@ -235,6 +361,12 @@ test('DOCX 支持合法命名空间别名，但不把属性和字段代码当正
   const result = await parse(await docx(xml), 'alias.docx')
   assert.equal(result.text, '正文 <示例>')
   assert(!result.text.includes('secret.txt'))
+})
+
+test('PDF 正文扩容不放宽 DOCX 的 24000 字边界', async () => {
+  const result = await parse(await docx(documentXml(`<w:p><w:r><w:t>${'文'.repeat(30_000)}</w:t></w:r></w:p>`)), 'long.docx')
+  assert.equal(result.text.length, 24_000)
+  assert.match(result.limitations.join(' '), /24000/)
 })
 
 test('DOCX 拒绝实体声明、不完整 XML、伪装 ZIP 与路径穿越', async () => {

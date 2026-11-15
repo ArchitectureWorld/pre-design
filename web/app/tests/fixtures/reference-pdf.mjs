@@ -30,3 +30,11 @@ export function pdf(pages, { encrypted = false } = {}) {
   chunks.push(Buffer.from(`xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.slice(1).map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R${trailerExtra} >>\nstartxref\n${length}\n%%EOF\n`))
   return Buffer.concat(chunks)
 }
+
+export function paddedPdf(source, length) {
+  const insertAt=source.lastIndexOf(Buffer.from('trailer\n')),padding=length-source.length
+  if(insertAt<0||padding<0)throw Error('Invalid PDF padding target')
+  const output=Buffer.alloc(length,0x20)
+  source.copy(output,0,0,insertAt);source.copy(output,insertAt+padding,insertAt)
+  return output
+}

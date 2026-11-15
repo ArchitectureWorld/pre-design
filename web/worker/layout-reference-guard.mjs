@@ -5,7 +5,8 @@ export const name='pre-design-layout-reference-guard'
 export const inject=['agents','tools','llm','systemPrompt']
 export async function apply(ctx){
  const snapshot=JSON.parse(await readFile(process.env.PRE_WEB_LAYOUT_POLICY_FILE,'utf8'))
- await installModelBoundary(ctx,{sessionId:process.env.PRE_WEB_LAYOUT_SESSION_ID,snapshot,classRoutes:{},classFallbacks:{},parentRole:process.env.PRE_WEB_LAYOUT_MODEL_ROLE??'parent'})
+ const parentRole=process.env.PRE_WEB_LAYOUT_MODEL_ROLE??'parent'
+ await installModelBoundary(ctx,{sessionId:process.env.PRE_WEB_LAYOUT_SESSION_ID,snapshot,classRoutes:{},classFallbacks:{},parentRole,allowRequestSizeFallback:parentRole==='vision'})
  ctx.tools.guard(()=> 'LAYOUT_REFERENCE_TOOLS_FORBIDDEN')
  ctx.on('agent/created',({agent})=>{
   agent.ctx.tools.restrict({allow:[]})

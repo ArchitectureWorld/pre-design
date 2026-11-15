@@ -1,17 +1,18 @@
 import { execFile } from 'node:child_process'
-import { mkdtemp, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, writeFile, readFile, readdir, stat, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { extname, join } from 'node:path'
 import { promisify } from 'node:util'
 import { crc32 } from 'node:zlib'
 import JSZip from 'jszip'
 import sharp from 'sharp'
+import { MAX_REFERENCE_PDF_PAGES, PDF_REFERENCE_TEXT_CHARACTERS, PDF_PARSE_TIMEOUT_MS, referenceByteLimit, referenceLimitLabel } from './reference-limits.mjs'
 
-export const MAX_REFERENCE_BYTES = 24 * 1024 * 1024
+export { MAX_REFERENCE_BYTES } from './reference-limits.mjs'
 const MAX_TEXT_CHARACTERS = 24_000
 const MAX_IMAGE_PIXELS = 40_000_000
 const MAX_IMAGE_EDGE = 1600
-const MAX_PDF_PAGES = 4
+const MAX_PDF_PREVIEW_BYTES = 12 * 1024 * 1024
 const MAX_ZIP_ENTRIES = 1000
 const MAX_ZIP_ENTRY_BYTES = 16 * 1024 * 1024
 const MAX_ZIP_TOTAL_BYTES = 48 * 1024 * 1024
@@ -58,16 +59,16 @@ function decodeText(bytes, { xml = false } = {}) {
   }
 }
 
-function boundedText(value, limitations) {
+function boundedText(value, limitations, maxCharacters = MAX_TEXT_CHARACTERS) {
   const normalized = value.replace(/^\ufeff/, '').replace(/\r\n?/g, '\n').replace(/\f/g, '\n').trim()
   let end = 0, characters = 0
   for (const character of normalized) {
-    if (characters === MAX_TEXT_CHARACTERS) break
+    if (characters === maxCharacters) break
     end += character.length
     characters++
   }
   const truncated = end < normalized.length
-  if (truncated) limitations.push(`文字超过 ${MAX_TEXT_CHARACTERS} 字，仅保留前 ${MAX_TEXT_CHARACTERS} 字，后续文字未读取。`)
+  if (truncated) limitations.push(`文字超过 ${maxCharacters} 字，仅保留前 ${maxCharacters} 字，后续文字未读取。`)
   return { text: normalized.slice(0, end), characters, truncated }
 }
 
@@ -158,48 +159,84 @@ async function extractImage(bytes, format) {
   }
 }
 
-async function runPdfTool(tool, args, { deadline, maxBuffer }) {
-  const timeout = Math.min(15_000, deadline - Date.now())
+function pdfTimeRemaining(deadline, limit = PDF_PARSE_TIMEOUT_MS) {
+  const timeout = Math.min(limit, deadline - Date.now())
   if (timeout <= 0) throw fail('PDF 解析超时，请精简页面后重试。', 408)
+  return timeout
+}
+
+async function runPdfTool(tool, args, { deadline, maxBuffer, timeoutMs = PDF_PARSE_TIMEOUT_MS, signal }) {
+  signal?.throwIfAborted()
+  const timeout = pdfTimeRemaining(deadline, timeoutMs)
+  let closed
   try {
-    const { stdout } = await runFile(`/usr/bin/${tool}`, args, {
+    const pending = runFile(`/usr/bin/${tool}`, args, {
       encoding: 'buffer', timeout, maxBuffer, killSignal: 'SIGKILL', windowsHide: true,
-      env: { ...process.env, LC_ALL: 'C' },
+      env: { ...process.env, LC_ALL: 'C' }, signal,
     })
+    if (pending.child) closed = new Promise(resolve => pending.child.once('close', resolve))
+    const { stdout } = await pending
+    signal?.throwIfAborted()
     return stdout
   } catch (error) {
+    if (error?.name === 'AbortError' || (signal?.aborted && error === signal.reason)) throw error
+    signal?.throwIfAborted()
     if (error.code === 'ENOENT') throw fail('当前服务器缺少 PDF 解析工具。', 503)
-    if (error.killed || error.signal === 'SIGKILL') throw fail('PDF 解析超时，请精简页面后重试。', 408)
     if (error.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') throw fail('PDF 解析内容超过处理上限，请精简参考页。', 413)
+    if (error.killed || error.signal === 'SIGKILL') throw fail('PDF 解析超时，请精简页面后重试。', 408)
     if (/password|encrypted|permission/i.test(String(error.stderr ?? ''))) throw fail('PDF 受口令或权限保护，请解除保护后上传。')
     throw fail('PDF 损坏或无法读取，请重新导出后上传。')
+  } finally {
+    // AbortError can arrive before process exit. Wait before deleting files or releasing the upload queue.
+    await closed
   }
 }
 
-async function extractPdf(bytes) {
+async function extractPdf(bytes, signal) {
+  signal?.throwIfAborted()
   const directory = await mkdtemp(join(tmpdir(), 'layout-reference-'))
   try {
-    const input = join(directory, 'input.pdf'), deadline = Date.now() + 45_000
-    await writeFile(input, bytes, { mode: 0o600, flag: 'wx' })
-    const info = (await runPdfTool('pdfinfo', ['-enc', 'UTF-8', input], { deadline, maxBuffer: 1024 * 1024 })).toString('utf8')
+    signal?.throwIfAborted()
+    const input = join(directory, 'input.pdf'), deadline = Date.now() + PDF_PARSE_TIMEOUT_MS
+    await writeFile(input, bytes, { mode: 0o600, flag: 'wx', signal })
+    const info = (await runPdfTool('pdfinfo', ['-enc', 'UTF-8', input], { deadline, maxBuffer: 1024 * 1024, timeoutMs: 30_000, signal })).toString('utf8')
     if (/^Encrypted:\s+yes\b/im.test(info)) throw fail('PDF 受口令或权限保护，请解除保护后上传。')
     const pageCount = Number(/^Pages:\s+(\d+)\s*$/m.exec(info)?.[1])
     if (!Number.isSafeInteger(pageCount) || pageCount < 1) throw fail('PDF 没有可读取的页面。')
-    const count = Math.min(pageCount, MAX_PDF_PAGES), readPages = Array.from({ length: count }, (_, index) => index + 1)
-    const rawText = (await runPdfTool('pdftotext', ['-f', '1', '-l', String(count), '-layout', '-enc', 'UTF-8', input, '-'], { deadline, maxBuffer: 2 * 1024 * 1024 })).toString('utf8')
+    const count = Math.min(pageCount, MAX_REFERENCE_PDF_PAGES), readPages = Array.from({ length: count }, (_, index) => index + 1)
+    const rawText = (await runPdfTool('pdftotext', ['-f', '1', '-l', String(count), '-layout', '-enc', 'UTF-8', input, '-'], { deadline, maxBuffer: 2 * 1024 * 1024, timeoutMs: 120_000, signal })).toString('utf8')
     const limitations = []
     if (pageCount > count) limitations.push(`PDF 共 ${pageCount} 页，仅读取前 ${count} 页，后 ${pageCount - count} 页未读取。`)
-    const content = boundedText(rawText.replace(/[\u0000-\u0008\u000b\u000e-\u001f\u007f]/gu, ''), limitations)
+    const content = boundedText(rawText.replace(/[\u0000-\u0008\u000b\u000e-\u001f\u007f]/gu, ''), limitations, PDF_REFERENCE_TEXT_CHARACTERS)
+    // Render the selected range in one process so a large source PDF is opened only once.
+    // The fixed page count and pixel edge bound temporary output; only one preview is read at a time.
+    await runPdfTool('pdftoppm', ['-f', '1', '-l', String(count), '-scale-to', String(MAX_IMAGE_EDGE), '-jpeg', '-jpegopt', 'quality=90', input, join(directory, 'page')], { deadline, maxBuffer: 1024 * 1024, signal })
+    signal?.throwIfAborted()
+    const previews = new Map()
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const match = /^page-(\d+)\.jpg$/.exec(entry.name)
+      if (!match) continue
+      const page = Number(match[1])
+      if (!entry.isFile() || previews.has(page) || !readPages.includes(page)) throw fail('PDF 页面图像生成异常，请重新导出后上传。')
+      previews.set(page, join(directory, entry.name))
+    }
+    if (previews.size !== count) throw fail('PDF 页面图像生成不完整，请重新导出后上传。')
     const images = []
     for (const page of readPages) {
-      const preview = await runPdfTool('pdftoppm', ['-f', String(page), '-l', String(page), '-singlefile', '-scale-to', String(MAX_IMAGE_EDGE), '-jpeg', '-jpegopt', 'quality=90', input], { deadline, maxBuffer: 12 * 1024 * 1024 })
+      signal?.throwIfAborted()
+      pdfTimeRemaining(deadline)
+      const path = previews.get(page), file = await stat(path)
+      if (file.size > MAX_PDF_PREVIEW_BYTES) throw fail('PDF 页面图像超过处理上限，请精简参考页。', 413)
+      const preview = await readFile(path, { signal })
       const { image } = await normalizeImage(preview, 'jpeg')
       images.push({ ...image, page })
     }
+    signal?.throwIfAborted()
+    pdfTimeRemaining(deadline)
     if (!content.text) limitations.push('未提取到 PDF 文字，已提供页面图像供视觉分析；本模块不进行 OCR。')
     return {
       kind: 'pdf', mimeType: 'application/pdf', text: content.text, images, pageCount, readPages, limitations,
-      summary: `PDF 共 ${pageCount} 页，已读取${pageCount > count ? '前 ' : ' '}${count} 页并生成 ${count} 张页面图像${pageCount > count ? `，后 ${pageCount - count} 页未读取` : ''}。${!content.text ? '未检测到可提取文字，将使用页面图像分析。' : content.truncated ? `文字已截断至前 ${MAX_TEXT_CHARACTERS} 字。` : ''}`,
+      summary: `PDF 共 ${pageCount} 页，已读取${pageCount > count ? '前 ' : ' '}${count} 页并生成 ${count} 张页面图像${pageCount > count ? `，后 ${pageCount - count} 页未读取` : ''}。${!content.text ? '未检测到可提取文字，将使用页面图像分析。' : content.truncated ? `文字已截断至前 ${PDF_REFERENCE_TEXT_CHARACTERS} 字。` : ''}`,
     }
   } finally {
     await rm(directory, { recursive: true, force: true })
@@ -365,27 +402,27 @@ async function extractDocx(bytes) {
 }
 
 /** Read untrusted reference bytes without retaining originals or executing document content. */
-export async function extractReferenceDocument({ bytes, filename } = {}) {
+export async function extractReferenceDocument({ bytes, filename, signal } = {}) {
+  signal?.throwIfAborted()
   if (!(bytes instanceof Uint8Array) || typeof filename !== 'string' || !filename.trim()) throw fail('缺少有效的参考文件与文件名。')
   if (!bytes.byteLength) throw fail('参考文件为空。')
-  if (bytes.byteLength > MAX_REFERENCE_BYTES) throw fail('参考原件上限为 24 MiB，请精简后上传。', 413)
+  if (bytes.byteLength > referenceByteLimit(filename)) throw fail(`参考原件上限为 ${referenceLimitLabel(filename)}，请精简后上传。`, 413)
   const input = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)
   const extension = extname(filename).toLowerCase(), magic = identifyMagic(input)
+  let result
   if (imageFormats[extension]) {
     if (magic !== imageFormats[extension]) throw fail('图片内容与扩展名不符，请上传有效的 PNG、JPEG 或 WebP。', 415)
-    return extractImage(input, magic)
-  }
-  if (extension === '.pdf') {
+    result = await extractImage(input, magic)
+  } else if (extension === '.pdf') {
     if (magic !== 'pdf') throw fail('文件内容不是有效的 PDF。', 415)
-    return extractPdf(input)
-  }
-  if (extension === '.docx') {
+    result = await extractPdf(input, signal)
+  } else if (extension === '.docx') {
     if (magic !== 'zip') throw fail('文件内容不是有效的 DOCX。', 415)
-    return extractDocx(input)
-  }
-  if (textExtensions.has(extension)) {
+    result = await extractDocx(input)
+  } else if (textExtensions.has(extension)) {
     if (magic) throw fail('文件内容与文字文件扩展名不符。', 415)
-    return extractText(input, extension)
-  }
-  throw fail('参考文档支持 PDF、PNG、JPG、JPEG、WebP、TXT、Markdown 和 DOCX；JSON、PPTX 请使用专用导入。', 415)
+    result = await extractText(input, extension)
+  } else throw fail('参考文档支持 PDF、PNG、JPG、JPEG、WebP、TXT、Markdown 和 DOCX；JSON、PPTX 请使用专用导入。', 415)
+  signal?.throwIfAborted()
+  return result
 }

@@ -4,6 +4,7 @@ import {join,resolve} from 'node:path'
 import {isolatedEnvironment} from './model-runtime.mjs'
 import {modelRequestReceipts} from './execution-trace.mjs'
 import {agentActivity} from '../app/src/task-progress.mjs'
+import {MAX_REFERENCE_IMAGES,MAX_REFERENCE_IMAGE_BYTES} from '../app/src/layout-library/reference-limits.mjs'
 
 export function layoutReferenceExecution(events,{sessionId,policy,modelRole='parent'}){
  const requests=modelRequestReceipts(events,sessionId)
@@ -25,7 +26,8 @@ export function layoutReferenceExecution(events,{sessionId,policy,modelRole='par
 export async function runLayoutReference(workers,{jobId,prompt,policy,images=[],modelRole=images.length?'vision':'parent',signal,onEvent=()=>{}}){
  if(!/^[a-f0-9-]{36}$/.test(jobId))throw new Error('LAYOUT_JOB_ID')
  if(!['parent','vision'].includes(modelRole)||images.length&&modelRole!=='vision')throw new Error('LAYOUT_VISION_ROLE_REQUIRED')
- if(images.length>16)throw new Error('LAYOUT_REFERENCE_IMAGE_LIMIT')
+ if(images.length>MAX_REFERENCE_IMAGES)throw new Error('LAYOUT_REFERENCE_IMAGE_LIMIT')
+ if(images.reduce((n,image)=>n+Buffer.byteLength(image.data,'base64'),0)>MAX_REFERENCE_IMAGE_BYTES)throw new Error('LAYOUT_REFERENCE_IMAGE_BYTES_LIMIT')
  signal?.throwIfAborted()
  const {model}=await workers.configuration(policy,[modelRole],{parentRole:modelRole})
  const privateRoot=workers.config.privateRoot
@@ -37,6 +39,7 @@ export async function runLayoutReference(workers,{jobId,prompt,policy,images=[],
  await writeFile(policyFile,JSON.stringify(policy),{mode:0o600})
  await writeFile(patch,JSON.stringify([
   {id:'llm-pi-ai',config:{providers:model.providers}},
+  {id:'attachment-local',config:{maxImagesPerMessage:MAX_REFERENCE_IMAGES,maxMessageImageBytes:MAX_REFERENCE_IMAGE_BYTES}},
   {insert:[{id:'layout-reference-guard',name:new URL('./layout-reference-guard.mjs',import.meta.url).pathname}]},
   {id:'sdk-jsonrpc-server',inject:['sdkAppStartup','loader','preLayoutReferenceReady']},
  ]),{mode:0o600})

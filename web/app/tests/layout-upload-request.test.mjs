@@ -151,7 +151,7 @@ test('XHR uses authenticated JSON and reports only actual upload events before p
   assert.equal(xhr.url, '/api/layout-library/references')
   assert.equal(xhr.method, 'POST')
   assert.equal(xhr.async, true)
-  assert.equal(xhr.timeout, 180000)
+  assert.equal(xhr.timeout, 600000)
   assert.deepEqual(xhr.headers, {Authorization: 'Bearer upload-token', 'Content-Type': 'application/json'})
   assert.equal(xhr.sentBody, '{"filename":"reference.pdf","contentBase64":"YWJj"}')
   assert.deepEqual(progress, [])
@@ -174,6 +174,139 @@ test('XHR uses authenticated JSON and reports only actual upload events before p
   for (const event of ['onload', 'onerror', 'onabort', 'ontimeout']) assert.equal(xhr[event], null)
   assert.equal(xhr.upload.onprogress, null)
   assert.equal(xhr.upload.onload, null)
+})
+
+test('a 100 MiB PDF is sent as the original File with authenticated binary headers and real progress', async t => {
+  const harness = xhrHarness()
+  const controller = new AbortController()
+  const listeners = observeAbortListeners(controller.signal)
+  const progress = []
+  const file = new File([new Uint8Array(100 * 1024 * 1024)], '参考版式.PDF', {type: 'application/pdf'})
+  t.mock.method(file, 'arrayBuffer', () => assert.fail('binary upload must not read the file into memory'))
+  Object.defineProperty(file, 'toJSON', {value: () => assert.fail('binary upload must not JSON.stringify the file')})
+  useFileReader(t, class { constructor() { assert.fail('binary upload must not instantiate FileReader') } })
+  t.mock.method(globalThis, 'btoa', () => assert.fail('binary upload must not base64 encode the file'))
+  const request = createLayoutRequest({getToken: () => 'binary-token', ...harness,
+    fetchImpl: async () => assert.fail('binary uploads must use XHR'),
+  })
+  let resolved = false
+  const pending = request('/layout-library/references', {
+    file, requestId: 'reference_request-1', method: 'POST', signal: controller.signal,
+    onUploadProgress: event => progress.push(event),
+  }).then(result => { resolved = true; return result })
+  pending.catch(() => {})
+  const xhr = harness.instances[0]
+  assert.ok(xhr, 'a binary request must start XHR')
+  assert.equal(xhr.sentBody, file)
+  assert.equal(xhr.method, 'POST')
+  assert.equal(xhr.url, '/api/layout-library/references')
+  assert.equal(xhr.timeout, 600000)
+  assert.deepEqual(xhr.headers, {
+    Authorization: 'Bearer binary-token', 'Content-Type': 'application/octet-stream',
+    'X-Reference-Filename': '%E5%8F%82%E8%80%83%E7%89%88%E5%BC%8F.PDF',
+    'X-Reference-Request-Id': 'reference_request-1',
+  })
+  assert.deepEqual(progress, [])
+  xhr.upload.onprogress({lengthComputable: true, loaded: 52428800, total: 104857600})
+  xhr.upload.onprogress({lengthComputable: true, loaded: 104857600, total: 104857600})
+  xhr.upload.onload()
+  await Promise.resolve()
+  assert.equal(resolved, false)
+  assert.deepEqual(progress, [
+    {phase: 'uploading', loaded: 52428800, total: 104857600},
+    {phase: 'uploading', loaded: 104857600, total: 104857600},
+    {phase: 'parsing'},
+  ])
+  xhr.respond(200, {status: 'ready', pageCount: 30})
+  assert.deepEqual(await pending, {status: 'ready', pageCount: 30})
+  assert.equal(listeners.size, 0)
+})
+
+test('binary uploads use XHR even without a progress callback', async () => {
+  const harness = xhrHarness()
+  const file = new File(['image bytes'], 'reference.png')
+  const request = createLayoutRequest({getToken: () => 'token', ...harness,
+    fetchImpl: async () => assert.fail('binary uploads must use XHR'),
+  })
+  const pending = request('/layouts/references', {file, requestId: 'no_progress', method: 'POST'})
+  pending.catch(() => {})
+  const xhr = harness.instances[0]
+  assert.ok(xhr, 'a binary request must start XHR without a callback')
+  assert.equal(xhr.sentBody, file)
+  xhr.upload.onprogress({lengthComputable: true, loaded: file.size, total: file.size})
+  xhr.upload.onload()
+  xhr.respond(200, {status: 'ready'})
+  assert.deepEqual(await pending, {status: 'ready'})
+})
+
+test('binary file limits reject PDFs above 100 MiB and other files above 24 MiB before transport starts', async () => {
+  const request = createLayoutRequest({getToken: () => 'token',
+    fetchImpl: async () => assert.fail('oversized files must not start fetch'),
+    XMLHttpRequestCtor: class { constructor() { assert.fail('oversized files must not start XHR') } },
+  })
+  for (const [name, size, expectedLimit] of [
+    ['large.pdf', 100 * 1024 * 1024 + 1, /100/],
+    ['large.png', 24 * 1024 * 1024 + 1, /24/],
+    ['large.docx', 24 * 1024 * 1024 + 1, /24/],
+  ]) {
+    const file = new File(['x'], name)
+    Object.defineProperty(file, 'size', {value: size})
+    await assert.rejects(request('/layouts/references', {file, requestId: 'large-file', method: 'POST'}), expectedLimit)
+  }
+})
+
+test('binary uploads reject invalid request identifiers, filenames and simultaneous JSON bodies', async () => {
+  const request = createLayoutRequest({getToken: () => 'token',
+    fetchImpl: async () => assert.fail('invalid uploads must not start fetch'),
+    XMLHttpRequestCtor: class { constructor() { assert.fail('invalid uploads must not start XHR') } },
+  })
+  const file = new File(['pdf bytes'], 'valid.pdf')
+  for (const requestId of [undefined, '', 'has spaces', 'x'.repeat(101), 123]) {
+    await assert.rejects(request('/layouts/references', {file, requestId, method: 'POST'}), /请求编号/)
+  }
+  for (const name of ['', '   ', 'dir/file.pdf', 'dir\\file.pdf', 'line\nbreak.pdf', 'null\u0000byte.pdf', 'x'.repeat(181)]) {
+    await assert.rejects(request('/layouts/references', {
+      file: new File(['pdf bytes'], name), requestId: 'valid-id', method: 'POST',
+    }), /文件名/)
+  }
+  await assert.rejects(request('/layouts/references', {file, body: {}, requestId: 'valid-id', method: 'POST'}), /同时/)
+  await assert.rejects(request('/layouts/references', {file: null, requestId: 'valid-id', method: 'POST'}), /文件/)
+})
+
+test('binary uploads preserve server 401/413 errors', async () => {
+  for (const status of [401, 413]) {
+    const harness = xhrHarness()
+    const request = createLayoutRequest({getToken: () => 'token', ...harness,
+      fetchImpl: async () => assert.fail('binary uploads must use XHR'),
+    })
+    const pending = request('/layouts/references', {
+      file: new File(['pdf bytes'], 'reference.pdf'), requestId: 'error-request', method: 'POST',
+    })
+    const rejected = assert.rejects(pending, error => error.status === status && error.message === '上传被拒绝')
+    rejected.catch(() => {})
+    assert.ok(harness.instances[0], 'binary errors must be handled by XHR')
+    harness.instances[0].respond(status, {error: '上传被拒绝'})
+    await rejected
+  }
+})
+
+test('binary upload cancellation aborts XHR and removes signal listeners', async () => {
+  const harness = xhrHarness()
+  const controller = new AbortController()
+  const listeners = observeAbortListeners(controller.signal)
+  const request = createLayoutRequest({getToken: () => 'token', ...harness,
+    fetchImpl: async () => assert.fail('binary uploads must use XHR'),
+  })
+  const pending = request('/layouts/references', {
+    file: new File(['pdf bytes'], 'reference.pdf'), requestId: 'cancel-request', method: 'POST', signal: controller.signal,
+  })
+  const rejected = assert.rejects(pending, {name: 'AbortError'})
+  rejected.catch(() => {})
+  assert.ok(harness.instances[0], 'a cancellable binary request must start XHR')
+  controller.abort()
+  await rejected
+  assert.equal(harness.instances[0].aborted, true)
+  assert.equal(listeners.size, 0)
 })
 
 test('a progress callback without a body still uses fetch', async () => {
@@ -260,6 +393,7 @@ test('already cancelled requests never invoke a transport', async () => {
   })
   await assert.rejects(request('/layouts', {signal: controller.signal}), {name: 'AbortError'})
   await assert.rejects(request('/layouts', {body: {}, onUploadProgress() {}, signal: controller.signal}), {name: 'AbortError'})
+  await assert.rejects(request('/layouts', {file: new File(['x'], 'reference.pdf'), requestId: 'cancelled', signal: controller.signal}), {name: 'AbortError'})
 })
 
 test('FileReader returns base64 with the real reading progress and cleans listeners', async t => {
@@ -323,6 +457,19 @@ test('file size is checked before reading and again against actual bytes', async
   const rejected = assert.rejects(pending, /大小|上限/)
   readers[0].complete([1, 2, 3])
   await rejected
+})
+
+test('base64 reading derives its default limit from the filename and respects an explicit smaller limit', async t => {
+  const readers = fileReaderHarness(t)
+  const pending = readReferenceBase64({name: 'reference.PDF', size: 100 * 1024 * 1024})
+  pending.catch(() => {})
+  assert.ok(readers[0], 'PDF files up to 100 MiB must be accepted for reading')
+  readers[0].complete([97, 98, 99])
+  assert.equal(await pending, 'YWJj')
+  await assert.rejects(readReferenceBase64({name: 'reference.pdf', size: 100 * 1024 * 1024 + 1}), /100/)
+  await assert.rejects(readReferenceBase64({name: 'reference.png', size: 24 * 1024 * 1024 + 1}), /24/)
+  await assert.rejects(readReferenceBase64({name: 'legacy.pdf', size: 8 * 1024 * 1024 + 1}, {maxBytes: 8 * 1024 * 1024}), /8/)
+  assert.equal(readers.length, 1)
 })
 
 test('arrayBuffer fallback handles large binary input without fabricated progress or stack overflow', async t => {

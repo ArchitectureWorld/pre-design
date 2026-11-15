@@ -7,6 +7,7 @@ import {validateSnapshot} from '../model-policy.mjs'
 import {z} from 'zod'
 import {createLayoutConversations} from './conversations.mjs'
 import {decodeLayoutResponse} from './response.mjs'
+import {REFERENCE_ANALYSIS_TIMEOUT_MS} from './reference-limits.mjs'
 const skill=await readFile(new URL('../skills/layout-reference/SKILL.md',import.meta.url),'utf8')
 export const layoutSkillHash=createHash('sha256').update(skill).digest('hex')
 export function createLayoutJobs({db,platform,workers,library,uploads,serial,controllers,kick}){
@@ -52,7 +53,7 @@ export function createLayoutJobs({db,platform,workers,library,uploads,serial,con
  }
  async function execute(job){
   const controller=new AbortController();controllers.set(job.id,controller)
-  const signal=AbortSignal.any([controller.signal,AbortSignal.timeout(180000)])
+  const signal=AbortSignal.any([controller.signal,AbortSignal.timeout(REFERENCE_ANALYSIS_TIMEOUT_MS)])
   const activity=createTaskProgressReporter({write:progress=>db.query("UPDATE jobs SET progress=$2 WHERE id=$1 AND status='running'",[job.id,progress])})
   try{
    activity.report({stage:'preparing'})

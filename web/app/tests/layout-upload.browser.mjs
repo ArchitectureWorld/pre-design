@@ -24,7 +24,7 @@ try{
  await page.screenshot({path:resolve(out,'真实上传进度.png')})
  await page.locator('[data-remove-upload]').click();await wait(()=>document.querySelectorAll('[data-upload-row]').length===0);assert.equal(f.modelCalls.length,0);checks++
  await cdp.send('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1})
- const originalPdf=pdf(Array.from({length:6},(_,i)=>({text:'REFERENCE PAGE '+(i+1)}))),png=await sharp({create:{width:180,height:90,channels:3,background:'#235740'}}).png().toBuffer(),jpeg=await sharp(png).jpeg().toBuffer()
+ const originalPdf=pdf(Array.from({length:31},(_,i)=>({text:'REFERENCE PAGE '+(i+1)}))),png=await sharp({create:{width:180,height:90,channels:3,background:'#235740'}}).png().toBuffer(),jpeg=await sharp(png).jpeg().toBuffer()
  const zip=new JSZip();zip.file('[Content_Types].xml','<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');zip.file('word/document.xml','<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>版式文档参考，标题与正文层级清晰。</w:t></w:r></w:p></w:body></w:document>')
  const word=await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE'})
  await page.locator('[data-chat-file]').setInputFiles([{name:'分页参考.pdf',mimeType:'application/pdf',buffer:originalPdf},{name:'图像参考.jpg',mimeType:'image/jpeg',buffer:jpeg},{name:'图像参考.jpeg',mimeType:'image/jpeg',buffer:jpeg},{name:'图像参考.png',mimeType:'image/png',buffer:png},{name:'文字参考.docx',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',buffer:word}])
@@ -34,10 +34,10 @@ try{
  await wait(()=>{const bar=document.querySelector('[data-model-progress]');return bar&&!bar.hidden})
  assert.equal(await page.locator('[data-model-progress]').getAttribute('value'),null);checks++
  await wait(()=>document.querySelector('[data-chat-messages]')?.textContent.includes('已生成墨绿色版式'))
- assert.equal(f.modelCalls.length,1);assert.equal(f.modelCalls[0].modelRole,'vision');assert.equal(f.modelCalls[0].images.length,7);assert.match(f.modelCalls[0].prompt,/版式文档参考/);checks++
+ assert.equal(f.modelCalls.length,1);assert.equal(f.modelCalls[0].modelRole,'vision');assert.equal(f.modelCalls[0].images.length,33);assert.match(f.modelCalls[0].prompt,/版式文档参考/);checks++
  const entries=(await f.request('GET','/layout-library/conversations')).conversations,conversation=await f.request('GET','/layout-library/conversations/'+entries[0].id)
- assert.equal(conversation.referenceFiles.length,5);const pdfFile=conversation.referenceFiles.find(file=>file.kind==='pdf');assert.equal(pdfFile.pageCount,6);assert.deepEqual(pdfFile.readPages,[1,2,3,4]);checks++
- assert.match(await page.locator('[data-chat-files]').innerText(),/前4\/6页/);assert(conversation.resource.package.source.limitations.some(note=>note.includes('后 2 页未读取')));checks++
+ assert.equal(conversation.referenceFiles.length,5);const pdfFile=conversation.referenceFiles.find(file=>file.kind==='pdf');assert.equal(pdfFile.pageCount,31);assert.deepEqual(pdfFile.readPages,Array.from({length:30},(_,i)=>i+1));checks++
+ assert.match(await page.locator('[data-chat-files]').innerText(),/前30\/31页/);assert(conversation.resource.package.source.limitations.some(note=>note.includes('后 1 页未读取')));checks++
  await page.screenshot({path:resolve(out,'多格式参考已分析.png')})
  await page.locator('[data-close]').click();await page.reload();await page.locator('[data-layout-library-open]').click();await page.locator('[data-resource-card="'+conversation.resource.id+'"]').click();await wait(()=>document.querySelectorAll('[data-download-reference]').length===5);checks++
  const downloadEvent=page.waitForEvent('download');await page.locator('[data-download-reference="'+pdfFile.id+'"]').click();const download=await downloadEvent;assert.equal(download.suggestedFilename(),'分页参考.pdf');assert.deepEqual(await readFile(await download.path()),originalPdf);checks++

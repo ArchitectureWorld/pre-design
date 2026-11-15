@@ -62,11 +62,13 @@ test('真实DSH启动后版式约束已就绪，发往Responses接口的请求�
  assert.match(JSON.stringify(requests[0].input),/专用的版式提炼器/)
  assert(!/coding assistant|software engineer|\bbash\b/i.test(JSON.stringify(requests[0].input)),'独立提炼不应继承通用编程系统提示或shell环境')
  const sharp=(await import('sharp')).default,bytes=await sharp({create:{width:32,height:24,channels:3,background:'#235740'}}).png().toBuffer()
- const images=[{fileId:randomUUID(),name:'原图.png',mimeType:'image/png',data:bytes.toString('base64'),sha256:'a'.repeat(64)}]
+ const fileId=randomUUID(),images=Array.from({length:30},(_,index)=>({fileId,name:'30页参考.pdf',page:index+1,mimeType:'image/png',data:bytes.toString('base64'),sha256:'a'.repeat(64)}))
  const visual=await reference.runLayoutReference(workers,{jobId:randomUUID(),prompt:'读取这张参考图。',images,modelRole:'vision',policy,signal:AbortSignal.timeout(40000)})
- const image=requests[1].input.flatMap(message=>message.content??[]).find(block=>block.type==='input_image')
+ const imageBlocks=requests[1].input.flatMap(message=>message.content??[]).filter(block=>block.type==='input_image');assert.equal(imageBlocks.length,30)
+ const image=imageBlocks.at(-1)
  assert(image?.image_url?.startsWith('data:image/png;base64,'),'真正的图片字节应进入模型请求')
  assert.deepEqual(Buffer.from(image.image_url.split(',')[1],'base64'),bytes)
+ assert.equal(visual.execution.referenceImages.length,30);assert.equal(visual.execution.referenceImages.at(-1).page,30)
  assert.equal(visual.execution.requestedRole,'vision');assert.equal(visual.execution.referenceImages[0].fileId,images[0].fileId)
  assert(!JSON.stringify(visual.execution).includes(images[0].data),'公开收执不包含图片正文')
  await assert.rejects(reference.runLayoutReference(workers,{jobId:randomUUID(),prompt:'图片',images,modelRole:'parent',policy}),/LAYOUT_VISION_ROLE_REQUIRED/)
@@ -94,14 +96,30 @@ test('图片参考固定使用图片理解主备链，不能回退到文字模�
  assert.equal(await fail({agent:{id:'layout-test'},provider:vision.runtimeProvider,failure:{code:'SERVER'}},()=>null),null)
 })
 
+test('版式网关拒绝大请求可沿已配视觉备用链继续，真实上下文超限不擅自重试',async()=>{
+ const policy=defaultPolicy(),primary=policy.models.find(m=>m.provider==='yaoguang-codex'),visual=policy.models.find(m=>m.provider==='SenseNova'&&m.model==='sensenova-6.8-flash-lite')
+ for(const row of [primary,visual]){row.status='verified';row.capabilities.tools=true;row.capabilities.vision=true}
+ policy.routes.vision={primary:{provider:primary.provider,model:primary.model},fallbacks:[{provider:visual.provider,model:visual.model}]}
+ const bodyLimit={code:'CONTEXT_WINDOW_EXCEEDED',message:primary.runtimeProvider+' API error (413): {"message":"Request body exceeds the gateway limit","type":"invalid_request_error"}'}
+ for(const enabled of [false,true]){
+  const hooks=new Map();await installModelBoundary({on:(n,fn)=>hooks.set(n,fn)},{sessionId:'layout-size',snapshot:policy,classRoutes:{},parentRole:'vision',allowRequestSizeFallback:enabled})
+  const fail=hooks.get('agent/request-error'),request=hooks.get('agent/request'),base={agent:{id:'layout-size'},provider:primary.runtimeProvider}
+  assert.equal(await fail({...base,failure:{code:'CONTEXT_WINDOW_EXCEEDED',message:'maximum context length exceeded'}},()=>null),null)
+  const result=await fail({...base,failure:bodyLimit},()=>null);assert.deepEqual(result,enabled?{kind:'retry'}:null)
+  assert.equal((await request({agent:{id:'layout-size'}},()=>({}))).model,enabled?visual.model:primary.model)
+  assert.equal(await fail({...base,provider:visual.runtimeProvider,failure:bodyLimit},()=>null),null)
+ }
+})
+
 test('真实DSH携图时仅沿视觉备用链切换协议，保留图片且不接受失败流的正文',{timeout:60000},async t=>{
  const {createServer}=await import('node:http'),{mkdtemp,rm}=await import('node:fs/promises'),{tmpdir}=await import('node:os'),{join}=await import('node:path'),{randomUUID}=await import('node:crypto'),{materializeModelRuntime}=await import('../../worker/model-runtime.mjs'),sharp=(await import('sharp')).default
  const policy=defaultPolicy(),visual=policy.models.find(m=>m.provider==='SenseNova'&&m.model==='sensenova-6.8-flash-lite'),text=policy.models.find(m=>m.provider==='SenseNova'&&m.model==='glm-5.3'),primary=policy.models.find(m=>m.provider==='yaoguang-codex')
  for(const row of [visual,text,primary]){row.status='verified';row.capabilities.tools=true;row.maxOutputTokens=8192};primary.capabilities.vision=true
  policy.routes.parent={primary:{provider:text.provider,model:text.model},fallbacks:[]};policy.routes.vision={primary:{provider:primary.provider,model:primary.model},fallbacks:[{provider:visual.provider,model:visual.model}]}
- const root=await mkdtemp(join(tmpdir(),'layout-vision-fallback-')),requests=[],image=await sharp({create:{width:32,height:24,channels:3,background:'#3454a0'}}).png().toBuffer()
+ const root=await mkdtemp(join(tmpdir(),'layout-vision-fallback-')),requests=[],image=await sharp({create:{width:32,height:24,channels:3,background:'#3454a0'}}).png().toBuffer();let gatewayBodyLimit=false
  const server=createServer(async(req,res)=>{
   let raw='';for await(const part of req)raw+=part;const body=JSON.parse(raw);requests.push({body,authorization:req.headers.authorization,path:req.url})
+  if(body.model===primary.model&&gatewayBodyLimit){res.writeHead(413,{'content-type':'application/json'});res.end(JSON.stringify({message:'Request body exceeds the gateway limit',type:'invalid_request_error'}));return}
   res.writeHead(200,{'content-type':'text/event-stream'})
   if(body.model===primary.model){res.end('event: error\ndata: '+JSON.stringify({type:'error',error:{type:'provider_error',message:'Provider stream interrupted or invalid'}})+'\n\n');return}
   const base={id:'vision-fixture',object:'chat.completion.chunk',created:1,model:body.model}
@@ -117,4 +135,8 @@ test('真实DSH携图时仅沿视觉备用链切换协议，保留图片且不�
  assert.deepEqual(requests.map(r=>r.authorization),['Bearer yao-fixture','Bearer sense-fixture'])
  const first=requests[0].body.input.flatMap(m=>m.content??[]).find(c=>c.type==='input_image')?.image_url,second=requests[1].body.messages.flatMap(m=>Array.isArray(m.content)?m.content:[]).find(c=>c.type==='image_url')?.image_url?.url
  assert(first&&second);assert.deepEqual(Buffer.from(first.split(',')[1],'base64'),image);assert.deepEqual(Buffer.from(second.split(',')[1],'base64'),image)
+ gatewayBodyLimit=true
+ const large=await reference.runLayoutReference(workers,{jobId:randomUUID(),prompt:'分析前30页。',images:Array.from({length:30},(_,i)=>({fileId:randomUUID(),name:'参考.pdf',page:i+1,data:image.toString('base64'),mimeType:'image/png',sha256:'b'.repeat(64)})),policy,signal:AbortSignal.timeout(40000)})
+ assert.equal(large.execution.actualRoute.model,visual.model);assert.equal(large.execution.referenceImages.length,30)
+ const fallbackImages=requests.at(-1).body.messages.flatMap(m=>Array.isArray(m.content)?m.content:[]).filter(c=>c.type==='image_url');assert.equal(fallbackImages.length,30);assert.deepEqual(Buffer.from(fallbackImages.at(-1).image_url.url.split(',')[1],'base64'),image)
 })
