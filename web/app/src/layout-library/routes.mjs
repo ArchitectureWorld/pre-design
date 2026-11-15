@@ -51,6 +51,14 @@ export function registerLayoutRoutes({app,library,project,workflows,serial,event
  app.post('/api/layout-library/:resourceId/retire',async req=>{
   const b=mutation.extend({expectedVersion:version}).parse(req.body);return library.retire(req.user,{...b,id:id.parse(req.params.resourceId)})
  })
+ app.post('/api/layout-library/:resourceId/delete',async req=>{
+  const b=mutation.extend({expectedVersion:version}).parse(req.body)
+  return library.remove(req.user,{...b,kind:'resource',id:id.parse(req.params.resourceId)})
+ })
+ app.post('/api/layout-library/:resourceId/restore',async req=>{
+  const b=mutation.extend({deleteToken:id}).parse(req.body)
+  return library.restore(req.user,{...b,kind:'resource',id:id.parse(req.params.resourceId)})
+ })
  app.get('/api/layout-library/:resourceId/:version/export',async(req,reply)=>{
   const x=await library.get(req.user,id.parse(req.params.resourceId),version.parse(Number(req.params.version)))
   reply.type('application/json').header('Content-Disposition',`attachment; filename="pre-design-layout-${x.id}-v${x.version}.json"`)
@@ -103,6 +111,8 @@ export function registerLayoutRoutes({app,library,project,workflows,serial,event
   return library.create(req.user,{requestId:b.requestId,package:exportReusable(page,b.name)})
  })
  if(enqueueReference){
+  app.post('/api/layout-library/conversations/:conversationId/delete',req=>library.remove(req.user,{...mutation.parse(req.body),kind:'conversation',id:id.parse(req.params.conversationId)}))
+  app.post('/api/layout-library/conversations/:conversationId/restore',req=>library.restore(req.user,{...mutation.extend({deleteToken:id}).parse(req.body),kind:'conversation',id:id.parse(req.params.conversationId)}))
   app.get('/api/layout-library/conversations',async req=>({conversations:await listConversations(req)}))
   app.get('/api/layout-library/conversations/:conversationId',req=>{id.parse(req.params.conversationId);return getConversation(req)})
   app.post('/api/layout-library/conversations',async req=>{

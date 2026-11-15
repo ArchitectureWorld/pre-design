@@ -12,3 +12,5 @@
 .root-meta .canvas-layout-chip{max-width:118px;flex:0 1 118px}
 
 .ll-head [data-library-nav]{display:none}@media(max-width:620px){.ll-head [data-library-nav]{display:block}.ll-dialog.nav-open .ll-sidebar{display:block;position:absolute;z-index:4;top:58px;bottom:0;left:0;width:200px;box-shadow:10px 0 30px #24364c22}.ll-unified{grid-template-columns:minmax(160px,1fr) 230px;overflow-x:auto}}
+
+.ll-chat-head button{gap:6px;white-space:nowrap;font-size:12px}.ll-card-row{position:relative;min-width:0}.ll-card-row>.ll-card{width:100%;padding-bottom:10px}.ll-card-row small{padding-right:22px}.ll-dialog .ll-card-delete{position:absolute;right:6px;bottom:5px;display:flex;align-items:center;padding:4px;border-color:transparent;background:transparent;color:#778399}.ll-dialog .ll-card-delete:hover{background:#fff1f0;color:#ae4038;border-color:#edc8c5}.ll-card-draft{min-height:82px;border-style:dashed!important}.ll-head [data-undo-delete]{color:#3454a0;white-space:nowrap;font-size:12px}

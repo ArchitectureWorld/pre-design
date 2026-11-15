@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import {validatePackage,packageDigest,RENDERER,fail,patchSchema,resolvePage,exportReusable} from './contract.mjs'
 import {FIXTURES_VERSION} from './validation.mjs'
 const own=(r,a)=>r.owner_id===a.id||a.role==='admin'
-const published=(r,v)=>!r.retired&&v.version===r.published_version
+const published=(r,v)=>!r.retired&&!r.deleted_id&&v.version===r.published_version
 export async function createLayoutLibrary(db){
  await db.query(`CREATE TABLE IF NOT EXISTS layout_library_resources(
  id uuid PRIMARY KEY,owner_id text NOT NULL,visibility text NOT NULL DEFAULT 'private',version integer NOT NULL,
@@ -12,18 +12,21 @@ export async function createLayoutLibrary(db){
  CREATE TABLE IF NOT EXISTS layout_library_usage(visual_id uuid NOT NULL,resource_id uuid NOT NULL,resource_version integer NOT NULL,page_id text NOT NULL,project_id uuid NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(visual_id,resource_id,page_id));
  CREATE TABLE IF NOT EXISTS layout_library_mutations(actor_id text NOT NULL,request_id text NOT NULL,fingerprint text NOT NULL,result jsonb NOT NULL,PRIMARY KEY(actor_id,request_id));
  CREATE TABLE IF NOT EXISTS layout_project_bindings(project_id uuid PRIMARY KEY,draft_id uuid NOT NULL,revision integer NOT NULL,document jsonb NOT NULL,updated_at timestamptz NOT NULL DEFAULT now());
- CREATE TABLE IF NOT EXISTS layout_binding_versions(project_id uuid NOT NULL,revision integer NOT NULL,draft_id uuid NOT NULL,document jsonb NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(project_id,revision));`)
+ CREATE TABLE IF NOT EXISTS layout_binding_versions(project_id uuid NOT NULL,revision integer NOT NULL,draft_id uuid NOT NULL,document jsonb NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(project_id,revision));
+ CREATE TABLE IF NOT EXISTS layout_library_deletions(target_kind text NOT NULL,target_id uuid NOT NULL,delete_token uuid NOT NULL,deleted_by text NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(target_kind,target_id));`)
  const query=async(sql,args=[],c=db)=>(await c.query(sql,args)).rows
- async function resource(id,c=db){const [r]=await query('SELECT * FROM layout_library_resources WHERE id=$1',[id],c);if(!r)throw fail('版式资源不存在。',404);return r}
+ async function isRemoved(kind,id,c=db){const [r]=await query('SELECT delete_token FROM layout_library_deletions WHERE target_kind=$1 AND target_id=$2',[kind,id],c);return r?.delete_token??null}
+ async function activeResource(id,c=db){if(await isRemoved('resource',id,c))throw fail('此版式已删除，请先撤销删除。',409)}
+ async function resource(id,c=db){const [r]=await query("SELECT r.*,d.target_id AS deleted_id FROM layout_library_resources r LEFT JOIN layout_library_deletions d ON d.target_kind='resource' AND d.target_id=r.id WHERE r.id=$1",[id],c);if(!r)throw fail('版式资源不存在。',404);return r}
  async function get(actor,id,version,c=db){
   const r=await resource(id,c)
   const wanted=version??(own(r,actor)?r.version:r.published_version)
   const [v]=await query('SELECT * FROM layout_library_versions WHERE resource_id=$1 AND version=$2',[id,wanted],c)
   if(!v||!own(r,actor)&&!(r.visibility!=='private'&&published(r,v)))throw fail('版式资源不存在。',404)
-  return {id:r.id,version:v.version,latestVersion:r.version,publishedVersion:r.published_version,ownerId:r.owner_id,visibility:r.visibility,retired:!!r.retired,shareRequested:!!r.share_requested,published:published(r,v),package:v.document,hash:v.hash,validation:v.validation,createdAt:v.created_at}
+  return {id:r.id,version:v.version,latestVersion:r.version,publishedVersion:r.published_version,ownerId:r.owner_id,visibility:r.visibility,retired:!!r.retired,deleted:!!r.deleted_id,shareRequested:!!r.share_requested,published:published(r,v),package:v.document,hash:v.hash,validation:v.validation,createdAt:v.created_at}
  }
  async function list(actor){
-  const rows=await query("SELECT * FROM layout_library_resources WHERE owner_id=$1 OR $2=true OR (visibility<>'private' AND published_version IS NOT NULL AND retired=false) ORDER BY created_at DESC",[actor.id,actor.role==='admin'])
+  const rows=await query("SELECT * FROM layout_library_resources r WHERE (owner_id=$1 OR $2=true OR (visibility<>'private' AND published_version IS NOT NULL AND retired=false)) AND NOT EXISTS(SELECT 1 FROM layout_library_deletions d WHERE d.target_kind='resource' AND d.target_id=r.id) ORDER BY created_at DESC",[actor.id,actor.role==='admin'])
   const results=[]
   for(const r of rows){const x=await get(actor,r.id);const [usage]=await query('SELECT count(*) AS n FROM layout_library_usage WHERE resource_id=$1',[r.id]);results.push({...x,usageCount:Number(usage.n),editable:own(r,actor)})}
   return results
@@ -46,7 +49,7 @@ export async function createLayoutLibrary(db){
   const p=validatePackage(b.package)
   return mutation(actor,b.requestId,{op:'create',package:p,sourceHash:b.sourceFile?.sha256??null},async c=>{
    const hash=packageDigest(p)
-   const [duplicate]=await query('SELECT r.id,r.version FROM layout_library_resources r JOIN layout_library_versions v ON v.resource_id=r.id AND v.version=r.version WHERE r.owner_id=$1 AND r.retired=false AND v.hash=$2',[actor.id,hash],c)
+   const [duplicate]=await query("SELECT r.id,r.version FROM layout_library_resources r JOIN layout_library_versions v ON v.resource_id=r.id AND v.version=r.version WHERE r.owner_id=$1 AND r.retired=false AND v.hash=$2 AND NOT EXISTS(SELECT 1 FROM layout_library_deletions d WHERE d.target_kind='resource' AND d.target_id=r.id)",[actor.id,hash],c)
    if(duplicate)return {id:duplicate.id,version:duplicate.version,hash,reused:true}
    const id=randomUUID()
    await c.query('INSERT INTO layout_library_resources(id,owner_id,version) VALUES($1,$2,1)',[id,actor.id])
@@ -59,6 +62,7 @@ export async function createLayoutLibrary(db){
   return mutation(actor,b.requestId,{...b,package:p,op:'revise'},async c=>{
    const [r]=await query('SELECT * FROM layout_library_resources WHERE id=$1 FOR UPDATE',[b.id],c)
    if(!r||!own(r,actor))throw fail('版式资源不存在。',404)
+   await activeResource(b.id,c)
    if(r.version!==b.expectedVersion)throw fail('版式已有新版本，请刷新后编辑。',409)
    const version=r.version+1,hash=packageDigest(p)
    const [old]=await query('SELECT hash FROM layout_library_versions WHERE resource_id=$1 AND version=$2',[r.id,r.version],c)
@@ -70,6 +74,7 @@ export async function createLayoutLibrary(db){
  async function saveValidation(actor,id,version,result){
   const x=await get(actor,id,version)
   if(x.ownerId!==actor.id&&actor.role!=='admin')throw fail('只允许检查自己的候选资源。',403)
+  await activeResource(id)
   if(result.packageHash!==x.hash||result.renderer!==RENDERER||result.fixturesVersion!==FIXTURES_VERSION)throw fail('检查记录与资源或渲染版本不一致。',409)
   await db.query('UPDATE layout_library_versions SET validation=$3 WHERE resource_id=$1 AND version=$2',[id,version,result]);return result
  }
@@ -77,6 +82,7 @@ export async function createLayoutLibrary(db){
   return mutation(actor,b.requestId,{...b,op:'publish'},async c=>{
    const [r]=await query('SELECT * FROM layout_library_resources WHERE id=$1 FOR UPDATE',[b.id],c)
    if(!r||!own(r,actor))throw fail('版式资源不存在。',404)
+   await activeResource(b.id,c)
    if(b.version!==r.version)throw fail('发布时必须审阅当前候选版本。',409)
    const v=await get(actor,b.id,b.version,c),q=v.validation,p=v.package
    if(b.visibility!=='private'&&actor.role!=='admin')throw fail('共享和官方发布需要管理员审查。',403)
@@ -97,9 +103,34 @@ export async function createLayoutLibrary(db){
  async function requestShare(actor,b){return mutation(actor,b.requestId,{...b,op:'share-request'},async c=>{
   const x=await get(actor,b.id,b.version,c)
   if(x.ownerId!==actor.id||x.latestVersion!==b.version)throw fail('只能申请共享自己的当前版本。',409)
+  await activeResource(b.id,c)
   if(!x.package.rights.shareAllowed||x.package.rights.basis==='unknown')throw fail('请先补充共享授权声明。',409)
   await c.query('UPDATE layout_library_resources SET share_requested=true WHERE id=$1',[b.id]);return {id:b.id,status:'pending-admin-review'}
  })}
+ async function changeDeletion(actor,b,restore=false){
+  return mutation(actor,b.requestId,{...b,op:restore?'restore':'delete'},async c=>{
+   if(b.kind==='resource'){
+    const [r]=await query('SELECT * FROM layout_library_resources WHERE id=$1 FOR UPDATE',[b.id],c)
+    if(!r||!own(r,actor))throw fail('版式资源不存在。',404)
+    if(!restore&&r.version!==b.expectedVersion)throw fail('版式已有新版本，请刷新后删除。',409)
+   }else{
+    const [root]=await query("SELECT id FROM jobs WHERE id=$1 AND owner_id=$2 AND kind='layout-reference' FOR UPDATE",[b.id,actor.id],c)
+    if(!root)throw fail('版式草稿不存在。',404)
+    if(!restore){
+     const linked=await query("SELECT id FROM jobs WHERE owner_id=$1 AND kind='layout-reference' AND (id=$2 OR payload->>'conversationId'=$2::text) AND (result->>'id' IS NOT NULL OR payload->'baseResource'->>'id' IS NOT NULL)",[actor.id,b.id],c)
+     if(linked.length)throw fail('版式已经保存，请从对应版式卡片删除。',409)
+    }
+   }
+   const existing=await isRemoved(b.kind,b.id,c)
+   if(restore){
+    if(existing!==b.deleteToken)throw fail('删除记录已变化，请刷新后重试。',409)
+    await c.query('DELETE FROM layout_library_deletions WHERE target_kind=$1 AND target_id=$2',[b.kind,b.id]);return {id:b.id,restored:true}
+   }
+   const deleteToken=existing??randomUUID()
+   if(!existing)await c.query('INSERT INTO layout_library_deletions(target_kind,target_id,delete_token,deleted_by) VALUES($1,$2,$3,$4)',[b.kind,b.id,deleteToken,actor.id])
+   return {id:b.id,deleted:true,deleteToken}
+  })
+ }
  async function bindings(p,c=db){
   const [r]=await query('SELECT * FROM layout_project_bindings WHERE project_id=$1',[p.id],c)
   return r?{revision:r.revision,draftId:r.draft_id,...r.document}:{revision:0,draftId:null,global:null,local:{},manual:{}}
@@ -107,7 +138,7 @@ export async function createLayoutLibrary(db){
  async function freezeRef(actor,ref,c){
   if(!ref)return null
   const x=await get(actor,ref.resourceId,ref.version,c)
-  if(x.retired||!x.published&&x.ownerId!==actor.id)throw fail('请选择个人版式或已发布的共享版式。',409)
+  if(x.deleted||x.retired||!x.published&&x.ownerId!==actor.id)throw fail('请选择未删除的个人版式或已发布的共享版式。',409)
   return {resourceId:x.id,version:x.version,hash:x.hash,package:x.package}
  }
  async function saveBindings(actor,p,b,draft){
@@ -165,5 +196,5 @@ export async function createLayoutLibrary(db){
   await c.query('UPDATE layout_project_bindings SET draft_id=$2,revision=$3,document=$4,updated_at=now() WHERE project_id=$1',[p.id,draft.id,revision,document])
   await c.query('INSERT INTO layout_binding_versions(project_id,revision,draft_id,document) VALUES($1,$2,$3,$4)',[p.id,revision,draft.id,document])
  }
- return {sourceFile,list,get,create,revise,saveValidation,publish,retire,requestShare,bindings,saveBindings,carryBindings,compilePages,freezeRef,exportReusable}
+ return {sourceFile,list,get,create,revise,saveValidation,publish,retire,requestShare,bindings,saveBindings,carryBindings,compilePages,freezeRef,exportReusable,isRemoved,remove:(actor,b)=>changeDeletion(actor,b),restore:(actor,b)=>changeDeletion(actor,b,true)}
 }

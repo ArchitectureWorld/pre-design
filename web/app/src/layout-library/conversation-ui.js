@@ -15,7 +15,7 @@ async function readText(file){
 }
 
 export function mountLayoutConversation({container,request,notify,getContext,onResource,onDraft=()=>{},onImport,onState=()=>{},onChange=()=>{}}){
- container.innerHTML=`<header class="ll-chat-head"><div><strong>版式助手</strong><small data-chat-model>读取模型设置…</small></div><button type="button" data-chat-upload aria-label="上传参考文件" title="上传参考文件"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M5 14v6h14v-6"/></svg></button><input data-chat-file type="file" accept=".txt,.md,.markdown,.json,.pptx" multiple hidden></header>
+ container.innerHTML=`<header class="ll-chat-head"><div><strong>版式助手</strong></div><button type="button" data-chat-upload aria-label="上传参考文件" title="上传参考文件"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M5 14v6h14v-6"/></svg><span>参考文件</span></button><input data-chat-file type="file" accept=".txt,.md,.markdown,.json,.pptx" multiple hidden></header>
  <div class="ll-chat-files" data-chat-files></div><div class="ll-chat-messages" data-chat-messages role="log" aria-live="polite"></div>
  <div class="ll-chat-composer"><div data-chat-selection></div><textarea data-layout-message rows="3" maxlength="16000" placeholder="输入修改意见，或选中左侧内容继续讨论…" aria-label="版式会话"></textarea><div class="ll-chat-actions"><span data-chat-status role="status"></span><button data-chat-stop hidden>停止</button><button data-layout-send class="ll-primary" aria-label="发送版式消息">发送 ↑</button></div></div>`
  const find=selector=>container.querySelector(selector),input=find('[data-layout-message]'),filesInput=find('[data-chat-file]')
@@ -26,7 +26,7 @@ export function mountLayoutConversation({container,request,notify,getContext,onR
   const job=running(),busy=!!job
   find('[data-layout-send]').disabled=submitting||busy||!config?.configured||!input.value.trim()&&!pendingFiles.length
   find('[data-chat-stop]').hidden=!busy;find('[data-chat-stop]').disabled=job?.status==='cancelling'
-  find('[data-chat-status]').textContent=submitting?'正在提交…':job?.progress?.label??(busy?'正在生成…':'')
+  find('[data-chat-status]').textContent=submitting?'正在提交…':job?.progress?.label??(busy?'正在生成…':config?.configured===false?'暂时无法连接，请稍后重试':'')
   onState({busy:busy||submitting,conversation})
  }
  function renderFiles(){
@@ -116,7 +116,7 @@ export function mountLayoutConversation({container,request,notify,getContext,onR
  input.onkeydown=event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();void send()}}
  find('[data-layout-send]').onclick=()=>void send()
  find('[data-chat-stop]').onclick=async()=>{const job=running();if(!job)return;try{await request('/layout-library/reference-jobs/'+job.id+'/cancel',{method:'POST',body:{}});await load()}catch(error){notify(error.message)}}
- void request('/layout-library/reference-config').then(value=>{if(disposed)return;config=value;find('[data-chat-model]').textContent=value.configured?value.modelName:value.reason??'模型尚未配置';controls()}).catch(error=>{if(!disposed)find('[data-chat-model]').textContent=error.message})
+ void request('/layout-library/reference-config').then(value=>{if(disposed)return;config=value;controls()}).catch(()=>{if(!disposed){config={configured:false};controls()}})
  renderFiles();renderMessages();controls()
  return {select,refresh:load,get id(){return currentId},get busy(){return !!running()||submitting},
   focusSelection(value){selection=value;find('[data-chat-selection]').innerHTML=`<span class="ll-selection">${esc(roles[value.slot]??value.slot)}<button aria-label="取消引用">×</button></span>`;find('[data-chat-selection] button').onclick=()=>{selection=null;find('[data-chat-selection]').replaceChildren()};input.focus()},

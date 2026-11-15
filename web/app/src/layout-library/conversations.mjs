@@ -14,11 +14,13 @@ export function createLayoutConversations(db,library){
   return query("SELECT * FROM jobs WHERE owner_id=$1 AND kind='layout-reference' AND (id=$2 OR payload->>'conversationId'=$2::text) ORDER BY created_at,id",[actor.id,conversationId],c)
  }
  async function prepare(actor,input,jobId,c){
+  if(input.conversationId&&await library.isRemoved('conversation',input.conversationId,c))throw fail('此版式草稿已删除，请先撤销删除。',409)
   const history=input.conversationId?await rows(actor,input.conversationId,c):[]
   if(history.some(row=>active(row.status)))throw fail('当前回复正在生成，请完成或停止后再发送。',409)
   const previous=history.findLast(row=>referenceOf(row))
   const ref=input.resourceId?{id:input.resourceId,version:input.resourceVersion}:previous?referenceOf(previous):null
   const resource=ref?await library.get(actor,ref.id,ref.version,c):null
+  if(resource?.deleted)throw fail('此版式已删除，请先撤销删除。',409)
   if(resource?.ownerId===actor.id&&resource.version!==resource.latestVersion)throw fail('版式已有新版本，请刷新后继续会话。',409)
   const files=input.files??[]
   const name=(input.name??input.package?.name??resource?.package.name??files[0]?.name.replace(/\.[^.]+$/u,'').slice(0,100)??'我的版式').trim()||'我的版式'
@@ -40,7 +42,8 @@ export function createLayoutConversations(db,library){
    COALESCE(result->>'id',payload->'baseResource'->>'id') AS resource_id
    FROM jobs WHERE owner_id=$1 AND kind='layout-reference'
    ORDER BY COALESCE(payload->>'conversationId',id::text),created_at DESC,id DESC`,[actor.id])
-  return records.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(row=>({id:row.conversation_id,name:row.name,status:row.status,resourceId:row.resource_id,updatedAt:row.created_at,legacy:row.mode!=='conversation'}))
+  const deleted=await query('SELECT target_kind,target_id FROM layout_library_deletions'),hidden=new Set(deleted.map(r=>r.target_kind+':'+r.target_id))
+  return records.filter(r=>!hidden.has('conversation:'+r.conversation_id)&&!hidden.has('resource:'+r.resource_id)).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(row=>({id:row.conversation_id,name:row.name,status:row.status,resourceId:row.resource_id,updatedAt:row.created_at,legacy:row.mode!=='conversation'}))
  }
  async function get(actor,conversationId){
   const history=await rows(actor,conversationId)

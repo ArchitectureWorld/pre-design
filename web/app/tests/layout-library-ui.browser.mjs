@@ -16,6 +16,7 @@ const wait=fn=>page.waitForFunction(fn,null,{timeout:30000})
 try{
  await page.goto(f.url);await page.locator('[data-layout-library-open]').click();await page.locator('[data-layout-chat]').waitFor()
  assert.equal(await page.locator('[data-mode="project"]').count(),0);checks++
+ assert.equal(await page.locator('[data-list-mode]').count(),0);assert.equal(await page.locator('[data-chat-model]').count(),0);assert.equal((await page.locator('[data-chat-upload]').innerText()).trim(),'参考文件');checks++
  const left=await page.locator('[data-layout-results]').boundingBox(),right=await page.locator('[data-layout-chat]').boundingBox();assert(left.x+left.width<=right.x+2);checks++
  await page.locator('[data-seed]').click();await wait(()=>document.querySelectorAll('[data-resource-card]').length===3)
  await page.locator('[data-chat-file]').setInputFiles({name:'绿色参考.md',mimeType:'text/markdown',buffer:Buffer.from('白色背景，墨绿标题，充足留白，文字清晰。')})
@@ -32,12 +33,17 @@ try{
  await page.locator('.ll-settings summary').first().click();await page.locator('[name=accent]').fill('#2f5f88');await page.locator('[data-save]').click();await wait(()=>document.querySelector('[data-ll-status]')?.textContent.includes('已保存版式'))
  await page.locator('[data-layout-message]').fill('现在用了什么颜色？');await page.locator('[data-layout-send]').click();await wait(()=>document.querySelector('[data-chat-messages]')?.textContent.includes('当前标题采用蓝灰色'))
  conversation=await f.request('GET','/layout-library/conversations/'+firstConversation.id);assert.equal(conversation.resource.version,3);checks++
- await page.locator('[data-close]').click();await page.reload();await page.locator('[data-layout-library-open]').click();await page.locator('[data-list-mode=conversations]').click();await page.locator('[data-conversation="'+firstConversation.id+'"]').click()
- await page.locator('.ll-preview-host').waitFor();assert.equal(await page.locator('[data-layout-turn]').count(),3);checks++
+ await page.locator('[data-close]').click();await page.reload();await page.locator('[data-layout-library-open]').click();await page.locator('[data-resource-card="'+firstConversation.resourceId+'"]').click()
+ await page.locator('.ll-preview-host').waitFor();await wait(()=>document.querySelectorAll('[data-layout-turn]').length===3);assert.equal(await page.locator('[data-layout-turn]').count(),3);checks++
  const calls=f.modelCalls.length,imported=createPackage('右侧导入的原生版式')
  await page.locator('[data-chat-file]').setInputFiles({name:'参考版式.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(imported))})
  await wait(()=>document.querySelector('[data-resource-name]')?.value==='右侧导入的原生版式')
  assert.equal(f.modelCalls.length,calls);checks++
+ const importedResource=(await f.request('GET','/layout-library')).resources.find(r=>r.package.name===imported.name)
+ await page.locator('[data-delete-resource="'+importedResource.id+'"]').click();await wait(()=>document.querySelector('[data-ll-status]')?.textContent==='已删除')
+ assert.equal(await page.locator('[data-resource-card="'+importedResource.id+'"]').count(),0);assert.equal(await page.locator('[data-resource-name]').count(),0);checks++
+ await page.locator('[data-undo-delete]').click();await wait(()=>document.querySelector('[data-ll-status]')?.textContent==='已恢复')
+ assert.equal(await page.locator('[data-resource-name]').inputValue(),imported.name);assert.equal(await page.locator('[data-layout-turn]').count(),1);checks++
  await page.screenshot({path:resolve(output,'unified-workbench.png')})
  await page.locator('[data-close]').click();await page.getByRole('button',{name:'打开历史项目 '+f.project.name,exact:true}).click();await page.locator('#workspaceStage:not(.workspace-transitioning)').waitFor()
  await page.locator('[data-layout-page=global]').waitFor();assert.equal(await page.locator('[data-node-kind=script] [data-canvas-layout]').count(),2);checks++

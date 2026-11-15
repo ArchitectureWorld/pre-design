@@ -166,3 +166,23 @@ test('页脚本局部修订后保留同页版式配置及历史版本',{skip:!en
  assert.equal((await f.db.query('SELECT count(*)::int AS n FROM layout_binding_versions WHERE project_id=$1',[id])).rows[0].n,2)
  assert.equal(now.workflow.visuals.current,null)
 })
+
+test('未生成的版式可删除与撤销；资源删除后迟到模型结果不能复活版式',{skip:!enabled,timeout:60000},async t=>{
+ const f=await fixture(t),base='/api/layout-library/conversations',post=(path,body={})=>f.req('POST',path,{requestId:randomUUID(),...body})
+ f.worker.runLayoutReference=async()=>{throw Error('参考失败')}
+ const start=await post(base,{text:'生成白色版式',allowModel:true});await f.app.waitForJobs();const cid=start.json().conversationId
+ assert((await f.req('GET',base)).json().conversations.some(c=>c.id===cid))
+ const removed=await post(base+'/'+cid+'/delete');assert.equal(removed.statusCode,200,removed.body)
+ assert(!(await f.req('GET',base)).json().conversations.some(c=>c.id===cid))
+ assert.equal((await post(base,{conversationId:cid,text:'重新生成',allowModel:true})).statusCode,409)
+ assert.equal((await post(base+'/'+cid+'/restore',{deleteToken:removed.json().deleteToken})).statusCode,200)
+ assert((await f.req('GET',base)).json().conversations.some(c=>c.id===cid))
+ const pkg=createPackage('任务中删除'),r=(await post('/api/layout-library',{package:pkg})).json(),ready=Promise.withResolvers(),release=Promise.withResolvers()
+ f.worker.runLayoutReference=async()=>{ready.resolve();await release.promise;return {response:JSON.stringify({reply:'已调整',package:{...pkg,theme:{...pkg.theme,accent:'#111111'}}})}}
+ const job=await post(base,{resourceId:r.id,resourceVersion:1,text:'修改颜色',allowModel:true});await ready.promise
+ const deletion=await post('/api/layout-library/'+r.id+'/delete',{expectedVersion:1});assert.equal(deletion.statusCode,200,deletion.body)
+ release.resolve();await f.app.waitForJobs()
+ const record=(await f.req('GET','/api/layout-library/reference-jobs')).json().find(j=>j.id===job.json().id);assert.equal(record.status,'failed')
+ assert(!(await f.req('GET',base)).json().conversations.some(c=>c.resourceId===r.id))
+ assert.equal((await f.req('GET','/api/layout-library/'+r.id+'/1')).json().latestVersion,1)
+})

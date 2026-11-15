@@ -10,7 +10,7 @@ const equal=(a,b)=>JSON.stringify(ordered(a))===JSON.stringify(ordered(b))
 export function mountLayoutLibrary({request,notify}){
  const entry=document.createElement('button');entry.type='button';entry.className='ll-entry';entry.textContent='版式库';entry.dataset.layoutLibraryOpen=''
  document.querySelector('.top-right')?.prepend(entry)
- let dialog,identity,resources=[],conversations=[],selected=null,working=null,chat,previewHandle,previewLayout='',layoutChosen=false,picker=null,listMode='resources',generation=0,previewGeneration=0,previewTimer,busy=false,modelBusy=false,historyViewing=false,viewEpoch=0
+ let dialog,identity,resources=[],conversations=[],selected=null,working=null,chat,previewHandle,previewLayout='',layoutChosen=false,picker=null,generation=0,previewGeneration=0,previewTimer,busy=false,modelBusy=false,historyViewing=false,viewEpoch=0,lastDeletion=null
  const pending=new Map()
  const msg=text=>{const el=dialog?.querySelector('[data-ll-status]');if(el)el.textContent=text}
  const own=()=>!selected||selected.ownerId===identity?.id||identity?.role==='admin'
@@ -30,11 +30,12 @@ export function mountLayoutLibrary({request,notify}){
   close();picker=options.onPick??null;const token=generation
   selected=null;working=null;previewLayout='';modelBusy=false;historyViewing=false
   dialog=document.createElement('dialog');dialog.className='ll-dialog';dialog.dataset.layoutLibrary='';dialog.setAttribute('aria-label','版式工作台')
-  dialog.innerHTML=`<header class="ll-head"><button data-library-nav aria-label="浏览版式和会话" aria-expanded="false">☰</button><h2>版式库</h2><span data-ll-status role="status">正在连接…</span><button data-close aria-label="关闭版式库">×</button></header><div class="ll-main ll-unified"><aside class="ll-sidebar"><div class="ll-tools"><input data-search type="search" placeholder="搜索版式"><div class="ll-list-tabs"><button data-list-mode="resources" class="active">版式</button><button data-list-mode="conversations">会话</button></div><button data-new class="ll-primary">新建版式</button><button data-seed hidden>预置版式</button></div><div data-list class="ll-list"></div></aside><section class="ll-inspector" data-layout-results></section><aside class="ll-assistant" data-layout-chat></aside></div>`
+  dialog.innerHTML=`<header class="ll-head"><button data-library-nav aria-label="浏览版式" aria-expanded="false">☰</button><h2>版式库</h2><span data-ll-status role="status">正在连接…</span><button data-undo-delete hidden>撤销删除</button><button data-close aria-label="关闭版式库">×</button></header><div class="ll-main ll-unified"><aside class="ll-sidebar"><div class="ll-tools"><input data-search type="search" placeholder="搜索版式"><button data-new class="ll-primary">新建版式</button><button data-seed hidden>预置版式</button></div><div data-list class="ll-list"></div></aside><section class="ll-inspector" data-layout-results></section><aside class="ll-assistant" data-layout-chat></aside></div>`
   document.body.append(dialog);dialog.showModal();dialog.querySelector('[data-close]').onclick=close;dialog.oncancel=e=>{e.preventDefault();close()}
   dialog.querySelector('[data-library-nav]').onclick=()=>{const open=dialog.classList.toggle('nav-open');dialog.querySelector('[data-library-nav]').setAttribute('aria-expanded',String(open))}
   dialog.querySelector('[data-search]').oninput=renderList
-  dialog.querySelectorAll('[data-list-mode]').forEach(b=>b.onclick=()=>{listMode=b.dataset.listMode;renderList()})
+  dialog.querySelector('[data-undo-delete]').hidden=!lastDeletion
+  dialog.querySelector('[data-undo-delete]').onclick=()=>void run(undoDeletion)
   dialog.querySelector('[data-new]').onclick=()=>void run(async()=>{await selectConversation(null);msg('')})
   try{
    identity=await request('/me');if(token!==generation)return
@@ -61,17 +62,33 @@ export function mountLayoutLibrary({request,notify}){
    msg('')
   }catch(error){msg(error.message)}
  }
+ const trashIcon='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7m4-7v7"/></svg>'
  function renderList(){
   if(!dialog)return
-  dialog.querySelectorAll('[data-list-mode]').forEach(b=>b.classList.toggle('active',b.dataset.listMode===listMode))
   const query=dialog.querySelector('[data-search]').value.trim().toLowerCase(),list=dialog.querySelector('[data-list]')
-  if(listMode==='conversations'){
-   list.innerHTML=conversations.filter(c=>c.name?.toLowerCase().includes(query)).map(c=>`<button class="ll-card ${chat?.id===c.id?'selected':''}" data-conversation="${c.id}"><b>${esc(c.name)}</b><small>${['queued','running'].includes(c.status)?'正在生成':c.status==='completed'?'已回复':'待继续'}</small></button>`).join('')||'<p class="ll-empty-list">暂无会话</p>'
-   list.querySelectorAll('[data-conversation]').forEach(b=>b.onclick=()=>void run(()=>selectConversation(b.dataset.conversation)))
-   return
-  }
-  list.innerHTML=resources.filter(r=>(r.package.name+' '+r.package.tags.join(' ')).toLowerCase().includes(query)).map(r=>`<button class="ll-card ${r.id===selected?.id?'selected':''}" data-resource-card="${r.id}" data-version="${r.version}"><span class="ll-swatch" style="background:${r.package.theme.background};color:${r.package.theme.ink};border-left:4px solid ${r.package.theme.accent}">Aa<i style="background:${r.package.theme.accent}"></i></span><b>${esc(r.package.name)}</b><small>${visibility[r.visibility]} · V${r.version} · ${stateName(r)}</small></button>`).join('')||'<p class="ll-empty-list">上传参考，开始你的第一份版式。</p>'
+  const cards=resources.filter(r=>(r.package.name+' '+r.package.tags.join(' ')).toLowerCase().includes(query)).map(r=>`<div class="ll-card-row"><button class="ll-card ${r.id===selected?.id?'selected':''}" data-resource-card="${r.id}" data-version="${r.version}"><span class="ll-swatch" style="background:${r.package.theme.background};color:${r.package.theme.ink};border-left:4px solid ${r.package.theme.accent}">Aa<i style="background:${r.package.theme.accent}"></i></span><b>${esc(r.package.name)}</b><small>${visibility[r.visibility]} · V${r.version} · ${stateName(r)}</small></button>${r.editable||r.ownerId===identity?.id?`<button class="ll-card-delete" data-delete-resource="${r.id}" aria-label="删除版式 ${esc(r.package.name)}" title="删除版式">${trashIcon}</button>`:''}</div>`)
+  const drafts=conversations.filter(c=>!c.resourceId&&c.name?.toLowerCase().includes(query)).map(c=>`<div class="ll-card-row"><button class="ll-card ll-card-draft ${chat?.id===c.id?'selected':''}" data-conversation="${c.id}"><b>${esc(c.name)}</b><small>${['queued','running','cancelling'].includes(c.status)?'正在生成':c.status==='completed'?'待完善':'未生成'}</small></button><button class="ll-card-delete" data-delete-conversation="${c.id}" aria-label="删除版式草稿 ${esc(c.name)}" title="删除草稿">${trashIcon}</button></div>`)
+  list.innerHTML=[...cards,...drafts].join('')||'<p class="ll-empty-list">上传参考，开始你的第一份版式。</p>'
   list.querySelectorAll('[data-resource-card]').forEach(b=>b.onclick=()=>void run(()=>selectResource(b.dataset.resourceCard,Number(b.dataset.version))))
+  list.querySelectorAll('[data-conversation]').forEach(b=>b.onclick=()=>void run(()=>selectConversation(b.dataset.conversation)))
+  list.querySelectorAll('[data-delete-resource]').forEach(b=>b.onclick=()=>void run(()=>deleteEntry('resource',b.dataset.deleteResource)))
+  list.querySelectorAll('[data-delete-conversation]').forEach(b=>b.onclick=()=>void run(()=>deleteEntry('conversation',b.dataset.deleteConversation)))
+ }
+ async function deleteEntry(kind,id){
+  const resource=kind==='resource'?resources.find(r=>r.id===id):null
+  const path=kind==='resource'?'/layout-library/'+id:'/layout-library/conversations/'+id
+  const result=await post(path+'/delete',resource?{expectedVersion:resource.latestVersion}:{})
+  lastDeletion={kind,id,path,deleteToken:result.deleteToken}
+  if(selected?.id===id||chat.id===id)await selectConversation(null)
+  await reload();msg('已删除');dialog.querySelector('[data-undo-delete]').hidden=false
+ }
+ async function undoDeletion(){
+  const removed=lastDeletion;if(!removed)return
+  await post(removed.path+'/restore',{deleteToken:removed.deleteToken});lastDeletion=null
+  await reload();dialog.querySelector('[data-undo-delete]').hidden=true
+  if(removed.kind==='resource'){const resource=resources.find(r=>r.id===removed.id);if(resource)await selectResource(resource.id,resource.version)}
+  else await selectConversation(removed.id)
+  msg('已恢复')
  }
  function hideNavigation(){dialog?.classList.remove('nav-open');dialog?.querySelector('[data-library-nav]')?.setAttribute('aria-expanded','false')}
  async function selectConversation(id){

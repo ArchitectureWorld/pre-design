@@ -67,7 +67,7 @@ test('无成果会话不携带上一份版式，历史下拉保持所选版本',
  const history=document.querySelector('[data-history]');history.value='1';history.dispatchEvent(new dom.window.Event('change',{bubbles:true}))
  await settle(()=>document.querySelector('[name=accent]')?.value==='#111111')
  assert.equal(document.querySelector('[data-history]').value,'1')
- document.querySelector('[data-list-mode=conversations]').click();document.querySelector('[data-conversation=B]').click()
+ document.querySelector('[data-conversation=B]').click()
  await settle(()=>document.querySelector('[data-chat-messages]').textContent.includes('失败的参考'))
  assert.equal(document.querySelector('[data-resource-name]'),null)
  const text=document.querySelector('[data-layout-message]');input(dom,text,'继续分析');await settle(()=>!document.querySelector('[data-layout-send]').disabled);document.querySelector('[data-layout-send]').click()

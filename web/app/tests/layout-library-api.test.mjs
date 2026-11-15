@@ -43,3 +43,28 @@ test('参考原件只归拥有者，导入资源无权伪造发布或验证状�
  assert.equal((await f.request('GET',`/api/layout-library/${id}/source`,undefined,'other')).statusCode,404)
  assert.equal((await f.request('POST','/api/layout-library',{requestId:'forged',package:{...pkg,validation:{status:'passed'}}})).statusCode,400)
 })
+
+test('删除版式可撤销，并保留已绑定项目和历史成果；权限及过期操作被拒绝',async t=>{
+ const f=await libraryFixture();t.after(f.close)
+ const post=(path,body={},actor)=>f.request('POST',path,{requestId:randomUUID(),...body},actor)
+ const pkg=createPackage('可撤销删除'),created=(await post('/api/layout-library',{package:pkg})).json(),path='/api/layout-library/'+created.id
+ const project='/api/projects/'+f.p.id
+ assert.equal((await post(project+'/layout-bindings',{baseRevision:0,draftId:f.draft.id,expectedRevision:0,scope:'global',resource:{resourceId:created.id,version:1}})).statusCode,200)
+ const rendered=await post(project+'/workflow/visuals',{draftId:f.draft.id,applyLibrary:true,expectedBindingRevision:1});assert.equal(rendered.statusCode,200,rendered.body)
+ const artifact='workflow-visual-'+rendered.json().id+'-html',html=(await f.visuals.readArtifact(f.p,artifact)).data.toString()
+ assert.equal((await post(path+'/delete',{expectedVersion:1},'other')).statusCode,404)
+ assert.equal((await post(path+'/delete',{expectedVersion:2})).statusCode,409)
+ const request={requestId:randomUUID(),expectedVersion:1},removed=await f.request('POST',path+'/delete',request);assert.equal(removed.statusCode,200,removed.body)
+ assert.equal((await f.request('POST',path+'/delete',request)).json().deleteToken,removed.json().deleteToken)
+ assert.equal((await f.request('GET','/api/layout-library')).json().resources.length,0)
+ assert.equal((await f.request('GET',path+'/1')).json().deleted,true)
+ assert.equal((await post(path+'/revisions',{expectedVersion:1,package:pkg})).statusCode,409)
+ assert.equal((await post(project+'/layout-bindings',{baseRevision:0,draftId:f.draft.id,expectedRevision:1,scope:'global',resource:{resourceId:created.id,version:1}})).statusCode,409)
+ assert.equal((await f.visuals.readArtifact(f.p,artifact)).data.toString(),html)
+ assert.equal((await f.library.bindings(f.p)).global.resourceId,created.id)
+ assert.equal((await post(path+'/restore',{deleteToken:randomUUID()})).statusCode,409)
+ assert.equal((await post(path+'/restore',{deleteToken:removed.json().deleteToken},'other')).statusCode,404)
+ assert.equal((await post(path+'/restore',{deleteToken:removed.json().deleteToken})).statusCode,200)
+ assert.equal((await f.request('GET','/api/layout-library')).json().resources[0].id,created.id)
+ assert.equal((await f.request('GET',path+'/1')).json().package.name,pkg.name)
+})

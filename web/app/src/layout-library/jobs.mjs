@@ -79,8 +79,10 @@ export function createLayoutJobs({db,platform,workers,library,serial,controllers
     const c=await db.connect()
     try{
      await c.query('BEGIN')
+     await c.query("SELECT pg_advisory_xact_lock(hashtext($1))",['layout-library:'+job.owner_id])
      const [current]=await query('SELECT status FROM jobs WHERE id=$1 FOR UPDATE',[job.id],c)
      if(current.status!=='running')throw fail('任务已经取消或结束。',409)
+     if(await library.isRemoved('conversation',job.payload.conversationId??job.id,c))throw fail('此版式草稿已删除，本次结果未保存。',409)
      let resource
      if(pkg){
       const actor={id:job.owner_id,role:'user'},body={requestId:'reference-result-'+job.id,package:pkg},base=job.payload.baseResource
