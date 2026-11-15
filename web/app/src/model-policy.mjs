@@ -11,6 +11,11 @@ function freeze(value) {
   return value
 }
 const keyOf = ({ provider, model }) => JSON.stringify([provider, model])
+const correctedModelIds = new Map([
+  [keyOf({provider:'SenseNova',model:'deepseek-v4-flash'}),'deepseek-flash'],
+  [keyOf({provider:'SenseNova',model:'glm-5.2'}),'glm-5.3'],
+])
+const catalogKeyOf = reference => keyOf({...reference,model:correctedModelIds.get(keyOf(reference))??reference.model})
 const capabilities = (text, vision = false, image = false) => ({ text, tools: false, vision, image })
 const yaoguang = { provider: 'yaoguang-codex', model: 'yaoguang02-gpt-6-astra' }
 const yaoguangKey = keyOf(yaoguang)
@@ -24,9 +29,9 @@ function entry(provider, model, declaredCapabilities, extra = {}) {
 export const MODEL_CATALOG = freeze([
   entry('SenseNova', 'sensenova-6.7-flash-lite', capabilities(true, true), { contextWindow: 262144, maxOutputTokens: 65536 }),
   entry('SenseNova', 'sensenova-6.8-flash-lite', capabilities(true, true), { contextWindow: 262144, maxOutputTokens: 65536 }),
-  entry('SenseNova', 'deepseek-v4-flash', capabilities(true), { contextWindow: 1048576, maxOutputTokens: 65536 }),
+  entry('SenseNova', 'deepseek-flash', capabilities(true), { contextWindow: 1048576, maxOutputTokens: 65536 }),
   entry('SenseNova', 'deepseek-v4-pro', capabilities(true), { contextWindow: 1048576, maxOutputTokens: 65536 }),
-  entry('SenseNova', 'glm-5.2', capabilities(true), { contextWindow: 1048576, maxOutputTokens: 131072 }),
+  entry('SenseNova', 'glm-5.3', capabilities(true), { contextWindow: 1048576, maxOutputTokens: 131072 }),
   entry('SenseNova', 'kimi-k3', capabilities(true), { contextWindow: 1048576, maxOutputTokens: 131072, compat: { maxTokensField: 'max_completion_tokens' } }),
   entry('deepseek-official', 'deepseek-flash', capabilities(true), { maxOutputTokens: 393216 }),
   entry('deepseek-official', 'deepseek-v4-flash', capabilities(true), { maxOutputTokens: 393216 }),
@@ -104,6 +109,18 @@ export function defaultPolicy() {
 export function migrateServicePolicy(input) {
   const next = clone(input)
   let changed = false
+  const corrected = new Set()
+  for (const row of next.models) {
+    const model = correctedModelIds.get(keyOf(row))
+    if (model) { row.model = model; row.status = 'unverified'; corrected.add(keyOf(row)); changed = true }
+  }
+  if (corrected.size) for (const route of Object.values(next.routes)) {
+    for (const reference of [route.primary, ...route.fallbacks]) {
+      if (reference) reference.model = correctedModelIds.get(keyOf(reference)) ?? reference.model
+    }
+    // A corrected identity must be checked before it can be an automatic fallback.
+    route.fallbacks = route.fallbacks.filter(reference => !corrected.has(keyOf(reference)))
+  }
   if (!next.search) { next.search = { ...DEFAULT_SEARCH_POLICY }; changed = true }
   const image = next.models.find(row => row.provider === 'Comfyui-PIC' && row.model === 'Klein')
   if (image?.imageConfig?.modelFile === 'Flux2-Klein-9B-True-v2-bf16.safetensors') {
@@ -127,12 +144,14 @@ function parsePolicy(input) {
   return parsed.data
 }
 
-export function validatePolicy(input) {
+export function validatePolicy(input) { return validatePolicyShape(input) }
+function validatePolicyShape(input, historical = false) {
   const policy = parsePolicy(input)
-  const models = new Map(), runtimeSources = new Map()
+  const models = new Map(), runtimeSources = new Map(), canonicalKeys = new Set()
   for (const item of policy.models) {
-    const key = keyOf(item), registered = catalogByKey.get(key)
-    if (!registered || models.has(key)) invalid('模型目录必须保留历史 14 项与已授权的瑶光02身份，不能重复或引入其他来源')
+    const key = keyOf(item), canonicalKey = historical ? catalogKeyOf(item) : key, registered = catalogByKey.get(canonicalKey)
+    if (!registered || canonicalKeys.has(canonicalKey)) invalid('模型目录必须保留规定的条目及来源，不能重复或引入其他身份')
+    canonicalKeys.add(canonicalKey)
     const exactYaoguang = key === yaoguangKey
     if (exactYaoguang && (item.runtimeProvider !== registered.runtimeProvider || item.compat?.protocol !== 'openai-responses')) {
       invalid('瑶光02必须保留精确运行提供方与 openai-responses 协议')
@@ -159,7 +178,7 @@ export function validatePolicy(input) {
     models.set(key, item)
   }
   // Legacy task snapshots keep their complete fourteen identities without mutation.
-  if (historicalCatalogKeys.some(key => !models.has(key))) invalid('模型目录不能删除或替换历史 14 项来源和模型身份')
+  if (historicalCatalogKeys.some(key => !canonicalKeys.has(key))) invalid('模型目录不能删除或替换规定的来源和模型身份')
   for (const role of roles) {
     const route = policy.routes[role], seen = new Set()
     if (!route.primary && route.fallbacks.length) invalid('未选择主模型时不能配置备用链')
@@ -181,7 +200,7 @@ export function validatePolicy(input) {
 export function validateSnapshot(input, requiredRoles = ['parent']) {
   if (!Array.isArray(requiredRoles) || requiredRoles.some(role => !roles.includes(role)) || new Set(requiredRoles).size !== requiredRoles.length) invalid('任务要求的模型角色不合法')
   if (!Number.isSafeInteger(input?.revision) || input.revision < 1) invalid('任务模型快照缺少有效配置版本')
-  const policy = validatePolicy(input)
+  const policy = validatePolicyShape(input, true)
   const required = new Set(requiredRoles), models = new Map(policy.models.map(item => [keyOf(item), item]))
   if (required.has('image') && [policy.routes.image.primary, ...policy.routes.image.fallbacks].some(item => item?.provider === 'Comfyui-PIC' && item.model === 'Klein')) required.add('imageLlm')
   const notReady = []

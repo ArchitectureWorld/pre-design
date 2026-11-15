@@ -218,3 +218,19 @@ test('完整14项配置追加瑶光02时仅产生一个新修订，历史快照�
     { revision: 2, previous_revision: 1, actor_id: null, action: 'updated' },
   ])
 })
+
+
+test('SenseNova ID 更正创建新版本，并发重启幂等且保留原始配置',async t=>{
+ const db=await database(t),users=accounts(),store=await createPlatformStore(db,users),old=await store.getPolicy()
+ for(const row of old.models)if(row.provider==='SenseNova'){if(row.model==='deepseek-flash')row.model='deepseek-v4-flash';if(row.model==='glm-5.3')row.model='glm-5.2'}
+ old.limits.maxDailyJobsPerUser=null
+ await db.query('UPDATE platform_policy_versions SET policy=$1 WHERE revision=1',[old])
+ const stores=await Promise.all([createPlatformStore(db,users),createPlatformStore(db,users)]),current=await stores[0].getPolicy()
+ assert.equal(current.revision,2)
+ assert(current.models.some(r=>r.provider==='SenseNova'&&r.model==='deepseek-flash'))
+ assert(current.models.some(r=>r.provider==='SenseNova'&&r.model==='glm-5.3'))
+ assert(current.models.some(r=>r.provider==='deepseek-official'&&r.model==='deepseek-v4-flash'))
+ assert.equal(current.limits.maxDailyJobsPerUser,null)
+ assert.deepEqual((await db.query('SELECT policy FROM platform_policy_versions WHERE revision=1')).rows[0].policy,old)
+ assert.equal((await (await createPlatformStore(db,users)).getPolicy()).revision,2)
+})

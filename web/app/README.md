@@ -171,3 +171,5 @@ PDF 与文本可尝试提取文字，PNG/JPEG/WebP 可读取影像元数据。Of
 整稿确认后，明确点击“生成整套成果”才会按全部条目统一排版，一条对应一页。当前成果为统一主题的 HTML 汇报页；生成前没有页面节点或占位。生成后可预览、下载整套页面，并选择单页/多页调整版式；正文仍通过条目脚本修订。脚本变化后需确认新稿再生成，旧成果保持下载，避免混合不同版本正文。
 
 `workflow_drafts`、`workflow_reviews`、`workflow_approvals`、`workflow_visuals` 存于现有 PostgreSQL。文本修订复用真实任务队列，页面版式从已确认内容确定性生成；HTML 页集不自动调用生图服务。刷新恢复稿件、审批、页集及下载。
+
+2026-11-15：SenseNova 的模型 ID 已按用户确认修正为 `deepseek-flash`、`glm-5.3`，对应历史任务快照保留原 ID。当前六项的真实调用、工具与 DSH 接入结果见 `docs/development/2026-11-15-sensenova-model-verification.md`。

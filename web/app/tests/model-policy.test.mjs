@@ -20,8 +20,8 @@ test('normalizes the fifteen allowed identities without merging independent budg
   const policy = validatePolicy(defaultPolicy())
   assert.deepEqual(policy.models.map(({ provider, model }) => [provider, model]), [
     ['SenseNova', 'sensenova-6.7-flash-lite'], ['SenseNova', 'sensenova-6.8-flash-lite'],
-    ['SenseNova', 'deepseek-v4-flash'], ['SenseNova', 'deepseek-v4-pro'],
-    ['SenseNova', 'glm-5.2'], ['SenseNova', 'kimi-k3'],
+    ['SenseNova', 'deepseek-flash'], ['SenseNova', 'deepseek-v4-pro'],
+    ['SenseNova', 'glm-5.3'], ['SenseNova', 'kimi-k3'],
     ['deepseek-official', 'deepseek-flash'], ['deepseek-official', 'deepseek-v4-flash'],
     ['deepseek-official', 'deepseek-v4-pro'], ['deepseek-official', 'deepseek-v4-flash-vision-exp'],
     ['Comfyui-PIC', 'Klein'], ['启航引擎AIGC组', 'tt-image-2.5'],
@@ -292,4 +292,20 @@ test('Klein execution requires a verified companion LLM and preserves workflow r
   assert.equal(find(snapshot, { provider: 'Comfyui-PIC', model: 'Klein' }).imageConfig.referenceImageWorkflow, 'workflows/klein-edit.json')
   policy.routes.parent.primary = null
   assert.throws(() => validateSnapshot(policy, ['parent']), error => error.statusCode === 503 && error.notReady[0].reason === 'missing_primary')
+})
+
+
+test('SenseNova 两项 ID 修正只迁移新配置，旧快照保持原模型名和版本',()=>{
+ const old=ready();old.revision=16
+ for(const row of old.models)if(row.provider==='SenseNova'){if(row.model==='deepseek-flash')row.model='deepseek-v4-flash';if(row.model==='glm-5.3')row.model='glm-5.2'}
+ old.routes.text.primary=sense('deepseek-v4-flash')
+ const before=structuredClone(old),updated=migrateServicePolicy(old)
+ assert(updated);assert(find(updated,sense('deepseek-flash')));assert(find(updated,sense('glm-5.3')))
+ assert(!find(updated,sense('deepseek-v4-flash')));assert(!find(updated,sense('glm-5.2')))
+ assert.deepEqual(updated.routes.text.primary,sense('deepseek-flash'))
+ assert.deepEqual(updated.models.filter(r=>r.provider!=='SenseNova'),old.models.filter(r=>r.provider!=='SenseNova'))
+ assert.deepEqual(updated.limits,old.limits);assert.equal(migrateServicePolicy(updated),null)
+ assert.deepEqual(old,before);const snapshot=validateSnapshot(old,[])
+ assert(find(snapshot,sense('deepseek-v4-flash')));assert(find(snapshot,sense('glm-5.2')));assert.equal(snapshot.revision,16)
+ invalid(()=>validatePolicy(old))
 })
