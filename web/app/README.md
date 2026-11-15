@@ -69,7 +69,7 @@ journalctl --user -u pre-design-web-v210.service -n 50 --no-pager
 
 ## 管理员模型配置
 
-管理员“模型管理”包含 15 项允许模型，按 `provider + model` 区分身份：原有 SenseNova 6 项、DeepSeek 官方 4 项、ComfyUI Klein、启航图像 3 项，以及用户明确选定的 `yaoguang-codex / yaoguang02-gpt-6-astra`。保留各自上下文/输出预算、Kimi 的 `max_completion_tokens` 与明确的主备顺序。
+管理员“模型管理”包含 13 项当前允许模型，按 `provider + model` 区分身份：SenseNova 4 项、DeepSeek 官方 4 项、ComfyUI Klein、启航图像 3 项，以及用户明确选定的 `yaoguang-codex / yaoguang02-gpt-6-astra`。保留各自上下文/输出预算、Kimi 的 `max_completion_tokens` 与明确的主备顺序。
 
 “每日任务次数不限”将每日次数上限保存为 `null`，服务端据此接受后续任务并继续登记调用记录。取消勾选后可填写正整数上限。当前部署根据用户在 2026 年 11 月 14 日的要求设为不限。
 
@@ -80,7 +80,7 @@ journalctl --user -u pre-design-web-v210.service -n 50 --no-pager
 3. 管理员填写对应实际 provider 映射，按真实验证结果填写文本、工具、视觉和图像能力以及验证状态，再为角色设置主备。文本角色用于带图章节时，其主备链也必须通过视觉能力验证。
 4. 配置保存使用版本校验。每个任务保存不可变策略快照，后续改配置不会改变已入队任务。管理员运行记录分别展示保存的候选路由与有原生证据的实际调用；未记录的用量不估算成实际消耗。
 
-本机文本、网络查询、图片理解与生图配套角色已按用户选择接入 `yaoguang02-gpt-6-astra`，使用 `openai-responses`、输出上限 8192；文本、结构化工具调用及图片输入均经过真实验证。只允许这个精确瑶光身份，不允许其他模型借映射冒充；其他未授权来源仍被排除。历史 14 项任务快照保持原文，现行策略在新修订中追加第 15 项。
+本机文本、网络查询、图片理解与生图配套角色已按用户选择接入 `yaoguang02-gpt-6-astra`，使用 `openai-responses`、输出上限 8192；文本、结构化工具调用及图片输入均经过真实验证。只允许这个精确瑶光身份，不允许其他模型借映射冒充；其他未授权来源仍被排除。历史任务快照保持创建时的目录和模型身份；2026-11-15 按用户要求退役 SenseNova 的两个不可用条目后，新任务使用当前 13 项目录。
 
 ## 搜索与 Flux3 生图配置
 

@@ -18,7 +18,7 @@ for (const provider of ['ddg','bing','exa']) test(`${provider} 策略无需密�
   }
 })
 function ready() {
-  const p=defaultPolicy(), main=p.models[1]
+  const p=defaultPolicy(), main=p.models.find(row=>row.provider==='SenseNova'&&row.model==='sensenova-6.8-flash-lite')
   main.status='verified';main.capabilities.tools=true
   klein(p).status='verified';klein(p).imageConfig.baseURL='http://127.0.0.1:8188'
   return p
@@ -52,7 +52,7 @@ test('图像任务装配 ComfyUI 与配套 LLM，ComfyUI 不作为文本提供�
   await assert.rejects(hooks.get('agent/request')({agent:{id:'image-child'}},async()=>({provider:'Comfyui-PIC',model:'Klein'})),/MODEL_ROUTE_FORBIDDEN/)
 })
 test('图像缺地址、凭据、旧工作流或未实现后端时不启动配套模型',()=>{
-  for (const change of [p=>delete klein(p).imageConfig.baseURL,p=>klein(p).credentialRef='credential:MISSING',p=>klein(p).imageConfig.modelFile='Flux2-Klein-9B-True-v2-bf16.safetensors',p=>{p.routes.image.primary={provider:'启航引擎AIGC组',model:'tt-image-2.5'};p.models[11].status='verified'}]) {
+  for (const change of [p=>delete klein(p).imageConfig.baseURL,p=>klein(p).credentialRef='credential:MISSING',p=>klein(p).imageConfig.modelFile='Flux2-Klein-9B-True-v2-bf16.safetensors',p=>{p.routes.image.primary={provider:'启航引擎AIGC组',model:'tt-image-2.5'};p.models.find(row=>row.provider==='启航引擎AIGC组'&&row.model==='tt-image-2.5').status='verified'}]) {
     const p=ready();change(p)
     assert.throws(()=>materializeModelRuntime(p,settings,{refs:{SENSE_KEY:'model-secret'}},['parent','image']),e=>/^IMAGE_/u.test(e.code))
   }

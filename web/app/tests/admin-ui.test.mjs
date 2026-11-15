@@ -19,7 +19,7 @@ function change(window, element, value) {
 }
 function readyPolicy() {
   const policy = defaultPolicy(); policy.revision = 4
-  for (const [provider, model] of [['SenseNova', 'sensenova-6.8-flash-lite'], ['SenseNova', 'deepseek-v4-pro'], ['deepseek-official', 'deepseek-v4-pro']]) {
+  for (const [provider, model] of [['SenseNova', 'sensenova-6.8-flash-lite'], ['SenseNova', 'deepseek-flash'], ['deepseek-official', 'deepseek-v4-pro']]) {
     const entry = policy.models.find(item => item.provider === provider && item.model === model)
     entry.status = 'verified'; entry.capabilities.tools = true
   }
@@ -81,9 +81,9 @@ test('管理员填写独立搜索和 ComfyUI 地址，仅提交凭据引用并�
   await settle(()=>calls.some(call=>call.options.method==='PUT'))
   const sent=calls.find(call=>call.options.method==='PUT').options.body.policy
   assert.equal(sent.search.enabled,true);assert.equal(sent.search.credentialRef,'credential:SEARCH_KEY')
-  assert.equal(sent.models[10].imageConfig.baseURL,'http://127.0.0.1:8188')
-  assert.equal(sent.models[10].imageConfig.textToImageWorkflow,'flux3-klein-t2i@2026-11-03.1')
-  assert.equal(sent.models[10].status,'unverified')
+  assert.equal(sent.models.find(row=>row.provider==='Comfyui-PIC').imageConfig.baseURL,'http://127.0.0.1:8188')
+  assert.equal(sent.models.find(row=>row.provider==='Comfyui-PIC').imageConfig.textToImageWorkflow,'flux3-klein-t2i@2026-11-03.1')
+  assert.equal(sent.models.find(row=>row.provider==='Comfyui-PIC').status,'unverified')
 })
 
 for(const provider of ['ddg','bing','exa']) test(`管理员选择${provider}后隐藏不适用的地址和凭据，保存固定无密钥搜索策略`,async t=>{
@@ -103,7 +103,7 @@ test('管理员通过真实表单修改主备顺序与预算，并以原版本�
   const { document, window, calls, open } = fixture(t)
   await open()
   assert.equal(calls[0].path, '/admin/models')
-  assert.equal(document.querySelectorAll('[data-admin-model]').length, 15)
+  assert.equal(document.querySelectorAll('[data-admin-model]').length, 13)
   assert.equal(document.querySelectorAll('input[type="password"]').length, 0)
   const name = 'SenseNova / sensenova-6.8-flash-lite'
   change(window, byLabel(document, `${name} 输出预算`), '12345')
@@ -122,7 +122,7 @@ test('管理员通过真实表单修改主备顺序与预算，并以原版本�
   assert.equal(sent.options.body.policy.revision, 4)
   assert.deepEqual(sent.options.body.policy.routes.text, {
     primary: { provider: 'deepseek-official', model: 'deepseek-v4-pro' },
-    fallbacks: [{ provider: 'SenseNova', model: 'deepseek-v4-pro' }, { provider: 'SenseNova', model: 'sensenova-6.8-flash-lite' }],
+    fallbacks: [{ provider: 'SenseNova', model: 'deepseek-flash' }, { provider: 'SenseNova', model: 'sensenova-6.8-flash-lite' }],
   })
   const model = sent.options.body.policy.models.find(item => item.model === 'sensenova-6.8-flash-lite')
   assert.equal(model.maxOutputTokens, 12345)
@@ -161,11 +161,11 @@ test('待验证模型不会自动成为备用，图像与配套 LLM 未就绪会
   assert.equal(byLabel(document, '文本生成添加备用').disabled, true)
   assert.match(document.querySelector('[data-admin-role="image"]').textContent, /图像未就绪/)
   assert.match(document.querySelector('[role="dialog"]').textContent, /实际调用.*验证/)
-  const label = 'SenseNova / deepseek-v4-pro'
+  const label = 'SenseNova / deepseek-flash'
   change(window, byLabel(document, `${label} 验证状态`), 'verified')
   assert.equal(byLabel(document, '文本生成添加备用').disabled, true)
   const vision = byLabel(document, '图片审查主模型')
-  assert.ok(![...vision.options].some(option => option.value === modelKey('SenseNova', 'deepseek-v4-pro')))
+  assert.ok(![...vision.options].some(option => option.value === modelKey('SenseNova', 'deepseek-flash')))
   assert.equal(byLabel(document, '网络查询添加备用').disabled, true)
   change(window, byLabel(document, `${label} 工具调用`), true)
   assert.equal(byLabel(document, '文本生成添加备用').disabled, false)
@@ -190,8 +190,8 @@ test('已选备用的验证状态失效时保留选择并指出需要调整', as
   const { document, window, open } = fixture(t)
   await open()
   byLabel(document, '文本生成添加备用').click()
-  change(window, byLabel(document, 'SenseNova / deepseek-v4-pro 验证状态'), 'unverified')
-  assert.equal(byLabel(document, '文本生成备用模型 1').value, modelKey('SenseNova', 'deepseek-v4-pro'))
+  change(window, byLabel(document, 'SenseNova / deepseek-flash 验证状态'), 'unverified')
+  assert.equal(byLabel(document, '文本生成备用模型 1').value, modelKey('SenseNova', 'deepseek-flash'))
   assert.match(document.querySelector('[data-admin-role="text"]').textContent, /备用待调整/)
 })
 

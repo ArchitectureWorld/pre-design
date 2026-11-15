@@ -1,3 +1,4 @@
+import {withRetiredSenseNova} from './fixtures/model-policy-history.mjs'
 import {confirmedOutlineFixture} from './fixtures/outline.mjs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -16,11 +17,11 @@ const ready = () => {
   return policy
 }
 
-test('normalizes the fifteen allowed identities without merging independent budgets', () => {
+test('normalizes the thirteen active identities without merging independent budgets', () => {
   const policy = validatePolicy(defaultPolicy())
   assert.deepEqual(policy.models.map(({ provider, model }) => [provider, model]), [
-    ['SenseNova', 'sensenova-6.7-flash-lite'], ['SenseNova', 'sensenova-6.8-flash-lite'],
-    ['SenseNova', 'deepseek-flash'], ['SenseNova', 'deepseek-v4-pro'],
+    ['SenseNova', 'sensenova-6.8-flash-lite'],
+    ['SenseNova', 'deepseek-flash'],
     ['SenseNova', 'glm-5.3'], ['SenseNova', 'kimi-k3'],
     ['deepseek-official', 'deepseek-flash'], ['deepseek-official', 'deepseek-v4-flash'],
     ['deepseek-official', 'deepseek-v4-pro'], ['deepseek-official', 'deepseek-v4-flash-vision-exp'],
@@ -28,19 +29,19 @@ test('normalizes the fifteen allowed identities without merging independent budg
     ['启航引擎AIGC组', 'tt-image-2.5-flare'], ['启航引擎AIGC组', 'tt-image-2.5-sunburst'],
     ['yaoguang-codex', 'yaoguang02-gpt-6-astra'],
   ])
-  assert.deepEqual(policy.models.slice(0, 6).map(({ contextWindow, maxOutputTokens }) => [contextWindow, maxOutputTokens]), [
-    [262144, 65536], [262144, 65536], [1048576, 65536], [1048576, 65536], [1048576, 131072], [1048576, 131072],
+  assert.deepEqual(policy.models.filter(row=>row.provider==='SenseNova').map(({ contextWindow, maxOutputTokens }) => [contextWindow, maxOutputTokens]), [
+    [262144, 65536], [1048576, 65536], [1048576, 131072], [1048576, 131072],
   ])
-  assert.deepEqual(policy.models.slice(6, 10).map(({ contextWindow, maxOutputTokens }) => [contextWindow, maxOutputTokens]), [
+  assert.deepEqual(policy.models.filter(row=>row.provider==='deepseek-official').map(({ contextWindow, maxOutputTokens }) => [contextWindow, maxOutputTokens]), [
     [undefined, 393216], [undefined, 393216], [undefined, 393216], [undefined, 393216],
   ])
   assert.equal(find(policy, sense('kimi-k3')).compat.maxTokensField, 'max_completion_tokens')
   assert.equal(find(policy, { provider: 'Comfyui-PIC', model: 'Klein' }).imageConfig.modelFile, 'flux3-image-klein-bf16.safetensors')
   assert.ok(MODEL_CATALOG.every(item => item.source && item.declaredCapabilities && item.status === 'unverified'))
   assert.equal(find(policy, official('deepseek-v4-flash-vision-exp')).capabilities.vision, false)
-  find(policy, sense('deepseek-v4-pro')).maxOutputTokens = 32000
+  find(policy, sense('deepseek-flash')).maxOutputTokens = 32000
   const normalized = validatePolicy(policy)
-  assert.equal(find(normalized, official('deepseek-v4-pro')).maxOutputTokens, 393216)
+  assert.equal(find(normalized, official('deepseek-flash')).maxOutputTokens, 393216)
 })
 
 test('瑶光02仅声明文本能力，真实工具能力通过验证后才可执行文本任务', () => {
@@ -88,17 +89,17 @@ test('瑶光豁免只接受精确身份和Responses协议，拒绝别名与其�
 })
 
 test('历史14项快照保持可读且不被填充，不能用瑶光替换历史身份', () => {
-  const historical = ready()
+  const historical = withRetiredSenseNova(ready())
   historical.models = historical.models.filter(row => row.provider !== yaoguang.provider)
   historical.revision = 17
   const before = structuredClone(historical)
-  assert.equal(validatePolicy(historical).models.length, 14)
+  invalid(() => validatePolicy(historical))
   const snapshot = validateSnapshot(historical, ['parent', 'text'])
   assert.equal(snapshot.models.length, 14)
   assert.equal(snapshot.revision, 17)
   assert.deepEqual(historical, before)
   assert.throws(() => snapshot.models.push({ ...yaoguang }), TypeError)
-  for (let index = 0; index < 14; index++) {
+  for (let index = 0; index < MODEL_CATALOG.length - 1; index++) {
     const invalidSubset = defaultPolicy()
     invalidSubset.models.splice(index, 1)
     invalid(() => validatePolicy(invalidSubset))
@@ -114,8 +115,8 @@ test('当前服务迁移仅追加瑶光02且幂等，不改历史配置、能力
   historical.revision = 19
   const before = structuredClone(historical), migrated = migrateServicePolicy(historical)
   assert.ok(migrated, '旧目录必须生成一份待持久化的新配置')
-  assert.equal(migrated.models.length, 15)
-  assert.deepEqual(migrated.models.slice(0, 14), before.models)
+  assert.equal(migrated.models.length, 13)
+  assert.deepEqual(migrated.models.slice(0, -1), before.models)
   assert.deepEqual(migrated.routes, before.routes)
   assert.deepEqual(migrated.search, before.search)
   assert.deepEqual(migrated.limits, before.limits)
@@ -185,8 +186,8 @@ test('normalization cannot drop handed-over budgets or collapse different source
     policy => { delete policy.models[0].contextWindow },
     policy => { delete policy.models[0].maxOutputTokens },
     policy => { delete find(policy, official('deepseek-v4-pro')).maxOutputTokens },
-    policy => { policy.models[0].runtimeProvider = 'shared-adapter'; policy.models[6].runtimeProvider = 'shared-adapter' },
-    policy => { policy.models[6].runtimeProvider = 'sensenova' },
+    policy => { policy.models[0].runtimeProvider = 'shared-adapter'; find(policy, official('deepseek-flash')).runtimeProvider = 'shared-adapter' },
+    policy => { find(policy, official('deepseek-flash')).runtimeProvider = 'sensenova' },
   ]
   for (const change of changes) { const policy = defaultPolicy(); change(policy); invalid(() => validatePolicy(policy)) }
 })
@@ -308,4 +309,27 @@ test('SenseNova 两项 ID 修正只迁移新配置，旧快照保持原模型名
  assert.deepEqual(old,before);const snapshot=validateSnapshot(old,[])
  assert(find(snapshot,sense('deepseek-v4-flash')));assert(find(snapshot,sense('glm-5.2')));assert.equal(snapshot.revision,16)
  invalid(()=>validatePolicy(old))
+})
+
+test('退役两项只影响SenseNova当前目录，历史15项快照可读且不被改写',async()=>{
+ const {withRetiredSenseNova}=await import('./fixtures/model-policy-history.mjs'),old=withRetiredSenseNova(ready()),before=structuredClone(old)
+ old.revision=20;before.revision=20
+ assert.equal(old.models.length,15);assert.equal(validateSnapshot(old,['parent']).models.length,15)
+ const current=migrateServicePolicy(old);assert(current)
+ assert.equal(current.models.length,13)
+ assert(!current.models.some(m=>m.provider==='SenseNova'&&['sensenova-6.7-flash-lite','deepseek-v4-pro'].includes(m.model)))
+ assert(current.models.some(m=>m.provider==='deepseek-official'&&m.model==='deepseek-v4-pro'))
+ assert.deepEqual(current.routes,old.routes);assert.deepEqual(current.limits,old.limits);assert.deepEqual(old,before)
+ assert.equal(defaultPolicy().models.length,13);assert.equal(migrateServicePolicy(current),null)
+ invalid(()=>validatePolicy(old))
+})
+
+test('移除退役主模型会清空对应路由，备用链中仅移除退役条目',async()=>{
+ const {withRetiredSenseNova}=await import('./fixtures/model-policy-history.mjs'),old=withRetiredSenseNova(ready())
+ for(const row of old.models.filter(m=>m.provider==='SenseNova')){row.status='verified';row.capabilities.tools=true}
+ old.routes.parent={primary:sense('deepseek-v4-pro'),fallbacks:[sense('sensenova-6.8-flash-lite')]}
+ old.routes.text.fallbacks=[sense('deepseek-v4-pro'),sense('deepseek-flash')]
+ const current=migrateServicePolicy(old)
+ assert.deepEqual(current.routes.parent,{primary:null,fallbacks:[]})
+ assert.deepEqual(current.routes.text.fallbacks,[sense('deepseek-flash')])
 })

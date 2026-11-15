@@ -28,3 +28,13 @@
 44 项模型策略、历史快照迁移、管理界面和 PostgreSQL 回归通过。当前配置迁移幂等，未覆写历史版本。
 
 本机详细证据：.cache/model-id-correction-20261115/；其中 sensenova-results/ 和 sensenova-retry/ 保存原始服务返回、阶段断言和结果，sensenova-native.json 保存真实 DSH 执行身份，sensenova-summary.json 保存汇总。原始凭据、图片与调用日志未提交到仓库。
+
+## 后续清理与 DeepSeek 复测
+
+用户要求移除 SenseNova 下的 `sensenova-6.7-flash-lite`、`deepseek-v4-pro`，已从当前目录、默认目录和本机运行配置中清理；DeepSeek 官方的 `deepseek-v4-pro` 仍保留。平台配置 V21 现有 13 项模型，其中 SenseNova 为 4 项。保存中的历史模型定义仅供旧任务快照校验，不会重新加入当前目录。
+
+`deepseek-flash` 本轮使用同一平台配置和凭据、1024 输出预算复测，基础回复正确返回随机 nonce 与计算结果 42，SSE 以 stop 和 [DONE] 正常结束。后续工具请求返回 HTTP 429 `rps exhausted`；间隔后复核返回 `RateLimitExceeded.EndpointTPMExceeded`。工具能力验证尚未完成，仍标记待验证，未将限流误判为模型不支持工具。
+
+130 项模型策略、管理界面、PostgreSQL、运行时与图像工具回归通过。生产环境额外校验 68 份任务快照和 20 个历史策略版本，内容均未变化；用户配置的主备路由和配额也保持原样。正式页面确认 SenseNova 仅剩 4 项、官方 DeepSeek Pro 仍在。
+
+证据位于 `.cache/sensenova-cleanup-20261115/`；备份位于 `.local/deploy-backups/2026-11-15-sensenova-cleanup-3bzyrzww/`。

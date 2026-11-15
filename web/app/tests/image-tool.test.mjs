@@ -134,7 +134,7 @@ test('父会话、伪造 agent 对象、错误归属与非图像执行不能触�
       if (variant === 'selected') f.execution.selected = { provider: 'other', model: 'image-model', llm }
       if (variant === 'companion') f.execution.selected = { ...f.execution.selected, llm: { provider: 'other', model: 'text-model' } }
       if (variant === 'actual') f.events[2].data.header.config.provider = 'other'
-      if (variant === 'unverified') f.policy.snapshot.models[1].status = 'unverified'
+      if (variant === 'unverified') f.policy.snapshot.models.find(row=>row.provider===llm.provider&&row.model===llm.model).status = 'unverified'
       failure(await f.call(request, { agent }), 'IMAGE_.*FORBIDDEN')
       assert.deepEqual(f.calls, [])
     })

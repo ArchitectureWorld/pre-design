@@ -16,6 +16,10 @@ const correctedModelIds = new Map([
   [keyOf({provider:'SenseNova',model:'glm-5.2'}),'glm-5.3'],
 ])
 const catalogKeyOf = reference => keyOf({...reference,model:correctedModelIds.get(keyOf(reference))??reference.model})
+const retiredModelKeys = new Set([
+  keyOf({provider:'SenseNova',model:'sensenova-6.7-flash-lite'}),
+  keyOf({provider:'SenseNova',model:'deepseek-v4-pro'}),
+])
 const capabilities = (text, vision = false, image = false) => ({ text, tools: false, vision, image })
 const yaoguang = { provider: 'yaoguang-codex', model: 'yaoguang02-gpt-6-astra' }
 const yaoguangKey = keyOf(yaoguang)
@@ -26,7 +30,7 @@ function entry(provider, model, declaredCapabilities, extra = {}) {
 }
 
 // These are the handed-over declarations, not successful capability probes.
-export const MODEL_CATALOG = freeze([
+const historicalCatalog = freeze([
   entry('SenseNova', 'sensenova-6.7-flash-lite', capabilities(true, true), { contextWindow: 262144, maxOutputTokens: 65536 }),
   entry('SenseNova', 'sensenova-6.8-flash-lite', capabilities(true, true), { contextWindow: 262144, maxOutputTokens: 65536 }),
   entry('SenseNova', 'deepseek-flash', capabilities(true), { contextWindow: 1048576, maxOutputTokens: 65536 }),
@@ -43,8 +47,10 @@ export const MODEL_CATALOG = freeze([
   entry('启航引擎AIGC组', 'tt-image-2.5-sunburst', capabilities(false, false, true)),
   entry(yaoguang.provider, yaoguang.model, capabilities(true), { maxOutputTokens: 8192, compat: { protocol: 'openai-responses' } }),
 ])
+export const MODEL_CATALOG = freeze(historicalCatalog.filter(item => !retiredModelKeys.has(keyOf(item))))
 const catalogByKey = new Map(MODEL_CATALOG.map(item => [keyOf(item), item]))
-const historicalCatalogKeys = MODEL_CATALOG.filter(item => keyOf(item) !== yaoguangKey).map(keyOf)
+const snapshotCatalogByKey = new Map(historicalCatalog.map(item => [keyOf(item), item]))
+const requiredCatalogKeys = MODEL_CATALOG.filter(item => keyOf(item) !== yaoguangKey).map(keyOf)
 const roles = ['parent', 'text', 'web', 'vision', 'image', 'imageLlm']
 const roleCapabilities = {
   // Research and chapter text agents submit through the native structured_output tool.
@@ -55,7 +61,7 @@ const positiveInteger = z.number().int().positive().max(Number.MAX_SAFE_INTEGER)
 const capabilitiesSchema = z.object({ text: z.boolean(), tools: z.boolean(), vision: z.boolean(), image: z.boolean() }).strict()
 const identifier = z.string().min(1).max(160).regex(/^[\p{L}\p{N}_.:@/-]+$/u)
 const modelKeySchema = z.object({ provider: identifier, model: identifier }).strict()
-const routeSchema = z.object({ primary: modelKeySchema.nullable(), fallbacks: z.array(modelKeySchema).max(MODEL_CATALOG.length - 1) }).strict()
+const routeSchema = z.object({ primary: modelKeySchema.nullable(), fallbacks: z.array(modelKeySchema).max(historicalCatalog.length - 1) }).strict()
 const workflowRef = z.string().min(1).max(512).regex(/^[^\x00-\x1f\x7f]+$/u)
 const credentialRef = z.string().regex(/^credential:[\p{L}\p{N}][\p{L}\p{N}_.-]{0,127}$/u)
 const serviceURL = z.string().min(1).max(2048).refine(value => {
@@ -81,7 +87,7 @@ const modelSchema = z.object({
 const searchLimits = { enabled: z.boolean(), maxResults: z.number().int().min(1).max(50),
   maxQueries: z.number().int().min(1).max(8), timeoutMs: z.number().int().min(1000).max(120000) }
 const policySchema = z.object({
-  revision: positiveInteger.optional(), models: z.array(modelSchema).min(historicalCatalogKeys.length).max(MODEL_CATALOG.length),
+  revision: positiveInteger.optional(), models: z.array(modelSchema).min(requiredCatalogKeys.length).max(historicalCatalog.length),
   routes: z.object(Object.fromEntries(roles.map(role => [role, routeSchema]))).strict(),
   limits: z.object({ globalConcurrency: positiveInteger, perUserConcurrency: positiveInteger,
     maxQueuedPerUser: positiveInteger, maxDailyJobsPerUser: positiveInteger.nullable() }).strict(),
@@ -109,6 +115,14 @@ export function defaultPolicy() {
 export function migrateServicePolicy(input) {
   const next = clone(input)
   let changed = false
+  const retained = next.models.filter(row => !retiredModelKeys.has(keyOf(row)))
+  if (retained.length !== next.models.length) {
+    next.models = retained; changed = true
+    for (const route of Object.values(next.routes)) {
+      if (route.primary && retiredModelKeys.has(keyOf(route.primary))) { route.primary = null; route.fallbacks = [] }
+      else route.fallbacks = route.fallbacks.filter(reference => !retiredModelKeys.has(keyOf(reference)))
+    }
+  }
   const corrected = new Set()
   for (const row of next.models) {
     const model = correctedModelIds.get(keyOf(row))
@@ -149,7 +163,7 @@ function validatePolicyShape(input, historical = false) {
   const policy = parsePolicy(input)
   const models = new Map(), runtimeSources = new Map(), canonicalKeys = new Set()
   for (const item of policy.models) {
-    const key = keyOf(item), canonicalKey = historical ? catalogKeyOf(item) : key, registered = catalogByKey.get(canonicalKey)
+    const key = keyOf(item), canonicalKey = historical ? catalogKeyOf(item) : key, registered = (historical ? snapshotCatalogByKey : catalogByKey).get(canonicalKey)
     if (!registered || canonicalKeys.has(canonicalKey)) invalid('模型目录必须保留规定的条目及来源，不能重复或引入其他身份')
     canonicalKeys.add(canonicalKey)
     const exactYaoguang = key === yaoguangKey
@@ -177,8 +191,8 @@ function validatePolicyShape(input, historical = false) {
     if (item.provider !== 'Comfyui-PIC' && item.imageConfig) invalid('该模型不接受 Klein 工作流配置')
     models.set(key, item)
   }
-  // Legacy task snapshots keep their complete fourteen identities without mutation.
-  if (historicalCatalogKeys.some(key => !canonicalKeys.has(key))) invalid('模型目录不能删除或替换规定的来源和模型身份')
+  // Retired identities remain readable only in frozen historical snapshots.
+  if (requiredCatalogKeys.some(key => !canonicalKeys.has(key))) invalid('模型目录不能删除或替换规定的来源和模型身份')
   for (const role of roles) {
     const route = policy.routes[role], seen = new Set()
     if (!route.primary && route.fallbacks.length) invalid('未选择主模型时不能配置备用链')

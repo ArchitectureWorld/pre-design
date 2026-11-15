@@ -46,7 +46,7 @@ test('initialization persists token hashes and resolves roles from the database'
   assert.equal(await store.authenticate(users[0].token), null)
   const policy = await store.getPolicy()
   assert.equal(policy.revision, 1)
-  assert.equal(policy.models.length, 15)
+  assert.equal(policy.models.length, 13)
 })
 
 test('startup rejects malformed accounts and duplicate identities or tokens', async t => {
@@ -151,13 +151,13 @@ test('job snapshots remain immutable across configuration edits and restarts', a
   assert.throws(() => { snapshot.limits.globalConcurrency = 99 }, TypeError)
   const next = await store.getPolicy()
   next.limits.globalConcurrency = 4
-  next.models[1].credentialRef = 'credential:rotated-sensenova'
+  next.models.find(row=>row.provider==='SenseNova'&&row.model==='sensenova-6.8-flash-lite').credentialRef = 'credential:rotated-sensenova'
   await store.savePolicy(next, 2, 'admin')
   const reopened = await createPlatformStore(db, users)
   assert.equal((await reopened.getPolicy()).revision, 3)
   assert.equal(snapshot.limits.globalConcurrency, 2)
-  assert.equal(snapshot.models[1].credentialRef, undefined)
-  assert.equal(pending.models[1].status, 'unverified')
+  assert.equal(snapshot.models.find(row=>row.provider==='SenseNova'&&row.model==='sensenova-6.8-flash-lite').credentialRef, undefined)
+  assert.equal(pending.models.find(row=>row.provider==='SenseNova'&&row.model==='sensenova-6.8-flash-lite').status, 'unverified')
   const mutable = await reopened.getPolicy()
   mutable.routes.parent.primary = null
   assert.ok((await reopened.getPolicy()).routes.parent.primary)
@@ -176,20 +176,20 @@ test('旧 Flux2 配置迁移为独立 Flux3 修订，保留历史与其他模型
   const db=await database(t),users=accounts(),store=await createPlatformStore(db,users)
   const old=await store.getPolicy();delete old.search
   old.models=old.models.filter(row=>row.provider!=='yaoguang-codex')
-  old.models[10].imageConfig={modelFile:'Flux2-Klein-9B-True-v2-bf16.safetensors',textToImageWorkflow:'old.json'}
-  old.models[10].status='verified';old.limits.globalConcurrency=7
+  old.models.find(row=>row.provider==='Comfyui-PIC').imageConfig={modelFile:'Flux2-Klein-9B-True-v2-bf16.safetensors',textToImageWorkflow:'old.json'}
+  old.models.find(row=>row.provider==='Comfyui-PIC').status='verified';old.limits.globalConcurrency=7
   await db.query('UPDATE platform_policy_versions SET policy=$1 WHERE revision=1',[old])
   const stores=await Promise.all([createPlatformStore(db,users),createPlatformStore(db,users)])
   const migrated=await stores[0].getPolicy()
-  assert.equal(migrated.revision,2);assert.equal(migrated.models[10].status,'unverified')
-  assert.equal(migrated.models[10].imageConfig.modelFile,'flux3-image-klein-bf16.safetensors')
+  assert.equal(migrated.revision,2);assert.equal(migrated.models.find(row=>row.provider==='Comfyui-PIC').status,'unverified')
+  assert.equal(migrated.models.find(row=>row.provider==='Comfyui-PIC').imageConfig.modelFile,'flux3-image-klein-bf16.safetensors')
   assert.equal(migrated.limits.globalConcurrency,7);assert.equal(migrated.search.enabled,false)
   assert.deepEqual((await db.query('SELECT policy FROM platform_policy_versions WHERE revision=1')).rows[0].policy,old)
   assert.equal((await (await createPlatformStore(db,users)).getPolicy()).revision,2)
   assert.equal((await db.query('SELECT count(*)::int AS count FROM platform_policy_audit')).rows[0].count,2)
 })
 
-test('完整14项配置追加瑶光02时仅产生一个新修订，历史快照与既有路由保持不变', async t => {
+test('未含瑶光的12项配置追加瑶光02时仅产生一个新修订，历史快照与既有路由保持不变', async t => {
   const db = await database(t), users = accounts(), store = await createPlatformStore(db, users)
   const historical = markParentVerified(await store.getPolicy())
   historical.models = historical.models.filter(row => row.provider !== 'yaoguang-codex')
@@ -197,17 +197,17 @@ test('完整14项配置追加瑶光02时仅产生一个新修订，历史快照�
   historical.models[0].maxOutputTokens = 4096
   await db.query('UPDATE platform_policy_versions SET policy=$1 WHERE revision=1', [historical])
   const snapshot = await store.snapshotPolicy(['text'])
-  assert.equal(snapshot.models.length, 14)
+  assert.equal(snapshot.models.length, 12)
   const reopened = await Promise.all([createPlatformStore(db, users), createPlatformStore(db, users)])
   const migrated = await reopened[0].getPolicy()
   assert.equal(migrated.revision, 2)
-  assert.equal(migrated.models.length, 15)
-  assert.deepEqual(migrated.models.slice(0, 14), historical.models)
+  assert.equal(migrated.models.length, 13)
+  assert.deepEqual(migrated.models.slice(0, -1), historical.models)
   assert.deepEqual(migrated.routes, historical.routes)
   assert.deepEqual(migrated.search, historical.search)
-  assert.equal(migrated.models[14].provider, 'yaoguang-codex')
-  assert.equal(migrated.models[14].model, 'yaoguang02-gpt-6-astra')
-  assert.equal(migrated.models[14].status, 'unverified')
+  assert.equal(migrated.models.at(-1).provider, 'yaoguang-codex')
+  assert.equal(migrated.models.at(-1).model, 'yaoguang02-gpt-6-astra')
+  assert.equal(migrated.models.at(-1).status, 'unverified')
   assert.deepEqual(snapshot.models, historical.models)
   assert.equal(snapshot.revision, 1)
   assert.deepEqual((await db.query('SELECT policy FROM platform_policy_versions WHERE revision=1')).rows[0].policy, historical)
@@ -231,6 +231,17 @@ test('SenseNova ID 更正创建新版本，并发重启幂等且保留原始配�
  assert(current.models.some(r=>r.provider==='SenseNova'&&r.model==='glm-5.3'))
  assert(current.models.some(r=>r.provider==='deepseek-official'&&r.model==='deepseek-v4-flash'))
  assert.equal(current.limits.maxDailyJobsPerUser,null)
+ assert.deepEqual((await db.query('SELECT policy FROM platform_policy_versions WHERE revision=1')).rows[0].policy,old)
+ assert.equal((await (await createPlatformStore(db,users)).getPolicy()).revision,2)
+})
+
+test('退役条目以新版本移除，原版本和历史快照完整保留',async t=>{
+ const {withRetiredSenseNova}=await import('./fixtures/model-policy-history.mjs'),{validateSnapshot}=await import('../src/model-policy.mjs')
+ const db=await database(t),users=accounts(),store=await createPlatformStore(db,users),old=withRetiredSenseNova(markParentVerified(await store.getPolicy()))
+ await db.query('UPDATE platform_policy_versions SET policy=$1 WHERE revision=1',[old])
+ const snapshot=validateSnapshot(old,['parent'])
+ const reopened=await Promise.all([createPlatformStore(db,users),createPlatformStore(db,users)]),current=await reopened[0].getPolicy()
+ assert.equal(current.revision,2);assert.equal(current.models.length,13);assert.equal(snapshot.models.length,15)
  assert.deepEqual((await db.query('SELECT policy FROM platform_policy_versions WHERE revision=1')).rows[0].policy,old)
  assert.equal((await (await createPlatformStore(db,users)).getPolicy()).revision,2)
 })
