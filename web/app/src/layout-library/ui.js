@@ -15,9 +15,10 @@ export function mountLayoutLibrary({request,getProject,notify,mutate,refresh=asy
  }
  async function reload(){resources=(await request('/layout-library')).resources;renderList()}
  async function open(){
+  console.log('LL-OPEN-START');
   close();const generation=ticket;dialog=document.createElement('dialog');dialog.className='ll-dialog';dialog.dataset.layoutLibrary='';dialog.setAttribute('aria-label','版式资源库')
   dialog.innerHTML=`<header class="ll-head"><div><small>PRE—DESIGN · NATIVE LAYOUTS</small><h2>版式资源库</h2></div><nav><button data-mode="library">浏览与管理</button><button data-mode="project">当前项目应用</button><button data-mode="reference">参考文字提炼</button></nav><button data-close aria-label="关闭版式库">×</button></header><p class="ll-status" role="status" data-ll-status>正在连接平台…</p><div class="ll-main"><aside class="ll-sidebar"><div class="ll-tools"><input data-search type="search" placeholder="搜索名称、标签"><select data-filter><option value="all">全部可见资源</option><option value="mine">我的</option><option value="official">官方</option><option value="shared">共享</option></select><button data-new>新建原生版式</button><button data-seed hidden>预置3套官方候选</button><label class="ll-file">导入JSON / PPTX<input data-import type="file" accept=".json,.pptx" multiple hidden></label></div><div data-list class="ll-list"></div></aside><section class="ll-inspector" data-detail></section></div>`
-  document.body.append(dialog);dialog.showModal();dialog.querySelector('[data-close]').onclick=close;dialog.oncancel=e=>{e.preventDefault();close()}
+  document.body.append(dialog);console.log('LL-DIALOG-APPENDED');dialog.showModal();console.log('LL-DIALOG-SHOWN');dialog.querySelector('[data-close]').onclick=close;dialog.oncancel=e=>{e.preventDefault();close()}
   dialog.querySelector('[data-search]').oninput=renderList;dialog.querySelector('[data-filter]').onchange=renderList
   dialog.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>void run(async()=>{mode=b.dataset.mode;renderMode()}))
   dialog.querySelector('[data-new]').onclick=()=>void run(async()=>{working=(await request('/layout-library/starter')).package;selected=null;mode='library';renderEditor();await preview()})
@@ -26,7 +27,7 @@ export function mountLayoutLibrary({request,getProject,notify,mutate,refresh=asy
    for(const f of files){if(f.size>8*1024*1024)throw Error(f.name+'超过8 MiB。');const data=new Uint8Array(await f.arrayBuffer());let binary='';for(let i=0;i<data.length;i+=8192)binary+=String.fromCharCode(...data.subarray(i,i+8192));const r=await post('/layout-library/import',{filename:f.name,content:btoa(binary)});await reload();await select(r.id,r.version)}
    msg('已保存为个人候选。请核对来源与适用性，再检查、发布。')
   })
-  try{identity=await request('/me');dialog.querySelector('[data-seed]').hidden=identity.role!=='admin';dialog.querySelector('[data-seed]').onclick=()=>void run(async()=>{await post('/layout-library/seed');await reload();msg('已预置3套候选；检查并发布后才进入用户可用库。')});await reload();if(generation!==ticket)return;if(resources.length)await select(resources[0].id,resources[0].version);else{working=(await request('/layout-library/starter')).package;selected=null;renderEditor();await preview()};msg('已连接平台。预览、检查和项目制作使用同一原生渲染器。')}catch(e){msg(e.message)}
+  try{console.log('LL-GET-ME');identity=await request('/me');console.log('LL-ME-OK');dialog.querySelector('[data-seed]').hidden=identity.role!=='admin';dialog.querySelector('[data-seed]').onclick=()=>void run(async()=>{await post('/layout-library/seed');await reload();msg('已预置3套候选；检查并发布后才进入用户可用库。')});console.log('LL-RELOAD');await reload();console.log('LL-RELOAD-OK',resources.length);if(generation!==ticket)return;if(resources.length)await select(resources[0].id,resources[0].version);else{working=(await request('/layout-library/starter')).package;selected=null;renderEditor();await preview()};msg('已连接平台。预览、检查和项目制作使用同一原生渲染器。')}catch(e){msg(e.message)}
  }
  function renderList(){
   if(!dialog)return
@@ -94,6 +95,6 @@ export function mountLayoutLibrary({request,getProject,notify,mutate,refresh=asy
   dialog.querySelector('[data-ref-run]').onclick=()=>void run(async()=>{if(!dialog.querySelector('[data-allow-model]').checked)throw Error('请明确允许本次模型调用。');await post('/layout-library/reference-jobs',{name:dialog.querySelector('[data-ref-name]').value,text:dialog.querySelector('[data-ref-text]').value,allowModel:true});await jobs();msg('任务已入现有后台队列；关闭此窗口不影响任务，取消请使用取消按钮。')})
   dialog.querySelector('[data-ref-refresh]').onclick=()=>void run(jobs);await jobs()
  }
- button.onclick=()=>void run(open)
+ button.onclick=()=>{console.log('LL-CLICK');void run(open)}
  return {open,reset:close,dispose(){close();button.remove()}}
 }
