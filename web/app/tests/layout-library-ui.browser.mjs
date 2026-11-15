@@ -27,7 +27,11 @@ try{
  await page.exposeFunction('projectState',async()=>({id:f.p.id,name:'版式集成验收',revision:0,workflow:await f.workflows.current()}))
  await page.addScriptTag({content:script.replace('export function mountLayoutLibrary','window.mountLayoutLibrary = function')})
  await page.evaluate(async()=>{window.fp=await window.projectState();window.messages=[];window.ll=mountLayoutLibrary({request:window.bridge,getProject:()=>window.fp,notify:t=>messages.push(t),refresh:async()=>window.fp=await window.projectState(),mutate:async(path,b)=>{const r=await bridge(`/projects/${fp.id}/${path}`,{method:'POST',body:{requestId:Array.from(crypto.getRandomValues(new Uint8Array(16)),x=>x.toString(16).padStart(2,'0')).join(''),baseRevision:0,...b}});window.fp=await window.projectState();return r}})})
- await page.locator('[data-layout-library-open]').click();await page.locator('[data-editor]').waitFor();await page.waitForTimeout(250)
+ await page.locator('[data-layout-library-open]').click();
+ try{await page.locator('[data-editor]').waitFor()}catch(error){
+  console.log('LIBRARY_UI_DIAGNOSTIC',JSON.stringify(await page.evaluate(()=>({status:document.querySelector('[data-ll-status]')?.textContent,list:document.querySelector('[data-list]')?.textContent,detail:document.querySelector('[data-detail]')?.textContent?.slice(0,250),dialogs:[...document.querySelectorAll('dialog')].map(x=>({open:x.open,visible:getComputedStyle(x).visibility,display:getComputedStyle(x).display})),errors:window.messages??[]}))));
+  console.log('BROWSER_PAGE_ERRORS',JSON.stringify(errors));throw error;
+ }await page.waitForTimeout(250)
  assert.equal(await page.locator('.ll-card').count(),1);checks++
  assert.equal(await page.locator('[data-seed]').isVisible(),false);checks++
  await page.screenshot({path:resolve(output,'library-1366x768.png')})
