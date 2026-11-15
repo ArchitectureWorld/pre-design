@@ -15,10 +15,10 @@ export function mountLayoutLibrary({request,getProject,notify,mutate,refresh=asy
  }
  async function reload(){resources=(await request('/layout-library')).resources;renderList()}
  async function open(){
-  console.log('LL-OPEN-START');
+  
   close();const generation=ticket;dialog=document.createElement('dialog');dialog.className='ll-dialog';dialog.dataset.layoutLibrary='';dialog.setAttribute('aria-label','版式资源库')
   dialog.innerHTML=`<header class="ll-head"><div><small>PRE—DESIGN · NATIVE LAYOUTS</small><h2>版式资源库</h2></div><nav><button data-mode="library">浏览与管理</button><button data-mode="project">当前项目应用</button><button data-mode="reference">参考文字提炼</button></nav><button data-close aria-label="关闭版式库">×</button></header><p class="ll-status" role="status" data-ll-status>正在连接平台…</p><div class="ll-main"><aside class="ll-sidebar"><div class="ll-tools"><input data-search type="search" placeholder="搜索名称、标签"><select data-filter><option value="all">全部可见资源</option><option value="mine">我的</option><option value="official">官方</option><option value="shared">共享</option></select><button data-new>新建原生版式</button><button data-seed hidden>预置3套官方候选</button><label class="ll-file">导入JSON / PPTX<input data-import type="file" accept=".json,.pptx" multiple hidden></label></div><div data-list class="ll-list"></div></aside><section class="ll-inspector" data-detail></section></div>`
-  document.body.append(dialog);console.log('LL-DIALOG-APPENDED');dialog.showModal();console.log('LL-DIALOG-SHOWN');dialog.querySelector('[data-close]').onclick=close;dialog.oncancel=e=>{e.preventDefault();close()}
+  document.body.append(dialog);dialog.showModal();dialog.querySelector('[data-close]').onclick=close;dialog.oncancel=e=>{e.preventDefault();close()}
   dialog.querySelector('[data-search]').oninput=renderList;dialog.querySelector('[data-filter]').onchange=renderList
   dialog.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>void run(async()=>{mode=b.dataset.mode;renderMode()}))
   dialog.querySelector('[data-new]').onclick=()=>void run(async()=>{working=(await request('/layout-library/starter')).package;selected=null;mode='library';renderEditor();await preview()})
@@ -27,7 +27,7 @@ export function mountLayoutLibrary({request,getProject,notify,mutate,refresh=asy
    for(const f of files){if(f.size>8*1024*1024)throw Error(f.name+'超过8 MiB。');const data=new Uint8Array(await f.arrayBuffer());let binary='';for(let i=0;i<data.length;i+=8192)binary+=String.fromCharCode(...data.subarray(i,i+8192));const r=await post('/layout-library/import',{filename:f.name,content:btoa(binary)});await reload();await select(r.id,r.version)}
    msg('已保存为个人候选。请核对来源与适用性，再检查、发布。')
   })
-  try{console.log('LL-GET-ME');identity=await request('/me');console.log('LL-ME-OK');dialog.querySelector('[data-seed]').hidden=identity.role!=='admin';dialog.querySelector('[data-seed]').onclick=()=>void run(async()=>{await post('/layout-library/seed');await reload();msg('已预置3套候选；检查并发布后才进入用户可用库。')});console.log('LL-RELOAD');await reload();console.log('LL-RELOAD-OK',resources.length);if(generation!==ticket)return;if(resources.length)await select(resources[0].id,resources[0].version);else{working=(await request('/layout-library/starter')).package;selected=null;renderEditor();await preview()};msg('已连接平台。预览、检查和项目制作使用同一原生渲染器。')}catch(e){console.log('LL-OPEN-ERROR',e.stack??e.message);msg(e.message)}
+  try{identity=await request('/me');dialog.querySelector('[data-seed]').hidden=identity.role!=='admin';dialog.querySelector('[data-seed]').onclick=()=>void run(async()=>{await post('/layout-library/seed');await reload();msg('已预置3套候选；检查并发布后才进入用户可用库。')});await reload();if(generation!==ticket)return;if(resources.length)await select(resources[0].id,resources[0].version);else{working=(await request('/layout-library/starter')).package;selected=null;renderEditor();await preview()};msg('已连接平台。预览、检查和项目制作使用同一原生渲染器。')}catch(e){console.log('LL-OPEN-ERROR',e.stack??e.message);msg(e.message)}
  }
  function renderList(){
   if(!dialog)return
@@ -36,7 +36,7 @@ export function mountLayoutLibrary({request,getProject,notify,mutate,refresh=asy
   dialog.querySelector('[data-list]').innerHTML=rows.map(r=>`<button class="ll-card ${selected?.id===r.id?'selected':''}" data-id="${r.id}" data-version="${r.version}"><span class="ll-swatch" style="background:${r.package.theme.background};border-left:5px solid ${r.package.theme.accent};color:${r.package.theme.ink}">Aa <i style="background:${r.package.theme.accent}"></i></span><b>${esc(r.package.name)}</b><small>${visibility[r.visibility]} · V${r.version} · ${stateName(r)}</small><small>${r.package.layouts.length}种页面 · 已用于${r.usageCount??0}页 · HTML</small></button>`).join('')||'<p class="ll-hint">没有符合条件的资源。</p>'
   dialog.querySelectorAll('.ll-card').forEach(b=>b.onclick=()=>void run(()=>select(b.dataset.id,Number(b.dataset.version))))
  }
- async function select(id,version){console.log('LL-SELECT',id,version);selected=await request(`/layout-library/${id}/${version}`);console.log('LL-SELECT-OK');working=structuredClone(selected.package);renderList();console.log('LL-RENDER-LIST-OK');if(mode==='library'){renderEditor();console.log('LL-EDITOR-RENDERED');await preview();console.log('LL-PREVIEW-OK')}else renderMode()}
+ async function select(id,version){selected=await request(`/layout-library/${id}/${version}`);working=structuredClone(selected.package);renderList();if(mode==='library'){renderEditor();await preview();console.log('LL-PREVIEW-OK')}else renderMode()}
  function renderMode(){dialog.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));if(mode==='project')void showProject();else if(mode==='reference')void showReference();else{renderEditor();void preview()}}
  const detail=html=>{observer?.disconnect();dialog.querySelector('[data-detail]').innerHTML=html}
  function readForm(){
@@ -66,10 +66,26 @@ export function mountLayoutLibrary({request,getProject,notify,mutate,refresh=asy
  function download(file){const u=URL.createObjectURL(file.blob),a=document.createElement('a');a.href=u;a.download=file.filename;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)}
  async function preview(){
   if(!dialog?.querySelector('[data-preview-box]')||!working)return
-  console.log('LL-PREVIEW-REQUEST');const generation=ticket,r=await request('/layout-library/preview',{method:'POST',body:{package:working,layoutId:dialog.querySelector('[data-layout]').value}})
-  console.log('LL-PREVIEW-RESPONSE',r.html?.length);if(generation!==ticket||!dialog?.querySelector('[data-preview-box]'))return
-  const box=dialog.querySelector('[data-preview-box]');box.innerHTML='<iframe title="原生版式实际试排" sandbox=""></iframe>';const frame=box.querySelector('iframe');frame.srcdoc=r.html;console.log('LL-PREVIEW-SRCDOC')
-  const fit=()=>{frame.style.transform=`scale(${box.clientWidth/1640})`};frame.style.width='1640px';frame.style.height='940px';observer?.disconnect();observer=null;fit();console.log('LL-PREVIEW-FIT')
+  const generation=ticket,r=await request('/layout-library/preview',{method:'POST',body:{package:working,layoutId:dialog.querySelector('[data-layout]').value}})
+  if(generation!==ticket||!dialog?.querySelector('[data-preview-box]'))return
+  const box=dialog.querySelector('[data-preview-box]')
+  // Use the same native HTML renderer in an isolated shadow tree. Embedded
+  // srcdoc iframes stalled the host Chromium while editing the library.
+  const parsed=new DOMParser().parseFromString(r.html,'text/html')
+  const deck=parsed.querySelector('.native-deck')
+  if(!deck)throw Error('原生预览缺少页面结构。')
+  const host=document.createElement('div')
+  host.className='ll-preview-host'
+  host.style.cssText='position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:0 0'
+  box.replaceChildren(host)
+  const shadow=host.attachShadow({mode:'closed'})
+  const style=document.createElement('style')
+  style.textContent=parsed.querySelector('style')?.textContent??''
+  const documentBody=deck.cloneNode(true)
+  documentBody.querySelectorAll('script,iframe,object,embed,link').forEach(node=>node.remove())
+  shadow.append(style,documentBody)
+  observer?.disconnect();observer=null
+  host.style.transform='scale('+(box.clientWidth/1600)+')'
  }
  async function showProject(){
   const p=getProject();if(!p?.id){detail('<h3>当前没有打开项目</h3><p>可以先在“浏览与管理”中准备版式，再进入项目选用。</p>');return}
