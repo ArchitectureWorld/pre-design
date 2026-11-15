@@ -7,6 +7,7 @@ on:
       - 'web/app/src/layout-library/**'
       - 'web/app/tests/layout-library*'
       - 'web/app/tests/layout-library/**'
+      - 'web/app/tests/workflow-api.test.mjs'
       - 'scripts/layout-library/**'
 permissions:
   contents: read
