@@ -28,18 +28,21 @@ export async function createLayoutLibrary(db){
   for(const r of rows){const x=await get(actor,r.id);const [usage]=await query('SELECT count(*) AS n FROM layout_library_usage WHERE resource_id=$1',[r.id]);results.push({...x,usageCount:Number(usage.n),editable:own(r,actor)})}
   return results
  }
- async function mutation(actor,requestId,data,fn){
+ async function mutation(actor,requestId,data,fn,connection){
   if(!/^[A-Za-z0-9_-]{1,100}$/.test(requestId??''))throw fail('请求编号不合法。')
-  const hash=packageDigest(data),c=await db.connect()
+  const hash=packageDigest(data),c=connection??await db.connect()
   try{
-   await c.query('BEGIN');await c.query("SELECT pg_advisory_xact_lock(hashtext($1))",['layout-library:'+actor.id])
+   if(!connection)await c.query('BEGIN')
+   await c.query("SELECT pg_advisory_xact_lock(hashtext($1))",['layout-library:'+actor.id])
    const [prior]=await query('SELECT * FROM layout_library_mutations WHERE actor_id=$1 AND request_id=$2',[actor.id,requestId],c)
-   if(prior){if(prior.fingerprint!==hash)throw fail('请求编号已用于不同操作。',409);await c.query('COMMIT');return prior.result}
+   if(prior){if(prior.fingerprint!==hash)throw fail('请求编号已用于不同操作。',409);if(!connection)await c.query('COMMIT');return prior.result}
    const result=await fn(c)
-   await c.query('INSERT INTO layout_library_mutations(actor_id,request_id,fingerprint,result) VALUES($1,$2,$3,$4)',[actor.id,requestId,hash,result]);await c.query('COMMIT');return result
-  }catch(e){await c.query('ROLLBACK');throw e}finally{c.release()}
+   await c.query('INSERT INTO layout_library_mutations(actor_id,request_id,fingerprint,result) VALUES($1,$2,$3,$4)',[actor.id,requestId,hash,result])
+   if(!connection)await c.query('COMMIT')
+   return result
+  }catch(e){if(!connection)await c.query('ROLLBACK');throw e}finally{if(!connection)c.release()}
  }
- async function create(actor,b){
+ async function create(actor,b,connection){
   const p=validatePackage(b.package)
   return mutation(actor,b.requestId,{op:'create',package:p,sourceHash:b.sourceFile?.sha256??null},async c=>{
    const hash=packageDigest(p)
@@ -48,10 +51,10 @@ export async function createLayoutLibrary(db){
    const id=randomUUID()
    await c.query('INSERT INTO layout_library_resources(id,owner_id,version) VALUES($1,$2,1)',[id,actor.id])
    await c.query('INSERT INTO layout_library_versions(resource_id,version,document,hash) VALUES($1,1,$2,$3)',[id,p,hash]);if(b.sourceFile)await c.query('INSERT INTO layout_library_sources(resource_id,filename,sha256,body_base64) VALUES($1,$2,$3,$4)',[id,b.sourceFile.filename,b.sourceFile.sha256,b.sourceFile.content]);return {id,version:1,hash}
-  })
+  },connection)
  }
  async function sourceFile(actor,id){const x=await get(actor,id);if(x.ownerId!==actor.id&&actor.role!=='admin')throw fail('参考原件不存在。',404);const [source]=await query('SELECT filename,sha256,body_base64 FROM layout_library_sources WHERE resource_id=$1',[id]);if(!source)throw fail('该资源没有保留的外部参考原件。',404);return source}
- async function revise(actor,b){
+ async function revise(actor,b,connection){
   const p=validatePackage(b.package)
   return mutation(actor,b.requestId,{...b,package:p,op:'revise'},async c=>{
    const [r]=await query('SELECT * FROM layout_library_resources WHERE id=$1 FOR UPDATE',[b.id],c)
@@ -62,7 +65,7 @@ export async function createLayoutLibrary(db){
    if(old.hash===hash)return {id:r.id,version:r.version,hash,unchanged:true}
    await c.query('INSERT INTO layout_library_versions(resource_id,version,document,hash) VALUES($1,$2,$3,$4)',[r.id,version,p,hash])
    await c.query('UPDATE layout_library_resources SET version=$2,share_requested=false WHERE id=$1',[r.id,version]);return {id:r.id,version,hash}
-  })
+  },connection)
  }
  async function saveValidation(actor,id,version,result){
   const x=await get(actor,id,version)
@@ -104,7 +107,7 @@ export async function createLayoutLibrary(db){
  async function freezeRef(actor,ref,c){
   if(!ref)return null
   const x=await get(actor,ref.resourceId,ref.version,c)
-  if(!x.published)throw fail('只能新绑定当前已发布、未下架的资源版本。',409)
+  if(x.retired||!x.published&&x.ownerId!==actor.id)throw fail('请选择个人版式或已发布的共享版式。',409)
   return {resourceId:x.id,version:x.version,hash:x.hash,package:x.package}
  }
  async function saveBindings(actor,p,b,draft){
@@ -115,11 +118,12 @@ export async function createLayoutLibrary(db){
    const previous=await bindings(p,c)
    if(previous.revision!==b.expectedRevision)throw fail('版式配置已更新，请刷新后重试。',409)
    const same=previous.draftId===draft.id
-   const doc={global:same?previous.global:null,local:same?structuredClone(previous.local):{},manual:same?structuredClone(previous.manual):{}}
-   if(b.scope==='global')doc.global=await freezeRef(actor,b.resource,c)
+   const doc={global:same?previous.global:null,globalOverrides:same?{...previous.globalOverrides}:{},local:same?structuredClone(previous.local):{},manual:same?structuredClone(previous.manual):{},reviewPageIds:same?[...previous.reviewPageIds??[]]:[]}
+   if(b.scope==='global'){doc.global=await freezeRef(actor,b.resource,c);doc.globalOverrides=patchSchema.parse(b.overrides??{})}
    else{
     if(!b.pageIds?.length||b.pageIds.some(id=>!pages.some(p=>p.id===id)))throw fail('选择页面不属于当前稿件。',404)
     for(const id of b.pageIds){
+     doc.reviewPageIds=doc.reviewPageIds.filter(pageId=>pageId!==id)
      if(b.scope==='manual'){
       if(b.remove)delete doc.manual[id];else doc.manual[id]={...(doc.manual[id]??{}),...patchSchema.parse(b.overrides??{}),theme:{...doc.manual[id]?.theme,...b.overrides?.theme}}
      }else if(b.scope==='local'){
@@ -127,7 +131,7 @@ export async function createLayoutLibrary(db){
      }else throw fail('绑定范围不合法。')
     }
    }
-   for(const page of pages)resolvePage({page,globalPackage:doc.global?.package,local:{package:doc.local[page.id]?.resource?.package,overrides:doc.local[page.id]?.overrides},manual:doc.manual[page.id]})
+   for(const page of pages)resolvePage({page,globalPackage:doc.global?.package,globalOverrides:doc.globalOverrides,local:{package:doc.local[page.id]?.resource?.package,overrides:doc.local[page.id]?.overrides},manual:doc.manual[page.id]})
    const revision=previous.revision+1
    await c.query('INSERT INTO layout_project_bindings(project_id,draft_id,revision,document) VALUES($1,$2,$3,$4) ON CONFLICT(project_id) DO UPDATE SET draft_id=excluded.draft_id,revision=excluded.revision,document=excluded.document,updated_at=now()',[p.id,draft.id,revision,doc])
    await c.query('INSERT INTO layout_binding_versions(project_id,revision,draft_id,document) VALUES($1,$2,$3,$4)',[p.id,revision,draft.id,doc])
@@ -138,9 +142,28 @@ export async function createLayoutLibrary(db){
   return pages.map(page=>{
    const local=config.local[page.id],refs=[config.global,local?.resource].filter(Boolean).map(r=>({resourceId:r.resourceId,version:r.version,hash:r.hash}))
    const manual={...(page.protectedLayout??{}),...(config.manual[page.id]??{}),theme:{...page.protectedLayout?.theme,...config.manual[page.id]?.theme}}
-   const nativeLayout=resolvePage({page,globalPackage:config.global?.package,local:{package:local?.resource?.package,overrides:local?.overrides},manual,resourceRefs:refs})
+   const nativeLayout=resolvePage({page,globalPackage:config.global?.package,globalOverrides:config.globalOverrides,local:{package:local?.resource?.package,overrides:local?.overrides},manual,resourceRefs:refs})
    return {...page,nativeLayout}
   })
  }
- return {sourceFile,list,get,create,revise,saveValidation,publish,retire,requestShare,bindings,saveBindings,compilePages,exportReusable}
+ // The draft writer owns the project lock and transaction.
+ async function carryBindings(p,previous,draft,c){
+  const [row]=await query('SELECT * FROM layout_project_bindings WHERE project_id=$1 FOR UPDATE',[p.id],c)
+  if(!row||row.draft_id!==previous.id)return
+  const ids=new Set(draft.blocks.flatMap(block=>(block.items??[]).map(item=>'visual-page-'+item.id)))
+  const oldBlock=previous.document.blocks.find(block=>block.id===draft.changedBlockId),newBlock=draft.blocks.find(block=>block.id===draft.changedBlockId)
+  // Whole-section generation assigns item IDs by position. A rewritten multi-page
+  // section cannot safely reuse those IDs as evidence of page identity.
+  const ambiguous=!draft.changedItemId&&Math.max(oldBlock?.items?.length??0,newBlock?.items?.length??0)>1&&JSON.stringify(oldBlock?.items)!==JSON.stringify(newBlock?.items)
+  const resetIds=new Set(ambiguous?[...oldBlock?.items??[],...newBlock?.items??[]].map(item=>'visual-page-'+item.id):[])
+  const hadBindings=[...resetIds].some(id=>row.document.local?.[id]||row.document.manual?.[id])
+  const reviewPageIds=[...new Set([...(row.document.reviewPageIds??[]),...(hadBindings?[...resetIds]:[])])].filter(id=>ids.has(id))
+  const keep=([id])=>ids.has(id)&&!resetIds.has(id)
+  const document={...row.document,local:Object.fromEntries(Object.entries(row.document.local??{}).filter(keep)),
+   manual:Object.fromEntries(Object.entries(row.document.manual??{}).filter(keep)),reviewPageIds,carriedFromDraftId:previous.id}
+  const revision=row.revision+1
+  await c.query('UPDATE layout_project_bindings SET draft_id=$2,revision=$3,document=$4,updated_at=now() WHERE project_id=$1',[p.id,draft.id,revision,document])
+  await c.query('INSERT INTO layout_binding_versions(project_id,revision,draft_id,document) VALUES($1,$2,$3,$4)',[p.id,revision,draft.id,document])
+ }
+ return {sourceFile,list,get,create,revise,saveValidation,publish,retire,requestShare,bindings,saveBindings,carryBindings,compilePages,freezeRef,exportReusable}
 }

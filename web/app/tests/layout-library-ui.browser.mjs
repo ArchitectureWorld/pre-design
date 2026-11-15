@@ -1,95 +1,63 @@
 import {chromium} from 'playwright-core'
-import {readFile,mkdir} from 'node:fs/promises'
+import {mkdir} from 'node:fs/promises'
 import {resolve} from 'node:path'
-import assert from 'node:assert/strict'
-import {libraryFixture} from './layout-library/fixture.mjs'
-import {createPackage} from '../src/layout-library/contract.mjs'
 import {randomUUID} from 'node:crypto'
-const f=await libraryFixture(),output=resolve(process.env.PRE_LAYOUT_SCREENSHOTS??'/tmp/layout-library-ui-evidence');await mkdir(output,{recursive:true})
-const browser=await chromium.launch({executablePath:process.env.PREPLANNING_BROWSER_EXECUTABLE??'/usr/bin/chromium',headless:true,args:['--no-sandbox','--disable-dev-shm-usage']})
-let checks=0,actor='owner',referenceJobs=[]
-const referenceCalls=[]
-const referenceListGate=Promise.withResolvers()
+import assert from 'node:assert/strict'
+import {fullLayoutFixture} from './layout-library/full-fixture.mjs'
+import {createPackage} from '../src/layout-library/contract.mjs'
+import {resolveBrowserExecutable} from '../../../src/report/browser-executable.ts'
+if(!process.env.PRE_DOSSIER_TEST_DATABASE){console.log(JSON.stringify({skipped:true,reason:'需要真实PostgreSQL配置 PRE_DOSSIER_TEST_DATABASE'}));process.exit(0)}
+const f=await fullLayoutFixture(),output=resolve(process.env.PRE_LAYOUT_SCREENSHOTS??'/tmp/layout-workbench-evidence');await mkdir(output,{recursive:true})
+const browser=await chromium.launch({executablePath:resolveBrowserExecutable(),headless:true,chromiumSandbox:process.env.PRE_LAYOUT_TEST_NO_SANDBOX!=='1'})
+const page=await browser.newPage({viewport:{width:1512,height:982}}),errors=[]
+let checks=0
+page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));await page.addInitScript(token=>sessionStorage.setItem('pre-access',token),f.token)
+const wait=fn=>page.waitForFunction(fn,null,{timeout:30000})
 try{
- const pkg=createPackage('界面测试 · 蓝灰');pkg.theme.background='#F7F9FC'
- const created=(await f.request('POST','/api/layout-library',{requestId:randomUUID(),package:pkg})).json()
- const base=`/api/layout-library/${created.id}/1`
- let r=await f.request('POST',base+'/validate',{});assert.equal(r.json().status,'passed');checks++
- r=await f.request('POST',base+'/publish',{requestId:randomUUID(),visibility:'private',reviewed:true});assert.equal(r.statusCode,200);checks++
- const page=await browser.newPage({viewport:{width:1366,height:768},deviceScaleFactor:1})
- page.setDefaultTimeout(6000);page.on('console',m=>console.log('BROWSER',m.text()));
- const errors=[];page.on('pageerror',e=>errors.push(e.message))
- const css=await readFile(new URL('../src/layout-library/ui.css',import.meta.url),'utf8'),script=await readFile(new URL('../src/layout-library/ui.js',import.meta.url),'utf8')
- await page.setContent(`<html lang="zh-CN"><style>${css}body{background:#eef2f8;font-family:sans-serif}.top-right{display:flex;justify-content:flex-end}</style><body><div class="top-right"></div><h1>Pre-design 集成工作台 · 隔离测试</h1></body></html>`)
- await page.exposeFunction('bridge',async(path,options={})=>{
-  if(path==='/me')return {id:actor,role:actor==='admin'?'admin':'user'}
-  if(path==='/layout-library/reference-config')return {configured:true,modelName:'平台测试模型',policyRevision:3}
-  if(path==='/layout-library/reference-jobs'){
-   if(options.method==='POST'){
-    referenceCalls.push(options.body)
-    referenceJobs=[{id:'reference-ui-test',name:options.body.name,status:'failed',modelName:'平台测试模型',error:'模型服务超时（HTTP 504），可重试。',progress:{stage:'failed'},created_at:new Date().toISOString()}]
-    return {id:'reference-ui-test',status:'queued'}
-   }
-   await referenceListGate.promise
-   return referenceJobs
-  }
-  if(path==='/layout-library/reference-jobs/reference-ui-test/retry'){referenceCalls.push({retry:options.body});return {id:'reference-ui-test',status:'queued'}}
-  const r=await f.request(options.method??'GET','/api'+path,options.body,actor)
-  if(r.statusCode>=400){console.log('API FAIL',path,r.statusCode,r.body);throw new Error(r.json().error)}
-  return r.json()
- })
- await page.exposeFunction('projectState',async()=>({id:f.p.id,name:'版式集成验收',revision:0,workflow:await f.workflows.current()}))
- await page.addScriptTag({content:script.replace('export function mountLayoutLibrary','window.mountLayoutLibrary = function')})
- await page.evaluate(async()=>{window.fp=await window.projectState();window.messages=[];window.ll=mountLayoutLibrary({request:window.bridge,getProject:()=>window.fp,notify:t=>messages.push(t),refresh:async()=>window.fp=await window.projectState(),mutate:async(path,b)=>{const r=await bridge(`/projects/${fp.id}/${path}`,{method:'POST',body:{requestId:Array.from(crypto.getRandomValues(new Uint8Array(16)),x=>x.toString(16).padStart(2,'0')).join(''),baseRevision:0,...b}});window.fp=await window.projectState();return r}})})
- await page.locator('[data-layout-library-open]').click();await page.locator('[data-editor]').waitFor().catch(async error=>{console.log('LAYOUT_DIAGNOSTIC',JSON.stringify({status:await page.locator('[data-ll-status]').textContent().catch(()=>null),detail:(await page.locator('[data-detail]').innerHTML().catch(()=>'' )).slice(0,1000),diagnostic:await page.evaluate(()=>({open:document.querySelector('[data-layout-library-open]')?.outerHTML,dialogs:[...document.querySelectorAll('dialog')].map(x=>x.outerHTML.slice(0,900)),bodyEnd:document.body.innerHTML.slice(-1800),messages:window.messages})),errors}));throw error});await page.waitForTimeout(250)
- assert.equal(await page.locator('.ll-card').count(),1);checks++
- assert.equal(await page.locator('[data-seed]').isVisible(),false);checks++
- // PostgreSQL JSONB reorders object fields. Opening a saved resource must not
- // make its rights fields or equivalent colour spelling look edited.
- await page.locator('.ll-preview-host').waitFor()
- await page.locator('[data-validate]').click()
- await page.waitForFunction(()=>/检查通过|请先保存/.test(document.querySelector('[data-ll-status]').textContent),null,{timeout:20000})
- assert.match(await page.locator('[data-ll-status]').innerText(),/检查通过/);checks++
- await page.screenshot({path:resolve(output,'library-1366x768.png')})
- await page.locator('[data-mode="project"]').click();await page.locator('[data-bind]').waitFor()
- await page.locator('[data-bind]').click();await page.waitForFunction(()=>document.querySelector('[data-ll-status]').textContent.includes('配置已保存'))
- assert.equal((await f.library.bindings(f.p)).revision,1);checks++
- await page.locator('[data-apply]').click();await page.waitForFunction(()=>document.querySelector('[data-ll-status]').textContent.includes('新成果已生成'),{timeout:20000})
- let deck=(await f.visuals.current(f.p,f.draft)).current;assert.equal(deck.layoutBindingRevision,1);checks++
- await page.locator('[data-scope]').selectOption('manual');await page.locator('.ll-pages input').first().check();await page.locator('[data-local-color]').fill('#111111');await page.locator('[data-bind]').click();await page.waitForFunction(()=>document.querySelector('[data-ll-status]').textContent.includes('配置已保存'))
- await page.locator('[data-apply]').click();await page.waitForFunction(()=>document.querySelector('[data-ll-status]').textContent.includes('新成果已生成'),{timeout:20000})
- deck=(await f.visuals.current(f.p,f.draft)).current;assert.equal(deck.pages[0].nativeLayout.theme.accent,'#111111');checks++
- await page.screenshot({path:resolve(output,'bindings-1366x768.png')})
- await page.locator('[data-variant-name]').fill('界面保存的可复用页');await page.locator('[data-variant]').click();await page.waitForFunction(()=>document.querySelector('[data-ll-status]').textContent.includes('纯版式候选'))
- assert.equal((await f.library.list({id:'owner',role:'user'})).length,2);checks++
- // Developer entry works without any project, and uses the exact same API/store/renderer.
- await page.evaluate(()=>{ll.reset();window.fp=null});actor='admin';await page.locator('[data-layout-library-open]').click();await page.locator('[data-seed]').waitFor();await page.locator('[data-seed]').click();await page.waitForFunction(()=>document.querySelector('[data-ll-status]').textContent.includes('预置3套'))
- assert.equal((await f.library.list({id:'admin',role:'admin'})).filter(r=>r.package.source.kind==='built-in').length,3);checks++
- await page.locator('.ll-card').filter({hasText:'自然墨绿'}).click();await page.locator('[data-editor]').waitFor();await page.waitForTimeout(200)
- await page.screenshot({path:resolve(output,'developer-1366x768.png')})
- for(const width of [1024,1512]){await page.setViewportSize({width,height:768});await page.waitForTimeout(100);assert(await page.locator('[data-close]').isVisible());checks++;await page.screenshot({path:resolve(output,`developer-${width}x768.png`)})}
- await page.locator('[data-new]').click()
- await page.locator('[data-ref-text]').waitFor()
- assert.equal(await page.locator('[data-mode=reference]').innerText(),'自定义版式');checks++
- await page.waitForFunction(()=>document.querySelector('[data-ref-model]')?.textContent.includes('平台测试模型'));checks++
- const referenceText='白色背景、墨绿色标题，正文30px，引用区放在底部。保留清晰的双栏对照布局。'
- await page.locator('[data-ref-file]').setInputFiles({name:'参考设计.md',mimeType:'text/markdown',buffer:Buffer.from(referenceText)})
- await page.waitForFunction(t=>document.querySelector('[data-ref-text]').value===t,referenceText)
- assert.equal(await page.locator('[data-ref-name]').inputValue(),'参考设计');assert.equal(referenceCalls.length,0);checks++
- await page.locator('[data-ref-run]').click()
- for(let i=0;i<20&&!referenceCalls.length;i++)await new Promise(resolve=>setTimeout(resolve,25))
- assert.equal(referenceCalls.length,1,'历史记录加载时仍应能提交自定义要求')
- referenceListGate.resolve()
- await page.waitForFunction(()=>document.querySelector('[data-ref-jobs]')?.textContent.includes('504'))
- assert.equal(referenceCalls[0].text,referenceText);assert.equal(referenceCalls[0].allowModel,true)
- assert.equal(await page.locator('[data-allow-model]').count(),0);checks++
- await page.locator('[data-retry-job]').click();await page.waitForTimeout(100);assert(referenceCalls.at(-1).retry);checks++
- await page.locator('[data-manual]').click();await page.locator('[data-editor]').waitFor()
- await page.locator('[name=name]').fill('手动自定义版式');await page.locator('[name=accent]').fill('#235740')
- await page.locator('[data-save]').click();await page.waitForFunction(()=>document.querySelector('[data-ll-status]')?.textContent.includes('保存'))
- const custom=(await f.library.list({id:'admin',role:'admin'})).find(r=>r.package.name==='手动自定义版式')
- assert(custom);assert.equal(custom.package.theme.accent,'#235740');assert.equal(custom.visibility,'private');checks++
- await page.screenshot({path:resolve(output,'custom-layout.png')})
+ await page.goto(f.url);await page.locator('[data-layout-library-open]').click();await page.locator('[data-layout-chat]').waitFor()
+ assert.equal(await page.locator('[data-mode="project"]').count(),0);checks++
+ const left=await page.locator('[data-layout-results]').boundingBox(),right=await page.locator('[data-layout-chat]').boundingBox();assert(left.x+left.width<=right.x+2);checks++
+ await page.locator('[data-seed]').click();await wait(()=>document.querySelectorAll('[data-resource-card]').length===3)
+ await page.locator('[data-chat-file]').setInputFiles({name:'绿色参考.md',mimeType:'text/markdown',buffer:Buffer.from('白色背景，墨绿标题，充足留白，文字清晰。')})
+ await wait(()=>document.querySelector('[data-chat-messages]')?.textContent.includes('已生成墨绿色版式'))
+ await page.locator('.ll-preview-host [data-layout-slot=title]').waitFor()
+ assert.equal(await page.locator('[data-layout-chat] textarea').inputValue(),'');checks++
+ assert.equal(await page.locator('.ll-preview-host [data-native-page]').evaluate(el=>el.style.getPropertyValue('--ln-accent')),'#235740');checks++
+ const firstConversation=(await f.request('GET','/layout-library/conversations')).conversations[0]
+ await page.locator('.ll-preview-host [data-layout-slot=title]').click();assert.match(await page.locator('[data-chat-selection]').innerText(),/标题/);checks++
+ await page.locator('[data-layout-message]').fill('标题改成黑色。');await page.locator('[data-layout-send]').click()
+ await wait(()=>document.querySelector('[data-chat-messages]')?.textContent.includes('标题已改为黑色'))
+ let conversation=await f.request('GET','/layout-library/conversations/'+firstConversation.id)
+ assert.equal(conversation.resource.version,2);assert.equal(conversation.resource.package.theme.accent,'#111111');checks++
+ await page.locator('.ll-settings summary').first().click();await page.locator('[name=accent]').fill('#2f5f88');await page.locator('[data-save]').click();await wait(()=>document.querySelector('[data-ll-status]')?.textContent.includes('已保存版式'))
+ await page.locator('[data-layout-message]').fill('现在用了什么颜色？');await page.locator('[data-layout-send]').click();await wait(()=>document.querySelector('[data-chat-messages]')?.textContent.includes('当前标题采用蓝灰色'))
+ conversation=await f.request('GET','/layout-library/conversations/'+firstConversation.id);assert.equal(conversation.resource.version,3);checks++
+ await page.locator('[data-close]').click();await page.reload();await page.locator('[data-layout-library-open]').click();await page.locator('[data-list-mode=conversations]').click();await page.locator('[data-conversation="'+firstConversation.id+'"]').click()
+ await page.locator('.ll-preview-host').waitFor();assert.equal(await page.locator('[data-layout-turn]').count(),3);checks++
+ const calls=f.modelCalls.length,imported=createPackage('右侧导入的原生版式')
+ await page.locator('[data-chat-file]').setInputFiles({name:'参考版式.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(imported))})
+ await wait(()=>document.querySelector('[data-resource-name]')?.value==='右侧导入的原生版式')
+ assert.equal(f.modelCalls.length,calls);checks++
+ await page.screenshot({path:resolve(output,'unified-workbench.png')})
+ await page.locator('[data-close]').click();await page.getByRole('button',{name:'打开历史项目 '+f.project.name,exact:true}).click();await page.locator('#workspaceStage:not(.workspace-transitioning)').waitFor()
+ await page.locator('[data-layout-page=global]').waitFor();assert.equal(await page.locator('[data-node-kind=script] [data-canvas-layout]').count(),2);checks++
+ const library=(await f.request('GET','/layout-library')).resources,green=library.find(r=>r.package.name.includes('自然墨绿')),blue=library.find(r=>r.package.name.includes('清晰蓝灰'))
+ await page.locator('[data-layout-page=global]').click();await page.locator('[data-pick-style="'+green.id+'"]').click();await wait(()=>document.querySelector('[data-layout-page=global]')?.textContent.includes('自然墨绿'))
+ let state=await f.state();assert.equal(state.workflow.visuals.current,null);assert.equal(state.workflow.current.approval,null);checks++
+ const firstId='visual-page-'+state.workflow.current.blocks[0].items[0].id,secondId='visual-page-'+state.workflow.current.blocks[1].items[0].id
+ await page.locator('[data-layout-close]').click();await page.locator('[data-layout-page="'+firstId+'"]').click();await page.locator('[data-pick-style="'+blue.id+'"]').click();await wait(()=>document.querySelector('[data-layout-status]')?.textContent.includes('已保存'))
+ await page.locator('[data-layout-layer]').selectOption('manual');await page.locator('[data-canvas-accent]').fill('#111111');await page.locator('[data-save-page-layout]').click();await wait(()=>document.querySelector('[data-layout-status]')?.textContent.includes('已保存'))
+ let bindings=await f.request('GET',f.base+'/layout-bindings');assert.equal(bindings.manual[firstId].theme.accent,'#111111');checks++
+ await page.locator('[data-layout-layer]').selectOption('local');await page.locator('[data-reset-page-layout]').click();await wait(()=>document.querySelector('[data-layout-status]')?.textContent.includes('已保存'))
+ bindings=await f.request('GET',f.base+'/layout-bindings');assert.equal(bindings.local[firstId],undefined);assert.equal(bindings.manual[firstId].theme.accent,'#111111');checks++
+ await page.locator('[data-pick-style="'+blue.id+'"]').dragTo(page.locator('[data-node-kind=script]').nth(1));await wait(()=>document.querySelectorAll('[data-node-kind=script] [data-canvas-layout]')[1]?.textContent.includes('清晰蓝灰'))
+ bindings=await f.request('GET',f.base+'/layout-bindings');assert.equal(bindings.local[secondId].resource.resourceId,blue.id);checks++
+ await page.screenshot({path:resolve(output,'script-stage-bindings.png')})
+ await page.locator('[data-layout-close]').click();await page.locator('[data-workflow-approve]').click();await wait(()=>document.querySelector('[data-workflow-approve]')?.textContent.includes('已确认'))
+ await page.locator('[data-layout-page=global]').click();await page.locator('[data-apply-layout]').click();await wait(()=>document.querySelectorAll('[data-node-kind=artifact]').length===2)
+ state=await f.state();assert.equal(state.workflow.visuals.current.pages.length,2);assert.equal(state.workflow.visuals.current.pages[0].nativeLayout.theme.accent,'#111111');checks++
+ assert.equal(await page.locator('[data-layout-page="'+firstId+'"]').count(),2);checks++
+ await page.locator('[data-layout-close]').click();await page.locator('[data-node-kind=artifact] [data-layout-page="'+firstId+'"]').click();await page.locator('[data-save-layout-variant]').click();await page.locator('[data-variant-name]').fill('从画布保存的版式');await page.locator('[data-variant-save]').click();await page.locator('[data-layout-library]').waitFor();await wait(()=>document.querySelector('[data-resource-name]')?.value==='从画布保存的版式');checks++
  assert.deepEqual(errors,[]);checks++
- console.log(JSON.stringify({checks,passed:true,transport:'Fastify inject bridge (no production HTTP/LLM)',database:f.databaseEngine,screenshots:output},null,2))
-}finally{referenceListGate.resolve();await browser.close();await f.close()}
+ console.log(JSON.stringify({checks,passed:true,transport:'真实HTTP / Fastify / PostgreSQL / Chromium，模型为受控替身',database:'postgresql',screenshots:output},null,2))
+}finally{await browser.close();await f.close()}

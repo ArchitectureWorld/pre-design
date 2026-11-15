@@ -67,11 +67,11 @@ export function chooseLayout(p,item,id){
  if(item.table&&item.figure)throw fail('本版不支持同页同时配置图片和表格，请先调整分页脚本。',409)
  return l
 }
-export function resolvePage({page,globalPackage,local,manual,resourceRefs=[]}){
+export function resolvePage({page,globalPackage,globalOverrides,local,manual,resourceRefs=[]}){
  const global=validatePackage(globalPackage??createPackage()),p=local?.package?validatePackage(local.package):global
- const localPatch=patchSchema.parse(local?.overrides??{}),manualPatch=patchSchema.parse(manual??{})
- const theme=validateTheme({...global.theme,...(local?.package?p.theme:{}),...localPatch.theme,...manualPatch.theme})
- const layout=chooseLayout(p,page.item,manualPatch.layoutId??localPatch.layoutId)
+ const globalPatch=patchSchema.parse(globalOverrides??{}),localPatch=patchSchema.parse(local?.overrides??{}),manualPatch=patchSchema.parse(manual??{})
+ const theme=validateTheme({...global.theme,...globalPatch.theme,...(local?.package?p.theme:{}),...localPatch.theme,...manualPatch.theme})
+ const layout=chooseLayout(p,page.item,manualPatch.layoutId??localPatch.layoutId??(local?.package?undefined:globalPatch.layoutId))
  return {schemaVersion:SCHEMA,renderer:RENDERER,canvas:p.canvas,theme,layout,resourceRefs,manual:manualPatch,formats:['html']}
 }
 export function exportReusable(page,name){

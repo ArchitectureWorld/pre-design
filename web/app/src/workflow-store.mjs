@@ -112,6 +112,7 @@ export async function createWorkflowStore(db,{layoutLibrary,verifyLayoutPages,re
     evidence:evidence.map(e=>({...e,filename:e.kind==='official_policy'?e.filename:byId.get(e.materialId)?.relative_path??byId.get(e.materialId)?.filename??'资料'})),
     limitations:workflowLimitations(outline),sourceDraftId:previous?.id??null,changedBlockId:job.payload.blockId??null,changedItemId:job.payload.itemId??null}
    row=(await conn.query('INSERT INTO workflow_drafts(id,project_id,job_id,version,outline_version,input_hash,document,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',[id,p.id,job.id,version,outline.version,outline.currentInputHash,document,createdAt])).rows[0]
+   if(job.payload.blockId)await layoutLibrary?.carryBindings?.(p,previous,document,conn)
    await conn.query('COMMIT')
   }catch(error){await conn.query('ROLLBACK');throw error}finally{conn.release()}
   return {...await hydrate(row),stale:false}

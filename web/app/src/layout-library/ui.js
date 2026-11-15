@@ -1,205 +1,171 @@
+import {mountNativePreview} from './preview-ui.js'
+import {mountLayoutConversation} from './conversation-ui.js'
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
-const rid=()=>{const b=crypto.getRandomValues(new Uint8Array(16));return Array.from(b,x=>x.toString(16).padStart(2,'0')).join('')}
-const stateName=r=>r.retired?'已下架':r.published?'已发布':r.shareRequested?'待管理员审查':r.validation?.status==='passed'?'检查通过，待发布':'候选草稿'
+const rid=()=>crypto.randomUUID?.()??Array.from(crypto.getRandomValues(new Uint8Array(16)),x=>x.toString(16).padStart(2,'0')).join('')
+const stateName=r=>r.retired?'已归档':r.published?'已发布':r.validation?.status==='passed'?'检查通过':'草稿'
 const visibility={private:'个人',shared:'共享',official:'官方'}
-export function mountLayoutLibrary({request,getProject,notify,mutate,refresh=async()=>{}}){
- const button=document.createElement('button');button.type='button';button.className='ll-entry';button.textContent='版式库';button.dataset.layoutLibraryOpen=''
- document.querySelector('.top-right')?.prepend(button)
- let dialog,identity,resources=[],selected=null,working=null,busy=false,mode='library',ticket=0,pending=new Map(),observer,referenceTimer
- const referenceDraft={name:'',text:'',filename:''}
- const msg=t=>{const el=dialog?.querySelector('[data-ll-status]');if(el)el.textContent=t}
- function close(){ticket++;clearTimeout(referenceTimer);observer?.disconnect();dialog?.close();dialog?.remove();dialog=null;pending.clear()}
- async function run(fn){if(busy)return;busy=true;try{await fn()}catch(e){msg(e.message);notify(e.message)}finally{busy=false}}
+const ordered=value=>Array.isArray(value)?value.map(ordered):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(k=>[k,ordered(value[k])])):value
+const equal=(a,b)=>JSON.stringify(ordered(a))===JSON.stringify(ordered(b))
+
+export function mountLayoutLibrary({request,notify}){
+ const entry=document.createElement('button');entry.type='button';entry.className='ll-entry';entry.textContent='版式库';entry.dataset.layoutLibraryOpen=''
+ document.querySelector('.top-right')?.prepend(entry)
+ let dialog,identity,resources=[],conversations=[],selected=null,working=null,chat,previewHandle,previewLayout='',layoutChosen=false,picker=null,listMode='resources',generation=0,previewGeneration=0,previewTimer,busy=false,modelBusy=false,historyViewing=false,viewEpoch=0
+ const pending=new Map()
+ const msg=text=>{const el=dialog?.querySelector('[data-ll-status]');if(el)el.textContent=text}
+ const own=()=>!selected||selected.ownerId===identity?.id||identity?.role==='admin'
+ function close(){generation++;viewEpoch++;clearTimeout(previewTimer);previewHandle?.dispose();chat?.dispose();dialog?.close();dialog?.remove();dialog=null;chat=null;pending.clear();picker=null}
+ async function run(action){if(busy)return;busy=true;try{await action()}catch(error){msg(error.message);notify(error.message)}finally{busy=false}}
  async function post(path,body={}){
-  const key=JSON.stringify([path,body]);let id=pending.get(key);if(!id){id=rid();pending.set(key,id)}
-  try{const r=await request(path,{method:'POST',body:{...body,requestId:id}});pending.delete(key);return r}catch(e){if(e.status>=400&&e.status<500)pending.delete(key);throw e}
+  const key=JSON.stringify([path,body]);let requestId=pending.get(key);if(!requestId){requestId=rid();pending.set(key,requestId)}
+  try{const result=await request(path,{method:'POST',body:{...body,requestId}});pending.delete(key);return result}catch(error){if(error.status>=400&&error.status<500)pending.delete(key);throw error}
  }
- async function reload(){resources=(await request('/layout-library')).resources;renderList()}
- async function open(){
-  
-  close();mode='library';const generation=ticket;dialog=document.createElement('dialog');dialog.className='ll-dialog';dialog.dataset.layoutLibrary='';dialog.setAttribute('aria-label','版式资源库')
-  dialog.innerHTML=`<header class="ll-head"><div><small>PRE—DESIGN · NATIVE LAYOUTS</small><h2>版式资源库</h2></div><nav><button data-mode="library">浏览与管理</button><button data-mode="project">当前项目应用</button><button data-mode="reference">自定义版式</button></nav><button data-close aria-label="关闭版式库">×</button></header><p class="ll-status" role="status" data-ll-status>正在连接平台…</p><div class="ll-main"><aside class="ll-sidebar"><div class="ll-tools"><input data-search type="search" placeholder="搜索名称、标签"><select data-filter><option value="all">全部可见资源</option><option value="mine">我的</option><option value="official">官方</option><option value="shared">共享</option></select><button data-new class="ll-primary">自定义版式</button><button data-seed hidden>预置3套官方候选</button><label class="ll-file">导入JSON / PPTX<input data-import type="file" accept=".json,.pptx" multiple hidden></label></div><div data-list class="ll-list"></div></aside><section class="ll-inspector" data-detail></section></div>`
+ async function reload(){
+  const token=generation
+  const [library,history]=await Promise.all([request('/layout-library'),request('/layout-library/conversations')])
+  if(token!==generation||!dialog)return
+  resources=library.resources;conversations=history.conversations;renderList()
+ }
+ async function open(options={}){
+  close();picker=options.onPick??null;const token=generation
+  selected=null;working=null;previewLayout='';modelBusy=false;historyViewing=false
+  dialog=document.createElement('dialog');dialog.className='ll-dialog';dialog.dataset.layoutLibrary='';dialog.setAttribute('aria-label','版式工作台')
+  dialog.innerHTML=`<header class="ll-head"><button data-library-nav aria-label="浏览版式和会话" aria-expanded="false">☰</button><h2>版式库</h2><span data-ll-status role="status">正在连接…</span><button data-close aria-label="关闭版式库">×</button></header><div class="ll-main ll-unified"><aside class="ll-sidebar"><div class="ll-tools"><input data-search type="search" placeholder="搜索版式"><div class="ll-list-tabs"><button data-list-mode="resources" class="active">版式</button><button data-list-mode="conversations">会话</button></div><button data-new class="ll-primary">新建版式</button><button data-seed hidden>预置版式</button></div><div data-list class="ll-list"></div></aside><section class="ll-inspector" data-layout-results></section><aside class="ll-assistant" data-layout-chat></aside></div>`
   document.body.append(dialog);dialog.showModal();dialog.querySelector('[data-close]').onclick=close;dialog.oncancel=e=>{e.preventDefault();close()}
-  dialog.querySelector('[data-search]').oninput=renderList;dialog.querySelector('[data-filter]').onchange=renderList
-  dialog.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>void run(async()=>{mode=b.dataset.mode;await renderMode()}))
-  dialog.querySelector('[data-new]').onclick=()=>void run(async()=>{mode='reference';await renderMode()})
-  dialog.querySelector('[data-import]').onchange=e=>void run(async()=>{
-   const files=[...e.target.files];if(files.length>10)throw Error('每批最多导入10份参考文件。')
-   for(const f of files){if(f.size>8*1024*1024)throw Error(f.name+'超过8 MiB。');const data=new Uint8Array(await f.arrayBuffer());let binary='';for(let i=0;i<data.length;i+=8192)binary+=String.fromCharCode(...data.subarray(i,i+8192));const r=await post('/layout-library/import',{filename:f.name,content:btoa(binary)});await reload();await select(r.id,r.version)}
-   msg('已保存为个人候选。请核对来源与适用性，再检查、发布。')
-  })
-  try{identity=await request('/me');dialog.querySelector('[data-seed]').hidden=identity.role!=='admin';dialog.querySelector('[data-seed]').onclick=()=>void run(async()=>{await post('/layout-library/seed');await reload();msg('已预置3套候选；检查并发布后才进入用户可用库。')});await reload();if(generation!==ticket)return;if(resources.length)await select(resources[0].id,resources[0].version);else{working=(await request('/layout-library/starter')).package;selected=null;renderEditor();await preview()};msg('已连接平台。预览、检查和项目制作使用同一原生渲染器。')}catch(e){msg(e.message)}
+  dialog.querySelector('[data-library-nav]').onclick=()=>{const open=dialog.classList.toggle('nav-open');dialog.querySelector('[data-library-nav]').setAttribute('aria-expanded',String(open))}
+  dialog.querySelector('[data-search]').oninput=renderList
+  dialog.querySelectorAll('[data-list-mode]').forEach(b=>b.onclick=()=>{listMode=b.dataset.listMode;renderList()})
+  dialog.querySelector('[data-new]').onclick=()=>void run(async()=>{await selectConversation(null);msg('')})
+  try{
+   identity=await request('/me');if(token!==generation)return
+   await reload();if(token!==generation)return
+   if(options.resourceId){selected=await request('/layout-library/'+options.resourceId+'/'+options.version);working=structuredClone(selected.package);historyViewing=selected.version<selected.latestVersion}
+   renderResult()
+   chat=mountLayoutConversation({container:dialog.querySelector('[data-layout-chat]'),request,notify,
+    getContext:()=>{if(selected?.version<selected?.latestVersion)throw Error('正在查看历史版本，请切换到最新版后继续修改。');readForm();return {...(selected?{resourceId:selected.id,resourceVersion:selected.version}:{}),...(working?{name:working.name,package:working}:{})}},
+    onResource:async(resource,{historical=false}={})=>{
+     if(token!==generation)return
+     if(historical)historyViewing=resource.version<resource.latestVersion
+     else if(historyViewing)return
+     if(!selected||selected.id!==resource.id||selected.version!==resource.version){selected=resource;working=structuredClone(resource.package);previewLayout='';renderResult();await preview()}
+     if(!historical)await reload()
+    },
+    onDraft:async pkg=>{if(token!==generation||working)return;working=structuredClone(pkg);renderResult();await preview()},
+    onImport:importFile,
+    onState:state=>{modelBusy=state.busy;updateControls();if(!working)renderResult()},
+    onChange:()=>{void reload().catch(e=>msg(e.message))},
+   })
+   const seed=dialog.querySelector('[data-seed]');seed.hidden=identity.role!=='admin';seed.onclick=()=>void run(async()=>{await post('/layout-library/seed');await reload();msg('预置版式已保存。')})
+   await chat.select(options.resourceId?conversations.find(c=>c.resourceId===options.resourceId)?.id:null)
+   if(working)await preview()
+   msg('')
+  }catch(error){msg(error.message)}
  }
  function renderList(){
   if(!dialog)return
-  const q=dialog.querySelector('[data-search]').value.trim().toLowerCase(),filter=dialog.querySelector('[data-filter]').value
-  const rows=resources.filter(r=>(filter==='all'||filter==='mine'&&r.ownerId===identity?.id||r.visibility===filter)&&(r.package.name+' '+r.package.tags.join(' ')).toLowerCase().includes(q))
-  dialog.querySelector('[data-list]').innerHTML=rows.map(r=>`<button class="ll-card ${selected?.id===r.id?'selected':''}" data-id="${r.id}" data-version="${r.version}"><span class="ll-swatch" style="background:${r.package.theme.background};border-left:5px solid ${r.package.theme.accent};color:${r.package.theme.ink}">Aa <i style="background:${r.package.theme.accent}"></i></span><b>${esc(r.package.name)}</b><small>${visibility[r.visibility]} · V${r.version} · ${stateName(r)}</small><small>${r.package.layouts.length}种页面 · 已用于${r.usageCount??0}页 · HTML</small></button>`).join('')||'<p class="ll-hint">没有符合条件的资源。</p>'
-  dialog.querySelectorAll('.ll-card').forEach(b=>b.onclick=()=>void run(()=>select(b.dataset.id,Number(b.dataset.version))))
+  dialog.querySelectorAll('[data-list-mode]').forEach(b=>b.classList.toggle('active',b.dataset.listMode===listMode))
+  const query=dialog.querySelector('[data-search]').value.trim().toLowerCase(),list=dialog.querySelector('[data-list]')
+  if(listMode==='conversations'){
+   list.innerHTML=conversations.filter(c=>c.name?.toLowerCase().includes(query)).map(c=>`<button class="ll-card ${chat?.id===c.id?'selected':''}" data-conversation="${c.id}"><b>${esc(c.name)}</b><small>${['queued','running'].includes(c.status)?'正在生成':c.status==='completed'?'已回复':'待继续'}</small></button>`).join('')||'<p class="ll-empty-list">暂无会话</p>'
+   list.querySelectorAll('[data-conversation]').forEach(b=>b.onclick=()=>void run(()=>selectConversation(b.dataset.conversation)))
+   return
+  }
+  list.innerHTML=resources.filter(r=>(r.package.name+' '+r.package.tags.join(' ')).toLowerCase().includes(query)).map(r=>`<button class="ll-card ${r.id===selected?.id?'selected':''}" data-resource-card="${r.id}" data-version="${r.version}"><span class="ll-swatch" style="background:${r.package.theme.background};color:${r.package.theme.ink};border-left:4px solid ${r.package.theme.accent}">Aa<i style="background:${r.package.theme.accent}"></i></span><b>${esc(r.package.name)}</b><small>${visibility[r.visibility]} · V${r.version} · ${stateName(r)}</small></button>`).join('')||'<p class="ll-empty-list">上传参考，开始你的第一份版式。</p>'
+  list.querySelectorAll('[data-resource-card]').forEach(b=>b.onclick=()=>void run(()=>selectResource(b.dataset.resourceCard,Number(b.dataset.version))))
  }
- async function select(id,version){selected=await request(`/layout-library/${id}/${version}`);working=structuredClone(selected.package);renderList();if(mode==='library'){renderEditor();await preview()}else await renderMode()}
- async function renderMode(){clearTimeout(referenceTimer);dialog.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));if(mode==='project')await showProject();else if(mode==='reference')await showReference();else{renderEditor();await preview()}}
- async function newManual(){
-  clearTimeout(referenceTimer)
-  working=(await request('/layout-library/starter')).package
-  working.name='我的自定义版式';selected=null;mode='library'
-  await renderMode();msg('设置完成后保存到我的版式。')
+ function hideNavigation(){dialog?.classList.remove('nav-open');dialog?.querySelector('[data-library-nav]')?.setAttribute('aria-expanded','false')}
+ async function selectConversation(id){
+  viewEpoch++;hideNavigation();selected=null;working=null;previewLayout='';historyViewing=false;clearTimeout(previewTimer);renderResult()
+  await chat.select(id);renderList()
  }
- const detail=html=>{observer?.disconnect();dialog.querySelector('[data-detail]').innerHTML=html}
+ async function selectResource(id,version,{syncChat=true}={}){
+  viewEpoch++;hideNavigation()
+  if(syncChat)await chat.select(null)
+  const token=generation,resource=await request('/layout-library/'+id+'/'+version)
+  if(token!==generation||!dialog)return
+  selected=resource;working=structuredClone(resource.package);previewLayout='';layoutChosen=false;historyViewing=resource.version<resource.latestVersion;renderList();renderResult();await preview()
+  const conversation=conversations.find(c=>c.resourceId===id)
+  if(syncChat)await chat.select(conversation?.id??null)
+ }
  function readForm(){
-  const form=dialog.querySelector('[data-editor]');if(!form)return
-  const advanced=form.querySelector('[data-json]');if(advanced.dataset.dirty==='true'){working=JSON.parse(advanced.value);advanced.dataset.dirty='false';return}
-  working.name=form.elements.name.value.trim();working.theme.fontFamily=form.elements.fontFamily.value
-  for(const k of ['background','ink','accent','muted']){
-   const value=form.elements[k].value
-   if(value.toLowerCase()!==working.theme[k].toLowerCase())working.theme[k]=value
-  }
-  for(const k of ['titleSize','bodySize','captionSize'])working.theme[k]=Number(form.elements[k].value)
+  const form=dialog?.querySelector('[data-editor]');if(!form||!working)return
+  const advanced=form.querySelector('[data-json]')
+  if(advanced.dataset.dirty==='true'){working=JSON.parse(advanced.value);renderResult();return}
+  working.name=dialog.querySelector('[data-resource-name]').value.trim()
+  working.theme.fontFamily=form.elements.fontFamily.value
+  for(const key of ['background','ink','accent','muted']){const value=form.elements[key].value;if(value.toLowerCase()!==working.theme[key].toLowerCase())working.theme[key]=value}
+  for(const key of ['titleSize','bodySize','captionSize'])working.theme[key]=Number(form.elements[key].value)
   Object.assign(working.rights,{basis:form.elements.basis.value,shareAllowed:form.elements.shareAllowed.checked,note:form.elements.rightsNote.value})
-  working.tags=form.elements.tags.value.split(/[，,]/).map(t=>t.trim()).filter(Boolean)
  }
- function renderEditor(){
-  if(!working){detail('<p>选择一个资源或新建原生版式。</p>');return}
-  const owned=!selected||selected.ownerId===identity.id||identity.role==='admin',p=working
-  detail(`<div class="ll-detail-head"><div><h3>${selected?'资源 V'+selected.version:'新建自定义版式'}</h3><p>${selected?stateName(selected):'不需要创建项目，即可制作与预置。'}</p></div>${selected&&owned?`<select data-history aria-label="历史版本">${Array.from({length:selected.latestVersion},(_,i)=>`<option value="${i+1}" ${selected.version===i+1?'selected':''}>V${i+1}</option>`).join('')}</select>`:''}</div><div class="ll-edit-grid"><div class="ll-edit-controls"><form data-editor class="ll-form"><label class="wide">资源名称<input name="name" value="${esc(p.name)}" maxlength="100"></label><label class="wide">分类标签<input name="tags" value="${esc(p.tags.join('，'))}" placeholder="用逗号分开"></label>${[['background','背景'],['ink','正文'],['accent','标题强调'],['muted','注释']].map(([k,l])=>`<label>${l}<input type="color" name="${k}" value="${p.theme[k]}"></label>`).join('')}<label>字体风格<select name="fontFamily"><option value="sans" ${p.theme.fontFamily==='sans'?'selected':''}>无衬线 / 黑体</option><option value="serif" ${p.theme.fontFamily==='serif'?'selected':''}>衬线 / 宋体</option></select></label>${[['titleSize','标题字号'],['bodySize','正文字号'],['captionSize','注释字号']].map(([k,l])=>`<label>${l}<input type="number" name="${k}" value="${p.theme[k]}"></label>`).join('')}<label>使用依据<select name="basis">${[['original','原创'],['licensed','取得许可'],['permission','明确授权'],['unknown','待确认']].map(([k,l])=>`<option value="${k}" ${p.rights.basis===k?'selected':''}>${l}</option>`).join('')}</select></label><label><span>共享授权</span><span><input type="checkbox" name="shareAllowed" ${p.rights.shareAllowed?'checked':''}>允许作为共享版式</span></label><label class="wide">授权说明<input name="rightsNote" value="${esc(p.rights.note)}" maxlength="600"></label><details class="wide"><summary>高级：原生内容位置与资源JSON</summary><p class="ll-hint">使用平台同一契约；禁止自由HTML、脚本及外部资源。只改布局不改项目事实。</p><textarea data-json rows="12">${esc(JSON.stringify(p,null,2))}</textarea></details></form><div class="ll-actions"><select data-layout>${p.layouts.map(l=>`<option value="${esc(l.id)}">${esc(l.label)}</option>`).join('')}</select><button data-preview>试排当前设置</button><button data-save class="ll-primary">${selected&&owned?'保存新版本':'保存到我的版式'}</button>${selected?'<button data-export>导出原生JSON</button>':''}</div></div><div class="ll-live-preview"><div class="ll-preview" data-preview-box></div><div class="ll-actions">${selected&&owned?`<button data-validate>实际页面检查</button><select data-visibility><option value="private">个人使用</option>${identity.role==='admin'?'<option value="official">官方预置</option><option value="shared">授权共享</option>':''}</select><label><input type="checkbox" data-reviewed>已核对参考与授权</label><button data-publish>发布此版本</button><button data-share>提交共享审查</button><button data-retire>下架</button>`:''}</div><p class="ll-hint">${esc(p.source.limitations.join('；'))}</p><pre class="ll-receipt">${esc(selected?.validation?JSON.stringify(selected.validation,null,2):'尚未进行本版本的浏览器检查。')}</pre></div></div>`)
-  const form=dialog.querySelector('[data-editor]');form.onsubmit=e=>e.preventDefault();form.querySelector('[data-json]').oninput=e=>e.target.dataset.dirty='true'
-  dialog.querySelector('[data-history]')?.addEventListener('change',e=>void run(()=>select(selected.id,Number(e.target.value))))
-  dialog.querySelector('[data-preview]').onclick=()=>void run(async()=>{readForm();await preview()})
-  dialog.querySelector('[data-layout]').onchange=()=>void run(async()=>{readForm();await preview()})
-  dialog.querySelector('[data-save]').onclick=()=>void run(async()=>{readForm();const r=selected&&owned?await post(`/layout-library/${selected.id}/revisions`,{expectedVersion:selected.latestVersion,package:working}):await post('/layout-library',{package:working});await reload();await select(r.id,r.version);msg('已保存版式 V'+r.version+'。')})
-  dialog.querySelector('[data-export]')?.addEventListener('click',()=>void run(async()=>download(await request(`/layout-library/${selected.id}/${selected.version}/export`,{download:true}))))
-  dialog.querySelector('[data-validate]')?.addEventListener('click',()=>void run(async()=>{readForm();if(JSON.stringify(working)!==JSON.stringify(selected.package))throw Error('请先保存当前修改，再检查新版本。');msg('正在使用真实浏览器检查已保存版本…');const r=await request(`/layout-library/${selected.id}/${selected.version}/validate`,{method:'POST',body:{}});await reload();await select(selected.id,selected.version);msg(r.status==='passed'?'已保存版本检查通过；发布仍需核对授权。':'检查未通过，请查看问题记录。')}))
-  dialog.querySelector('[data-publish]')?.addEventListener('click',()=>void run(async()=>{readForm();if(JSON.stringify(working)!==JSON.stringify(selected.package))throw Error('请先保存修改并检查新版本。');if(!dialog.querySelector('[data-reviewed]').checked)throw Error('请先核对参考适用性与授权。');await post(`/layout-library/${selected.id}/${selected.version}/publish`,{visibility:dialog.querySelector('[data-visibility]').value,reviewed:true});await reload();await select(selected.id,selected.version);msg('此版本已发布；旧项目不会自动升级。')}))
-  dialog.querySelector('[data-share]')?.addEventListener('click',()=>void run(async()=>{await post(`/layout-library/${selected.id}/${selected.version}/request-share`);await reload();msg('共享申请已保存，管理员审查通过后才对其他用户可见。')}))
-  dialog.querySelector('[data-retire]')?.addEventListener('click',()=>void run(async()=>{await post(`/layout-library/${selected.id}/retire`,{expectedVersion:selected.latestVersion});await reload();await select(selected.id,selected.version);msg('已下架；既有成果与已冻结绑定保留。')}))
+ function updateControls(){
+  if(!dialog)return
+  const form=dialog.querySelector('[data-editor]');if(form)for(const el of form.elements)el.disabled=modelBusy||!own()
+  const name=dialog.querySelector('[data-resource-name]');if(name)name.disabled=modelBusy||!own()
+  for(const button of dialog.querySelectorAll('[data-save],[data-validate],[data-publish],[data-use-layout]'))button.disabled=modelBusy
  }
- function download(file){const u=URL.createObjectURL(file.blob),a=document.createElement('a');a.href=u;a.download=file.filename;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)}
- async function preview(){
-  if(!dialog?.querySelector('[data-preview-box]')||!working)return
-  const generation=ticket,r=await request('/layout-library/preview',{method:'POST',body:{package:working,layoutId:dialog.querySelector('[data-layout]').value}})
-  if(generation!==ticket||!dialog?.querySelector('[data-preview-box]'))return
-  const box=dialog.querySelector('[data-preview-box]')
-  // Use the same native HTML renderer in an isolated shadow tree. Embedded
-  // srcdoc iframes stalled the host Chromium while editing the library.
-  const parsed=new DOMParser().parseFromString(r.html,'text/html')
-  const deck=parsed.querySelector('.native-deck')
-  if(!deck)throw Error('原生预览缺少页面结构。')
-  const host=document.createElement('div')
-  host.className='ll-preview-host'
-  host.style.cssText='position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:0 0'
-  box.replaceChildren(host)
-  const shadow=host.attachShadow({mode:'closed'})
-  const style=document.createElement('style')
-  style.textContent=parsed.querySelector('style')?.textContent??''
-  const documentBody=deck.cloneNode(true)
-  documentBody.querySelectorAll('script,iframe,object,embed,link').forEach(node=>node.remove())
-  shadow.append(style,documentBody)
-  observer?.disconnect();observer=null
-  host.style.transform='scale('+(box.clientWidth/1600)+')'
+ function renderResult(){
+  if(!dialog)return
+  previewHandle?.dispose();previewHandle=null
+  const panel=dialog.querySelector('[data-layout-results]')
+  if(!working){panel.innerHTML=`<div class="ll-result-empty"><strong>${modelBusy?'正在生成版式…':'上传参考后，在这里预览版式'}</strong><button data-manual ${modelBusy?'disabled':''}>手动创建</button></div>`;panel.querySelector('[data-manual]').onclick=()=>void run(async()=>{working=(await request('/layout-library/starter')).package;working.name='我的自定义版式';selected=null;renderResult();await preview()});return}
+  const pkg=working;previewLayout=pkg.layouts.some(l=>l.id===previewLayout)?previewLayout:pkg.layouts[0].id
+  panel.innerHTML=`<div class="ll-result-heading"><input data-resource-name aria-label="版式名称" value="${esc(pkg.name)}" maxlength="100"><span>${selected?'V'+selected.version+' · '+stateName(selected):'新建版式'}</span>${selected&&own()?`<select data-history aria-label="历史版本">${Array.from({length:selected.latestVersion},(_,i)=>`<option value="${i+1}" ${selected.version===i+1?'selected':''}>V${i+1}</option>`).join('')}</select>`:''}</div>
+   <div class="ll-preview-controls"><select data-layout aria-label="预览布局">${pkg.layouts.map(l=>`<option value="${l.id}" ${l.id===previewLayout?'selected':''}>${esc(l.label)}</option>`).join('')}</select><button data-preview>更新预览</button></div>
+   <div class="ll-preview" data-preview-box></div>
+   <div class="ll-result-actions"><button data-save class="ll-primary">${selected&&own()?'保存修改':'保存版式'}</button>${selected?'<button data-validate>检查版式</button><button data-export>导出</button>':''}${picker?'<button data-use-layout class="ll-primary">选用此版式</button>':''}</div>
+   <details class="ll-settings"><summary>手动调整</summary><form data-editor class="ll-form">${[['background','背景'],['ink','正文'],['accent','标题'],['muted','注释']].map(([k,l])=>`<label>${l}<input type="color" name="${k}" value="${pkg.theme[k]}"></label>`).join('')}
+   <label>字体<select name="fontFamily"><option value="sans" ${pkg.theme.fontFamily==='sans'?'selected':''}>黑体</option><option value="serif" ${pkg.theme.fontFamily==='serif'?'selected':''}>宋体</option></select></label>${[['titleSize','标题字号',32,90],['bodySize','正文字号',22,44],['captionSize','注释字号',16,30]].map(([k,l,min,max])=>`<label>${l}<input name="${k}" type="number" min="${min}" max="${max}" value="${pkg.theme[k]}"></label>`).join('')}
+   <label>使用依据<select name="basis">${[['original','原创'],['licensed','取得许可'],['permission','明确授权'],['unknown','待确认']].map(([k,l])=>`<option value="${k}" ${pkg.rights.basis===k?'selected':''}>${l}</option>`).join('')}</select></label><label><span>共享授权</span><span><input type="checkbox" name="shareAllowed" ${pkg.rights.shareAllowed?'checked':''}>允许共享</span></label><label class="wide">授权说明<input name="rightsNote" value="${esc(pkg.rights.note)}"></label><details class="wide"><summary>内容位置与原生 JSON</summary><textarea data-json rows="8">${esc(JSON.stringify(pkg,null,2))}</textarea></details></form></details>
+   ${selected&&own()?`<details class="ll-publish"><summary>发布与管理</summary><select data-visibility>${[['private','个人'],['shared','共享'],['official','官方']].filter(([v])=>identity.role==='admin'||v==='private').map(([v,l])=>`<option value="${v}" ${selected.visibility===v?'selected':''}>${l}</option>`).join('')}</select><label><input type="checkbox" data-reviewed>已核对参考与授权</label><button data-publish>发布此版本</button><button data-share>提交共享审查</button><button data-retire>归档</button></details>`:''}
+   <small class="ll-result-qa" data-qa-result>${selected?.validation?.status==='passed'?'页面检查通过':selected?.validation?.status==='failed'?'页面检查未通过':''}</small>`
+  const form=panel.querySelector('[data-editor]');form.onsubmit=e=>e.preventDefault()
+  form.querySelector('[data-json]').oninput=e=>{e.target.dataset.dirty='true'}
+  const schedule=()=>{clearTimeout(previewTimer);previewTimer=setTimeout(()=>{if(form.checkValidity())void preview(true).catch(e=>msg(e.message))},250)}
+  form.addEventListener('input',e=>{if(!e.target.matches('[data-json]'))schedule()})
+  panel.querySelector('[data-resource-name]').oninput=schedule
+  panel.querySelector('[data-layout]').onchange=()=>{previewLayout=panel.querySelector('[data-layout]').value;layoutChosen=true;void preview(true).catch(e=>msg(e.message))}
+  panel.querySelector('[data-preview]').onclick=()=>void run(()=>preview(true))
+  panel.querySelector('[data-history]')?.addEventListener('change',event=>void run(()=>selectResource(selected.id,Number(event.target.value),{syncChat:false})))
+  panel.querySelector('[data-save]').onclick=()=>void run(save)
+  panel.querySelector('[data-validate]')?.addEventListener('click',()=>void run(async()=>{
+   readForm();if(!equal(working,selected.package))throw Error('请先保存修改，再检查当前版本。')
+   msg('正在检查页面…');const result=await request('/layout-library/'+selected.id+'/'+selected.version+'/validate',{method:'POST',body:{}})
+   selected=await request('/layout-library/'+selected.id+'/'+selected.version);renderResult();await preview();await reload();msg(result.status==='passed'?'版式检查通过。':'页面检查未通过。')
+  }))
+  panel.querySelector('[data-export]')?.addEventListener('click',()=>void run(async()=>download(await request('/layout-library/'+selected.id+'/'+selected.version+'/export',{download:true}))))
+  panel.querySelector('[data-use-layout]')?.addEventListener('click',()=>void run(async()=>{if(!selected||!equal(readWorking(),selected.package))await save();await picker({resourceId:selected.id,version:selected.version,...(layoutChosen?{layoutId:previewLayout}:{})});close()}))
+  panel.querySelector('[data-publish]')?.addEventListener('click',()=>void run(async()=>{
+   readForm();if(!equal(working,selected.package))throw Error('请先保存当前修改。');if(!panel.querySelector('[data-reviewed]').checked)throw Error('请核对参考与授权。')
+   await post('/layout-library/'+selected.id+'/'+selected.version+'/publish',{visibility:panel.querySelector('[data-visibility]').value,reviewed:true});selected=await request('/layout-library/'+selected.id+'/'+selected.version);renderResult();await preview();await reload();msg('已发布此版本。')
+  }))
+  panel.querySelector('[data-share]')?.addEventListener('click',()=>void run(async()=>{await post('/layout-library/'+selected.id+'/'+selected.version+'/request-share');await reload();msg('共享申请已提交。')}))
+  panel.querySelector('[data-retire]')?.addEventListener('click',()=>void run(async()=>{await post('/layout-library/'+selected.id+'/retire',{expectedVersion:selected.latestVersion});selected=await request('/layout-library/'+selected.id+'/'+selected.version);renderResult();await preview();await reload();msg('已归档。')}))
+  updateControls()
  }
- async function showProject(){
-  const p=getProject();if(!p?.id){detail('<h3>当前没有打开项目</h3><p>可以先在“浏览与管理”中准备版式，再进入项目选用。</p>');return}
-  const projectId=p.id,config=await request(`/projects/${p.id}/layout-bindings`),draft=p.workflow?.current,deck=p.workflow?.visuals?.current
-  if(!dialog||mode!=='project')return
-  if(!draft){detail('<h3>本项目尚未形成页脚本</h3><p>版式制作不受影响；项目绑定需要先有可定位的页脚本。</p>');return}
-  const pages=draft.blocks.flatMap(b=>(b.items??[]).map(i=>({id:'visual-page-'+i.id,title:i.title})))
-  detail(`<h3>${esc(p.name)} · 版式应用</h3><p class="ll-hint">配置 V${config.revision} · ${config.status==='applied'?'成果已应用':'已保存，待重排'}${config.stale?' · 绑定属于旧稿':''}</p><p>当前全局：${esc(config.global?.package?.name??'平台默认')}。左侧选择资源后，可绑定全局或指定页面。</p><div class="ll-binding"><label>作用范围<select data-scope><option value="global">整套成果</option><option value="local">选定页面（局部）</option><option value="manual">选定页面（保护人工修改）</option></select></label><label>版式资源<select data-resource><option value="">继承 / 平台默认</option>${resources.filter(r=>r.publishedVersion&&!r.retired).map(r=>`<option value="${r.id}|${r.publishedVersion}" ${r.id===selected?.id?'selected':''}>${esc(r.package.name)} · 已发布V${r.publishedVersion}</option>`).join('')}</select></label><label>页面布局<select data-local-layout><option value="">自动适配内容</option><option value="points">要点</option><option value="columns">双栏</option><option value="focus">重点</option><option value="image-left">左图右文（需要图片）</option><option value="table">比较表（需要表格）</option></select></label><label>标题强调色（可留空）<input data-local-color placeholder="#123456" maxlength="7"></label></div><div class="ll-pages">${pages.map(page=>`<label><input type="checkbox" value="${page.id}">${esc(page.title)} <small>${config.manual[page.id]?'人工保护 ':''}${config.local[page.id]?'局部绑定':'继承全局'}</small></label>`).join('')}</div><div class="ll-actions"><button data-bind>保存版式配置</button><button data-remove>移除选定覆盖</button><button data-apply class="ll-primary">按当前配置重排成果</button></div><p class="ll-hint">保存不等于应用。整稿确认后才能生成；超界或素材不足会阻断生成，原成果保留。新的自然语言批注不会自动成为生效覆盖。</p>${deck&&!deck.stale?`<h4>从实际成果积累版式</h4><select data-save-page>${deck.pages.map(page=>`<option value="${page.id}">${esc(page.item.title)}</option>`).join('')}</select><input data-variant-name placeholder="给这个可复用版式命名"><button data-variant>仅保存布局规则到个人库</button>`:''}`)
-  const check=()=>{if(getProject()?.id!==projectId||getProject()?.workflow?.current?.id!==draft.id)throw Error('项目或稿件已经改变，请重新打开版式应用。')}
-  const save=async remove=>{
-   check();const scope=dialog.querySelector('[data-scope]').value,pageIds=[...dialog.querySelectorAll('.ll-pages input:checked')].map(x=>x.value),value=dialog.querySelector('[data-resource]').value,[resourceId,version]=value.split('|'),layoutId=dialog.querySelector('[data-local-layout]').value,accent=dialog.querySelector('[data-local-color]').value.trim()
-   if(scope!=='global'&&!pageIds.length)throw Error('请至少选择一页。')
-   await post(`/projects/${projectId}/layout-bindings`,{baseRevision:getProject().revision,draftId:draft.id,expectedRevision:config.revision,scope,...(scope!=='global'?{pageIds,remove}:{}),resource:remove||!value?null:{resourceId,version:Number(version)},overrides:{...(layoutId?{layoutId}:{}),...(accent?{theme:{accent}}:{})}})
-   await showProject();msg('配置已保存；点击重排才改变成果。')
-  }
-  dialog.querySelector('[data-bind]').onclick=()=>void run(()=>save(false));dialog.querySelector('[data-remove]').onclick=()=>void run(()=>save(true))
-  dialog.querySelector('[data-apply]').onclick=()=>void run(async()=>{check();const latest=await request(`/projects/${projectId}/layout-bindings`);await mutate('workflow/visuals',{draftId:draft.id,...(deck?{baseVisualId:deck.id}:{}),applyLibrary:true,expectedBindingRevision:latest.revision});await refresh();await showProject();msg('新成果已生成并通过实际页面检查，原成果版本保留。')})
-  dialog.querySelector('[data-variant]')?.addEventListener('click',()=>void run(async()=>{check();const name=dialog.querySelector('[data-variant-name]').value.trim();if(!name)throw Error('请填写版式名称。');const r=await post(`/projects/${projectId}/layout-save-page`,{visualId:deck.id,pageId:dialog.querySelector('[data-save-page]').value,name});await reload();mode='library';await select(r.id,r.version);msg('已保存纯版式候选，不含本项目正文或图片。')}))
+ function readWorking(){readForm();return working}
+ async function save(){
+  readForm();if(!working)return
+  const result=selected&&own()?await post('/layout-library/'+selected.id+'/revisions',{expectedVersion:selected.latestVersion,package:working}):await post('/layout-library',{package:working})
+  selected=await request('/layout-library/'+result.id+'/'+result.version);working=structuredClone(selected.package);historyViewing=false;renderResult();await preview();await reload();msg('已保存版式 V'+selected.version+'。')
  }
-
- async function showReference(){
-  const generation=ticket
-  let configured=false,readingFile=false,uploadGeneration=0,jobGeneration=0
-  const active=()=>dialog&&mode==='reference'&&generation===ticket
-  detail(`<section class="ll-custom"><div class="ll-detail-head"><h3>自定义版式</h3><button data-manual>手动设置</button></div>
-   <label>版式名称<input data-ref-name maxlength="100" placeholder="给这套版式命名"></label>
-   <label>版式要求<textarea data-ref-text maxlength="16000" rows="5" placeholder="例如：白底墨绿标题，双栏对照，图片放左侧，引用放在底部。"></textarea></label>
-   <div class="ll-actions"><label class="ll-file">上传参考文本<input data-ref-file type="file" accept=".txt,.md,.markdown" hidden></label><span data-ref-file-name></span></div>
-   <p class="ll-model" data-ref-model role="status">正在读取模型设置…</p>
-   <div class="ll-actions"><button data-ref-run class="ll-primary" disabled>生成自定义版式</button><button data-ref-refresh>刷新记录</button></div>
-   <div data-ref-jobs></div></section>`)
-  const name=dialog.querySelector('[data-ref-name]'),input=dialog.querySelector('[data-ref-text]')
-  const submit=dialog.querySelector('[data-ref-run]'),fileInput=dialog.querySelector('[data-ref-file]')
-  name.value=referenceDraft.name;input.value=referenceDraft.text
-  dialog.querySelector('[data-ref-file-name]').textContent=referenceDraft.filename
-  const update=()=>{
-   referenceDraft.name=name.value;referenceDraft.text=input.value
-   submit.disabled=!configured||readingFile||!name.value.trim()||!input.value.trim()
-  }
-  name.oninput=update;input.oninput=update
-  dialog.querySelector('[data-manual]').onclick=()=>void run(newManual)
-  fileInput.onchange=async()=>{
-   const file=fileInput.files[0];if(!file)return
-   const upload=++uploadGeneration
-   readingFile=true;update()
-   try{
-    if(!/\.(txt|md|markdown)$/i.test(file.name))throw Error('请选择 TXT 或 Markdown 参考文本。')
-    if(file.size>128*1024)throw Error('参考文件较大，请保留需要的版式要求后上传。')
-    const bytes=new Uint8Array(await file.arrayBuffer())
-    let text
-    if(bytes[0]===255&&bytes[1]===254)text=new TextDecoder('utf-16le').decode(bytes)
-    else if(bytes[0]===254&&bytes[1]===255)text=new TextDecoder('utf-16be').decode(bytes)
-    else{
-     try{text=new TextDecoder('utf-8',{fatal:true}).decode(bytes)}
-     catch{text=new TextDecoder('gb18030',{fatal:true}).decode(bytes)}
-    }
-    if(text.length>16000)throw Error('参考文字最多16000字，请精简后上传。')
-    if(!active()||upload!==uploadGeneration)return
-    input.value=text
-    if(!name.value.trim())name.value=file.name.replace(/\.(txt|md|markdown)$/i,'').slice(0,100)
-    referenceDraft.filename=file.name
-    dialog.querySelector('[data-ref-file-name]').textContent=file.name
-    update();msg('')
-   }catch(error){if(active()&&upload===uploadGeneration){msg(error.message);notify(error.message)}}
-   finally{if(upload===uploadGeneration){readingFile=false;fileInput.value='';if(active())update()}}
-  }
-  const statusNames={queued:'排队中',running:'正在生成',cancelling:'取消中',completed:'已生成',failed:'失败',interrupted:'已中断',cancelled:'已取消'}
-  const jobs=async()=>{
-   const requestGeneration=++jobGeneration
-   clearTimeout(referenceTimer)
-   const rows=await request('/layout-library/reference-jobs')
-   if(!active()||requestGeneration!==jobGeneration)return
-   dialog.querySelector('[data-ref-jobs]').innerHTML=rows.map(j=>{
-    const running=['queued','running','cancelling'].includes(j.status)
-    const model=j.execution_metadata?.actualRoute?.model??j.modelName
-    const elapsed=running&&j.started_at?' · '+Math.max(0,Math.floor((Date.now()-Date.parse(j.started_at))/1000))+'秒':''
-    return `<div class="ll-job" data-reference-job="${esc(j.id)}"><div class="ll-job-heading"><strong>${esc(j.name??'自定义版式')}</strong><span>${esc(statusNames[j.status]??j.status)}${elapsed}</span></div>
-     ${model?`<small>模型　${esc(model)}</small>`:''}
-     ${running&&j.progress?.label?`<p role="status">${esc(j.progress.label)}</p>`:''}
-     ${j.error?`<p role="alert">${esc(j.error)}</p>`:''}
-     ${j.result?.id?`<button data-result="${j.result.id}" data-v="${j.result.version}">查看版式</button>`:''}
-     ${running?`<button data-cancel-job="${j.id}">取消</button>`:''}
-     ${['failed','interrupted','cancelled'].includes(j.status)?`<button data-retry-job="${j.id}">重试</button>`:''}</div>`
-   }).join('')
-   dialog.querySelectorAll('[data-result]').forEach(b=>b.onclick=()=>void run(async()=>{clearTimeout(referenceTimer);await reload();mode='library';await select(b.dataset.result,Number(b.dataset.v))}))
-   dialog.querySelectorAll('[data-cancel-job]').forEach(b=>b.onclick=()=>void run(async()=>{await request('/layout-library/reference-jobs/'+b.dataset.cancelJob+'/cancel',{method:'POST',body:{}});await jobs()}))
-   dialog.querySelectorAll('[data-retry-job]').forEach(b=>b.onclick=()=>void run(async()=>{await post('/layout-library/reference-jobs/'+b.dataset.retryJob+'/retry');await jobs();msg('已提交重试。')}))
-   if(rows.some(j=>['queued','running','cancelling'].includes(j.status)))referenceTimer=setTimeout(()=>{void jobs().catch(e=>{if(active())msg(e.message)})},2000)
-  }
-  submit.onclick=()=>void run(async()=>{
-   update()
-   if(submit.disabled)return
-   await post('/layout-library/reference-jobs',{name:name.value.trim(),text:input.value.trim(),allowModel:true})
-   await jobs();msg('已提交，生成状态会自动更新。')
-  })
-  dialog.querySelector('[data-ref-refresh]').onclick=()=>void run(jobs)
-  const config=await request('/layout-library/reference-config')
-  if(!active())return
-  configured=config.configured
-  const model=dialog.querySelector('[data-ref-model]')
-  model.textContent=config.configured?'使用模型　'+config.modelName:config.reason??'请先在模型管理中配置模型。'
-  model.title='模型管理 · V'+config.policyRevision
-  update();void jobs().catch(error=>{if(active())msg(error.message)})
+ async function preview(read=false){
+  if(!dialog||!working)return
+  if(read)readForm()
+  const token=generation,revision=++previewGeneration,box=dialog.querySelector('[data-preview-box]')
+  const result=await request('/layout-library/preview',{method:'POST',body:{package:working,layoutId:previewLayout}})
+  if(token!==generation||revision!==previewGeneration||!box.isConnected)return
+  previewHandle?.dispose();previewHandle=mountNativePreview(box,result.html,{onSelect:selection=>chat.focusSelection(selection)})
  }
- button.onclick=()=>void run(open)
- return {open,reset:close,dispose(){close();button.remove()}}
+ async function importFile(file){
+  const epoch=viewEpoch
+  if(file.size>8*1024*1024)throw Error('参考文件超过8 MiB。')
+  const data=new Uint8Array(await file.arrayBuffer());let binary='';for(let i=0;i<data.length;i+=8192)binary+=String.fromCharCode(...data.subarray(i,i+8192))
+  const result=await post('/layout-library/import',{filename:file.name,content:btoa(binary)})
+  const resource=await request('/layout-library/'+result.id+'/'+result.version)
+  if(!dialog||epoch!==viewEpoch)return result
+  selected=resource;working=structuredClone(selected.package);previewLayout='';historyViewing=false;renderResult();await preview();await reload();return result
+ }
+ function download(file){const url=URL.createObjectURL(file.blob),a=document.createElement('a');a.href=url;a.download=file.filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+ entry.onclick=()=>void run(()=>open())
+ return {open,reset:close,dispose(){close();entry.remove()}}
 }

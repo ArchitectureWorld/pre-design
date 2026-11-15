@@ -31,7 +31,7 @@ async function mutate(path, extra={}) {
  let result;try{result=await api(`/projects/${id}/${path}`,body)}catch(error){if(error.status>=400&&error.status<500){pendingMutations.delete(key);savePendingMutations()}throw error}
  pendingMutations.delete(key);savePendingMutations();if(state.currentProjectId===id)await refreshCurrent().catch(()=>toast('操作已保存，状态刷新失败，请重新打开项目。'));return result;
 }
-function invalidateNavigation(){clearAnnotationContext();server.navigation++;server.operation++;server.loading=false;server.watch?.abort();server.graphNodeDrag?.destroy();server.graphNodeDrag=null;server.flowEditor?.destroy();server.flowEditor=null;server.workflowUI?.destroy();server.workflowUI=null;server.renderedConsult=null;server.visualDialog?.remove();server.visualDialog=null;globalThis.prePlatform?.reset();globalThis.preLayout?.reset();}
+function invalidateNavigation(){clearAnnotationContext();server.navigation++;server.operation++;server.loading=false;server.watch?.abort();server.graphNodeDrag?.destroy();server.graphNodeDrag=null;server.flowEditor?.destroy();server.flowEditor=null;server.workflowUI?.destroy();server.workflowUI=null;server.renderedConsult=null;server.visualDialog?.remove();server.visualDialog=null;globalThis.prePlatform?.reset();globalThis.preLayout?.reset();globalThis.preLayoutCanvas?.reset();}
 function goOverview(){invalidateNavigation();prototypeGoOverview();void refreshProjects().catch(error=>toast(error.message))}
 function openNewProject(){invalidateNavigation();state.rejectedMaterials=[];prototypeOpenNewProject()}
 function loadProjectRecords(){return []}
@@ -136,7 +136,7 @@ async function startProcessing(){
  $('#progressFill').style.width='100%';$('#processMeta').textContent='资料已登记，正在梳理章节流程';server.createRequest=null;await refreshProjects();if(!active())return;await refreshCurrent();if(!active())return;state.processing=false;startConsult();watchProject(project.id);try{await generateOutline('',undefined,{planningMode:'recommend'})}catch(error){toast(error.message);renderConsult()}
  }catch(error){if(!active())return;state.processing=false;setStage('create');$('#entryContent').classList.remove('hidden');$('#processContent').classList.add('hidden');toast(error.message)}
 }
-function startConsult(){if(state.stage==='workspace')clearAnnotationContext();server.viewingPastDraft=false;setStage('consult');$('#consultComposer').classList.remove('hidden');$('#confirmOutline').classList.remove('hidden');renderConsult()}
+function startConsult(){if(state.stage==='workspace')clearAnnotationContext();globalThis.preLayoutCanvas?.reset();server.viewingPastDraft=false;setStage('consult');$('#consultComposer').classList.remove('hidden');$('#confirmOutline').classList.remove('hidden');renderConsult()}
 function consultMode(){const outline=server.current?.outline,key=`pre-outline-message-mode:${server.current?.id}`;let requestedMode='chat';try{requestedMode=sessionStorage.getItem(key)||'chat'}catch{}const mode=consultMessageMode(outline,{dirty:flowEditorState(server.current?.id,outline).dirty,requestedMode});if(mode!==requestedMode)try{sessionStorage.setItem(key,mode)}catch{}return mode}
 function setConsultMode(mode){try{sessionStorage.setItem(`pre-outline-message-mode:${server.current.id}`,mode)}catch{}updateFlowConfirmation()}
 function updateConsultAgent(){
@@ -471,6 +471,7 @@ function renderGraph(){
   try{localStorage.setItem(layoutKey,JSON.stringify(positions))}catch{toast('布局已调整，本次无法保存到浏览器。')}
  }})
  updatePipelineUI()
+ globalThis.preLayoutCanvas?.update()
 }
 function initChat(){$('#chatHistory').innerHTML='<div class="chat-date">项目会话 · 服务器记录</div>';if((server.current?.outline?.waivers?.length||0)+(server.current?.outline?.retainedWaivers?.length||0))addChat('system',`<div class="flow-waiver"><b>本轮明确跳过的资料与限制</b>${[...server.current.outline.waivers,...(server.current.outline.retainedWaivers??[])].map(w=>`<p>${escapeHTML(w.prompt)}<br>原因：${escapeHTML(w.reason)}；涉及章：${escapeHTML(w.chapterIds.join('、'))}</p>`).join('')}</div>`);const materials=server.current?.materials||[];if(materials.length)addChat('system',`<details><summary>已保存 ${materials.length} 份原件 · 查看路径与解析状态</summary>${materials.map(f=>`${escapeHTML(f.relativePath||f.filename)} — ${escapeHTML(f.processing?.label||'原件已保存')}`).join('<br>')}</details>`);const professional=coreSections();if(professional.length)addChat('system',`<details open><summary>专业提案与已确认成果 · ${professional.length} 项</summary>${professional.map(sec=>`<p><button type="button" class="link-like" data-open-core="${escapeHTML(sec.script.id)}">${escapeHTML(sec.name)} · ${escapeHTML(scriptStatusLabel(state.scripts[sec.script.id]))}</button></p>`).join('')}</details>`);for(const job of server.current?.jobs||[]){
  if(job.user_text)addChat('me',job.user_text,false)

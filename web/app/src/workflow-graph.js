@@ -1,11 +1,11 @@
 const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))
 const metrics={
- root:{minW:200,maxW:320,minH:80,inset:28,extraH:48,fontSize:13,lineHeight:20},
+ root:{minW:200,maxW:320,minH:88,inset:28,extraH:56,fontSize:13,lineHeight:20},
  chapter:{minW:216,maxW:448,minH:64,inset:66,extraH:42,fontSize:12,lineHeight:18},
  section:{minW:240,maxW:576,minH:60,inset:44,extraH:40,fontSize:12,lineHeight:18},
  article:{minW:200,maxW:384,minH:56,inset:36,extraH:26,fontSize:12,lineHeight:18},
- script:{minW:320,maxW:320,minH:116,inset:28,extraH:68,fontSize:11,lineHeight:17},
- artifact:{minW:228,maxW:320,minH:84,inset:28,extraH:62,fontSize:11,lineHeight:17},
+ script:{minW:320,maxW:320,minH:126,inset:28,extraH:78,fontSize:11,lineHeight:17},
+ artifact:{minW:228,maxW:320,minH:94,inset:28,extraH:72,fontSize:11,lineHeight:17},
 }
 
 // Conservative font estimates keep layout independent of DOM size and resize events.
@@ -248,6 +248,7 @@ export function renderWorkflowGraph({board,nodeLayer,edgeLayer,makeNode,renderSc
   Object.assign(element.style,{left:item.x+'px',top:item.y+'px',width:item.w+'px',height:item.h+'px'})
   if(item.kind==='section'&&item.section.sectionBody)element.addEventListener('dblclick',event=>{event.stopPropagation();onOpenScript?.(item.section)})
   if(['article','script'].includes(item.kind)){
+   if(item.record.itemId)element.dataset.itemId=item.record.itemId
    if(item.record.workflowDraftId)element.dataset.workflowDraftId=item.record.workflowDraftId
    element.addEventListener('dblclick',event=>{
     event.stopPropagation()

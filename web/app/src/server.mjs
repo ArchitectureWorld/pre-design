@@ -121,7 +121,8 @@ export async function createApp({ db, workers, projectsRoot, users }) {
   const platform = await createPlatformStore(db, users)
   const outlines = await createOutlineStore(db)
   const layoutLibrary=await createLayoutLibrary(db)
-  const workflows = await createWorkflowStore(db,{layoutLibrary,resolveLayoutAssets:createLayoutAssetResolver(db)})
+  const resolveLayoutAssets=createLayoutAssetResolver(db)
+  const workflows = await createWorkflowStore(db,{layoutLibrary,resolveLayoutAssets})
   const dossierIntegration = await createDossierIntegration({db, workers, verifyMaterial:openVerifiedMaterial})
   const query = async (sql, params = []) => (await db.query(sql, params)).rows
   const event = async (id, data) => { await query('INSERT INTO events(project_id,data) VALUES($1,$2)', [id, data]); await query('UPDATE projects SET updated_at=now() WHERE id=$1', [id]) }
@@ -551,9 +552,10 @@ export async function createApp({ db, workers, projectsRoot, users }) {
   }
   const scheduler = createJobScheduler({ db, getLimits: async () => (await platform.getPolicy()).limits, execute })
   const layoutJobs=createLayoutJobs({db,platform,workers,library:layoutLibrary,serial,controllers,kick:()=>scheduler.kick()})
-  registerLayoutRoutes({app,library:layoutLibrary,project,workflows,serial,event,
+  registerLayoutRoutes({app,library:layoutLibrary,project,workflows,serial,event,resolveLayoutAssets,
     enqueueReference:layoutJobs.enqueue,listReferenceJobs:layoutJobs.list,cancelReference:layoutJobs.cancel,
-    referenceConfiguration:layoutJobs.configuration,retryReference:layoutJobs.retry})
+    referenceConfiguration:layoutJobs.configuration,retryReference:layoutJobs.retry,
+    listConversations:layoutJobs.conversations,getConversation:layoutJobs.conversation,recordReferenceImport:layoutJobs.imported})
   async function enqueue(req, kind, body) {
     const p = await project(req)
     const job = await serial(`enqueue:${p.id}`, () => serial(`dossier-finalize:${p.id}`, async () => {
