@@ -43,9 +43,12 @@ export function mountLayoutLibrary({request,getProject,notify,mutate,refresh=asy
   const form=dialog.querySelector('[data-editor]');if(!form)return
   const advanced=form.querySelector('[data-json]');if(advanced.dataset.dirty==='true'){working=JSON.parse(advanced.value);advanced.dataset.dirty='false';return}
   working.name=form.elements.name.value.trim();working.theme.fontFamily=form.elements.fontFamily.value
-  for(const k of ['background','ink','accent','muted'])working.theme[k]=form.elements[k].value
+  for(const k of ['background','ink','accent','muted']){
+   const value=form.elements[k].value
+   if(value.toLowerCase()!==working.theme[k].toLowerCase())working.theme[k]=value
+  }
   for(const k of ['titleSize','bodySize','captionSize'])working.theme[k]=Number(form.elements[k].value)
-  working.rights={basis:form.elements.basis.value,shareAllowed:form.elements.shareAllowed.checked,note:form.elements.rightsNote.value}
+  Object.assign(working.rights,{basis:form.elements.basis.value,shareAllowed:form.elements.shareAllowed.checked,note:form.elements.rightsNote.value})
   working.tags=form.elements.tags.value.split(/[，,]/).map(t=>t.trim()).filter(Boolean)
  }
  function renderEditor(){

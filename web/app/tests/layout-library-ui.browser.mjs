@@ -9,7 +9,8 @@ const f=await libraryFixture(),output=resolve(process.env.PRE_LAYOUT_SCREENSHOTS
 const browser=await chromium.launch({executablePath:process.env.PREPLANNING_BROWSER_EXECUTABLE??'/usr/bin/chromium',headless:true,args:['--no-sandbox','--disable-dev-shm-usage']})
 let checks=0,actor='owner'
 try{
- const pkg=createPackage('界面测试 · 蓝灰'),created=(await f.request('POST','/api/layout-library',{requestId:randomUUID(),package:pkg})).json()
+ const pkg=createPackage('界面测试 · 蓝灰');pkg.theme.background='#F7F9FC'
+ const created=(await f.request('POST','/api/layout-library',{requestId:randomUUID(),package:pkg})).json()
  const base=`/api/layout-library/${created.id}/1`
  let r=await f.request('POST',base+'/validate',{});assert.equal(r.json().status,'passed');checks++
  r=await f.request('POST',base+'/publish',{requestId:randomUUID(),visibility:'private',reviewed:true});assert.equal(r.statusCode,200);checks++
@@ -30,6 +31,12 @@ try{
  await page.locator('[data-layout-library-open]').click();await page.locator('[data-editor]').waitFor().catch(async error=>{console.log('LAYOUT_DIAGNOSTIC',JSON.stringify({status:await page.locator('[data-ll-status]').textContent().catch(()=>null),detail:(await page.locator('[data-detail]').innerHTML().catch(()=>'' )).slice(0,1000),diagnostic:await page.evaluate(()=>({open:document.querySelector('[data-layout-library-open]')?.outerHTML,dialogs:[...document.querySelectorAll('dialog')].map(x=>x.outerHTML.slice(0,900)),bodyEnd:document.body.innerHTML.slice(-1800),messages:window.messages})),errors}));throw error});await page.waitForTimeout(250)
  assert.equal(await page.locator('.ll-card').count(),1);checks++
  assert.equal(await page.locator('[data-seed]').isVisible(),false);checks++
+ // PostgreSQL JSONB reorders object fields. Opening a saved resource must not
+ // make its rights fields or equivalent colour spelling look edited.
+ await page.locator('.ll-preview-host').waitFor()
+ await page.locator('[data-validate]').click()
+ await page.waitForFunction(()=>/检查通过|请先保存/.test(document.querySelector('[data-ll-status]').textContent),null,{timeout:20000})
+ assert.match(await page.locator('[data-ll-status]').innerText(),/检查通过/);checks++
  await page.screenshot({path:resolve(output,'library-1366x768.png')})
  await page.locator('[data-mode="project"]').click();await page.locator('[data-bind]').waitFor()
  await page.locator('[data-bind]').click();await page.waitForFunction(()=>document.querySelector('[data-ll-status]').textContent.includes('配置已保存'))
@@ -49,5 +56,5 @@ try{
  await page.screenshot({path:resolve(output,'developer-1366x768.png')})
  for(const width of [1024,1512]){await page.setViewportSize({width,height:768});await page.waitForTimeout(100);assert(await page.locator('[data-close]').isVisible());checks++;await page.screenshot({path:resolve(output,`developer-${width}x768.png`)})}
  assert.deepEqual(errors,[]);checks++
- console.log(JSON.stringify({checks,passed:true,transport:'Fastify inject bridge (no production HTTP/LLM)',database:'SQLite persistence adapter',screenshots:output},null,2))
+ console.log(JSON.stringify({checks,passed:true,transport:'Fastify inject bridge (no production HTTP/LLM)',database:f.databaseEngine,screenshots:output},null,2))
 }finally{await browser.close();await f.close()}

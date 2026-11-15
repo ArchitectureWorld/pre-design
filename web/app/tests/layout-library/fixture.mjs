@@ -20,5 +20,5 @@ export async function libraryFixture(){
  registerLayoutRoutes({app,library,project,workflows,serial:(_k,fn)=>fn(),event:async()=>{}})
  app.post('/api/projects/:id/workflow/visuals',async req=>visuals.generate(await project(req),req.body))
  const request=(method,url,payload,actor='owner')=>app.inject({method,url,headers:{authorization:'Bearer '+actor},...(payload===undefined?{}:{payload})})
- return {app,db,library,visuals,p,draft,request,workflows,async close(){await app.close();await env.close()}}
+ return {app,db,library,visuals,p,draft,request,workflows,databaseEngine:env.engine,async close(){await app.close();await env.close()}}
 }
