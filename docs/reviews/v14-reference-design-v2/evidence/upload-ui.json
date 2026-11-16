@@ -1,0 +1,13 @@
+{
+  "checks": 16,
+  "passed": true,
+  "transport": "真实HTTP/PostgreSQL/Chromium；真实上传字节进度；模型为受控替身",
+  "formats": [
+    "PDF",
+    "JPG",
+    "JPEG",
+    "PNG",
+    "DOCX"
+  ],
+  "screenshots": "/home/runner/work/_temp/layout-evidence/screens-upload"
+}

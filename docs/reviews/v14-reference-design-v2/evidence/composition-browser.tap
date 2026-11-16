@@ -1,0 +1,10 @@
+✔ 真实 Chromium：长中文、多图、表格完整呈现，实际画布保留 6:5 比例 (367.051328ms)
+✔ 真实 Chromium：图表值与关系节点为可量测 DOM，过量文字会触发溢出 (379.543064ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1155.524592

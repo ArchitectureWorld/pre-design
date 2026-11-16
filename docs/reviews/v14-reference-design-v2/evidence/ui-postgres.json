@@ -1,0 +1,7 @@
+{
+  "checks": 24,
+  "passed": true,
+  "transport": "真实HTTP / Fastify / PostgreSQL / Chromium，模型为受控替身",
+  "database": "postgresql",
+  "screenshots": "/home/runner/work/_temp/layout-evidence/screens-postgres"
+}

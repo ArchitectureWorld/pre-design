@@ -1,0 +1,21 @@
+{
+  "passed": true,
+  "bytes": 104857600,
+  "uploadedAs": "application/octet-stream",
+  "physicalPages": 31,
+  "parsedPages": 30,
+  "observationBatches": 5,
+  "modelImageCount": 30,
+  "stages": [
+    "observe-1",
+    "observe-2",
+    "observe-3",
+    "observe-4",
+    "observe-5",
+    "profile",
+    "compile"
+  ],
+  "originalHashPreserved": true,
+  "model": "受控替身",
+  "errors": []
+}

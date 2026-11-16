@@ -1,0 +1,28 @@
+{
+  "schema": "pre-design.layout-ci.v2",
+  "testedAt": "2026-11-16T15:34:17.065Z",
+  "sourceCommit": "9094cf01da446c437d286590062364ac44460d7f",
+  "node": "v24.11.0",
+  "database": "disposable PostgreSQL, isolated schemas",
+  "result": "passed",
+  "realModelVerified": false,
+  "productionDeployed": false,
+  "tests": [
+    "V1 and V2 native layout PostgreSQL contracts/API/server/scheduler",
+    "PPTX ZIP and real LibreOffice parsing; reference evidence, stages and review gates",
+    "selected existing Web regressions",
+    "actual Chromium composition rendering and reference comparison UI",
+    "100 MiB binary PDF upload and 30-page batched analysis",
+    "existing Web build"
+  ],
+  "files": {
+    "postgres": "7e3c4a9e07e152da42dbcf96991bb376098391cad8f1f0ca658c14d1b4d60c76",
+    "regression": "be3d915053eb37e9d43e487f1c4576d092ba38e3f5d75b99aa36aeaaf5aa63c6",
+    "compositionBrowser": "5e85ddccbe8c1013c12c70e3733792e9881cff43f675bfac173af399971e71ec",
+    "uiPostgres": "92c5573bfee6ba0dc647963a5963d3301315e525e485fc441e9368e992f9f31f",
+    "ui": "92c5573bfee6ba0dc647963a5963d3301315e525e485fc441e9368e992f9f31f",
+    "uploadUi": "be4e3fc0de4e9ea9d2a966aa349a1e1527b2558a3d8917db13e078feeae8688f",
+    "largePdfUi": "a73b6cfcbc1a87a4a4941f520ebbef26da5e50d1687b2471db62f677f9a90765",
+    "referenceReviewUi": "ade063e10d6d703cddf75b70773cd998143244117ff59d6e98870f450b235a53"
+  }
+}

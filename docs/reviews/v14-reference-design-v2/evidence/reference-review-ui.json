@@ -1,0 +1,6 @@
+{
+  "checks": 9,
+  "passed": true,
+  "transport": "真实HTTP / PostgreSQL / Chromium / PDF原页；合成内容，未调用远程模型",
+  "screenshots": "/home/runner/work/_temp/layout-evidence/screens-reference-review"
+}

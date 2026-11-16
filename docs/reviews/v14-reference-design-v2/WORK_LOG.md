@@ -1,11 +1,73 @@
-# Execution ledger
+# V14 Reference Design V2 执行记录
 
-Plan: docs/superpowers/plans/2026-11-16-v14-reference-design-v2.md
-Base: e9d78084776a30a0d674e00e4b69abf9ce3864c2
-Branch: codex/v14-reference-design-v2
+- 日期：2026-11-16。
+- 计划：`docs/superpowers/plans/2026-11-16-v14-reference-design-v2.md`。
+- 基线：`e9d78084776a30a0d674e00e4b69abf9ce3864c2`。
+- 分支：`codex/v14-reference-design-v2`。
+- 评审入口：[README.md](README.md)。通过 CI 的代码提交为 `9094cf01da446c437d286590062364ac44460d7f`，评审文档与同源证据另行提交。
 
-- Verified remote baseline, clean clone, actual PPTX bypass, V1 schema limits.
-- User approved implementation and remote synchronization in this session; no repeat approval required.
-- Ruling: use a fresh isolated clone and review branch; keep current deployment branch unchanged for independent Claude review.
-- Ruling: backend schemas/renderer are extended incrementally and V1 stays readable; model capabilities are verified independently of deterministic rendering checks.
-- In progress: dependency installation, upstream PPT Master reuse assessment.
+## 授权与范围
+
+用户已授权开发、测试和远程同步，供 Claude 独立评审。已核实远端基线，采用隔离 checkout 与专用分支；原部署分支、生产端口与生产数据保持不变。
+已复核 PPTX 绕过 V14 的实际入口与 V1 固定版式限制，采用增量扩展契约／原生渲染器的已批准方案。没有执行生产部署或主线合并。
+
+## 实现进展
+
+- 增加 PPTX 结构提取、安全校验与真实页面预览；接入上传持久化和拥有者范围内的源页访问。
+- 增加 V2 Profile、分批观察／综合／编译工作流、逐阶段收执与失败／取消处理。
+- 增加 V2 组合槽位、数据完整性检查、原生 HTML 渲染与下游结构化内容接入；保留 V1 与人工覆盖语义。
+- 增加原页对照、合成试排、当前版本确认与服务端发布／绑定门禁。
+- 扩展 CI 分支触发、依赖安装、PostgreSQL／浏览器检查与评审产物。
+- 开源复用固定到 PPT Master `3af3e8ef774c4d67ee57e1306d9256d08c9ee1bf`：5 个未修改纯 Python 模块，MIT，保留版权；没有调用或禁用上游 guard。
+
+以上为实现范围记录；不据此声明最终集成全部通过。
+
+## 独立预审与回归关注点
+
+预审识别或触发补测的边界包括：原生对象 kind 映射；编译角色、画布、原型与容量完整性；V2 新增 TXT 输入；会话意图继承；renderer／fixturesVersion 门禁；未抽样证据页的对照可用性；SVG／VML 与实体解码后的资源地址；CI 依赖。
+上述问题已完成修复，包含混合结构／视觉来源中寻找可用预览的回退；针对性复验 37／37 通过。独立复审未留下未解决的 Critical／Important 问题；随后完整远端 CI 已通过，见下节。
+
+## 本地验证阶段记录
+
+这些记录不绑定最终远端提交，分组有重叠；没有把各组相加作为“总通过数”。
+
+| 阶段 | 观察到的结果 | 记录标识 |
+| --- | --- | --- |
+| PostgreSQL 原页权限／审阅与 UI | 9／9 通过 | `v14-review-complete.tap` |
+| 独立预审修复后复验 | 37／37 通过 | 本地针对性复验记录，未绑定最终远端 SHA |
+| 对话上传 UI | 12／12 通过 | `v14-conversation-ui-final.tap` |
+| PostgreSQL 工作流／服务器 | 29／30；1 项 Chromium 环境失败 | `v14-workflow-pg.tap` |
+| 组合版式／内容／材料回归 | 40／40 通过 | `v14-composition-final.tap` |
+| PPTX 解析器 | 12／12 通过 | `pptx-tests.tap` |
+| 最后一次完整本地 layout／模型运行时集合 | 168／174，0 skip；5 项 Chromium 启动受限，1 项既有 PDF 取消测试的 `/proc` 读取受限 | `v14-all-layout-local-final.tap` |
+
+上表是本地阶段账本，日志标识不是随仓库交付的持久证据链接。最终应补充 GitHub CI URL、提交 SHA 与上传产物。
+Chromium 启动时因 Unix socket 权限失败；自动审批拒绝沙箱外执行申请。没有通过关闭测试或替换真实浏览器来声明浏览器验收完成。
+分阶段模型测试使用受控替身；没有验证外部视觉模型的实际设计理解或迁移质量。
+
+## 私有真实资料核验
+
+- 21 页、10.09 MiB 的 PPTX 已完整解析，生成 21 张真实页面图并目视；保留实际页序、1280×720 画布、2 母版、14 版式和 2 主题。
+- 另有 3 份超过 400 MiB 的 PPTX 完成结构／CRC 检查，分别为 119、183、60 页；没有将这一步表述为完整视觉工作流通过。
+- 62.0 MiB、131 页真实 PDF 完成第 1–30 页解析与真实预览；后 101 页未读，未进行 OCR。
+- 仅匿名统计进入仓库；不记录私有文件名、原文、图片、原件或源文件 SHA。
+- 上述文件含复杂对象／分组／样式等限制提示，已保留限制；LibreOffice 页面不等于 PowerPoint 像素级复现。
+
+## 完整 CI 收口
+
+- 首轮 `43896354156`：174／174 通过；后续 13 项旧测试仍连接固定 Unix socket。恢复一次性数据库原有 socket 与 TCP 双入口后重跑，未削弱测试。
+- 通过运行：[43897176354](https://github.com/ArchitectureWorld/pre-design/actions/runs/43897176354)，代码提交 `9094cf01da446c437d286590062364ac44460d7f`，代码树 `1019333f543a1cb3a64d3e163292f5b48e102a76`。
+- 174／174 版式与参考测试、54／54 工作流回归、2／2 组合浏览器测试均通过；三组界面验收分别 24、16、9 项；100 MiB PDF 流程及 Web 构建通过。
+- 真实浏览器截图已目视，双图、表格、中文、画布比例与原页并排正常；截图与测试使用合成材料，未把它们当作外部模型质量证明。
+- [验收证据](evidence/receipt.json) 与 TAP／JSON／截图从通过运行的原始产物复制，ZIP 摘要和 8 个收执文件哈希均匹配。
+- 最后文档提交不改变通过验证的产品代码；交付前再次核对远端代码树。
+
+## 交付状态
+
+- [x] 核对独立预审问题及针对性回归；复审无未解决的 Critical／Important 问题。
+- [x] 通过已连接 GitHub 同步首轮实现，远端提交 `ba8539465fd29042565b753813fd93ae17921399`；代码树 `86659fdbe22ac2807d6faff7f6a72fc4ab63fa80` 与已核验本地完全一致。命令行缺少推送凭据，未改变访问控制。
+- [x] 在通过的代码 SHA 上核对完整验证运行、结果和 `native-layout-staging-tests` 产物，并保留可审阅证据。
+- [x] 本地环境限制与最终 CI 结果分别记录，完整远端验证通过。
+- [ ] 目标 DSH 环境中，由用户／Claude 使用真实参考及真实项目确认观察、设计总结与迁移效果。
+
+本阶段没有生产部署；外部模型质量与人工视觉确认仍有独立验收边界。
