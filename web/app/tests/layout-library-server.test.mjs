@@ -10,12 +10,13 @@ import {createTestDb} from './support/dossier-db.mjs'
 import {createApp} from '../src/server.mjs'
 import {createPackage} from '../src/layout-library/contract.mjs'
 import {draft,confirmedOutlineFixture} from './fixtures/outline.mjs'
+import {referenceStageFixture} from './fixtures/reference-workflow.mjs'
 const enabled=!!process.env.PRE_DOSSIER_TEST_DATABASE
 async function fixture(t){
  const env=await createTestDb(),db=env.db,root=await mkdtemp(join(tmpdir(),'layout-server-')),contexts=new Map(),calls=[]
  const worker={async call(p,b){if(b.operation==='create')contexts.set(p.id,{project:{projectId:p.id,currentRevision:0},proposals:[],stateObjects:[]});return structuredClone(contexts.get(p.id))},
  async run(){return {response:JSON.stringify({reportTitle:'项目基本情况',blocks:[['outline-01-1','项目区位','任务书载有项目所在地。'],['outline-01-2','资源构成','沿河片区包含公共绿地。']].map(([id,heading,sectionText])=>({id,heading,sectionText,sectionEvidenceIndexes:[0],items:[{title:heading+'判断',paragraphs:[heading+'是本轮研究的基础。'],points:['依据任务书整理明确的项目属性。'],presentation:{layout:'focus',note:'文字卡及来源。'},evidenceIndexes:[0]}],internalNotes:[]}))}),eventCount:1}},
- async runLayoutReference(b){calls.push(b);return {response:JSON.stringify(createPackage('模型候选')),execution:{controlled:true,scope:'layout-library'}}},
+ async runLayoutReference(b){calls.push(b);return b.stage?referenceStageFixture(b):{response:JSON.stringify(createPackage('模型候选')),execution:{controlled:true,scope:'layout-library'}}},
  async listArtifacts(){return []},async close(){},async closeAll(){} }
  const users=[{id:'admin',role:'admin',token:'a'.repeat(40)},{id:'other',token:'b'.repeat(40)}]
  let app=await createApp({db,workers:worker,projectsRoot:root,users})
@@ -200,11 +201,12 @@ test('参考图片上传保留原件、跨用户隔离，并通过视觉角色�
  assert.equal((await f.req('POST','/api/layout-library/reference-files',body)).json().id,file.id)
  const downloaded=await f.req('GET','/api/layout-library/reference-files/'+file.id+'/download');assert.equal(downloaded.statusCode,200);assert.deepEqual(downloaded.rawPayload,bytes)
  assert.equal((await f.req('GET','/api/layout-library/reference-files/'+file.id+'/download',undefined,1)).statusCode,404)
- const originalRun=f.worker.runLayoutReference;f.worker.runLayoutReference=async input=>{const result=await originalRun(input);return {...result,response:'已根据参考页面调整。\n```json\n'+JSON.stringify({reply:'已读取参考图片。',package:JSON.parse(result.response)})+'\n```'}}
+ const originalRun=f.worker.runLayoutReference;f.worker.runLayoutReference=async input=>{const result=await originalRun(input);return input.stage!=='compile'?result:{...result,response:'已根据参考页面调整。\n```json\n'+JSON.stringify({...JSON.parse(result.response),reply:'已读取参考图片。'})+'\n```'}}
  const request={requestId:randomUUID(),text:'按两份同名图片提炼版式',files:[{id:file.id},{id:second.id}],allowModel:true}
  assert.equal((await f.req('POST','/api/layout-library/conversations',request,1)).statusCode,404)
  const started=await f.req('POST','/api/layout-library/conversations',request);assert.equal(started.statusCode,200,started.body);await f.app.waitForJobs()
- assert.equal(f.calls.length,1);assert.equal(f.calls[0].modelRole,'vision');assert.equal(f.calls[0].images.length,2);assert.deepEqual(f.calls[0].images.map(i=>i.fileId),[file.id,second.id])
+ assert.equal(f.calls.length,3);assert.deepEqual(f.calls.map(c=>c.stage),['observe-1','profile','compile']);assert.equal(f.calls[0].modelRole,'vision');assert.equal(f.calls[0].images.length,2);assert.deepEqual(f.calls[0].images.map(i=>i.fileId),[file.id,second.id])
+ assert(f.calls.slice(1).every(c=>c.modelRole==='parent'&&c.images.length===0))
  assert.match(f.calls[0].prompt,/参考版式.png/)
  await f.restart();const conversation=(await f.req('GET','/api/layout-library/conversations/'+started.json().conversationId)).json()
  assert.deepEqual(conversation.referenceFiles.map(f=>f.id),[file.id,second.id]);assert.equal(conversation.referenceFiles[0].hasImages,true);assert.equal(conversation.turns[0].status,'completed')
@@ -234,7 +236,10 @@ test('PDF二进制上传贯通30页与模型输入，下载和幂等保持原件
  assert.equal((await send(Buffer.from('x'),{'x-reference-request-id':randomUUID(),'content-length':String(PDF_REFERENCE_MAX_BYTES+1)})).statusCode,413)
  assert.equal((await send(Buffer.from('x'),{'x-reference-request-id':randomUUID(),'x-reference-filename':'bad%GG.pdf'})).statusCode,400)
  const started=await f.req('POST','/api/layout-library/conversations',{requestId:randomUUID(),text:'分析30页参考',files:[{id:file.id}],allowModel:true});assert.equal(started.statusCode,200,started.body);await f.app.waitForJobs()
- assert.equal(f.calls.length,1);assert.equal(f.calls[0].images.length,30);assert.equal(f.calls[0].images.at(-1).page,30);assert.match(f.calls[0].prompt,/PAGE-30/);assert.doesNotMatch(f.calls[0].prompt,/PAGE-31/)
+ const observationCalls=f.calls.filter(c=>c.stage?.startsWith('observe-'))
+ assert.equal(f.calls.length,7);assert.equal(observationCalls.length,5);assert(observationCalls.every(c=>c.images.length<=6))
+ assert.equal(observationCalls.flatMap(c=>c.images).length,30);assert.equal(observationCalls.at(-1).images.at(-1).page,30)
+ assert.match(observationCalls.at(-1).prompt,/PAGE-30/);assert.doesNotMatch(f.calls.map(c=>c.prompt).join('\n'),/PAGE-31/)
 })
 
 test('解析中取消会传给解析器，清理原件且不留下半成品记录',{skip:!enabled,timeout:60000},async t=>{
@@ -275,6 +280,6 @@ test('无打开密码的权限PDF上传保留原件并进入视觉任务，需�
  }
  assert.equal((await readdir(join(f.root,'.layout-references'))).length,2);assert.equal((await f.db.query('SELECT count(*)::int AS n FROM layout_reference_uploads')).rows[0].n,2)
  const started=await f.req('POST','/api/layout-library/conversations',{requestId:randomUUID(),text:'根据参考提炼版式',files:files.map(({id})=>({id})),allowModel:true});assert.equal(started.statusCode,200,started.body);await f.app.waitForJobs()
- assert.equal(f.calls.length,1);assert.equal(f.calls[0].modelRole,'vision');assert.equal(f.calls[0].images.length,4);assert.deepEqual(f.calls[0].images.map(i=>i.page),[1,2,1,2])
+ assert.equal(f.calls.length,3);assert.equal(f.calls[0].modelRole,'vision');assert.equal(f.calls[0].images.length,4);assert.deepEqual(f.calls[0].images.map(i=>i.page),[1,2,1,2])
  const conversation=(await f.req('GET','/api/layout-library/conversations/'+started.json().conversationId)).json();assert.equal(conversation.turns[0].status,'completed')
 })

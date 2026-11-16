@@ -4,7 +4,7 @@ import {createTestDb} from '../support/dossier-db.mjs'
 import {createLayoutLibrary} from '../../src/layout-library/store.mjs'
 import {registerLayoutRoutes} from '../../src/layout-library/routes.mjs'
 import {createWorkflowVisualStore} from '../../src/workflow-visual-store.mjs'
-export async function libraryFixture(){
+export async function libraryFixture({uploads}={}){
  const env=await createTestDb()
  const wrap=c=>({query:async(...a)=>{const r=await c.query(...a);if(Array.isArray(r))return {rows:[]};r.rows=(r.rows??[]).map(x=>{for(const k of ['document','validation'])if(typeof x[k]==='string')x[k]=JSON.parse(x[k]);return x});return r},release:()=>c.release?.()})
  const db={...wrap(env.db),connect:async()=>wrap(await env.db.connect())}
@@ -17,7 +17,7 @@ export async function libraryFixture(){
  app.addHook('onRequest',async(req,reply)=>{const key=req.headers.authorization?.replace('Bearer ','');if(!['owner','other','admin'].includes(key))return reply.code(401).send({error:'未授权'});req.user={id:key,role:key==='admin'?'admin':'user'}})
  app.setErrorHandler((e,_req,reply)=>reply.code(e.name==='ZodError'?400:e.statusCode??500).send({error:e.message}))
  const project=async req=>{if(req.params.id!==p.id||req.user.id!==p.owner_id)throw Object.assign(Error('项目不存在'),{statusCode:404});return p}
- registerLayoutRoutes({app,library,project,workflows,serial:(_k,fn)=>fn(),event:async()=>{}})
+ registerLayoutRoutes({app,library,uploads,project,workflows,serial:(_k,fn)=>fn(),event:async()=>{}})
  app.post('/api/projects/:id/workflow/visuals',async req=>visuals.generate(await project(req),req.body))
  const request=(method,url,payload,actor='owner')=>app.inject({method,url,headers:{authorization:'Bearer '+actor},...(payload===undefined?{}:{payload})})
  return {app,db,library,visuals,p,draft,request,workflows,databaseEngine:env.engine,async close(){await app.close();await env.close()}}

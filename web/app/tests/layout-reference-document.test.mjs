@@ -247,6 +247,10 @@ test('真实 31 页 PDF 读取前 30 页，保留第 30 页文字和实际画面
   for (let page = 1; page <= 30; page++) assert.match(result.text, new RegExp(`\\blayout-page-${page}\\b`))
   assert.doesNotMatch(result.text, /\blayout-page-31\b/)
   assert.equal(result.images.length, 30)
+  assert.equal(result.pages.length, 30)
+  assert.equal(result.pages[29].page, 30)
+  assert.match(result.pages[29].text, /layout-page-30/)
+  assert.equal(result.pages[29].preview, true)
   for (const [index, image] of result.images.entries()) {
     assert.equal(image.page, index + 1); assert.equal(image.mimeType, 'image/jpeg')
     const info = await sharp(image.data).metadata()

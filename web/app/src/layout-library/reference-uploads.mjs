@@ -19,7 +19,7 @@ export async function createReferenceUploads(db,{root:storageRoot,extractor}={})
  filename text NOT NULL,sha256 text NOT NULL,bytes integer NOT NULL,mime_type text NOT NULL,
  document jsonb NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(owner_id,request_id));`)
  const query=async(sql,params=[],c=db)=>(await c.query(sql,params)).rows
- function describe(row){const d=typeof row.document==='string'?JSON.parse(row.document):row.document;return {id:row.id,name:row.filename,sha256:row.sha256,bytes:row.bytes,mimeType:row.mime_type,kind:d.kind,text:d.text,hasImages:d.images.length>0,imageCount:d.images.length,pageCount:d.pageCount,readPages:d.readPages,limitations:d.limitations,summary:d.summary}}
+ function describe(row){const d=typeof row.document==='string'?JSON.parse(row.document):row.document;return {id:row.id,name:row.filename,sha256:row.sha256,bytes:row.bytes,mimeType:row.mime_type,kind:d.kind,text:d.text,hasImages:d.images.length>0,imageCount:d.images.length,pageCount:d.pageCount,readPages:d.readPages,limitations:d.limitations,summary:d.summary,...(d.structure?{structure:d.structure}:{}),...(d.pages?{pages:d.pages}:{})}}
  async function record(actor,id,c=db){
   if(!uuid.test(id??''))throw fail('参考文件不存在。',404)
   const [row]=await query('SELECT * FROM layout_reference_uploads WHERE id=$1 AND owner_id=$2',[id,actor.id],c)
@@ -60,7 +60,7 @@ export async function createReferenceUploads(db,{root:storageRoot,extractor}={})
     await writeFile(join(folder,file),image.data,{mode:0o600,flag:'wx',signal})
     images.push({file,mimeType:image.mimeType,width:image.width,height:image.height,page:image.page,bytes:image.data.length,sha256:hash(image.data)})
    }
-   const document={kind:parsed.kind,text:parsed.text??'',images,pageCount:parsed.pageCount,readPages:parsed.readPages,limitations:parsed.limitations??[],summary:parsed.summary}
+   const document={kind:parsed.kind,text:parsed.text??'',images,pageCount:parsed.pageCount,readPages:parsed.readPages,limitations:parsed.limitations??[],summary:parsed.summary,...(parsed.structure?{structure:parsed.structure}:{}),...(parsed.pages?{pages:parsed.pages}:{})}
    signal?.throwIfAborted()
    const [saved]=await query('INSERT INTO layout_reference_uploads(id,owner_id,request_id,fingerprint,filename,sha256,bytes,mime_type,document) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(owner_id,request_id) DO NOTHING RETURNING *',[id,actor.id,input.requestId,fingerprint,input.filename,sha256,bytes.length,parsed.mimeType,document])
    if(saved)return {...referenceFileSummary(describe(saved)),status:'ready'}
@@ -107,6 +107,20 @@ export async function createReferenceUploads(db,{root:storageRoot,extractor}={})
   }catch{throw fail('参考文件已变化或不可读，请重新上传。',409)}finally{await handle?.close()}
  }
  async function download(actor,id){const row=await record(actor,id);return {name:row.filename,mimeType:row.mime_type,data:await verifiedBytes(id,'source',row.sha256,MAX_REFERENCE_UPLOAD_BYTES)}}
+ async function preview(actor,id,page){
+  const row=await record(actor,id),document=typeof row.document==='string'?JSON.parse(row.document):row.document
+  if(!Number.isSafeInteger(page)||page<1)throw fail('参考页码不合法。')
+  const image=document.images.find(image=>(image.page??1)===page)
+  if(!image)throw fail('此页没有已读取的参考图像。',404)
+  const data=await verifiedBytes(id,image.file,image.sha256,8*1024*1024)
+  return {fileId:id,name:row.filename,sourceSha256:row.sha256,page,mimeType:image.mimeType,width:image.width,height:image.height,sha256:image.sha256,data}
+ }
+ async function previewBySource(actor,sha256,page){
+  if(!/^[a-f0-9]{64}$/.test(sha256??''))throw fail('参考来源指纹不合法。')
+  const [row]=await query('SELECT id FROM layout_reference_uploads WHERE owner_id=$1 AND sha256=$2 ORDER BY created_at DESC LIMIT 1',[actor.id,sha256])
+  if(!row)throw fail('当前账号没有该参考原页。请上传对应原件后对照。',404)
+  return preview(actor,row.id,page)
+ }
  async function resolveFiles(actor,files,c=db){
   const resolved=[]
   for(const file of files){
@@ -140,10 +154,10 @@ export async function createReferenceUploads(db,{root:storageRoot,extractor}={})
     const bytes=await verifiedBytes(row.id,image.file,image.sha256,8*1024*1024)
     total+=bytes.length
     if(total>MAX_REFERENCE_IMAGE_BYTES)throw fail('本轮参考图像总量超过200 MiB，请减少参考文件后重试。',413)
-    output.push({fileId:row.id,name:row.filename,page:image.page,mimeType:image.mimeType,data:bytes.toString('base64'),sha256:image.sha256})
+    output.push({fileId:row.id,name:row.filename,page:image.page,mimeType:image.mimeType,width:image.width,height:image.height,data:bytes.toString('base64'),sha256:image.sha256})
    }
   }
   return output
  }
- return {create,createFromStream,get,download,resolveFiles,validateImageBudget,modelImages}
+ return {create,createFromStream,get,download,preview,previewBySource,resolveFiles,validateImageBudget,modelImages}
 }

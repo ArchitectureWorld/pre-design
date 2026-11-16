@@ -1,0 +1,40 @@
+{
+  "repository": "https://github.com/hugohe3/ppt-master",
+  "revision": "3af3e8ef774c4d67ee57e1306d9256d08c9ee1bf",
+  "license": "MIT",
+  "copyright": "Copyright (c) 2025-2026 Hugo He",
+  "retrievedAt": "2026-11-16",
+  "scope": "Unmodified pure Python library modules only. Upstream CLI/Skill workflow and its attribution guards are not included or called.",
+  "files": [
+    {
+      "path": "pptx_to_svg/__init__.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/__init__.py",
+      "gitBlobSha": "e23cd0826ed2b3f53a7bc41c86452da9db615a0a"
+    },
+    {
+      "path": "pptx_to_svg/ooxml_loader.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/ooxml_loader.py",
+      "gitBlobSha": "3a60a665de118e9edd8f23c53c6668a1d55430db"
+    },
+    {
+      "path": "pptx_to_svg/shape_walker.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/shape_walker.py",
+      "gitBlobSha": "2f76f6688038850736661077f6c594ba1e84977d"
+    },
+    {
+      "path": "pptx_to_svg/emu_units.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/emu_units.py",
+      "gitBlobSha": "ab48120449dd0c184c4f00cfd36420a9a87d9e2a"
+    },
+    {
+      "path": "pptx_to_svg/color_resolver.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/color_resolver.py",
+      "gitBlobSha": "4785377cbfe8ff9b17fba19280bdb78e16296c70"
+    },
+    {
+      "path": "LICENSE",
+      "upstreamPath": "LICENSE",
+      "gitBlobSha": "9c261c3d9a1d3249fa8f18611c950d719d288560"
+    }
+  ]
+}

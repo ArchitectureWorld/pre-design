@@ -3,19 +3,25 @@ const requestId=()=>crypto.randomUUID?.()??Array.from(crypto.getRandomValues(new
 const roles={title:'标题',claim:'主结论',body:'正文',image:'图片',table:'表格',source:'引用'}
 const active=status=>['queued','running','cancelling'].includes(status)
 const fileKey=file=>file.id?'upload:'+file.id:'text:'+file.name
-const fileDetail=file=>file.kind==='pdf'?'PDF · '+((file.readPages?.length??0)<file.pageCount?'前'+(file.readPages?.length??0)+'/'+file.pageCount+'页':file.pageCount+'页'):file.kind==='image'?'图片'+(file.limitations?.some(note=>note.includes('缩放'))?' · 已缩放':''):file.kind==='docx'?'Word · 已提取文字':file.kind==='text'?'文本':file.summary??''
+const fileDetail=file=>['pdf','pptx','docx'].includes(file.kind)?(file.kind==='pptx'?'PPTX':file.kind==='docx'?'Word':'PDF')+' · '+(file.pageCount?`${file.readPages?.length??0}/${file.pageCount}页已读取`:file.hasImages?'图文已读取':'已提取文字'):file.kind==='image'?'图片'+(file.limitations?.some(note=>note.includes('缩放'))?' · 已缩放':''):file.kind==='text'?'文本':file.summary??''
 
-export function mountLayoutConversation({container,request,notify,getContext,onResource,onDraft=()=>{},onImport,onState=()=>{},onChange=()=>{}}){
+
+export function mountLayoutConversation({container,request,notify,getContext,getReferenceProfile=()=>null,onResource,onDraft=()=>{},onImport,onState=()=>{},onChange=()=>{}}){
  container.innerHTML=`<header class="ll-chat-head"><div><strong>版式助手</strong></div></header>
  <progress class="ll-model-progress" data-model-progress aria-label="Agent 正在分析参考" hidden></progress><div class="ll-chat-messages" data-chat-messages role="log" aria-live="polite"></div>
- <div class="ll-chat-composer"><div class="ll-composer-box"><div data-chat-selection></div><div class="ll-chat-files" data-chat-files aria-label="待发送参考文件"></div><textarea data-layout-message rows="3" maxlength="16000" placeholder="描述你的版式要求…" aria-label="版式会话"></textarea><div class="ll-chat-actions"><button type="button" data-chat-upload aria-label="上传参考文件" title="上传参考文件"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 11-8.5 8.5a6 6 0 0 1-8.5-8.5l9-9a4 4 0 0 1 5.7 5.7L9.5 17a2 2 0 0 1-2.8-2.8L15 6"/></svg><span>参考文件</span></button><div class="ll-composer-send"><button type="button" data-chat-stop aria-label="停止生成" title="停止生成" hidden><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="3" width="10" height="10" rx="2" fill="currentColor"/></svg></button><button type="button" data-layout-send class="ll-primary" aria-label="发送版式消息" title="发送"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V4m-7 7 7-7 7 7"/></svg></button></div></div><input data-chat-file type="file" accept=".pdf,.docx,.jpg,.jpeg,.png,.webp,.txt,.md,.markdown,.json,.pptx" multiple hidden><div class="ll-drop-hint" aria-hidden="true">松开添加文件</div></div><div class="ll-chat-status" data-chat-status role="status"></div></div>`
+ <div class="ll-chat-composer"><div class="ll-composer-box"><div data-chat-selection></div><label class="ll-reference-intent">参考方式<select data-reference-intent aria-label="参考方式"><option value="style">学习设计风格</option><option value="structure">复用页面结构</option></select></label><div class="ll-chat-files" data-chat-files aria-label="待发送参考文件"></div><textarea data-layout-message rows="3" maxlength="16000" placeholder="描述你的版式要求…" aria-label="版式会话"></textarea><div class="ll-chat-actions"><button type="button" data-chat-upload aria-label="上传参考文件" title="上传参考文件"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 11-8.5 8.5a6 6 0 0 1-8.5-8.5l9-9a4 4 0 0 1 5.7 5.7L9.5 17a2 2 0 0 1-2.8-2.8L15 6"/></svg><span>参考文件</span></button><div class="ll-composer-send"><button type="button" data-chat-stop aria-label="停止生成" title="停止生成" hidden><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="3" width="10" height="10" rx="2" fill="currentColor"/></svg></button><button type="button" data-layout-send class="ll-primary" aria-label="发送版式消息" title="发送"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V4m-7 7 7-7 7 7"/></svg></button></div></div><input data-chat-file type="file" accept=".pdf,.docx,.jpg,.jpeg,.png,.webp,.txt,.md,.markdown,.json,.pptx" multiple hidden><div class="ll-drop-hint" aria-hidden="true">松开添加文件</div></div><div class="ll-chat-status" data-chat-status role="status"></div></div>`
  const find=selector=>container.querySelector(selector),input=find('[data-layout-message]'),filesInput=find('[data-chat-file]'),composer=find('.ll-chat-composer')
- let currentId=null,conversation=null,config=null,generation=0,pollTimer,selection=null,pendingFiles=[],submitting=false,disposed=false,transfers=[],uploadChain=Promise.resolve()
+ let currentId=null,conversation=null,config=null,generation=0,pollTimer,selection=null,pendingFiles=[],submitting=false,disposed=false,transfers=[],uploadChain=Promise.resolve(),intentEdited=false
  const valid=token=>!disposed&&token===generation
  const running=()=>conversation?.turns.findLast(turn=>active(turn.status))
  const uploading=()=>transfers.some(t=>['queued','reading','uploading','parsing'].includes(t.state))
  const uploadErrors=()=>transfers.some(t=>t.state==='failed')
- const visualReferences=()=>[...pendingFiles,...conversation?.referenceFiles??[]].some(f=>f.hasImages)
+ const currentProfile=()=>getReferenceProfile()??conversation?.resource?.package?.designProfile??conversation?.draftPackage?.designProfile
+ const visualReferences=()=>{
+  const files=[...pendingFiles,...conversation?.referenceFiles??[]],profile=currentProfile()
+  const analyze=pendingFiles.some(f=>f.hasImages||['pdf','pptx','image','docx'].includes(f.kind))||!profile||find('[data-reference-intent]').value!==profile.intent
+  return analyze&&files.some(f=>f.hasImages)
+ }
  const modelConfig=()=>visualReferences()?(config?.vision??config):config
  const uploadState={queued:'等待上传',reading:'正在读取',uploading:'上传中',parsing:'解析中',ready:'待发送',submitted:'已发送',failed:'上传失败'}
  const elapsed=job=>{const value=Date.parse(job.startedAt??job.createdAt??'');return Number.isFinite(value)?' · '+Math.max(0,Math.floor((Date.now()-value)/1000))+' 秒':''}
@@ -85,11 +91,14 @@ export function mountLayoutConversation({container,request,notify,getContext,onR
   if(value.resource)await onResource(value.resource)
   else if(value.draftPackage)await onDraft(value.draftPackage)
   if(!valid(token))return
-  conversation=value;renderFiles();renderMessages();controls()
+  conversation=value
+  if(!intentEdited)find('[data-reference-intent]').value=currentProfile()?.intent??'style'
+  renderFiles();renderMessages();controls()
   if(running())pollTimer=setTimeout(()=>{void load(token).catch(e=>{if(valid(token)){find('[data-chat-status]').textContent=e.message;pollTimer=setTimeout(()=>void load(token).catch(()=>{}),2500)}})},2000)
  }
  async function select(id){
   const token=++generation;clearTimeout(pollTimer);cancelUploads();uploadChain=Promise.resolve();currentId=id??null;conversation=null;submitting=false;selection=null;pendingFiles=[];input.value=''
+  intentEdited=false;find('[data-reference-intent]').value=currentProfile()?.intent??'style'
   find('[data-chat-selection]').replaceChildren();composer.classList.remove('is-file-drag');resizeInput();renderFiles();renderMessages();controls()
   if(currentId)await load(token)
   if(valid(token))onChange(currentId)
@@ -102,7 +111,7 @@ export function mountLayoutConversation({container,request,notify,getContext,onR
   try{context=getContext()??{}}catch(error){notify(error.message);find('[data-chat-status]').textContent=error.message;return}
   const token=generation,submittedText=input.value,submittedFiles=[...pendingFiles],submittedSelection=selection,files=submittedFiles.map(f=>f.id?{id:f.id}:{name:f.name,text:f.text})
   const body={requestId:requestId(),...(currentId?{conversationId:currentId}:{}),...(context.resourceId?{resourceId:context.resourceId,resourceVersion:context.resourceVersion}:{}),...(context.package?{package:structuredClone(context.package)}:{}),
-   ...(context.name?{name:context.name}:{}),text:text||(context.resourceId?'按上传参考调整当前版式。':'根据上传参考生成版式。'),files,selection,allowModel:true}
+   ...(context.name?{name:context.name}:{}),text:text||(context.resourceId?'按上传参考调整当前版式。':'根据上传参考生成版式。'),files,selection,referenceIntent:find('[data-reference-intent]').value,allowModel:true}
   submitting=true;controls()
   try{
    const result=await request('/layout-library/conversations',{method:'POST',body})
@@ -124,7 +133,7 @@ export function mountLayoutConversation({container,request,notify,getContext,onR
     transfer.controller=new AbortController();transfer.state='reading';transfer.loaded=0;transfer.total=0;renderFiles();controls()
     const onProgress=progress=>{if(!valid(token)||transfer.state==='removed')return;if(transfer.state!==progress.phase)transfer.phaseStartedAt=Date.now();transfer.state=progress.phase;transfer.loaded=progress.loaded??0;transfer.total=progress.total??0;paintTransfer(transfer);controls()}
     try{
-     const native=/\.(json|pptx)$/i.test(transfer.file.name)
+     const native=/\.json$/i.test(transfer.file.name)
      if(native){
       if(submitting||running())throw Error('请先完成或停止当前回复，再导入新的版式。')
       const imported=await onImport(transfer.file,{signal:transfer.controller.signal,onUploadProgress:onProgress})
@@ -135,7 +144,7 @@ export function mountLayoutConversation({container,request,notify,getContext,onR
       if(currentId)await load(token)
       onChange(currentId)
      }else{
-      if(!/\.(pdf|docx|jpe?g|png|webp|txt|md|markdown)$/i.test(transfer.file.name))throw Error('请选择 PDF、DOCX、图片或文本参考。')
+      if(!/\.(pptx|pdf|docx|jpe?g|png|webp|txt|md|markdown)$/i.test(transfer.file.name))throw Error('请选择 PPTX、PDF、DOCX、图片或文本参考。')
       onProgress({phase:'uploading',loaded:0,total:0})
       const file=await request('/layout-library/reference-files',{method:'POST',file:transfer.file,requestId:transfer.requestId,signal:transfer.controller.signal,onUploadProgress:onProgress})
       if(!valid(token))return
@@ -166,6 +175,7 @@ export function mountLayoutConversation({container,request,notify,getContext,onR
  const paste=event=>{const files=[...event.clipboardData?.files??[]].filter(f=>/^image\/(png|jpeg|webp)$/i.test(f.type));if(!files.length)return;event.preventDefault();void upload(files)}
  container.addEventListener('dragover',dragOver);container.addEventListener('dragleave',dragLeave);container.addEventListener('drop',drop);input.addEventListener('paste',paste)
  input.oninput=()=>{resizeInput();controls()}
+ find('[data-reference-intent]').onchange=()=>{intentEdited=true;controls()}
  input.onkeydown=event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();void send()}}
  find('[data-layout-send]').onclick=()=>void send()
  find('[data-chat-stop]').onclick=async()=>{const job=running();if(!job)return;try{await request('/layout-library/reference-jobs/'+job.id+'/cancel',{method:'POST',body:{}});await load()}catch(error){notify(error.message)}}

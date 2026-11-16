@@ -1,31 +1,33 @@
 {
-  "schemaVersion": "pre-design.layout-skill-bindings.v1",
-  "resourceSchema": "pre-design.layout-package.v1",
-  "renderer": "pre-design-native-html-v1.0",
+  "schemaVersion": "pre-design.layout-skill-bindings.v2",
+  "resourceSchemas": ["pre-design.layout-package.v1", "pre-design.layout-package.v2"],
+  "renderers": ["pre-design-native-html-v1.0", "pre-design-native-html-v2.0"],
   "bindings": {
     "V14": {
-      "module": "reference.mjs / jobs.mjs",
-      "output": "native package candidate"
+      "module": "reference-workflow.mjs / reference-profile.mjs / jobs.mjs",
+      "stages": ["server inventory", "at most 6 actual page images per observation", "validated reference profile", "V2 composition compile"],
+      "output": "native package candidate with public designProfile; private analysis and actual receipts stay on owner job",
+      "compatibility": "V1 text edits and discussion remain single-call; V2 revisions retain profile evidence and parent version trace"
     },
     "V07": {
       "read": "canvas, formats",
-      "supported": "1600x900 HTML"
+      "supported": "V1 1600x900 HTML; V2 bounded source-aspect canvas HTML"
     },
     "V08": {
-      "read": "theme",
+      "read": "theme, designProfile.designSystem",
       "output": "effective theme after property inheritance"
     },
     "V09": {
-      "read": "layouts slots",
+      "read": "designProfile.archetypes, composition slots and supported content capacity",
       "constraint": "one approved item -> one page; overcapacity returns to script"
     },
     "V10": {
-      "module": "contract.mjs#chooseLayout",
-      "read": "layouts, item type"
+      "module": "contract.mjs#chooseLayout / composition-contract.mjs#chooseCompositionLayout",
+      "read": "layouts[].archetypeId, complete item content and explicit capacity rejection"
     },
     "V11": {
-      "module": "render.mjs#renderNativePage",
-      "read": "frozen spec + approved item + project assets"
+      "module": "render.mjs#renderNativePage / composition-render.mjs",
+      "read": "frozen spec + approved paragraphs/points/figures/table/chart/timeline/diagram + project assets"
     },
     "V12": {
       "module": "../workflow-visual-store.mjs",
@@ -41,7 +43,7 @@
       "proof": "actual Chromium measurements and negative overflow fixture"
     },
     "Q05": {
-      "status": "human-reference-and-rights-review"
+      "status": "human-reference-and-rights-review bound to package hash/version and actual trial receipt; model observations are not approval"
     },
     "V06_Q08": {
       "format": "html",

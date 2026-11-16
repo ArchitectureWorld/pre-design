@@ -1,4 +1,4 @@
-import {nativeTableSchema,nativeFigureSchema} from './layout-library/contract.mjs'
+import {nativeTableSchema,nativeFigureSchema,nativeFiguresSchema,nativeChartSchema,nativeTimelineSchema,nativeDiagramSchema} from './layout-library/contract.mjs'
 import {createHash} from 'node:crypto'
 import {readFileSync} from 'node:fs'
 import {z} from 'zod'
@@ -53,9 +53,9 @@ const legacyBlockSchema=z.object({
 const itemSchema=z.object({
  id:itemIdSchema.optional(),title:textSchema(100).refine(title=>!/[\r\n\u2028\u2029]/u.test(title)),paragraphs:z.array(textSchema(2000)).max(3),
  points:z.array(textSchema(500)).max(8),evidenceIndexes:evidenceSchema,
- table:nativeTableSchema.optional(),figure:nativeFigureSchema.optional(),
- presentation:z.object({layout:z.enum(['points','columns','focus','image-left','table']),note:textSchema(320)}).strict().optional(),
-}).strict().refine(item=>item.paragraphs.length||item.points.length)
+ table:nativeTableSchema.optional(),figure:nativeFigureSchema.optional(),figures:nativeFiguresSchema.optional(),chart:nativeChartSchema.optional(),timeline:nativeTimelineSchema.optional(),diagram:nativeDiagramSchema.optional(),
+ presentation:z.object({layout:z.enum(['points','columns','focus','image-left','table','composition']),note:textSchema(320),archetypeId:z.string().regex(/^[a-z][a-z0-9-]{0,47}$/).optional()}).strict().optional(),
+}).strict().refine(item=>!(item.figure&&item.figures),'figure 和 figures 不能同时声明。').refine(item=>item.paragraphs.length||item.points.length||item.table||item.figure||item.figures||item.chart||item.timeline||item.diagram||item.presentation?.layout==='composition')
 const structuredBlockSchema=z.object({
  id:blockIdSchema,heading:textSchema(120).optional(),items:z.array(itemSchema).min(1).max(8),internalNotes:z.array(textSchema(180)).max(5),
  sectionText:textSchema(2200).optional(),sectionEvidenceIndexes:evidenceSchema.optional(),
@@ -114,8 +114,7 @@ export function parseWorkflowResult(response,outline,blockId,{requireStructured=
    }
    items=value.items.map((item,index)=>{
     const id=itemId??`${target.id}-item-${index+1}`
-    if((item.table||item.figure)&&!item.evidenceIndexes.length)throw workflowError('图像或表格须绑定实际来源依据。')
-    if(item.table&&item.figure)throw workflowError('当前版式不支持同时放置独立图片和表格，请在页脚本中拆成互补页面。')
+    if((item.table||item.figure||item.figures||item.chart||item.timeline||item.diagram)&&!item.evidenceIndexes.length)throw workflowError('图像、表格、图表、时间轴或关系图须绑定实际来源依据。')
     if(requireReport)checkHeading(item.title,'条标题',36)
     if(requireReport||sectionPages)for(const text of [...item.paragraphs,...item.points])checkPublicText(text,id)
     if(sectionPages){
@@ -123,7 +122,7 @@ export function parseWorkflowResult(response,outline,blockId,{requireStructured=
      const prose=itemId?existingSectionText:value.sectionText
      if(prose&&[...item.paragraphs,...item.points].some(t=>t.trim()===prose.trim()||prose.includes(t.trim())&&t.length>12))throw workflowError('页脚本逐字复制了节正文，应细化其展示内容。')
     }
-    if(requireStructured&&!item.points.length)throw workflowError('阶段稿条目须包含要点式正文，不能只返回连续段落；原稿保留。')
+    if(requireStructured&&!item.points.length&&item.presentation?.layout!=='composition'&&!item.table&&!item.figure&&!item.figures&&!item.chart&&!item.timeline&&!item.diagram)throw workflowError('阶段稿条目须包含要点式正文，不能只返回连续段落；原稿保留。')
     if((itemId||item.id)&&item.id!==id)throw workflowError('阶段稿条目编号与节内顺序或指定目标不一致；原稿保留。')
     return {...item,id,evidenceIndexes:unique(item.evidenceIndexes)}
    })
@@ -164,7 +163,7 @@ ${job.payload.policyResearch?`本次执行 R01 公开政策检索、R02 原文�
 按上述 Skill 给出简洁、独立的项目陈述。资料引用只用已核验的编号，缺项及待决问题写入 internalNotes。首次生成的每个输入 ID 都必须完整返回。旧版局部稿件沿用所给 JSON 格式；本次明确输出 sectionText 时，正文和逐页脚本必须分别撰写。
 ${job.payload.policyRequested?'若已读取的本地原件包含政策，把其 evidence 索引列入 policyEvidenceIndexes 并写政策节。有本地政策原文时可以复用。仅在本地政策与官方网页原文均未取得时省略额外 policyTopic 节，在 policyGaps 中说明原因。':''}
 ${itemId?`只修改任务 ${blockId} 的指定条目 ${itemId}，落实用户意见。只返回该任务和该条，item.id 必须精确匹配；其他任务和条目不返回。若无新增备注，internalNotes 返回空数组。`:blockId?'只返回指定任务，落实用户意见并为该节返回全部条目。':'每个给定的节 ID 单独写标题、正文及页脚本。保持 ID 与顺序，不得遗漏节 ID 或自行添加研究任务。'}
-有实际来源且本页需要表格时，可额外返回 item.table={columns:[列名],rows:[[逐行文字或数值]]}；每行列数一致，最多8列40行。需要真实图片时，可返回 item.figure={materialId:平台上传账本中的图片UUID,caption:真实图注}。两者都需要evidenceIndexes；不得臆造数值、图像ID或图片内容；同页不要同时返回独立table和figure。无此类内容时省略字段。表格用table布局、图片用image-left布局，不能把图文要求只写在note而不返回对应数据。最终严格返回JSON：${JSON.stringify(shape)}。paragraphs、points、internalNotes 都须为字符串数组。evidenceIndexes 为资料数组的零起始编号；项目输入可用空数组。不得调用提交、确认、研究执行或专业写入工具。
+有实际来源且本页需要表格时，可额外返回 item.table={columns:[列名],rows:[[逐行文字或数值]]}；每行列数一致，最多8列40行。真实图片用 item.figures=[{materialId:平台上传账本中的图片UUID,caption:真实图注}]，最多6张；单图兼容旧 figure 字段，figure 与 figures 不可同时返回。可以同页组合图片和表格，presentation.layout 使用 composition；应用时必须匹配能够完整容纳内容的 V2 组合版式，不能丢弃数据套入旧版布局。需要数据图表时用 item.chart={type:bar或line,categories:[分类],series:[{name:系列名,values:[对应数值]}],title:可选标题,unit:可选单位}，最多12分类4系列且数量对应。时间轴用 item.timeline={title:可选标题,events:[{label:阶段或日期,description:可选说明}]}；关系图用 item.diagram={title:可选标题,direction:horizontal或vertical,nodes:[{id:英文节点ID,label:节点文字}],edges:[{from:节点ID,to:另一节点ID,label:可选关系文字}]}。时间轴和关系图最多12个条目，关系连线须指向存在节点。所有图像、表格、图表、时间轴、关系图均须绑定evidenceIndexes；不得臆造数值、图像ID、事件或关系，不接受HTML、CSS、JS、SVG代码。无此类内容时省略字段。单独表格仍可用table布局，单张图片仍可用image-left布局；不能把图文要求只写在note而不返回对应数据。最终严格返回JSON：${JSON.stringify(shape)}。paragraphs、points、internalNotes 都须为字符串数组。evidenceIndexes 为资料数组的零起始编号；项目输入可用空数组。不得调用提交、确认、研究执行或专业写入工具。
 任务数据：${JSON.stringify(input)}`
 }
 export function renderWorkflowArtifact(doc,format){

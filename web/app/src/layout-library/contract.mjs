@@ -1,7 +1,11 @@
 import {createHash} from 'node:crypto'
 import {z} from 'zod'
+import {SCHEMA_V2,RENDERER_V2,compositionCanvasSchema,compositionLayoutSchema,validateCompositionLayout,chooseCompositionLayout,nativeFigures,nativeChartSchema,nativeTimelineSchema,nativeDiagramSchema} from './composition-contract.mjs'
+import {validateReferenceProfile} from './reference-profile.mjs'
+export {SCHEMA_V2,RENDERER_V2,nativeFigures,nativeChartSchema,nativeTimelineSchema,nativeDiagramSchema}
 export const SCHEMA='pre-design.layout-package.v1'
 export const RENDERER='pre-design-native-html-v1.0'
+export const rendererForPackage=p=>p.schemaVersion===SCHEMA_V2?RENDERER_V2:RENDERER
 export const SKILL_IDS=Object.freeze(['V07','V08','V09','V10','V11','V12','V13','V14','Q05','Q07','Q08'])
 export const fail=(message,statusCode=400,code='LAYOUT_INVALID')=>Object.assign(new Error(message),{statusCode,code})
 const text=n=>z.string().trim().min(1).max(n)
@@ -13,7 +17,9 @@ const slot=z.object({role:z.enum(['title','claim','body','image','table','source
 const layoutSchema=z.object({id:z.string().regex(/^[a-z][a-z0-9-]{0,47}$/),label:text(60),kind:z.enum(['points','columns','focus','image-left','table']),slots:z.array(slot).min(4).max(7)}).strict()
 const source=z.object({kind:z.enum(['manual','built-in','pptx','reference-text','reference-document','project-page']),name:text(180).optional(),sha256:z.string().regex(/^[a-f0-9]{64}$/).optional(),limitations:z.array(text(400)).max(20).default([]),parents:z.array(z.object({resourceId:z.string().uuid(),version:z.number().int().positive(),hash:z.string().regex(/^[a-f0-9]{64}$/)}).strict()).max(4).optional()}).strict()
 const resourceSchema=z.object({schemaVersion:z.literal(SCHEMA),name:text(100),description:z.string().max(600).default(''),kind:z.enum(['theme','page','set']),tags:z.array(text(40)).max(12).default([]),canvas:z.object({width:z.literal(1600),height:z.literal(900)}).strict(),theme:themeSchema,layouts:z.array(layoutSchema).min(1).max(12),formats:z.tuple([z.literal('html')]),source,rights:z.object({basis:z.enum(['original','licensed','permission','unknown']),shareAllowed:z.boolean(),note:z.string().max(600)}).strict()}).strict()
+const resourceSchemaV2=resourceSchema.extend({schemaVersion:z.literal(SCHEMA_V2),canvas:compositionCanvasSchema,layouts:z.array(compositionLayoutSchema).min(1).max(24),designProfile:z.record(z.string(),z.unknown())}).strict()
 export const nativeFigureSchema=z.object({materialId:z.uuid(),caption:text(160)}).strict()
+export const nativeFiguresSchema=z.array(nativeFigureSchema).min(1).max(6)
 export const nativeTableSchema=z.object({columns:z.array(text(100)).min(2).max(8),rows:z.array(z.array(z.string().max(300)).min(2).max(8)).min(1).max(40)}).strict().refine(t=>t.rows.every(r=>r.length===t.columns.length),'每行列数须与表头一致')
 export const defaultTheme=Object.freeze({background:'#f7f9fc',ink:'#24364c',accent:'#3454a0',muted:'#53647c',fontFamily:'sans',titleSize:48,bodySize:30,captionSize:18,lineHeight:1.5})
 const s=(role,x,y,w,h)=>({role,rect:{x,y,w,h}})
@@ -41,8 +47,19 @@ export function validateTheme(value){
  return t
 }
 export function validatePackage(value){
- const p=resourceSchema.parse(value);validateTheme(p.theme)
+ const p=(value?.schemaVersion===SCHEMA_V2?resourceSchemaV2:resourceSchema).parse(value);validateTheme(p.theme)
  if(new Set(p.layouts.map(x=>x.id)).size!==p.layouts.length)throw fail('版式ID重复。')
+ if(p.schemaVersion===SCHEMA_V2){
+  p.designProfile=validateReferenceProfile(p.designProfile)
+  const canvas=p.designProfile.designSystem.canvas
+  if(Math.abs((p.canvas.width/p.canvas.height)/(canvas.width/canvas.height)-1)>.00001)throw fail('资源画布比例与参考设计画布不一致。')
+  const archetypes=new Set(p.designProfile.archetypes.map(a=>a.id))
+  for(const layout of p.layouts){
+   if(!archetypes.has(layout.archetypeId))throw fail('组合版式引用了不存在的参考页面原型。')
+   validateCompositionLayout(layout,p.theme,contrast)
+  }
+  return p
+ }
  for(const l of p.layouts){
   const roles=l.slots.map(s=>s.role)
   const required=['title','claim','body','source',...(l.kind==='image-left'?['image']:[]),...(l.kind==='table'?['table']:[])]
@@ -58,29 +75,45 @@ export function validatePackage(value){
 function canonical(v){return Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v}
 export const packageDigest=v=>createHash('sha256').update(JSON.stringify(canonical(v))).digest('hex')
 export function chooseLayout(p,item,id){
- const l=id?p.layouts.find(l=>l.id===id):p.layouts.find(l=>l.kind===(item.table?'table':item.figure?'image-left':item.presentation?.layout??'points'))??p.layouts.find(l=>['points','columns','focus'].includes(l.kind))
+ if(p.schemaVersion===SCHEMA_V2)return chooseCompositionLayout(p,item,id)
+ const figures=nativeFigures(item)
+ if(item.chart||item.timeline||item.diagram)throw fail('图表、时间轴与关系图需要能够完整承载内容的 V2 组合版式。',409)
+ if(figures.length>1)throw fail('当前 V1 版式不能覆盖多张图片，请选择 V2 组合版式。',409)
+ const l=id?p.layouts.find(l=>l.id===id):p.layouts.find(l=>l.kind===(item.table?'table':figures.length?'image-left':item.presentation?.layout??'points'))??p.layouts.find(l=>['points','columns','focus'].includes(l.kind))
  if(!l)throw fail('资源没有适合本页内容的版式，请选择其他版式。',409)
- if(l.kind==='image-left'&&!item.figure)throw fail('该版式需要实际图片，请先补齐页脚本图片。',409)
+ if(l.kind==='image-left'&&!figures.length)throw fail('该版式需要实际图片，请先补齐页脚本图片。',409)
  if(l.kind==='table'&&!item.table)throw fail('该版式需要结构化表格，请先补齐页脚本表格。',409)
  if(item.table&&l.kind!=='table')throw fail('不能用不含表格的版式丢弃本页表格。',409)
- if(item.figure&&l.kind!=='image-left')throw fail('不能用不含图片的版式丢弃本页图片。',409)
- if(item.table&&item.figure)throw fail('本版不支持同页同时配置图片和表格，请先调整分页脚本。',409)
+ if(figures.length&&l.kind!=='image-left')throw fail('不能用不含图片的版式丢弃本页图片。',409)
+ if(item.table&&figures.length)throw fail('本版不支持同页同时配置图片和表格，请选择 V2 组合版式。',409)
  return l
 }
 export function resolvePage({page,globalPackage,globalOverrides,local,manual,resourceRefs=[]}){
+ assertInstanceContent(page,{requireId:false})
  const global=validatePackage(globalPackage??createPackage()),p=local?.package?validatePackage(local.package):global
  const globalPatch=patchSchema.parse(globalOverrides??{}),localPatch=patchSchema.parse(local?.overrides??{}),manualPatch=patchSchema.parse(manual??{})
  const theme=validateTheme({...global.theme,...globalPatch.theme,...(local?.package?p.theme:{}),...localPatch.theme,...manualPatch.theme})
  const layout=chooseLayout(p,page.item,manualPatch.layoutId??localPatch.layoutId??(local?.package?undefined:globalPatch.layoutId))
- return {schemaVersion:SCHEMA,renderer:RENDERER,canvas:p.canvas,theme,layout,resourceRefs,manual:manualPatch,formats:['html']}
+ if(p.schemaVersion===SCHEMA_V2)validateCompositionLayout(layout,theme,contrast)
+ return {schemaVersion:p.schemaVersion,renderer:rendererForPackage(p),canvas:p.canvas,theme,layout,...(p.designProfile?{designProfile:p.designProfile}:{}),resourceRefs,manual:manualPatch,formats:['html']}
 }
 export function exportReusable(page,name){
- if(!page.nativeLayout||page.nativeLayout.renderer!==RENDERER)throw fail('请先应用原生版式后再保存为资源。',409)
+ if(!page.nativeLayout||![RENDERER,RENDERER_V2].includes(page.nativeLayout.renderer))throw fail('请先应用原生版式后再保存为资源。',409)
  const p=createPackage(name);p.theme={...page.nativeLayout.theme};p.layouts=[structuredClone(page.nativeLayout.layout)];p.kind='page';p.source={kind:'project-page',parents:page.nativeLayout.resourceRefs??[],limitations:['仅保留样式和内容位置；项目正文、图片、表格、身份和原件均不复制。']}
+ if(page.nativeLayout.renderer===RENDERER_V2){p.schemaVersion=SCHEMA_V2;p.canvas={...page.nativeLayout.canvas};p.designProfile=structuredClone(page.nativeLayout.designProfile)}
  return validatePackage(p)
 }
-export function assertInstanceContent(page){
- if(!page?.id||!page.item||typeof page.item.title!=='string'||!Array.isArray(page.item.paragraphs)||!Array.isArray(page.item.points))throw fail('页面输入不完整。')
- if(page.item.figure)nativeFigureSchema.parse(page.item.figure)
- if(page.item.table)nativeTableSchema.parse(page.item.table)
+export function assertInstanceContent(page,{requireId=true}={}){
+ if(requireId&&!page?.id||!page?.item||typeof page.item.title!=='string'||!Array.isArray(page.item.paragraphs)||!Array.isArray(page.item.points))throw fail('页面输入不完整。')
+ const item=page.item,known=new Set(['id','title','paragraphs','points','evidenceIndexes','figure','figures','table','chart','timeline','diagram','presentation','legacy'])
+ if(Object.keys(item).some(key=>!known.has(key)))throw fail('页面包含未支持的内容字段，不能在试排时静默遗漏。',409)
+ if(!item.title.trim()||[...item.paragraphs,...item.points].some(t=>typeof t!=='string'||!t.trim()))throw fail('页面文字内容无效。')
+ if(item.evidenceIndexes!==undefined)z.array(z.number().int().nonnegative()).max(80).parse(item.evidenceIndexes)
+ nativeFigures(item)
+ if(item.figure!==undefined)nativeFigureSchema.parse(item.figure)
+ if(item.figures!==undefined)nativeFiguresSchema.parse(item.figures)
+ if(item.table!==undefined)nativeTableSchema.parse(item.table)
+ if(item.chart!==undefined)nativeChartSchema.parse(item.chart)
+ if(item.timeline!==undefined)nativeTimelineSchema.parse(item.timeline)
+ if(item.diagram!==undefined)nativeDiagramSchema.parse(item.diagram)
 }

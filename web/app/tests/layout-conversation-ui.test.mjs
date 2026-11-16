@@ -217,3 +217,40 @@ test('取消仍在读取预览的原生导入，不应用其版式，并继续�
  assert.equal(document.querySelector('[data-resource-name]'),null,'取消的导入不能替换左侧成果')
  assert.equal(generated.resourceId,undefined);assert.equal(generated.package,undefined)
 })
+
+test('PPTX参考走文档分析并等待发送，只有JSON走原生导入',async t=>{
+ const dom=new JSDOM('<aside></aside>'),document=dom.window.document,calls=[];let imported=0
+ const request=async(path,options={})=>{
+  if(path.endsWith('reference-config'))return {configured:true,vision:{configured:true}}
+  if(path.endsWith('reference-files')){calls.push(options.file.name);return {id:'00000000-0000-4000-8000-000000000007',name:options.file.name,kind:'pptx',pageCount:42,readPages:[1,12,24,42],hasImages:true}}
+  throw Error('不应自动调用模型')
+ }
+ const ui=mountLayoutConversation({container:document.querySelector('aside'),request,notify(){},getContext:()=>({}),onResource(){},onImport:async()=>{imported++;return {}}})
+ t.after(()=>{ui.dispose();dom.window.close()})
+ const picker=document.querySelector('[data-chat-file]');Object.defineProperty(picker,'files',{configurable:true,value:[{name:'真实参考.pptx',size:8}]});picker.dispatchEvent(new dom.window.Event('change'))
+ await settle(()=>!ui.busy)
+ assert.equal(imported,0,'PPTX不能绕过V14直接套旧模板');assert.deepEqual(calls,['真实参考.pptx'])
+ assert.match(document.querySelector('[data-upload-state]').textContent,/4\/42/)
+ assert(!document.querySelector('[data-upload-state]').textContent.includes('前4'),'分散采样不能声称读取前四页')
+ Object.defineProperty(picker,'files',{configurable:true,value:[{name:'原生.json',size:8}]});picker.dispatchEvent(new dom.window.Event('change'))
+ await settle(()=>imported===1&&!ui.busy);assert.equal(calls.length,1)
+})
+
+test('重开结构迁移会话保留意图，已有Profile的文字讨论不受历史图像模型故障阻塞',async t=>{
+ const dom=new JSDOM('<aside></aside>'),document=dom.window.document;let sent
+ const resource={id:'saved',version:1,package:{designProfile:{intent:'structure'}}}
+ const request=async(path,options={})=>{
+  if(path.endsWith('reference-config'))return {configured:true,vision:{configured:false}}
+  if(options.method==='POST'){sent=options.body;return {id:'job',conversationId:'A'}}
+  return {id:'A',resource,referenceFiles:[{id:'reference',kind:'pptx',hasImages:true}],turns:[]}
+ }
+ const ui=mountLayoutConversation({container:document.querySelector('aside'),request,notify(){},getContext:()=>({resourceId:'saved',resourceVersion:1}),onResource(){},onImport(){}})
+ t.after(()=>{ui.dispose();dom.window.close()});await ui.select('A')
+ assert.equal(document.querySelector('[data-reference-intent]').value,'structure')
+ input(dom,document.querySelector('textarea'),'说明当前页面结构。');await settle(()=>!document.querySelector('[data-layout-send]').disabled)
+ document.querySelector('[data-layout-send]').click();await settle(()=>sent)
+ assert.equal(sent.referenceIntent,'structure')
+ const intent=document.querySelector('[data-reference-intent]');intent.value='style';intent.dispatchEvent(new dom.window.Event('change'))
+ input(dom,document.querySelector('textarea'),'重新学习设计风格。');await settle(()=>!ui.busy)
+ assert.equal(document.querySelector('[data-layout-send]').disabled,true,'显式改变意图重新分析历史图像时才依赖视觉模型')
+})

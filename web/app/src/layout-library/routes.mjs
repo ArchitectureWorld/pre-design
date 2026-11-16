@@ -4,6 +4,7 @@ import {createPackage,validatePackage,patchSchema,fail,exportReusable} from './c
 import {samplePages,validatePublication} from './validation.mjs'
 import {renderNativeDocument} from './render.mjs'
 import {importReference} from './reference.mjs'
+import {referencePagesForLayout} from './reference-review.mjs'
 import {MAX_REFERENCE_UPLOAD_BYTES} from './reference-uploads.mjs'
 const id=z.string().uuid(),version=z.number().int().positive(),requestId=z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/)
 const target=z.object({requestId,id,version}).strict()
@@ -63,6 +64,29 @@ export function registerLayoutRoutes({app,library,uploads,project,workflows,seri
   if(x.ownerId!==req.user.id&&req.user.role!=='admin')throw fail('只允许检查自己的资源。',403)
   return serial('layout-qa',async()=>library.saveValidation(req.user,r,v,await validator(x.package)))
  })
+ app.post('/api/layout-library/:resourceId/:version/compare',async(req,reply)=>{
+  const b=z.object({layoutId:z.string().min(1).max(48),source:z.object({fileSha256:z.string().regex(/^[a-f0-9]{64}$/),pageNumber:z.number().int().positive()}).strict().optional()}).strict().parse(req.body)
+  const resourceId=id.parse(req.params.resourceId),v=version.parse(Number(req.params.version)),x=await library.get(req.user,resourceId,v)
+  if(x.ownerId!==req.user.id)throw fail('请由资源拥有者对照自己的参考原页。',403)
+  const references=referencePagesForLayout(x.package,b.layoutId)
+  if(b.source&&!references.some(p=>p.fileSha256===b.source.fileSha256&&p.pageNumber===b.source.pageNumber))throw fail('所选原页不是当前版式的证据来源。',409)
+  let source=null
+  for(const reference of b.source?[b.source]:references){
+   try{source=await uploads?.previewBySource(req.user,reference.fileSha256,reference.pageNumber);if(source)break}
+   catch(error){if(b.source||error.statusCode!==404)throw error}
+  }
+  if(references.length&&!source)throw fail('此页面类型的证据页没有可用原页预览。请补充相应页面截图后重新分析。',409,'LAYOUT_REFERENCE_PREVIEW_REQUIRED')
+  const page=samplePages(x.package).find(page=>page.nativeLayout.layout.id===b.layoutId&&page.id.endsWith('typical'))
+  if(!page)throw fail('没有此版式的试排页面。',404)
+  const html=renderNativeDocument([page],{title:'参考设计迁移 · 合成内容试排'})
+  const receipt=await library.referenceComparison(req.user,{id:resourceId,version:v,layoutId:b.layoutId,source,html})
+  reply.header('Cache-Control','private, no-store')
+  return {receipt,html,profile:x.package.designProfile,references,fixture:true,source:source?{name:source.name,page:source.page,sha256:source.sha256,dataUrl:'data:'+source.mimeType+';base64,'+source.data.toString('base64')}:null}
+ })
+ app.post('/api/layout-library/:resourceId/:version/reference-review',async req=>{
+  const b=mutation.extend({packageHash:z.string().regex(/^[a-f0-9]{64}$/),comparisonIds:z.array(id).min(1).max(100),reviewed:z.literal(true)}).strict().parse(req.body)
+  return library.confirmReferenceReview(req.user,{...b,id:id.parse(req.params.resourceId),version:version.parse(Number(req.params.version))})
+ })
  app.post('/api/layout-library/:resourceId/:version/publish',async req=>{
   const b=mutation.extend({visibility:z.enum(['private','shared','official']),reviewed:z.literal(true)}).parse(req.body)
   return library.publish(req.user,{...b,id:id.parse(req.params.resourceId),version:version.parse(Number(req.params.version))})
@@ -119,8 +143,8 @@ export function registerLayoutRoutes({app,library,uploads,project,workflows,seri
   if(deck&&!deck.stale&&deck.draftId===draft.id)page.protectedLayout=deck.pages.find(previous=>previous.id===page.id)?.protectedLayout
   const config=structuredClone(await library.bindings(p))
   if(config.draftId&&config.draftId!==draft.id)throw fail('版式配置属于旧稿，请先为当前稿保存配置。',409)
-  if(b.scope==='global'){config.global=await library.freezeRef(req.user,b.resource);config.globalOverrides=b.overrides??{}}
-  if(b.scope==='local')config.local[b.pageId]={resource:await library.freezeRef(req.user,b.resource),overrides:b.overrides??{}}
+  if(b.scope==='global'){config.global=await library.previewRef(req.user,b.resource);config.globalOverrides=b.overrides??{}}
+  if(b.scope==='local')config.local[b.pageId]={resource:await library.previewRef(req.user,b.resource),overrides:b.overrides??{}}
   if(b.scope==='manual')config.manual[b.pageId]={...config.manual[b.pageId],...b.overrides,theme:{...config.manual[b.pageId]?.theme,...b.overrides?.theme}}
   const rendered=await resolveLayoutAssets(library.compilePages([page],config),p)
   return {html:renderNativeDocument(rendered,{title:page.item.title}),draftId:draft.id,pageId:page.id,bindingRevision:config.revision}
@@ -139,9 +163,9 @@ export function registerLayoutRoutes({app,library,uploads,project,workflows,seri
   app.get('/api/layout-library/conversations/:conversationId',req=>{id.parse(req.params.conversationId);return getConversation(req)})
   app.post('/api/layout-library/conversations',async req=>{
    const b=mutation.extend({conversationId:id.optional(),resourceId:id.optional(),resourceVersion:version.optional(),package:z.unknown().optional(),
-    name:z.string().trim().min(1).max(100).optional(),text:z.string().trim().max(16000).default(''),
+    referenceIntent:z.enum(['style','structure']).optional(),name:z.string().trim().min(1).max(100).optional(),text:z.string().trim().max(16000).default(''),
     files:z.array(z.union([z.object({id}).strict(),z.object({name:z.string().min(1).max(180),text:z.string().min(1).max(16000)}).strict()])).max(8).default([]),
-    selection:z.object({layoutId:z.string().max(48),slot:z.enum(['title','claim','body','image','table','source'])}).strict().nullable().optional(),
+    selection:z.object({layoutId:z.string().max(48),slot:z.enum(['title','claim','body','image','table','chart','timeline','diagram','source'])}).strict().nullable().optional(),
     allowModel:z.literal(true)}).strict().refine(b=>b.text||b.files.length,'请输入消息或上传参考文件').refine(b=>!b.resourceId||b.resourceVersion,'请选择具体版式版本').parse(req.body)
    return enqueueReference(req,{...b,mode:'conversation'})
   })

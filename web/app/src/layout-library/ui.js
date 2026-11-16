@@ -1,3 +1,4 @@
+import {openReferenceReview,referenceProfileHtml} from './review-ui.js'
 import {mountNativePreview} from './preview-ui.js'
 import {mountLayoutConversation} from './conversation-ui.js'
 import {readReferenceBase64} from './upload-request.js'
@@ -11,11 +12,11 @@ const equal=(a,b)=>JSON.stringify(ordered(a))===JSON.stringify(ordered(b))
 export function mountLayoutLibrary({request,notify}){
  const entry=document.createElement('button');entry.type='button';entry.className='ll-entry';entry.textContent='版式库';entry.dataset.layoutLibraryOpen=''
  document.querySelector('.top-right')?.prepend(entry)
- let dialog,identity,resources=[],conversations=[],selected=null,working=null,chat,previewHandle,previewLayout='',layoutChosen=false,picker=null,generation=0,previewGeneration=0,previewTimer,busy=false,modelBusy=false,historyViewing=false,viewEpoch=0,lastDeletion=null,activityLabel='正在生成版式…'
+ let dialog,identity,resources=[],conversations=[],selected=null,working=null,chat,previewHandle,previewLayout='',layoutChosen=false,picker=null,generation=0,previewGeneration=0,previewTimer,busy=false,modelBusy=false,historyViewing=false,reviewHandle,viewEpoch=0,lastDeletion=null,activityLabel='正在生成版式…'
  const pending=new Map()
  const msg=text=>{const el=dialog?.querySelector('[data-ll-status]');if(el)el.textContent=text}
  const own=()=>!selected||selected.ownerId===identity?.id||identity?.role==='admin'
- function close(){generation++;viewEpoch++;clearTimeout(previewTimer);previewHandle?.dispose();chat?.dispose();dialog?.close();dialog?.remove();dialog=null;chat=null;pending.clear();picker=null}
+ function close(){reviewHandle?.dispose();reviewHandle=null;generation++;viewEpoch++;clearTimeout(previewTimer);previewHandle?.dispose();chat?.dispose();dialog?.close();dialog?.remove();dialog=null;chat=null;pending.clear();picker=null}
  async function run(action){if(busy)return;busy=true;try{await action()}catch(error){msg(error.message);notify(error.message)}finally{busy=false}}
  async function post(path,body={},options={}){
   const key=JSON.stringify([path,body]);let requestId=pending.get(key);if(!requestId){requestId=rid();pending.set(key,requestId)}
@@ -45,6 +46,7 @@ export function mountLayoutLibrary({request,notify}){
    renderResult()
    chat=mountLayoutConversation({container:dialog.querySelector('[data-layout-chat]'),request,notify,
     getContext:()=>{if(selected?.version<selected?.latestVersion)throw Error('正在查看历史版本，请切换到最新版后继续修改。');readForm();return {...(selected?{resourceId:selected.id,resourceVersion:selected.version}:{}),...(working?{name:working.name,package:working}:{})}},
+    getReferenceProfile:()=>working?.designProfile,
     onResource:async(resource,{historical=false}={})=>{
      if(token!==generation)return
      if(historical)historyViewing=resource.version<resource.latestVersion
@@ -119,7 +121,7 @@ export function mountLayoutLibrary({request,notify}){
   if(!dialog)return
   const form=dialog.querySelector('[data-editor]');if(form)for(const el of form.elements)el.disabled=modelBusy||!own()
   const name=dialog.querySelector('[data-resource-name]');if(name)name.disabled=modelBusy||!own()
-  for(const button of dialog.querySelectorAll('[data-save],[data-validate],[data-publish],[data-use-layout]'))button.disabled=modelBusy
+  for(const button of dialog.querySelectorAll('[data-save],[data-validate],[data-publish],[data-use-layout],[data-reference-review]'))button.disabled=modelBusy
  }
  function renderResult(){
   if(!dialog)return
@@ -130,7 +132,8 @@ export function mountLayoutLibrary({request,notify}){
   panel.innerHTML=`<div class="ll-result-heading"><input data-resource-name aria-label="版式名称" value="${esc(pkg.name)}" maxlength="100"><span>${selected?'V'+selected.version+' · '+stateName(selected):'新建版式'}</span>${selected&&own()?`<select data-history aria-label="历史版本">${Array.from({length:selected.latestVersion},(_,i)=>`<option value="${i+1}" ${selected.version===i+1?'selected':''}>V${i+1}</option>`).join('')}</select>`:''}</div>
    <div class="ll-preview-controls"><select data-layout aria-label="预览布局">${pkg.layouts.map(l=>`<option value="${l.id}" ${l.id===previewLayout?'selected':''}>${esc(l.label)}</option>`).join('')}</select><button data-preview>更新预览</button></div>
    <div class="ll-preview" data-preview-box></div>
-   <div class="ll-result-actions"><button data-save class="ll-primary">${selected&&own()?'保存修改':'保存版式'}</button>${selected?'<button data-validate>检查版式</button><button data-export>导出</button>':''}${picker?'<button data-use-layout class="ll-primary">选用此版式</button>':''}</div>
+   <div class="ll-result-actions"><button data-save class="ll-primary">${selected&&own()?'保存修改':'保存版式'}</button>${selected?'<button data-validate>检查版式</button><button data-export>导出</button>':''}${selected&&pkg.designProfile&&selected.ownerId===identity?.id?'<button data-reference-review class="ll-primary">对照审阅</button>':''}${picker?'<button data-use-layout class="ll-primary">选用此版式</button>':''}</div>
+   ${pkg.designProfile?`<details class="ll-profile"><summary>参考分析 · ${pkg.designProfile.archetypes.length} 种页面类型${selected?.referenceReview?.status==='confirmed'?' · 已确认':' · 待对照'}</summary>${referenceProfileHtml(pkg.designProfile)}</details>`:''}
    <details class="ll-settings"><summary>手动调整</summary><form data-editor class="ll-form">${[['background','背景'],['ink','正文'],['accent','标题'],['muted','注释']].map(([k,l])=>`<label>${l}<input type="color" name="${k}" value="${pkg.theme[k]}"></label>`).join('')}
    <label>字体<select name="fontFamily"><option value="sans" ${pkg.theme.fontFamily==='sans'?'selected':''}>黑体</option><option value="serif" ${pkg.theme.fontFamily==='serif'?'selected':''}>宋体</option></select></label>${[['titleSize','标题字号',32,90],['bodySize','正文字号',22,44],['captionSize','注释字号',16,30]].map(([k,l,min,max])=>`<label>${l}<input name="${k}" type="number" min="${min}" max="${max}" value="${pkg.theme[k]}"></label>`).join('')}
    <label>使用依据<select name="basis">${[['original','原创'],['licensed','取得许可'],['permission','明确授权'],['unknown','待确认']].map(([k,l])=>`<option value="${k}" ${pkg.rights.basis===k?'selected':''}>${l}</option>`).join('')}</select></label><label><span>共享授权</span><span><input type="checkbox" name="shareAllowed" ${pkg.rights.shareAllowed?'checked':''}>允许共享</span></label><label class="wide">授权说明<input name="rightsNote" value="${esc(pkg.rights.note)}"></label><details class="wide"><summary>内容位置与原生 JSON</summary><textarea data-json rows="8">${esc(JSON.stringify(pkg,null,2))}</textarea></details></form></details>
@@ -149,6 +152,17 @@ export function mountLayoutLibrary({request,notify}){
    readForm();if(!equal(working,selected.package))throw Error('请先保存修改，再检查当前版本。')
    msg('正在检查页面…');const result=await request('/layout-library/'+selected.id+'/'+selected.version+'/validate',{method:'POST',body:{}})
    selected=await request('/layout-library/'+selected.id+'/'+selected.version);renderResult();await preview();await reload();msg(result.status==='passed'?'版式检查通过。':'页面检查未通过。')
+  }))
+  panel.querySelector('[data-reference-review]')?.addEventListener('click',()=>void run(async()=>{
+   readForm();if(!equal(working,selected.package))throw Error('请先保存修改，再对照当前版本。')
+   const token=generation,id=selected.id,version=selected.version
+   reviewHandle=openReferenceReview({document,request,resource:selected,notify,onConfirmed:async()=>{
+    if(token!==generation||!dialog)return
+    const refreshed=await request('/layout-library/'+id+'/'+version)
+    if(token!==generation||!dialog)return
+    selected=refreshed;working=structuredClone(selected.package);renderResult();await preview();await reload();msg('已确认当前版本的设计迁移。')
+   }})
+   await reviewHandle.ready
   }))
   panel.querySelector('[data-export]')?.addEventListener('click',()=>void run(async()=>download(await request('/layout-library/'+selected.id+'/'+selected.version+'/export',{download:true}))))
   panel.querySelector('[data-use-layout]')?.addEventListener('click',()=>void run(async()=>{if(!selected||!equal(readWorking(),selected.package))await save();await picker({resourceId:selected.id,version:selected.version,...(layoutChosen?{layoutId:previewLayout}:{})});close()}))

@@ -1,9 +1,12 @@
 import {resolveBrowserExecutable} from '../../../../src/report/browser-executable.ts'
-import {validatePackage,resolvePage,packageDigest,RENDERER,fail} from './contract.mjs'
+import {createPackage,validatePackage,resolvePage,packageDigest,RENDERER,fail} from './contract.mjs'
+import {compositionSamplePages} from './composition-samples.mjs'
+import {rendererForPackage} from './contract.mjs'
 import {renderNativeDocument} from './render.mjs'
-export const FIXTURES_VERSION='native-layout-fixtures-1'
+export const FIXTURES_VERSION='native-layout-fixtures-2'
 const PNG='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='
 export function samplePages(pkg){
+ if(pkg.schemaVersion==='pre-design.layout-package.v2')return compositionSamplePages(pkg)
  const pages=[]
  for(const l of pkg.layouts)for(const density of ['short','typical']){
   const item={title:density==='short'?'城市更新 · 参考页':'围绕居民服务组织片区更新与分期实施',paragraphs:['明确本页结论，图文和数据均使用公开的合成测试内容。'],points:density==='short'?['公共空间','服务设施']:['比较不同人群的使用需求和活动时间。','根据真实条件安排公共空间和服务设施。','建设内容与后续运营维护相互衔接。'],evidenceIndexes:[0]}
@@ -38,14 +41,14 @@ export async function validatePublication(value,{measure=measureHtml,signal}={})
  const pkg=validatePackage(value),pages=samplePages(pkg),html=renderNativeDocument(pages,{title:'版式入库试排'})
  const actual=await measure(html,{signal})
  if(actual.pages!==pages.length)throw fail('实际试排页面数量不一致，未验证。',503)
- const overflow=structuredClone(pages[0]);overflow.item.title='超出容量检查'.repeat(600)
+ const overflow=structuredClone(samplePages(createPackage())[0]);overflow.item.title='超出容量检查'.repeat(600)
  const negative=await measure(renderNativeDocument([overflow]),{signal})
  const overflowGuard=negative.pages===1&&negative.issues.some(i=>i.code==='overflow'&&i.slot==='title')
- return {status:!actual.issues.length&&overflowGuard?'passed':'failed',packageHash:packageDigest(pkg),renderer:RENDERER,fixturesVersion:FIXTURES_VERSION,pageCount:pages.length,issues:actual.issues,overflowGuard,formats:['html'],testedAt:new Date().toISOString(),scope:'browser-geometry-and-assets; semantic-reference-match-requires-human-review'}
+ return {status:!actual.issues.length&&overflowGuard?'passed':'failed',packageHash:packageDigest(pkg),renderer:rendererForPackage(pkg),fixturesVersion:FIXTURES_VERSION,pageCount:pages.length,issues:actual.issues,overflowGuard,formats:['html'],testedAt:new Date().toISOString(),scope:'browser-geometry-and-assets; semantic-reference-match-requires-human-review'}
 }
 export async function verifyPages(pages,options){
  if(!pages.length)throw fail('没有可检查的页面。')
  const result=await measureHtml(renderNativeDocument(pages),options)
  if(result.pages!==pages.length||result.issues.length)throw fail('页面存在内容溢出或缺少素材，请调整分页、内容或版式；未生成新成果。'+JSON.stringify(result.issues.slice(0,6)),409,'LAYOUT_PAGE_UNFIT')
- return {renderer:RENDERER,pageCount:result.pages,checkedAt:new Date().toISOString(),formats:['html']}
+ return {renderer:[...new Set(pages.map(p=>p.nativeLayout?.renderer))].join(','),pageCount:result.pages,checkedAt:new Date().toISOString(),formats:['html']}
 }

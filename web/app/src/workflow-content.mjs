@@ -14,7 +14,7 @@ export function reportHierarchy(doc){
       sections:blocks.map((block,j)=>({block,number:outlineNumber(number,j,blocks.length),numbered:blocks.length>1}))}
   })
 }
-export const presentationLayouts={points:'要点',columns:'分栏对照',focus:'重点陈述','image-left':'左图右文',table:'数据比较'}
+export const presentationLayouts={points:'要点',columns:'分栏对照',focus:'重点陈述','image-left':'左图右文',table:'数据比较',composition:'原生组合版式'}
 export function workflowBlockItems(block) {
   if (Array.isArray(block?.items)) return block.items
   if (!block?.body?.trim()) return []
@@ -28,18 +28,31 @@ export function workflowBlockItems(block) {
   }]
 }
 
+const itemFigures=item=>item.figures??(item.figure?[item.figure]:[])
+const markdownValue=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('|','\\|').replaceAll('\n',' ')
+const markdownTable=rows=>rows.map(row=>'| '+row.map(markdownValue).join(' | ')+' |').join('\n')
+const chartRows=chart=>[['分类',...chart.series.map(s=>s.name)],...chart.categories.map((category,i)=>[category,...chart.series.map(s=>s.values[i])])]
+function structuredMarkdown(item){
+ const diagram=item.diagram,nodes=new Map(diagram?.nodes.map(n=>[n.id,n.label])??[])
+ return [
+  item.table?markdownTable([item.table.columns,...item.table.rows]):'',
+  ...itemFigures(item).map(figure=>`图像：${markdownValue(figure.caption)}（资料ID：${markdownValue(figure.materialId)}）`),
+  item.chart?`图表：${markdownValue(item.chart.title??(item.chart.type==='line'?'折线图':'条形图'))}${item.chart.unit?'（单位：'+markdownValue(item.chart.unit)+'）':''}\n\n${markdownTable(chartRows(item.chart))}`:'',
+  item.timeline?`时间轴${item.timeline.title?'：'+markdownValue(item.timeline.title):''}\n\n${item.timeline.events.map(e=>'- '+markdownValue(e.label)+(e.description?'：'+markdownValue(e.description):'')).join('\n')}`:'',
+  diagram?`关系图${diagram.title?'：'+markdownValue(diagram.title):''}\n\n节点：${diagram.nodes.map(n=>markdownValue(n.label)).join('、')}\n\n${diagram.edges.map(e=>'- '+markdownValue(nodes.get(e.from))+' → '+markdownValue(nodes.get(e.to))+(e.label?'：'+markdownValue(e.label):'')).join('\n')}`:'',
+ ].filter(Boolean)
+}
 export function workflowBodyMarkdown(items, {headings = true} = {}) {
   return items.map(item => [
     headings ? `#### ${item.title}` : '',
     ...item.paragraphs,
     item.points.map(point => `- ${point}`).join('\n'),
-    item.table ? [item.table.columns,...item.table.rows].map(row=>'| '+row.map(value=>String(value).replaceAll('|','\\|').replaceAll('\n',' ')).join(' | ')+' |').join('\n') : '',
-    item.figure ? `图像：${item.figure.caption}（资料ID：${item.figure.materialId}）` : '',
+    ...structuredMarkdown(item),
   ].filter(Boolean).join('\n\n')).join('\n\n')
 }
 
 export function workflowItemText(item) {
-  return [item.title, ...item.paragraphs, ...item.points.map(point => `• ${point}`)].join('\n\n')
+  return [item.title, ...item.paragraphs, ...item.points.map(point => `• ${point}`),...structuredMarkdown(item)].join('\n\n')
 }
 
 export function renderWorkflowItem(item, headingLevel = 3) {
@@ -48,8 +61,12 @@ export function renderWorkflowItem(item, headingLevel = 3) {
   const paragraphs = item.paragraphs.map(paragraph => `<p>${lines(paragraph)}</p>`).join('')
   const points = item.points.length ? `<ul>${item.points.map(point => `<li>${lines(point)}</li>`).join('')}</ul>` : ''
   const table=item.table?`<table class="workflow-script-table"><thead><tr>${item.table.columns.map(v=>`<th>${escape(v)}</th>`).join('')}</tr></thead><tbody>${item.table.rows.map(row=>`<tr>${row.map(v=>`<td>${escape(v)}</td>`).join('')}</tr>`).join('')}</tbody></table>`:''
-  const figure=item.figure?`<p class="workflow-script-figure">图像：${escape(item.figure.caption)}（资料ID：${escape(item.figure.materialId)}；输出前核验原件）</p>`:''
-  return `${heading ? `<${heading}>${escape(item.title)}</${heading}>` : ''}${paragraphs}${points}${table}${figure}`
+  const figure=itemFigures(item).map(f=>`<p class="workflow-script-figure">图像：${escape(f.caption)}（资料ID：${escape(f.materialId)}；输出前核验原件）</p>`).join('')
+  const chart=item.chart?`<section class="workflow-script-chart"><strong>图表：${escape(item.chart.title??(item.chart.type==='line'?'折线图':'条形图'))}${item.chart.unit?' · 单位：'+escape(item.chart.unit):''}</strong><table class="workflow-script-table">${chartRows(item.chart).map((row,i)=>`<tr>${row.map(value=>i?`<td>${escape(value)}</td>`:`<th>${escape(value)}</th>`).join('')}</tr>`).join('')}</table></section>`:''
+  const timeline=item.timeline?`<section class="workflow-script-timeline"><strong>时间轴${item.timeline.title?'：'+escape(item.timeline.title):''}</strong><ol>${item.timeline.events.map(e=>`<li>${escape(e.label)}${e.description?'：'+escape(e.description):''}</li>`).join('')}</ol></section>`:''
+  const diagram=item.diagram,nodes=new Map(diagram?.nodes.map(n=>[n.id,n.label])??[])
+  const relationships=diagram?`<section class="workflow-script-diagram"><strong>关系图${diagram.title?'：'+escape(diagram.title):''}</strong><p>节点：${diagram.nodes.map(n=>escape(n.label)).join('、')}</p><ul>${diagram.edges.map(e=>`<li>${escape(nodes.get(e.from))} → ${escape(nodes.get(e.to))}${e.label?'：'+escape(e.label):''}</li>`).join('')}</ul></section>`:''
+  return `${heading ? `<${heading}>${escape(item.title)}</${heading}>` : ''}${paragraphs}${points}${table}${figure}${chart}${timeline}${relationships}`
 }
 
 export function workflowItemPresentation(block, index, sectionNumber) {

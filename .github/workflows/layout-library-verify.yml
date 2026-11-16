@@ -1,12 +1,15 @@
-name: Verify native layout library V1
+name: Verify native layout and reference design
 on:
   push:
-    branches: [codex/layout-library-v1, codex/web-v210]
+    branches: [codex/layout-library-v1, codex/web-v210, codex/v14-reference-design-v2]
     paths:
       - '.github/workflows/layout-library-verify.yml'
       - 'web/app/src/layout-library/**'
       - 'web/app/tests/layout-*'
-      - 'web/app/tests/fixtures/reference-pdf.mjs'
+      - 'web/app/tests/fixtures/**'
+      - 'web/app/src/workflow-contract.mjs'
+      - 'web/app/src/workflow-content.mjs'
+      - 'web/app/src/workflow-visual-store.mjs'
       - 'web/app/build-prototype.mjs'
       - 'web/worker/layout-reference*'
       - 'web/worker/model-runtime.mjs'
@@ -32,7 +35,7 @@ jobs:
       - name: Install CJK fonts and PDF text extractor for true legacy regression
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq poppler-utils fonts-noto-cjk
+          sudo apt-get install -y -qq poppler-utils fonts-noto-cjk libreoffice-impress libreoffice-writer python3
           fc-cache -f >/dev/null
           fc-match 'Noto Sans CJK SC'
           command -v pdftotext

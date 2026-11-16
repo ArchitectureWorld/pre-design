@@ -6,6 +6,7 @@ import { promisify } from 'node:util'
 import { crc32 } from 'node:zlib'
 import JSZip from 'jszip'
 import sharp from 'sharp'
+import { extractPptxReference } from './reference-pptx.mjs'
 import { MAX_REFERENCE_PDF_PAGES, PDF_REFERENCE_TEXT_CHARACTERS, PDF_PARSE_TIMEOUT_MS, referenceByteLimit, referenceLimitLabel } from './reference-limits.mjs'
 
 export { MAX_REFERENCE_BYTES } from './reference-limits.mjs'
@@ -251,8 +252,13 @@ async function extractPdf(bytes, signal) {
     signal?.throwIfAborted()
     pdfTimeRemaining(deadline)
     if (!content.text && !textRestricted) limitations.push('未提取到 PDF 文字，已提供页面图像供视觉分析；本模块不进行 OCR。')
+    const textPages = rawText.split('\f')
+    const pages = images.map(image => ({
+      page: image.page, kind: 'pdf-page', width: image.width, height: image.height, unit: 'preview-px', preview: true,
+      text: (textPages[image.page - 1] ?? '').replace(/[\u0000-\u0008\u000b\u000e-\u001f\u007f]/gu, '').trim().slice(0, 2000),
+    }))
     return {
-      kind: 'pdf', mimeType: 'application/pdf', text: content.text, images, pageCount, readPages, limitations,
+      kind: 'pdf', mimeType: 'application/pdf', text: content.text, images, pageCount, readPages, pages, limitations,
       summary: `PDF 共 ${pageCount} 页，已读取${pageCount > count ? '前 ' : ' '}${count} 页并生成 ${count} 张页面图像${pageCount > count ? `，后 ${pageCount - count} 页未读取` : ''}。${textRestricted ? 'PDF 限制文字提取，已改用页面图像分析。' : !content.text ? '未检测到可提取文字，将使用页面图像分析。' : content.truncated ? `文字已截断至前 ${PDF_REFERENCE_TEXT_CHARACTERS} 字。` : ''}`,
     }
   } finally {
@@ -436,10 +442,13 @@ export async function extractReferenceDocument({ bytes, filename, signal } = {})
   } else if (extension === '.docx') {
     if (magic !== 'zip') throw fail('文件内容不是有效的 DOCX。', 415)
     result = await extractDocx(input)
+  } else if (extension === '.pptx') {
+    if (magic !== 'zip') throw fail('文件内容不是有效的 PPTX。', 415)
+    result = await extractPptxReference(input, { signal })
   } else if (textExtensions.has(extension)) {
     if (magic) throw fail('文件内容与文字文件扩展名不符。', 415)
     result = await extractText(input, extension)
-  } else throw fail('参考文档支持 PDF、PNG、JPG、JPEG、WebP、TXT、Markdown 和 DOCX；JSON、PPTX 请使用专用导入。', 415)
+  } else throw fail('参考文档支持 PDF、PPTX、PNG、JPG、JPEG、WebP、TXT、Markdown 和 DOCX；JSON 请使用专用导入。', 415)
   signal?.throwIfAborted()
   return result
 }

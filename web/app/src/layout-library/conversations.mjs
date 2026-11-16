@@ -36,8 +36,13 @@ export function createLayoutConversations(db,library,uploads){
   if(referenceFiles.reduce((n,f)=>n+(f.imageCount??0),0)>MAX_REFERENCE_IMAGES)throw fail('本轮参考超过'+MAX_REFERENCE_IMAGES+'张页面图像，请分批分析。',413)
   if(referenceFiles.reduce((n,f)=>n+(f.text?.length??0),0)>MAX_REFERENCE_TEXT)throw fail('本轮参考文字过多，请分批分析。',413)
   await uploads?.validateImageBudget(actor,referenceFiles,c)
+  const isDocument=file=>file.hasImages||['pdf','pptx','image','docx'].includes(file.kind)
+  const referenceIntent=input.referenceIntent??basePackage.designProfile?.intent??history.at(-1)?.payload.referenceIntent??'style'
+  const referenceAnalysisRequired=files.some(isDocument)||referenceFiles.some(isDocument)&&(!basePackage.designProfile||referenceIntent!==basePackage.designProfile.intent)
+  const analysisTurn=history.findLast(row=>row.result?.analysis&&row.result.id===resource?.id&&row.result.version===resource?.version)
   return {mode:'conversation',conversationId:input.conversationId??jobId,name,text:input.text||'请根据上传参考生成版式。',files,
-   referenceFiles,modelRole:referenceFiles.some(f=>f.hasImages)?'vision':'parent',basePackage,providedPackage:!!input.package||history.at(-1)?.payload.providedPackage===true,
+   referenceFiles,referenceIntent,referenceAnalysisRequired,modelRole:referenceAnalysisRequired&&referenceFiles.some(f=>f.hasImages)?'vision':'parent',basePackage,providedPackage:!!input.package||history.at(-1)?.payload.providedPackage===true,
+   baseAnalysis:analysisTurn?.result.analysis??null,
    baseResource:resource?{id:resource.id,version:resource.version,hash:resource.hash,ownerId:resource.ownerId}:null,
    selection:input.selection??null,
    conversationHistory:history.slice(-6).map(row=>({user:row.payload.text,reply:row.result?.reply??(row.result?.id?'已生成版式 V'+row.result.version+'。':null),status:row.status})),

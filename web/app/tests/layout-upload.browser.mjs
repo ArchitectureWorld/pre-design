@@ -15,7 +15,7 @@ page.on('pageerror',error=>errors.push(error.message));page.setDefaultTimeout(30
 const wait=condition=>page.waitForFunction(condition,null,{timeout:40000});let checks=0
 try{
  await page.goto(f.url);await page.locator('[data-layout-library-open]').click();await page.locator('[data-layout-chat]').waitFor()
- const accept=await page.locator('[data-chat-file]').getAttribute('accept');for(const format of ['.pdf','.docx','.jpg','.jpeg','.png','.webp'])assert(accept.includes(format));checks++
+ const accept=await page.locator('[data-chat-file]').getAttribute('accept');for(const format of ['.pdf','.pptx','.docx','.jpg','.jpeg','.png','.webp'])assert(accept.includes(format));checks++
  const noise=await sharp(randomBytes(512*512*3),{raw:{width:512,height:512,channels:3}}).png().toBuffer(),cdp=await page.context().newCDPSession(page)
  await cdp.send('Network.enable');await cdp.send('Network.emulateNetworkConditions',{offline:false,latency:30,downloadThroughput:1024*1024,uploadThroughput:128*1024})
  await page.locator('[data-chat-file]').setInputFiles({name:'进度与取消.png',mimeType:'image/png',buffer:noise})
@@ -40,21 +40,26 @@ try{
  await page.locator('[data-layout-send]').click()
  await wait(()=>{const bar=document.querySelector('[data-model-progress]');return bar&&!bar.hidden})
  assert.equal(await page.locator('[data-model-progress]').getAttribute('value'),null);checks++
- await wait(()=>document.querySelector('[data-chat-messages]')?.textContent.includes('已生成墨绿色版式'))
- assert.equal(f.modelCalls.length,1);assert.equal(f.modelCalls[0].modelRole,'vision');assert.equal(f.modelCalls[0].images.length,33);assert.match(f.modelCalls[0].prompt,/版式文档参考/);checks++
+ await wait(()=>document.querySelector('[data-chat-messages]')?.textContent.includes('已提炼可检查的参考组合版式'))
+ const observations=f.modelCalls.filter(call=>call.stage?.startsWith('observe-')),completedModelCalls=f.modelCalls.length
+ assert.equal(completedModelCalls,8);assert.equal(observations.length,6);assert(observations.every(call=>call.modelRole==='vision'&&call.images.length<=6))
+ assert.equal(observations.flatMap(call=>call.images).length,32,'相同字节的JPG/JPEG只观察一次，原件与上传清单分别保留')
+ assert.deepEqual(f.modelCalls.slice(-2).map(call=>call.stage),['profile','compile']);assert(f.modelCalls.slice(-2).every(call=>call.modelRole==='parent'&&call.images.length===0))
+ assert.match(f.modelCalls.find(call=>call.stage==='profile').prompt,/版式文档参考/);checks++
  const entries=(await f.request('GET','/layout-library/conversations')).conversations,conversation=await f.request('GET','/layout-library/conversations/'+entries[0].id)
  assert.equal(conversation.referenceFiles.length,5);const pdfFile=conversation.referenceFiles.find(file=>file.kind==='pdf');assert.equal(pdfFile.pageCount,31);assert.deepEqual(pdfFile.readPages,Array.from({length:30},(_,i)=>i+1));checks++
- assert.match(await page.locator('[data-chat-messages]').innerText(),/前30\/31页/);assert.equal(await page.locator('[data-chat-files] [data-upload-row]').count(),0);assert.equal(await page.locator('.ll-message.user [data-download-reference]').count(),5);assert(conversation.resource.package.source.limitations.some(note=>note.includes('后 1 页未读取')));checks++
+ assert.equal(conversation.turns.at(-1).result.analysis.inventory.coverage.visualPages,33);assert.equal(conversation.resource.package.schemaVersion,'pre-design.layout-package.v2')
+ assert.match(await page.locator('[data-chat-messages]').innerText(),/30\/31页已读取/);assert.equal(await page.locator('[data-chat-files] [data-upload-row]').count(),0);assert.equal(await page.locator('.ll-message.user [data-download-reference]').count(),5);assert(conversation.resource.package.source.limitations.some(note=>note.includes('后 1 页未读取')));checks++
  await page.screenshot({path:resolve(out,'多格式参考已分析.png')})
  await page.locator('[data-close]').click();await page.reload();await page.locator('[data-layout-library-open]').click();await page.locator('[data-resource-card="'+conversation.resource.id+'"]').click();await wait(()=>document.querySelectorAll('[data-download-reference]').length===5);checks++
  const downloadEvent=page.waitForEvent('download');await page.locator('[data-download-reference="'+pdfFile.id+'"]').click();const download=await downloadEvent;assert.equal(download.suggestedFilename(),'分页参考.pdf');assert.deepEqual(await readFile(await download.path()),originalPdf);checks++
  await page.evaluate(bytes=>{const data=new DataTransfer();data.items.add(new File([new Uint8Array(bytes)],'粘贴截图.png',{type:'image/png'}));document.querySelector('[data-layout-message]').dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}))},[...png])
- await page.locator('[data-upload-row][data-state=ready]').waitFor();assert.equal(f.modelCalls.length,1);await page.locator('[data-remove-upload]').click();checks++
+ await page.locator('[data-upload-row][data-state=ready]').waitFor();assert.equal(f.modelCalls.length,completedModelCalls);await page.locator('[data-remove-upload]').click();checks++
  const data=await page.evaluateHandle(bytes=>{const value=new DataTransfer();value.items.add(new File([new Uint8Array(bytes)],'拖入参考.png',{type:'image/png'}));return value},[...png])
  await page.locator('.ll-chat-composer').dispatchEvent('dragover',{dataTransfer:data});assert(await page.locator('.ll-chat-composer').evaluate(e=>e.classList.contains('is-file-drag')));await wait(()=>Number(getComputedStyle(document.querySelector('.ll-drop-hint')).opacity)>.95);await page.screenshot({path:resolve(out,'输入框拖入反馈.png')})
- await page.locator('.ll-chat-composer').dispatchEvent('drop',{dataTransfer:data});await data.dispose();await page.locator('[data-upload-row][data-state=ready]').waitFor();assert.equal(f.modelCalls.length,1);await page.locator('[data-remove-upload]').click();checks++
+ await page.locator('.ll-chat-composer').dispatchEvent('drop',{dataTransfer:data});await data.dispose();await page.locator('[data-upload-row][data-state=ready]').waitFor();assert.equal(f.modelCalls.length,completedModelCalls);await page.locator('[data-remove-upload]').click();checks++
  await page.locator('[data-chat-file]').setInputFiles({name:'损坏.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-损坏')})
- await page.locator('[data-retry-upload]').waitFor();assert.equal(f.modelCalls.length,1);assert.match(await page.locator('[data-upload-state]').innerText(),/PDF/);checks++
+ await page.locator('[data-retry-upload]').waitFor();assert.equal(f.modelCalls.length,completedModelCalls);assert.match(await page.locator('[data-upload-state]').innerText(),/PDF/);checks++
  await page.locator('[data-remove-upload]').click();await wait(()=>!document.querySelector('[data-upload-row]'));assert.deepEqual(errors,[]);checks++
  console.log(JSON.stringify({checks,passed:true,transport:'真实HTTP/PostgreSQL/Chromium；真实上传字节进度；模型为受控替身',formats:['PDF','JPG','JPEG','PNG','DOCX'],screenshots:out},null,2))
 }finally{await browser.close();await f.close()}
