@@ -7,6 +7,49 @@ import {createPackage} from '../src/layout-library/contract.mjs'
 const settle=async fn=>{for(let i=0;i<60;i++){if(fn())return;await new Promise(r=>setImmediate(r))}assert(fn(),'异步界面未达到预期状态')}
 function input(dom,element,text){element.value=text;element.dispatchEvent(new dom.window.Event('input',{bubbles:true}))}
 
+test('参考附件在输入框旁待发送，明确发送后才连同文字提交并进入对应消息',async t=>{
+ const dom=new JSDOM('<aside></aside>'),document=dom.window.document,posted=[],file={id:'00000000-0000-4000-8000-000000000004',name:'参考.pdf',kind:'pdf',pageCount:30,readPages:Array.from({length:30},(_,i)=>i+1),hasImages:true};let uploads=0
+ const request=async(path,options={})=>{
+  if(path.endsWith('reference-config'))return {configured:true,vision:{configured:true}}
+  if(path.endsWith('reference-files')){uploads++;return file}
+  if(options.method==='POST'){posted.push(options.body);return {id:'job',conversationId:'A'}}
+  return {id:'A',referenceFiles:[file],turns:[{id:'job',text:posted[0]?.text,files:[file],status:'completed',result:{reply:'已调整'}}]}
+ }
+ const ui=mountLayoutConversation({container:document.querySelector('aside'),request,notify(){},getContext:()=>({}),onResource(){},onImport(){}})
+ t.after(()=>{ui.dispose();dom.window.close()})
+ const field=document.querySelector('textarea'),send=document.querySelector('[data-layout-send]'),picker=document.querySelector('[data-chat-file]')
+ input(dom,field,'保留页眉，使用蓝灰色');await settle(()=>!send.disabled)
+ Object.defineProperty(picker,'files',{value:[{name:'参考.pdf',size:8}]});picker.dispatchEvent(new dom.window.Event('change'))
+ await settle(()=>uploads===1&&!ui.busy)
+ assert.equal(posted.length,0,'上传完成不得擅自开始模型分析');assert.equal(field.value,'保留页眉，使用蓝灰色')
+ assert(document.querySelector('.ll-chat-composer [data-chat-upload]'));assert.equal(document.querySelector('.ll-chat-head [data-chat-upload]'),null)
+ assert(document.querySelector('.ll-chat-composer [data-upload-row]'));assert.match(document.querySelector('[data-upload-state]').textContent,/待发送/)
+ for(const options of [{shiftKey:true},{isComposing:true}])field.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Enter',...options,bubbles:true,cancelable:true}))
+ assert.equal(posted.length,0)
+ field.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));await settle(()=>posted.length===1&&!ui.busy)
+ assert.equal(posted[0].text,'保留页眉，使用蓝灰色');assert.deepEqual(posted[0].files,[{id:file.id}]);assert.equal(field.value,'')
+ assert.equal(document.querySelector('[data-chat-files]').children.length,0)
+ assert(document.querySelector('.ll-message.user [data-download-reference="'+file.id+'"]'),'原件跟随已发送消息保留')
+})
+
+test('会话输入区支持拖入文件和粘贴截图，普通文字粘贴不被拦截',async t=>{
+ const dom=new JSDOM('<aside></aside>'),document=dom.window.document;let uploads=0,posted=0
+ const ui=mountLayoutConversation({container:document.querySelector('aside'),request:async(path,options={})=>{
+  if(path.endsWith('reference-config'))return {configured:true,vision:{configured:true}}
+  if(path.endsWith('reference-files')){uploads++;return {id:'file-'+uploads,name:options.file.name,hasImages:true}}
+  posted++;return {id:'job',conversationId:'A'}
+ },notify(){},getContext:()=>({}),onResource(){},onImport(){}})
+ t.after(()=>{ui.dispose();dom.window.close()});const composer=document.querySelector('.ll-chat-composer'),field=document.querySelector('textarea')
+ const dropped=new dom.window.File(['fixture'],'拖入.png',{type:'image/png'}),drag=new dom.window.Event('dragover',{bubbles:true,cancelable:true});Object.defineProperty(drag,'dataTransfer',{value:{types:['Files'],files:[dropped]}});composer.dispatchEvent(drag)
+ assert.equal(drag.defaultPrevented,true);assert(composer.classList.contains('is-file-drag'))
+ const drop=new dom.window.Event('drop',{bubbles:true,cancelable:true});Object.defineProperty(drop,'dataTransfer',{value:{files:[dropped]}});composer.dispatchEvent(drop);await settle(()=>uploads===1&&!ui.busy)
+ assert.equal(posted,0);assert.equal(composer.classList.contains('is-file-drag'),false)
+ const paste=new dom.window.Event('paste',{bubbles:true,cancelable:true});Object.defineProperty(paste,'clipboardData',{value:{files:[new dom.window.File(['fixture'],'截图.png',{type:'image/png'})]}});field.dispatchEvent(paste);await settle(()=>uploads===2&&!ui.busy)
+ assert.equal(paste.defaultPrevented,true);assert.equal(posted,0);assert.equal(document.querySelectorAll('[data-upload-row]').length,2)
+ const textPaste=new dom.window.Event('paste',{bubbles:true,cancelable:true});Object.defineProperty(textPaste,'clipboardData',{value:{files:[]}});field.dispatchEvent(textPaste);assert.equal(textPaste.defaultPrevented,false)
+ document.querySelector('[data-remove-upload]').click();assert.equal(document.querySelectorAll('[data-upload-row]').length,1)
+})
+
 test('提交等待期间切换会话，旧回调不锁住新会话',async t=>{
  const dom=new JSDOM('<aside></aside>'),gate=Promise.withResolvers(),posted=Promise.withResolvers()
  const request=async(path,options={})=>{
@@ -135,7 +178,8 @@ test('解析失败保留可重试文件，成功后只提交服务器文件ID并
  t.after(()=>{ui.dispose();dom.window.close()})
  const picker=document.querySelector('[data-chat-file]');Object.defineProperty(picker,'files',{value:[{name:'参考.png',size:8,arrayBuffer:async()=>new Uint8Array(8).buffer}]});picker.dispatchEvent(new dom.window.Event('change'))
  await settle(()=>document.querySelector('[data-retry-upload]'));assert.equal(sent,undefined)
- document.querySelector('[data-retry-upload]').click();await settle(()=>sent&&document.querySelector('[data-model-progress]').hidden===false)
+ document.querySelector('[data-retry-upload]').click();await settle(()=>uploads===2&&!ui.busy);assert.equal(sent,undefined)
+ document.querySelector('[data-layout-send]').click();await settle(()=>sent&&document.querySelector('[data-model-progress]').hidden===false)
  assert.deepEqual(sent.files,[{id:'00000000-0000-4000-8000-000000000002'}]);assert.equal(uploads,2)
  assert.equal(document.querySelector('[data-model-progress]').hasAttribute('value'),false,'模型没有伪造百分比')
 })
@@ -168,7 +212,8 @@ test('取消仍在读取预览的原生导入，不应用其版式，并继续�
  await ui.open();const picker=document.querySelector('[data-chat-file]'),file=name=>({name,size:8,arrayBuffer:async()=>new Uint8Array(8).buffer})
  Object.defineProperty(picker,'files',{value:[file('参考.json'),file('随后.png')]});picker.dispatchEvent(new dom.window.Event('change'));await started.promise
  document.querySelector('[data-remove-upload]').click();gate.resolve()
- await settle(()=>uploads===1&&generated)
+ await settle(()=>uploads===1&&!ui.busy);assert.equal(generated,undefined)
+ document.querySelector('[data-layout-send]').click();await settle(()=>generated)
  assert.equal(document.querySelector('[data-resource-name]'),null,'取消的导入不能替换左侧成果')
  assert.equal(generated.resourceId,undefined);assert.equal(generated.package,undefined)
 })

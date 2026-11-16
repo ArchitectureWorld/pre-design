@@ -22,11 +22,12 @@ try{
  await page.locator('[data-chat-file]').setInputFiles(filePath)
  await page.waitForFunction(()=>{const bar=document.querySelector('[data-upload-row][data-state=uploading] progress');return bar&&bar.value>0&&bar.value<100},null,{timeout:90000})
  await page.screenshot({path:resolve(out,'100MiB真实上传进度.png')})
+ await page.locator('[data-upload-row][data-state=ready]').waitFor();assert.equal(f.modelCalls.length,0);await page.locator('[data-layout-send]').click()
  await page.waitForFunction(()=>document.querySelector('[data-chat-messages]')?.textContent.includes('已生成墨绿色版式'),null,{timeout:120000})
  assert.deepEqual(uploads,['application/octet-stream']);assert.equal(f.modelCalls.length,1);assert.equal(f.modelCalls[0].images.length,MAX_REFERENCE_PDF_PAGES);assert.equal(f.modelCalls[0].images.at(-1).page,30)
  const list=(await f.request('GET','/layout-library/conversations')).conversations,conversation=await f.request('GET','/layout-library/conversations/'+list[0].id),file=conversation.referenceFiles[0]
  assert.equal(file.bytes,PDF_REFERENCE_MAX_BYTES);assert.equal(file.pageCount,31);assert.equal(file.readPages.length,30);assert.equal(file.readPages.at(-1),30);assert.equal(file.sha256,expectedHash)
- assert.match(await page.locator('[data-chat-files]').innerText(),/前30\/31页/)
+ assert.match(await page.locator('[data-chat-messages]').innerText(),/前30\/31页/)
  await cdp.send('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1})
  const downloadEvent=page.waitForEvent('download');await page.locator('[data-download-reference="'+file.id+'"]').click();const download=await downloadEvent,path=await download.path()
  assert.equal((await stat(path)).size,PDF_REFERENCE_MAX_BYTES);assert.equal(await hashFile(path),expectedHash)

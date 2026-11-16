@@ -16,3 +16,39 @@
 .ll-chat-head button{gap:6px;white-space:nowrap;font-size:12px}.ll-card-row{position:relative;min-width:0}.ll-card-row>.ll-card{width:100%;padding-bottom:10px}.ll-card-row small{padding-right:22px}.ll-dialog .ll-card-delete{position:absolute;right:6px;bottom:5px;display:flex;align-items:center;padding:4px;border-color:transparent;background:transparent;color:#778399}.ll-dialog .ll-card-delete:hover{background:#fff1f0;color:#ae4038;border-color:#edc8c5}.ll-card-draft{min-height:82px;border-style:dashed!important}.ll-head [data-undo-delete]{color:#3454a0;white-space:nowrap;font-size:12px}
 
 .ll-chat-files{max-height:210px;flex-shrink:0}.ll-file-chip>span{min-width:0}.ll-file-chip small{display:block;margin-top:2px;font-size:10px;line-height:1.4;color:#687d99}.ll-upload-file{width:100%;min-width:0;padding:7px 8px;border:1px solid #d5dfee;border-radius:7px;background:#fff;display:grid;gap:5px}.ll-upload-file>div{display:flex;gap:6px;align-items:center;min-width:0}.ll-upload-file strong{flex:1;min-width:0;font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ll-upload-file button{flex-shrink:0;border:0;background:transparent;min-height:22px;padding:1px 4px;font-size:11px}.ll-upload-file small{font-size:10px;color:#657a95;overflow-wrap:anywhere;line-height:1.4}.ll-upload-file progress,.ll-model-progress{appearance:none;display:block;width:100%;height:4px;border:0;border-radius:4px;overflow:hidden;accent-color:#4e73c4;background:#e7edf8}.ll-upload-file progress::-webkit-progress-bar,.ll-model-progress::-webkit-progress-bar{background:#e7edf8;border-radius:4px}.ll-upload-file progress::-webkit-progress-value,.ll-model-progress::-webkit-progress-value{background:#5b7ecd;border-radius:4px;transition:width .18s ease}.ll-upload-file progress::-moz-progress-bar,.ll-model-progress::-moz-progress-bar{background:#5b7ecd;border-radius:4px}.ll-upload-file progress:indeterminate,.ll-model-progress:indeterminate{background:linear-gradient(90deg,#e7edf8 25%,#8fa9df 50%,#e7edf8 75%);background-size:200% 100%;animation:ll-progress 1.3s ease-in-out infinite}.ll-upload-file progress:indeterminate::-webkit-progress-bar,.ll-model-progress:indeterminate::-webkit-progress-bar{background:transparent}.ll-upload-file[data-state=failed]{border-color:#e8c4bd;background:#fffaf8}.ll-upload-file[data-state=failed] small{color:#9a493d}.ll-upload-file[data-state=failed] progress{display:none}.ll-upload-file[data-state=ready] progress::-webkit-progress-value{background:#64a68d}.ll-model-progress{margin:0 12px;width:calc(100% - 24px);flex-shrink:0}.ll-model-progress[hidden]{display:none}@keyframes ll-progress{from{background-position:100% 0}to{background-position:-100% 0}}@media(prefers-reduced-motion:reduce){.ll-upload-file progress,.ll-model-progress{animation:none!important;transition:none!important}}
+
+
+/* Attachments and the message form share one compact composer. */
+.ll-chat-composer{padding:10px 12px;border-top:0}
+.ll-composer-box{position:relative;min-width:0;background:#fff;border:1px solid #c8d5e7;border-radius:16px;box-shadow:0 2px 9px #233f6810;transition:border-color .15s ease,box-shadow .15s ease}
+.ll-composer-box:focus-within{border-color:#7292cd;box-shadow:0 0 0 2px #6d8dcd1c}
+.ll-composer-box [data-chat-selection]:not(:empty){padding:8px 8px 0}
+.ll-composer-box .ll-selection{margin:0}
+.ll-dialog .ll-composer-box textarea{display:block;width:100%;height:72px;min-height:72px;max-height:160px;resize:none;border:0;outline:none;background:transparent;box-shadow:none;border-radius:14px;padding:10px 12px 6px;font-size:12px;line-height:1.6;overflow-y:auto}
+.ll-chat-actions{margin:0;padding:4px 8px 8px;gap:8px;min-height:44px}
+.ll-dialog .ll-chat-actions [data-chat-upload]{display:inline-flex;align-items:center;gap:6px;padding:6px 8px;border:0;border-radius:18px;background:transparent;white-space:nowrap;flex:none}
+.ll-dialog .ll-chat-actions [data-chat-upload]:hover{background:#edf2fa}
+.ll-chat-actions [data-chat-upload] span{flex:none;font-size:12px;color:inherit}
+.ll-composer-send{display:flex;flex:none;margin-left:auto}
+.ll-dialog .ll-composer-send button{display:grid;place-items:center;width:32px;height:32px;min-height:32px;padding:6px;border:0;border-radius:50%;line-height:1}
+.ll-dialog .ll-composer-send button[hidden]{display:none}
+.ll-dialog .ll-composer-box button:disabled{opacity:.42;cursor:not-allowed}
+.ll-chat-composer .ll-chat-files{display:flex;flex-wrap:nowrap;gap:6px;padding:8px 8px 0;max-height:none;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;align-items:stretch}
+.ll-chat-composer .ll-chat-files:empty{display:none}
+.ll-chat-composer .ll-upload-file{flex:0 0 192px;width:auto;max-width:100%;min-height:57px;align-content:start;padding:6px 8px;border-radius:10px}
+.ll-chat-composer .ll-file-chip.pending{flex:0 0 192px;min-width:0}
+.ll-chat-composer .ll-upload-file strong{font-size:12px}
+.ll-chat-composer .ll-upload-file button{min-width:22px;min-height:24px}
+.ll-chat-composer .ll-upload-file[data-state=ready] progress{display:none}
+.ll-chat-status{padding:5px 4px 0;font-size:11px;line-height:1.5;color:#657a95;overflow-wrap:anywhere}
+.ll-chat-status:empty{display:none}
+.ll-sent-files{display:grid;gap:6px;margin-bottom:8px;min-width:0}
+.ll-sent-files .ll-file-chip{display:flex;width:100%;min-width:0;background:#ffffffb8;border-radius:9px;padding:6px 8px}
+.ll-sent-files .ll-file-chip>span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ll-sent-files .ll-file-chip button{flex:none;min-width:28px;min-height:28px;padding:3px;font-size:14px}
+.ll-reference-history{margin-bottom:14px}
+.ll-drop-hint{position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0;visibility:hidden;border-radius:inherit;background:#edf3fff0;color:#3454a0;font-size:13px;transition:opacity .14s ease,visibility .14s ease}
+.ll-chat-composer.is-file-drag .ll-composer-box{border-color:#4c72ca;box-shadow:0 0 0 3px #547bd52a}
+.ll-chat-composer.is-file-drag .ll-drop-hint{opacity:1;visibility:visible}
+@media(max-width:850px){.ll-chat-composer{padding:8px}.ll-chat-actions [data-chat-upload] span{font-size:11px}}
+@media(prefers-reduced-motion:reduce){.ll-composer-box,.ll-drop-hint{transition:none}}

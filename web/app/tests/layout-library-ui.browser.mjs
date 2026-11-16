@@ -17,12 +17,15 @@ try{
  await page.goto(f.url);await page.locator('[data-layout-library-open]').click();await page.locator('[data-layout-chat]').waitFor()
  assert.equal(await page.locator('[data-mode="project"]').count(),0);checks++
  assert.equal(await page.locator('[data-list-mode]').count(),0);assert.equal(await page.locator('[data-chat-model]').count(),0);assert.equal((await page.locator('[data-chat-upload]').innerText()).trim(),'参考文件');checks++
+ assert.equal(await page.locator('.ll-chat-head [data-chat-upload]').count(),0);assert.equal(await page.locator('.ll-chat-composer [data-chat-upload]').count(),1);checks++
  const left=await page.locator('[data-layout-results]').boundingBox(),right=await page.locator('[data-layout-chat]').boundingBox();assert(left.x+left.width<=right.x+2);checks++
  await page.locator('[data-seed]').click();await wait(()=>document.querySelectorAll('[data-resource-card]').length===3)
  await page.locator('[data-chat-file]').setInputFiles({name:'绿色参考.md',mimeType:'text/markdown',buffer:Buffer.from('白色背景，墨绿标题，充足留白，文字清晰。')})
+ await page.locator('[data-upload-row][data-state=ready]').waitFor();assert.equal(f.modelCalls.length,0);await page.locator('[data-layout-send]').click();checks++
  await wait(()=>document.querySelector('[data-chat-messages]')?.textContent.includes('已生成墨绿色版式'))
  await page.locator('.ll-preview-host [data-layout-slot=title]').waitFor()
  assert.equal(await page.locator('[data-layout-chat] textarea').inputValue(),'');checks++
+ assert.equal(await page.locator('[data-chat-files] [data-upload-row]').count(),0);assert.equal(await page.locator('.ll-message.user [data-download-reference]').count(),1);checks++
  assert.equal(await page.locator('.ll-preview-host [data-native-page]').evaluate(el=>el.style.getPropertyValue('--ln-accent')),'#235740');checks++
  const firstConversation=(await f.request('GET','/layout-library/conversations')).conversations[0]
  await page.locator('.ll-preview-host [data-layout-slot=title]').click();assert.match(await page.locator('[data-chat-selection]').innerText(),/标题/);checks++
