@@ -3,7 +3,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {randomUUID} from 'node:crypto'
-import {mkdtemp,rm} from 'node:fs/promises'
+import {mkdtemp,rm,readFile,readdir} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {createTestDb} from './support/dossier-db.mjs'
@@ -260,4 +260,21 @@ test('旧会话与新参考的图像总量在入队前校验，超出200MiB不�
  assert.equal((await f.db.query('SELECT count(*)::int AS n FROM jobs')).rows[0].n,1);assert.equal((await f.db.query('SELECT count(*)::int AS n FROM job_reservations')).rows[0].n,before);assert.equal(f.calls.length,0)
  const {createReferenceUploads}=await import('../src/layout-library/reference-uploads.mjs'),{createLayoutConversations}=await import('../src/layout-library/conversations.mjs'),store=await createReferenceUploads(f.db,{root:join(f.root,'.layout-references')}),conversations=createLayoutConversations(f.db,{isRemoved:async()=>false},store)
  const admitted=await conversations.prepare({id:'admin'},{conversationId:cid,text:'继续分析',files:[{id:files[24].id}]},randomUUID(),f.db);assert.equal(admitted.referenceFiles.length,25,'恰好200MiB可进入任务')
+})
+
+test('无打开密码的权限PDF上传保留原件并进入视觉任务，需要密码的文件不入库',{skip:!enabled,timeout:60000},async t=>{
+ const f=await fixture(t),files=[]
+ for(const name of ['readable','no-copy','open-password']){
+  const bytes=await readFile(new URL('./fixtures/pdf-permissions/'+name+'.pdf',import.meta.url))
+  const response=await f.app.inject({method:'POST',url:'/api/layout-library/reference-files',payload:bytes,headers:{authorization:'Bearer '+'a'.repeat(40),'content-type':'application/octet-stream','x-reference-filename':name+'.pdf','x-reference-request-id':randomUUID()}})
+  if(name==='open-password'){assert.equal(response.statusCode,400,response.body);assert.match(response.json().error,/需要密码/);continue}
+  assert.equal(response.statusCode,200,response.body);const file=response.json();files.push(file);assert.equal(file.imageCount,2)
+  assert.deepEqual((await f.req('GET','/api/layout-library/reference-files/'+file.id+'/download')).rawPayload,bytes)
+  const document=(await f.db.query('SELECT document FROM layout_reference_uploads WHERE id=$1',[file.id])).rows[0].document
+  if(name==='no-copy'){assert.equal(document.text,'');assert.match(file.limitations.join(' '),/复制限制/)}else assert.match(document.text,/PUBLIC REFERENCE FIRST PAGE/)
+ }
+ assert.equal((await readdir(join(f.root,'.layout-references'))).length,2);assert.equal((await f.db.query('SELECT count(*)::int AS n FROM layout_reference_uploads')).rows[0].n,2)
+ const started=await f.req('POST','/api/layout-library/conversations',{requestId:randomUUID(),text:'根据参考提炼版式',files:files.map(({id})=>({id})),allowModel:true});assert.equal(started.statusCode,200,started.body);await f.app.waitForJobs()
+ assert.equal(f.calls.length,1);assert.equal(f.calls[0].modelRole,'vision');assert.equal(f.calls[0].images.length,4);assert.deepEqual(f.calls[0].images.map(i=>i.page),[1,2,1,2])
+ const conversation=(await f.req('GET','/api/layout-library/conversations/'+started.json().conversationId)).json();assert.equal(conversation.turns[0].status,'completed')
 })

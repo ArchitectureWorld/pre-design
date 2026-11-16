@@ -184,7 +184,12 @@ async function runPdfTool(tool, args, { deadline, maxBuffer, timeoutMs = PDF_PAR
     if (error.code === 'ENOENT') throw fail('当前服务器缺少 PDF 解析工具。', 503)
     if (error.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') throw fail('PDF 解析内容超过处理上限，请精简参考页。', 413)
     if (error.killed || error.signal === 'SIGKILL') throw fail('PDF 解析超时，请精简页面后重试。', 408)
-    if (/password|encrypted|permission/i.test(String(error.stderr ?? ''))) throw fail('PDF 受口令或权限保护，请解除保护后上传。')
+    const detail = String(error.stderr ?? '')
+    if (tool === 'pdftotext' && /Copying of text .*not allowed|text extraction.*not allowed/i.test(detail)) {
+      throw Object.assign(fail('PDF 限制提取文字。'), { code: 'PDF_TEXT_RESTRICTED' })
+    }
+    if (/password/i.test(detail)) throw fail('打开此 PDF 需要密码，请上传无需密码即可打开的副本。')
+    if (/encrypted|permission/i.test(detail)) throw fail('PDF 页面读取受到权限限制，请上传可正常读取的副本。')
     throw fail('PDF 损坏或无法读取，请重新导出后上传。')
   } finally {
     // AbortError can arrive before process exit. Wait before deleting files or releasing the upload queue.
@@ -200,12 +205,24 @@ async function extractPdf(bytes, signal) {
     const input = join(directory, 'input.pdf'), deadline = Date.now() + PDF_PARSE_TIMEOUT_MS
     await writeFile(input, bytes, { mode: 0o600, flag: 'wx', signal })
     const info = (await runPdfTool('pdfinfo', ['-enc', 'UTF-8', input], { deadline, maxBuffer: 1024 * 1024, timeoutMs: 30_000, signal })).toString('utf8')
-    if (/^Encrypted:\s+yes\b/im.test(info)) throw fail('PDF 受口令或权限保护，请解除保护后上传。')
+    // pdfinfo already opened the file without a password. An encryption flag can
+    // describe owner permissions; it does not mean an open password is required.
+    const permissions = /^Encrypted:([^\r\n]*)/im.exec(info)?.[1] ?? ''
+    let textRestricted = /\bcopy:\s*no\b/i.test(permissions)
     const pageCount = Number(/^Pages:\s+(\d+)\s*$/m.exec(info)?.[1])
     if (!Number.isSafeInteger(pageCount) || pageCount < 1) throw fail('PDF 没有可读取的页面。')
     const count = Math.min(pageCount, MAX_REFERENCE_PDF_PAGES), readPages = Array.from({ length: count }, (_, index) => index + 1)
-    const rawText = (await runPdfTool('pdftotext', ['-f', '1', '-l', String(count), '-layout', '-enc', 'UTF-8', input, '-'], { deadline, maxBuffer: 2 * 1024 * 1024, timeoutMs: 120_000, signal })).toString('utf8')
+    let rawText = ''
+    if (!textRestricted) {
+      try {
+        rawText = (await runPdfTool('pdftotext', ['-f', '1', '-l', String(count), '-layout', '-enc', 'UTF-8', input, '-'], { deadline, maxBuffer: 2 * 1024 * 1024, timeoutMs: 120_000, signal })).toString('utf8')
+      } catch (error) {
+        if (error.code !== 'PDF_TEXT_RESTRICTED') throw error
+        textRestricted = true
+      }
+    }
     const limitations = []
+    if (textRestricted) limitations.push('PDF 设置了文字复制限制，未提取文字；已提供页面图像供视觉分析。')
     if (pageCount > count) limitations.push(`PDF 共 ${pageCount} 页，仅读取前 ${count} 页，后 ${pageCount - count} 页未读取。`)
     const content = boundedText(rawText.replace(/[\u0000-\u0008\u000b\u000e-\u001f\u007f]/gu, ''), limitations, PDF_REFERENCE_TEXT_CHARACTERS)
     // Render the selected range in one process so a large source PDF is opened only once.
@@ -233,10 +250,10 @@ async function extractPdf(bytes, signal) {
     }
     signal?.throwIfAborted()
     pdfTimeRemaining(deadline)
-    if (!content.text) limitations.push('未提取到 PDF 文字，已提供页面图像供视觉分析；本模块不进行 OCR。')
+    if (!content.text && !textRestricted) limitations.push('未提取到 PDF 文字，已提供页面图像供视觉分析；本模块不进行 OCR。')
     return {
       kind: 'pdf', mimeType: 'application/pdf', text: content.text, images, pageCount, readPages, limitations,
-      summary: `PDF 共 ${pageCount} 页，已读取${pageCount > count ? '前 ' : ' '}${count} 页并生成 ${count} 张页面图像${pageCount > count ? `，后 ${pageCount - count} 页未读取` : ''}。${!content.text ? '未检测到可提取文字，将使用页面图像分析。' : content.truncated ? `文字已截断至前 ${PDF_REFERENCE_TEXT_CHARACTERS} 字。` : ''}`,
+      summary: `PDF 共 ${pageCount} 页，已读取${pageCount > count ? '前 ' : ' '}${count} 页并生成 ${count} 张页面图像${pageCount > count ? `，后 ${pageCount - count} 页未读取` : ''}。${textRestricted ? 'PDF 限制文字提取，已改用页面图像分析。' : !content.text ? '未检测到可提取文字，将使用页面图像分析。' : content.truncated ? `文字已截断至前 ${PDF_REFERENCE_TEXT_CHARACTERS} 字。` : ''}`,
     }
   } finally {
     await rm(directory, { recursive: true, force: true })

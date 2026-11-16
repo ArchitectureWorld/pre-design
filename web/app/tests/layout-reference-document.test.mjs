@@ -296,6 +296,29 @@ test('扫描 PDF 没有文字时仍返回真实页面图像供视觉分析', asy
   assert.match(result.summary, /图像/)
 })
 
+test('带加密标记但无需打开密码的PDF正常读取文字和页面', async () => {
+  const bytes = await readFile(new URL('./fixtures/pdf-permissions/readable.pdf', import.meta.url))
+  const result = await parse(bytes, '可直接打开.pdf')
+  assert.equal(result.pageCount, 2); assert.deepEqual(result.readPages, [1, 2])
+  assert.match(result.text, /PUBLIC REFERENCE FIRST PAGE/); assert.match(result.text, /PUBLIC REFERENCE SECOND PAGE/)
+  assert.equal(result.images.length, 2)
+  for (const image of result.images) assert((await sharp(image.data).stats()).channels.some(c => c.min < c.max))
+})
+
+test('允许打开但限制复制的PDF仅使用真实页面图像，并记录读取限制', async () => {
+  const bytes = await readFile(new URL('./fixtures/pdf-permissions/no-copy.pdf', import.meta.url))
+  const result = await parse(bytes, '仅限制复制.pdf')
+  assert.equal(result.pageCount, 2); assert.deepEqual(result.readPages, [1, 2])
+  assert.equal(result.text, ''); assert.equal(result.images.length, 2)
+  assert.match(result.limitations.join(' '), /限制.*(?:提取|复制).*文字|文字.*(?:提取|复制).*限制/)
+  assert.match(result.summary, /图像/); assert.doesNotMatch(result.summary, /未检测到/)
+})
+
+test('真正需要打开密码的PDF明确报错，不混淆为普通权限标记', async () => {
+  const bytes = await readFile(new URL('./fixtures/pdf-permissions/open-password.pdf', import.meta.url))
+  await assert.rejects(() => parse(bytes, '需要密码.pdf'), status(400, /需要.*(?:密码|口令)|(?:密码|口令).*才能打开/))
+})
+
 test('PDF 成功、损坏与密码失败都清理临时文件且错误不泄漏路径', async () => {
   const root = await mkdtemp(join(tmpdir(), 'reference-document-test-'))
   const previous = process.env.TMPDIR
