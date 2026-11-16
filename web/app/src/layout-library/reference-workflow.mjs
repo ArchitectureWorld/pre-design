@@ -165,7 +165,7 @@ function validateCompiledProfile(pkg,profile){
 const contracts={
  observe:'仅输出 {"pages":[{"fileSha256":"提供的文件SHA256","pageNumber":1,"pageType":"cover|section|text|figure|map|data|comparison|timeline|relationship|mixed","structure":"single-column|equal-columns|asymmetric-columns|grid|hero|full-bleed|stacked","density":"low|medium|high","facts":[{"property":"background","value":"#ffffff"}]}]}。每张实际图像恰好一项；只报告提供页面。facts只填设计属性，不写原文或项目名称。服务器分配事实ID。',
  profile:'仅输出 pre-design.reference-profile.v2 Profile。文件SHA256、pageNumber与factId必须复制提供的清单或观察记录。extracted引用提取事实；observed只引用有图像且实际观察的事实；inferred用dependsOn引用证据ID；user不冒充来源事实。每个原型和设计系统都必须引用来源证据。Profile不得带自由文本、图片、文件名、路径、原始文字、业务数据。按Skill中的受限结构输出。',
- compile:'仅输出 {"reply":"简短中文答复","package":完整pre-design.layout-package.v2对象}。只编译提供的已验证Profile。designProfile必须原样保留。所有layouts.kind=composition，每项archetypeId必须指向Profile原型；没有证据的默认五模板禁止添加。声明式slots不含HTML/CSS/JS。画布和theme取Profile设计系统。只输出html，不宣称可编辑PPTX镜像还原或已人工确认。',
+ compile:'仅输出 {"reply":"简短中文答复","package":完整pre-design.layout-package.v2对象}。只编译提供的已验证Profile。designProfile必须原样保留。所有layouts.kind=composition，每项archetypeId必须指向Profile原型；实现全部原型、每个原型的完整内容角色与容量，不得缩减为标题页或添加无证据的默认五模板。声明式slots不含HTML/CSS/JS。画布宽高与theme精确取Profile设计系统；structure意图须落实原型已有regions。package.formats仅为["html"]，不要输出HTML文档。不宣称可编辑PPTX镜像还原或已人工确认。',
 }
 
 /** Each model stage is a real isolated runLayoutReference invocation. Returned

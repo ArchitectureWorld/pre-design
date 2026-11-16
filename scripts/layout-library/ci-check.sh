@@ -5,9 +5,11 @@ ROOT="$(pwd)"
 OUT="${RUNNER_TEMP:-/tmp}/layout-evidence"
 PG_BIN="${PRE_LAYOUT_PG_BIN:-$(pg_config --bindir)}"
 DATA="${RUNNER_TEMP:-/tmp}/layout-pg-$RANDOM"
-mkdir -p "$OUT"
+SOCKET="/tmp/pre-design-pg-1000"
+mkdir -p "$OUT" "$SOCKET"
 "$PG_BIN/initdb" -D "$DATA" -U zetta --auth=trust --encoding=UTF8 --locale=C > "$OUT/initdb.log"
-"$PG_BIN/pg_ctl" -D "$DATA" -o "-p 55439 -h 127.0.0.1 -c unix_socket_directories=''" -l "$OUT/postgres.log" -w start
+# Legacy Web API regressions use this isolated socket; newer fixtures use TCP.
+"$PG_BIN/pg_ctl" -D "$DATA" -o "-k $SOCKET -p 55439 -h 127.0.0.1" -l "$OUT/postgres.log" -w start
 trap '"$PG_BIN/pg_ctl" -D "$DATA" -m fast -w stop || true' EXIT
 node --input-type=module <<'DB'
 import pg from 'pg'
