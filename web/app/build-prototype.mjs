@@ -102,4 +102,4 @@ for(const name of ['annotation-composer.js','annotation-composer.css','outline-r
 for(const name of ['dossier-ui.js','dossier-ui.css'])await writeFile(resolve(outputRoot,name),await readFile(resolve(root,'src/dossier',name)))
 
 await mkdir(resolve(outputRoot,'layout-library'),{recursive:true});
-for(const name of ['ui.js','ui.css','render.mjs','composition-render.mjs','svg-native-renderer.mjs','svg-prototype.mjs','review-ui.js','reuse-guide-ui.js','conversation-ui.js','preview-ui.js','canvas-ui.js','upload-request.js','reference-limits.mjs'])await writeFile(resolve(outputRoot,'layout-library',name),await readFile(resolve(root,'src/layout-library',name)));
+for(const name of ['ui.js','ui.css','render.mjs','composition-render.mjs','svg-native-renderer.mjs','svg-prototype.mjs','review-ui.js','reuse-guide-ui.js','reference-coverage-ui.js','conversation-ui.js','preview-ui.js','canvas-ui.js','upload-request.js','reference-limits.mjs'])await writeFile(resolve(outputRoot,'layout-library',name),await readFile(resolve(root,'src/layout-library',name)));

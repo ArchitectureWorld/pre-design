@@ -3,6 +3,7 @@ import {readFile,writeFile,mkdir,stat,realpath} from 'node:fs/promises'
 import {createHash,randomUUID} from 'node:crypto'
 import {basename,resolve,join} from 'node:path'
 import {pathToFileURL} from 'node:url'
+import {privateCheckpointStore} from './private-checkpoints.mjs'
 const digest=x=>createHash('sha256').update(x).digest('hex')
 export function acceptanceSummary(results){
  const attempts=results.length,passed=results.filter(r=>r.passed===true).length,p=attempts?passed/attempts:null,z=1.959963984540054
@@ -42,6 +43,7 @@ export async function runAcceptance(manifestPath){
  workers.configuration=async(...args)=>boundedModelRuntime(await configuration(...args))
  await workers.validateTaskConfiguration(policy,['parent','vision'])
  const skill=await readFile(new URL('../../web/app/src/skills/layout-reference/SKILL.md',import.meta.url),'utf8'),results=[]
+ const stageCheckpoints=m.checkpointDirectory?await privateCheckpointStore(m.checkpointDirectory):undefined
  let modelCalls=0
  for(const [i,c]of m.cases.entries()){
   const record={case:i+1,passed:false,realModelVerified:false,sourceKind:null,sourceSha256:null,modelCalls:0,actualRequests:0,stages:[],humanVisualAcceptance:'pending'}
@@ -51,11 +53,12 @@ export async function runAcceptance(manifestPath){
    const info=await stat(c.file);if(!info.isFile()||info.size>100*1024*1024)throw Error('REFERENCE_LIMIT')
    const bytes=await readFile(c.file),filename=basename(c.file),parsed=await extractReferenceDocument({bytes,filename,signal:controller.signal})
    const source=referenceInput({filename,bytes,parsed,selectedPages:c.selectedPages});record.selectedPages=c.selectedPages??null;record.sourceKind=parsed.kind;record.sourceSha256=source.file.sha256
-   const result=await runReferenceWorkflow({jobId:randomUUID(),payload:{name:'真实参考验收候选',text:c.request??'提炼参考设计，保留真实设计关系并用于实际内容试排。',referenceIntent:c.intent??'style',referenceScope:c.scope??'deck',referenceFidelity:c.fidelity??'standard',referencePipeline:'native-v3',referenceFiles:[source.file]},images:source.images,policy,skill,signal:controller.signal,
+   const result=await runReferenceWorkflow({jobId:randomUUID(),payload:{name:'真实参考验收候选',text:c.request??'提炼参考设计，保留真实设计关系并用于实际内容试排。',referenceIntent:c.intent??'style',referenceScope:c.scope??'deck',referenceFidelity:c.fidelity??'standard',referencePipeline:'native-v3',referenceFiles:[source.file]},images:source.images,policy,skill,signal:controller.signal,stageCheckpoints,
     loadArtifact:async ref=>{if(ref.sourceId!==source.file.id)throw Error('ARTIFACT_OWNER_MISMATCH');const a=source.artifacts.get(ref.path);if(!a||a.sha256!==ref.sha256)throw Error('ARTIFACT_HASH_MISMATCH');return a},
     runModel:async input=>{if(modelCalls>=maxCalls)throw Object.assign(Error('ACCEPTANCE_CALL_BUDGET'),{code:'ACCEPTANCE_CALL_BUDGET'});modelCalls++;record.modelCalls++;console.log(JSON.stringify({case:i+1,stage:input.stage,modelCalls}));try{const value=await workers.runLayoutReference(input);record.actualRequests+=(value.execution?.parent?.requests??[]).length;return value}catch(error){record.actualRequests+=(error.execution?.parent?.requests??[]).length;throw error}}})
-   record.stages=result.execution.stages.map(s=>({stage:s.stage,status:s.status,actualRoute:s.execution?.actualRoute??null,modelInvoked:s.modelInvoked!==false}))
-   record.realModelVerified=record.stages.filter(s=>s.actualRoute).length===record.modelCalls
+   record.stages=result.execution.stages.map(s=>({stage:s.stage,status:s.status,actualRoute:s.execution?.actualRoute??null,modelInvoked:s.modelInvoked!==false,reused:s.reused===true}))
+   record.reusedStages=record.stages.filter(s=>s.reused).length
+   record.realModelVerified=record.stages.filter(s=>s.modelInvoked||s.reused).every(s=>!!s.actualRoute)&&record.stages.some(s=>s.actualRoute)
    const pkg=result.response.package;await writeFile(join(folder,'package.json'),JSON.stringify(pkg,null,2),{mode:0o600})
    await writeFile(join(folder,'sample-preview.html'),renderNativeDocument(samplePages(pkg),{title:'真实模型设计候选，合成内容试排，非人工验收'}),{mode:0o600})
    record.geometry=await validatePublication(pkg,{signal:controller.signal});record.passed=record.realModelVerified&&record.geometry.status==='passed'

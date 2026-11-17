@@ -1,3 +1,4 @@
+import {coverageLabel} from './reference-coverage-ui.js'
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
 const requestId=()=>crypto.randomUUID?.()??Array.from(crypto.getRandomValues(new Uint8Array(16)),x=>x.toString(16).padStart(2,'0')).join('')
 const roles={title:'标题',claim:'主结论',body:'正文',image:'图片',table:'表格',source:'引用'}
@@ -72,8 +73,9 @@ export function mountLayoutConversation({container,request,notify,getContext,get
   const attached=new Set((conversation?.turns??[]).flatMap(turn=>turn.files??[]).map(fileKey)),legacy=(conversation?.referenceFiles??[]).filter(f=>!attached.has(fileKey(f)))
   const messages=(conversation?.turns??[]).map(turn=>{
    const reply=turn.result?.reply??(turn.result?.id?'已生成版式 V'+turn.result.version+'。':null)
+   const coverage=coverageLabel(turn.result?.analysis?.coverage??turn.progress?.referenceCoverage)
    const status=active(turn.status)?turn.progress?.label??'正在生成…':turn.error??'任务已结束。'
-   return `<div class="ll-chat-turn" data-layout-turn="${turn.id}"><div class="ll-message user">${turn.files?.length?`<div class="ll-sent-files">${fileChips(turn.files)}</div>`:''}<div>${esc(turn.text).replaceAll('\n','<br>')}</div></div><div class="ll-message assistant">${reply?esc(reply).replaceAll('\n','<br>'):`<span class="${active(turn.status)?'working':'error'}">${esc(status)}</span>`}${turn.result?.id?`<button class="ll-inline" data-show-version="${turn.result.id}" data-version="${turn.result.version}">查看 V${turn.result.version}</button>`:''}${['failed','interrupted','cancelled'].includes(turn.status)?`<button class="ll-inline" data-retry-turn="${turn.id}" ${running()?'disabled':''}>重试</button>`:''}</div></div>`
+   return `<div class="ll-chat-turn" data-layout-turn="${turn.id}"><div class="ll-message user">${turn.files?.length?`<div class="ll-sent-files">${fileChips(turn.files)}</div>`:''}<div>${esc(turn.text).replaceAll('\n','<br>')}</div></div><div class="ll-message assistant">${reply?esc(reply).replaceAll('\n','<br>'):`<span class="${active(turn.status)?'working':'error'}">${esc(status)}</span>`}${coverage?`<p class="ll-hint" data-reference-coverage>${esc(coverage)}；原型采用明确选取的参考页，不等于逐页镜像。</p>`:''}${turn.result?.id?`<button class="ll-inline" data-show-version="${turn.result.id}" data-version="${turn.result.version}">查看 V${turn.result.version}</button>`:''}${['failed','interrupted','cancelled'].includes(turn.status)?`<button class="ll-inline" data-retry-turn="${turn.id}" ${running()?'disabled':''}>重试</button>`:''}</div></div>`
   }).join('')
   area.innerHTML=(legacy.length?`<div class="ll-sent-files ll-reference-history" aria-label="历史参考文件">${fileChips(legacy)}</div>`:'')+messages||'<div class="ll-chat-empty">描述想要的版式，或添加参考文件。</div>'
   bindDownloads(area)

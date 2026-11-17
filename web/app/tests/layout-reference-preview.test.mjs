@@ -39,3 +39,39 @@ test('private derived artifacts survive upload storage and are owner/hash gated,
  await writeFile(join(root,file.id,'artifact-1'),Buffer.from('changed'))
  await assert.rejects(uploads.artifact({id:'owner'},file.id,'svg/slide_01.svg'),e=>e.statusCode===409)
 })
+test('PDF continuation retains one original, serializes same-source additions and loads only six verified pages',async t=>{
+ const env=await createTestDb(),root=await mkdtemp(join(tmpdir(),'reference-continue-'))
+ t.after(async()=>{await env.close();await rm(root,{recursive:true,force:true})})
+ let calls=0
+ const uploads=await createReferenceUploads(env.db,{root,extractor:async({pdfStartPage=1})=>{
+  calls++;const readPages=Array.from({length:Math.min(30,87-pdfStartPage+1)},(_,i)=>pdfStartPage+i)
+  return {kind:'pdf',mimeType:'application/pdf',pageCount:87,readPages,pages:readPages.map(page=>({page,text:'page '+page})),images:readPages.map(page=>({page,mimeType:'image/jpeg',width:1600,height:900,data:Buffer.from('image '+page)})),text:'batch text',limitations:[]}
+ }})
+ const actor={id:'owner'},source=Buffer.from('unchanged original'),file=await uploads.create(actor,{requestId:'one',filename:'reference.pdf',bytes:source})
+ await assert.rejects(uploads.ensurePdfPages({id:'other'},file.id,31),e=>e.statusCode===404)
+ await Promise.all([uploads.ensurePdfPages(actor,file.id,31),uploads.ensurePdfPages(actor,file.id,31)])
+ const result=await uploads.ensurePdfPages(actor,file.id,61)
+ assert.equal(calls,3);assert.equal(result.readPages.length,87);assert.equal(result.readPages.at(-1),87)
+ assert.deepEqual((await uploads.download(actor,file.id)).data,source)
+ const manifest=await uploads.imageManifest(actor,[file]);assert.equal(manifest.length,87)
+ const batch=await uploads.loadImageBatch(actor,manifest.slice(60,66));assert.equal(batch.length,6);assert.equal(batch[0].page,61)
+ await assert.rejects(uploads.loadImageBatch({id:'other'},manifest.slice(0,1)),e=>e.statusCode===404)
+ await assert.rejects(uploads.loadImageBatch(actor,[{...manifest[0],sha256:'0'.repeat(64)}]),e=>e.statusCode===409)
+ await assert.rejects(uploads.modelImages(actor,[file]),e=>e.statusCode===413)
+})
+test('PDF continuation safely resumes after failed or uncertain COMMIT without overwriting page bytes',async t=>{
+ for(const outcome of ['before','after']){
+  const env=await createTestDb(),root=await mkdtemp(join(tmpdir(),'reference-commit-'))
+  t.after(async()=>{await env.close();await rm(root,{recursive:true,force:true})})
+  let failCommit=false
+  const db={query:(...args)=>env.db.query(...args),connect:async()=>{const c=await env.db.connect();return {release:()=>c.release(),query:async(sql,...args)=>{
+   if(sql==='COMMIT'&&failCommit){failCommit=false;if(outcome==='after')await c.query(sql,...args);throw Error('TEST_COMMIT_ACK_LOST')}
+   return c.query(sql,...args)
+  }}}}
+  const uploads=await createReferenceUploads(db,{root,extractor:async({pdfStartPage=1})=>{const readPages=Array.from({length:Math.min(30,31-pdfStartPage+1)},(_,i)=>pdfStartPage+i);return {kind:'pdf',mimeType:'application/pdf',pageCount:31,readPages,pages:readPages.map(page=>({page})),images:readPages.map(page=>({page,mimeType:'image/jpeg',width:100,height:100,data:Buffer.from('stable '+page)}))}}})
+  const actor={id:'owner'},file=await uploads.create(actor,{requestId:'one',filename:'reference.pdf',bytes:Buffer.from('source')})
+  failCommit=true;await assert.rejects(uploads.ensurePdfPages(actor,file.id,31),/TEST_COMMIT_ACK_LOST/)
+  const result=await uploads.ensurePdfPages(actor,file.id,31);assert.equal(result.readPages.length,31)
+  assert.equal((await uploads.preview(actor,file.id,31)).data.toString(),'stable 31')
+ }
+})

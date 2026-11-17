@@ -9,7 +9,7 @@ test('V14 native pipeline calls real separate designer stages, validates upstrea
  const calls=[],r=await runReferenceWorkflow({jobId:'native-test',...native(),runModel:model(calls)})
  assert.deepEqual(calls,['observe-1','observe-2','profile','design-spec','prototype-1'])
  assert.equal(r.response.package.schemaVersion,'pre-design.layout-package.v3')
- assert.deepEqual(r.execution.stages.slice(-4).map(s=>s.stage),['design-spec','prototype-1','upstream-validate','native-compile'])
+ assert.deepEqual(r.execution.stages.slice(-5).map(s=>s.stage),['design-spec','native-source-1','prototype-1','upstream-validate','native-compile'])
  assert.equal(r.execution.stages.at(-1).modelInvoked,false)
  assert.equal(r.analysis.nativeQuality.status,'passed')
  assert(r.response.package.layouts[0].prototypeSvg.includes('<rect'))

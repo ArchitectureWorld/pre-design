@@ -344,14 +344,14 @@ test('PDF 成功、损坏与密码失败都清理临时文件且错误不泄漏�
   }
 })
 
-test('真实 PDF 渲染启动后取消会终止 Poppler 并清理全部临时文件', async () => {
+for (const pdfStartPage of [1,31]) test(`真实 PDF 第 ${pdfStartPage} 页批次渲染启动后取消会终止 Poppler 并清理全部临时文件`, async () => {
   const root = await mkdtemp(join(tmpdir(), 'reference-document-cancel-')), previous = process.env.TMPDIR
   const controller = new AbortController(), reason = new Error('用户停止 PDF 解析')
-  const source = pdf(Array.from({ length: 30 }, (_, index) => ({ lines: Array.from({ length: 50 }, () => `page-${index + 1}: ${'A'.repeat(80)}`) })))
+  const source = pdf(Array.from({ length: 60 }, (_, index) => ({ lines: Array.from({ length: 50 }, () => `page-${index + 1}: ${'A'.repeat(80)}`) })))
   process.env.TMPDIR = root
   let pending
   try {
-    pending = extractReferenceDocument({ bytes: source, filename: 'cancel.pdf', signal: controller.signal })
+    pending = extractReferenceDocument({ bytes: source, filename: 'cancel.pdf', signal: controller.signal, pdfStartPage })
     void pending.catch(() => {})
     const child = await waitForPdfChild(root, 'pdftoppm')
     assert((await readdir(root)).length > 0, '取消前应确实存在解析中的临时目录')
@@ -431,4 +431,43 @@ test('DOCX 不能通过伪造 ZIP 未压缩长度绕过实时解压上限', asyn
     }
   }
   await assert.rejects(() => parse(bytes, 'lying-size.docx'), status(413))
+})
+
+test('PDF 可续读31/61/87页批次，保留总页数、原页号与真实分页图文',async()=>{
+ const colors={31:'0.9 0.1 0.2',61:'0.1 0.8 0.2',87:'0.1 0.2 0.9'}
+ const bytes=pdf(Array.from({length:87},(_,i)=>({text:'ORIGINAL PAGE '+(i+1),tint:colors[i+1]})))
+ for(const start of [31,61,87]){
+  const result=await extractReferenceDocument({bytes,filename:'all-pages.pdf',pdfStartPage:start})
+  const expected=Array.from({length:Math.min(30,88-start)},(_,i)=>start+i)
+  assert.equal(result.pageCount,87);assert.deepEqual(result.readPages,expected)
+  assert.deepEqual(result.images.map(image=>image.page),expected)
+  assert.deepEqual(result.pages.map(page=>page.page),expected)
+  for(const page of result.pages)assert.equal(page.text,'ORIGINAL PAGE '+page.page)
+  assert.match(result.text,new RegExp('ORIGINAL PAGE '+start+'(?:\\s|$)'))
+  assert(!result.text.includes('ORIGINAL PAGE '+(start-1)+'\n'))
+  const pixel=await sharp(result.images[0].data).extract({left:800,top:1060,width:1,height:1}).removeAlpha().raw().toBuffer()
+  const color=colors[start].split(' ').map(n=>Math.round(Number(n)*255))
+  assert(color.every((n,i)=>Math.abs(pixel[i]-n)<=5),'续读批次必须使用实际原页的颜色标记')
+  assert.match(result.summary,new RegExp('第 '+start+'(?:[—–-]| 页)'))
+  assert.match(result.limitations.join(' '),/本批.*未读取|本批.*读取/)
+ }
+})
+
+test('PDF 续读拒绝非法与越界起始页，成功/失败/预先取消均清理临时文件',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'reference-document-range-')),previous=process.env.TMPDIR
+ process.env.TMPDIR=root
+ try{
+  const bytes=pdf([{text:'FIRST'},{text:'LAST'}])
+  for(const pdfStartPage of [0,-1,1.5,'2',null,NaN,Infinity,Number.MAX_SAFE_INTEGER+1,3]){
+   await assert.rejects(extractReferenceDocument({bytes,filename:'range.pdf',pdfStartPage}),status(400,/页/))
+   assert.deepEqual(await readdir(root),[])
+  }
+  await assert.rejects(extractReferenceDocument({bytes:Buffer.from('text'),filename:'text.txt',pdfStartPage:2}),status(400,/PDF/))
+  const result=await extractReferenceDocument({bytes,filename:'range.pdf',pdfStartPage:2})
+  assert.equal(result.pageCount,2);assert.deepEqual(result.readPages,[2]);assert.equal(result.pages[0].text,'LAST')
+  assert.deepEqual(await readdir(root),[])
+  const controller=new AbortController(),reason=Error('stop resumed extraction');controller.abort(reason)
+  await assert.rejects(extractReferenceDocument({bytes,filename:'range.pdf',pdfStartPage:2,signal:controller.signal}),error=>error===reason)
+  assert.deepEqual(await readdir(root),[])
+ }finally{if(previous===undefined)delete process.env.TMPDIR;else process.env.TMPDIR=previous;await rm(root,{recursive:true,force:true})}
 })

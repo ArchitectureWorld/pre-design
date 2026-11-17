@@ -21,3 +21,10 @@ test('selected PDF pages retain original identity and exclude unselected images 
  assert.deepEqual(x.images.map(p=>p.page),[5,13]);assert.deepEqual(x.file.readPages,[5,13]);assert.equal(x.file.pageCount,87);assert.equal(x.file.text,'');assert.deepEqual(x.file.pages.map(p=>p.page),[5,13]);assert.match(x.file.summary,/5, 13/);assert.equal(parsed.text,'whole-document-private')
  for(const selectedPages of [[],[5,5],[88],[1.5]])assert.throws(()=>referenceInput({filename:'reference.pdf',bytes:Buffer.from('original'),parsed,selectedPages}))
 })
+test('private checkpoint files are atomic, non-overwriting and readable only from validated keys',async t=>{
+ const {mkdtemp,rm}=await import('node:fs/promises'),{tmpdir}=await import('node:os'),{join}=await import('node:path'),{privateCheckpointStore}=await import('../../../scripts/layout-library/private-checkpoints.mjs')
+ const root=await mkdtemp(join(tmpdir(),'private-checkpoints-'));t.after(()=>rm(root,{recursive:true,force:true}))
+ const store=await privateCheckpointStore(root),key='f'.repeat(64),record={key,recordHash:'one'}
+ assert.equal(await store.get(key),undefined);await store.put(key,record);assert.deepEqual(await store.get(key),record)
+ await store.put(key,record);await assert.rejects(store.put(key,{key,recordHash:'two'}));await assert.rejects(store.get('../source'))
+})

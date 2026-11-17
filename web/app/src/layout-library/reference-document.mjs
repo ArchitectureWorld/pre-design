@@ -198,7 +198,7 @@ async function runPdfTool(tool, args, { deadline, maxBuffer, timeoutMs = PDF_PAR
   }
 }
 
-async function extractPdf(bytes, signal) {
+async function extractPdf(bytes, signal, startPage = 1) {
   signal?.throwIfAborted()
   const directory = await mkdtemp(join(tmpdir(), 'layout-reference-'))
   try {
@@ -212,11 +212,13 @@ async function extractPdf(bytes, signal) {
     let textRestricted = /\bcopy:\s*no\b/i.test(permissions)
     const pageCount = Number(/^Pages:\s+(\d+)\s*$/m.exec(info)?.[1])
     if (!Number.isSafeInteger(pageCount) || pageCount < 1) throw fail('PDF 没有可读取的页面。')
-    const count = Math.min(pageCount, MAX_REFERENCE_PDF_PAGES), readPages = Array.from({ length: count }, (_, index) => index + 1)
+    if (startPage > pageCount) throw fail('PDF 起始页超过文件总页数。')
+    const endPage = Math.min(pageCount, startPage + MAX_REFERENCE_PDF_PAGES - 1), count = endPage - startPage + 1
+    const readPages = Array.from({ length: count }, (_, index) => startPage + index)
     let rawText = ''
     if (!textRestricted) {
       try {
-        rawText = (await runPdfTool('pdftotext', ['-f', '1', '-l', String(count), '-layout', '-enc', 'UTF-8', input, '-'], { deadline, maxBuffer: 2 * 1024 * 1024, timeoutMs: 120_000, signal })).toString('utf8')
+        rawText = (await runPdfTool('pdftotext', ['-f', String(startPage), '-l', String(endPage), '-layout', '-enc', 'UTF-8', input, '-'], { deadline, maxBuffer: 2 * 1024 * 1024, timeoutMs: 120_000, signal })).toString('utf8')
       } catch (error) {
         if (error.code !== 'PDF_TEXT_RESTRICTED') throw error
         textRestricted = true
@@ -224,11 +226,13 @@ async function extractPdf(bytes, signal) {
     }
     const limitations = []
     if (textRestricted) limitations.push('PDF 设置了文字复制限制，未提取文字；已提供页面图像供视觉分析。')
-    if (pageCount > count) limitations.push(`PDF 共 ${pageCount} 页，仅读取前 ${count} 页，后 ${pageCount - count} 页未读取。`)
+    if (pageCount > count) limitations.push(startPage === 1
+      ? `PDF 共 ${pageCount} 页，仅读取前 ${count} 页，后 ${pageCount - count} 页未读取。`
+      : `PDF 共 ${pageCount} 页，本批仅读取第 ${startPage}–${endPage} 页；其余 ${pageCount - count} 页不在本批读取范围内。`)
     const content = boundedText(rawText.replace(/[\u0000-\u0008\u000b\u000e-\u001f\u007f]/gu, ''), limitations, PDF_REFERENCE_TEXT_CHARACTERS)
     // Render the selected range in one process so a large source PDF is opened only once.
     // The fixed page count and pixel edge bound temporary output; only one preview is read at a time.
-    await runPdfTool('pdftoppm', ['-f', '1', '-l', String(count), '-scale-to', String(MAX_IMAGE_EDGE), '-jpeg', '-jpegopt', 'quality=90', input, join(directory, 'page')], { deadline, maxBuffer: 1024 * 1024, signal })
+    await runPdfTool('pdftoppm', ['-f', String(startPage), '-l', String(endPage), '-scale-to', String(MAX_IMAGE_EDGE), '-jpeg', '-jpegopt', 'quality=90', input, join(directory, 'page')], { deadline, maxBuffer: 1024 * 1024, signal })
     signal?.throwIfAborted()
     const previews = new Map()
     for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -255,11 +259,11 @@ async function extractPdf(bytes, signal) {
     const textPages = rawText.split('\f')
     const pages = images.map(image => ({
       page: image.page, kind: 'pdf-page', width: image.width, height: image.height, unit: 'preview-px', preview: true,
-      text: (textPages[image.page - 1] ?? '').replace(/[\u0000-\u0008\u000b\u000e-\u001f\u007f]/gu, '').trim().slice(0, 2000),
+      text: (textPages[image.page - startPage] ?? '').replace(/[\u0000-\u0008\u000b\u000e-\u001f\u007f]/gu, '').trim().slice(0, 2000),
     }))
     return {
       kind: 'pdf', mimeType: 'application/pdf', text: content.text, images, pageCount, readPages, pages, limitations,
-      summary: `PDF 共 ${pageCount} 页，已读取${pageCount > count ? '前 ' : ' '}${count} 页并生成 ${count} 张页面图像${pageCount > count ? `，后 ${pageCount - count} 页未读取` : ''}。${textRestricted ? 'PDF 限制文字提取，已改用页面图像分析。' : !content.text ? '未检测到可提取文字，将使用页面图像分析。' : content.truncated ? `文字已截断至前 ${PDF_REFERENCE_TEXT_CHARACTERS} 字。` : ''}`,
+      summary: (startPage === 1 ? `PDF 共 ${pageCount} 页，已读取${pageCount > count ? '前 ' : ' '}${count} 页并生成 ${count} 张页面图像${pageCount > count ? `，后 ${pageCount - count} 页未读取` : ''}。` : `PDF 共 ${pageCount} 页，本批已读取第 ${startPage}–${endPage} 页并生成 ${count} 张页面图像，其余 ${pageCount - count} 页不在本批读取范围内。`) + `${textRestricted ? 'PDF 限制文字提取，已改用页面图像分析。' : !content.text ? '未检测到可提取文字，将使用页面图像分析。' : content.truncated ? `文字已截断至前 ${PDF_REFERENCE_TEXT_CHARACTERS} 字。` : ''}`,
     }
   } finally {
     await rm(directory, { recursive: true, force: true })
@@ -425,20 +429,22 @@ async function extractDocx(bytes) {
 }
 
 /** Read untrusted reference bytes without retaining originals or executing document content. */
-export async function extractReferenceDocument({ bytes, filename, signal } = {}) {
+export async function extractReferenceDocument({ bytes, filename, signal, pdfStartPage = 1 } = {}) {
   signal?.throwIfAborted()
   if (!(bytes instanceof Uint8Array) || typeof filename !== 'string' || !filename.trim()) throw fail('缺少有效的参考文件与文件名。')
   if (!bytes.byteLength) throw fail('参考文件为空。')
   if (bytes.byteLength > referenceByteLimit(filename)) throw fail(`参考原件上限为 ${referenceLimitLabel(filename)}，请精简后上传。`, 413)
   const input = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)
   const extension = extname(filename).toLowerCase(), magic = identifyMagic(input)
+  if (!Number.isSafeInteger(pdfStartPage) || pdfStartPage < 1) throw fail('PDF 起始页必须是正整数。')
+  if (extension !== '.pdf' && pdfStartPage !== 1) throw fail('分页续读仅支持 PDF 文件。')
   let result
   if (imageFormats[extension]) {
     if (magic !== imageFormats[extension]) throw fail('图片内容与扩展名不符，请上传有效的 PNG、JPEG 或 WebP。', 415)
     result = await extractImage(input, magic)
   } else if (extension === '.pdf') {
     if (magic !== 'pdf') throw fail('文件内容不是有效的 PDF。', 415)
-    result = await extractPdf(input, signal)
+    result = await extractPdf(input, signal, pdfStartPage)
   } else if (extension === '.docx') {
     if (magic !== 'zip') throw fail('文件内容不是有效的 DOCX。', 415)
     result = await extractDocx(input)
