@@ -10,3 +10,8 @@ test('reference preparation preserves actual bytes and makes only private artifa
  const parsed={kind:'pptx',images:[{page:1,data:image,mimeType:'image/png'}],privateArtifacts:[{path:'svg-flat/slide_01.svg',sha256:sha,bytes:3,data:artifact}]}
  const x=referenceInput({filename:'sample.pptx',bytes,parsed});assert.equal(x.images[0].fileId,x.file.id);assert.equal(x.images[0].data,image.toString('base64'));assert.equal(x.file.privateArtifacts[0].data,undefined);assert.deepEqual(x.artifacts.get('svg-flat/slide_01.svg').data,artifact);assert.equal(parsed.images[0].data,image)
 })
+test('acceptance disables provider retries only in the private runtime copy',async()=>{
+ const {boundedModelRuntime}=await import('../../../scripts/layout-library/real-acceptance.mjs')
+ const original={model:{providers:{known:{baseURL:'https://example.test',retryPolicy:{mode:'always'},models:[]}},env:{secret:'private'}},search:{}}
+ const capped=boundedModelRuntime(original);assert.deepEqual(capped.model.providers.known.retryPolicy,{mode:'normal',maxRetries:0});assert.equal(original.model.providers.known.retryPolicy.mode,'always');assert.deepEqual(capped.model.env,original.model.env)
+})
