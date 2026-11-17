@@ -12,7 +12,8 @@ mkdir -p "$OUT" "$SOCKET"
 "$PG_BIN/pg_ctl" -D "$DATA" -o "-k $SOCKET -p 55439 -h 127.0.0.1" -l "$OUT/postgres.log" -w start
 trap '"$PG_BIN/pg_ctl" -D "$DATA" -m fast -w stop || true' EXIT
 node --input-type=module <<'DB'
-import pg from 'pg'
+import {createRequire} from 'node:module'
+const pg=createRequire(new URL('./web/app/package.json',import.meta.url))('pg')
 const client=new pg.Client({host:'127.0.0.1',port:55439,user:'zetta',database:'postgres'})
 await client.connect();await client.query('CREATE DATABASE pre_design_web');await client.end()
 DB
@@ -37,6 +38,6 @@ PRE_WEB_BUILD_DIR="$OUT/dist" PRE_LAYOUT_SCREENSHOTS="$OUT/screens-reference-rev
 node --input-type=module - "$OUT" <<'NODE'
 import {writeFileSync,readFileSync} from 'node:fs';import {execFileSync} from 'node:child_process';import {createHash} from 'node:crypto';
 const root=process.argv[2];const hash=p=>createHash('sha256').update(readFileSync(p)).digest('hex');
-const receipt={schema:'pre-design.layout-ci.v2',testedAt:new Date().toISOString(),sourceCommit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),node:process.version,database:'disposable PostgreSQL, isolated schemas',result:'passed',realModelVerified:false,productionDeployed:false,tests:['V1 and V2 native layout PostgreSQL contracts/API/server/scheduler','PPTX ZIP and real LibreOffice parsing; reference evidence, stages and review gates','selected existing Web regressions','actual Chromium composition rendering and reference comparison UI','100 MiB binary PDF upload and 30-page batched analysis','existing Web build'],files:{postgres:hash(root+'/layout-postgres.tap'),regression:hash(root+'/regression.tap'),compositionBrowser:hash(root+'/composition-browser.tap'),uiPostgres:hash(root+'/ui-postgres.json'),ui:hash(root+'/ui.json'),uploadUi:hash(root+'/upload-ui.json'),largePdfUi:hash(root+'/large-pdf-ui.json'),referenceReviewUi:hash(root+'/reference-review-ui.json')}};
+const receipt={schema:'pre-design.layout-ci.v2',testedAt:new Date().toISOString(),sourceCommit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),node:process.version,database:'disposable PostgreSQL, isolated schemas',result:'passed',realModelVerified:false,productionDeployed:false,tests:['V1 and V2 native layout PostgreSQL contracts/API/server/scheduler','PPTX ZIP and real LibreOffice parsing; reference evidence, stages and review gates','full Web regressions','actual Chromium composition rendering and reference comparison UI','100 MiB binary PDF upload and 30-page batched analysis','existing Web build'],files:{postgres:hash(root+'/layout-postgres.tap'),regression:hash(root+'/regression.tap'),fullWebRegression:hash(root+'/full-web-regression.tap'),compositionBrowser:hash(root+'/composition-browser.tap'),uiPostgres:hash(root+'/ui-postgres.json'),ui:hash(root+'/ui.json'),uploadUi:hash(root+'/upload-ui.json'),largePdfUi:hash(root+'/large-pdf-ui.json'),referenceReviewUi:hash(root+'/reference-review-ui.json')}};
 writeFileSync(root+'/receipt.json',JSON.stringify(receipt,null,2)+'\n');
 NODE
