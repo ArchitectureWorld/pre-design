@@ -99,7 +99,7 @@ export function validateReferenceProfile(value,{inventory,observations}={}){
  * user provenance marker; a model cannot replace the reference history. */
 export function preserveRevisionProfile(value,basePackage){
  if(!basePackage?.designProfile)return value
- if(value.schemaVersion!=='pre-design.layout-package.v2')throw invalid('已有V2参考资源不能在文字修订中降级或丢弃设计Profile。')
+ if(value.schemaVersion!==basePackage.schemaVersion||!['pre-design.layout-package.v2','pre-design.layout-package.v3'].includes(value.schemaVersion))throw invalid('已有参考资源不能在文字修订中改变版本或丢弃设计Profile。')
  const profile=validateReferenceProfile(basePackage.designProfile)
  const pick=(object,keys)=>Object.fromEntries(keys.map(key=>[key,object?.[key]]))
  const next={...profile.designSystem,canvas:value.canvas,colors:pick(value.theme,['background','ink','accent','muted']),typography:pick(value.theme,['fontFamily','titleSize','bodySize','captionSize','lineHeight'])}
@@ -107,7 +107,7 @@ export function preserveRevisionProfile(value,basePackage){
  const changedArchetypes=new Set()
  for(const layout of value.layouts??[]){
   const previous=basePackage.layouts.find(l=>l.id===layout.id)
-  if(!previous||JSON.stringify(layout.slots)!==JSON.stringify(previous.slots)){
+  if(!previous||JSON.stringify(layout.slots)!==JSON.stringify(previous.slots)||layout.prototypeSvg!==previous.prototypeSvg||JSON.stringify(layout.contentFitRules)!==JSON.stringify(previous.contentFitRules)){
    const archetype=profile.archetypes.find(a=>a.id===layout.archetypeId)
    if(!archetype)throw invalid('文字修订不能创建没有Profile原型依据的版式。')
    archetype.regions=(layout.slots??[]).map(({role,rect})=>({role,rect}));changedArchetypes.add(archetype.id)
@@ -121,5 +121,6 @@ export function preserveRevisionProfile(value,basePackage){
   for(const a of profile.archetypes)if(changedArchetypes.has(a.id))a.evidenceIds=[...a.evidenceIds,evidenceId]
  }
  profile.designSystem=next
- return {...value,designProfile:validateReferenceProfile(profile)}
+ const validated=validateReferenceProfile(profile)
+ return {...value,designProfile:validated,...(value.schemaVersion==='pre-design.layout-package.v3'?{designSpec:{...value.designSpec,profile:validated}}:{})}
 }

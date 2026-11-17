@@ -24,7 +24,8 @@ node --check web/app/src/server.mjs
 node --check web/app/src/layout-library/ppt-master-adapter.mjs
 node --test --test-concurrency=1 web/app/tests/layout-ppt-master-vendor.test.mjs web/app/tests/ppt-master-adapter.test.mjs | tee "$OUT/ppt-master-adapter.tap"
 node --check web/worker/layout-reference-runner.mjs
-node --test --test-concurrency=1 web/app/tests/layout-*.test.mjs web/app/tests/research-model-runtime.test.mjs web/app/tests/service-policy.test.mjs | tee "$OUT/layout-postgres.tap"
+node --test web/app/tests/native-design-renderer.browser.mjs | tee "$OUT/native-v3-browser.tap"
+node --test --test-concurrency=1 web/app/tests/layout-*.test.mjs web/app/tests/native-*.test.mjs web/app/tests/ppt-master-quality.test.mjs web/app/tests/workflow-visual-native-v3.test.mjs web/app/tests/research-model-runtime.test.mjs web/app/tests/service-policy.test.mjs | tee "$OUT/layout-postgres.tap"
 node --test --test-concurrency=1 web/app/tests/workflow-contract.test.mjs web/app/tests/workflow-content.test.mjs web/app/tests/workflow-section-pages.test.mjs web/app/tests/material-policy.test.mjs web/app/tests/material-storage.test.mjs web/app/tests/workflow-api.test.mjs web/app/tests/workflow-structured-api.test.mjs web/app/tests/recovery.test.mjs | tee "$OUT/regression.tap"
 node --test --test-concurrency=1 web/app/tests/layout-library-composition.browser.mjs | tee "$OUT/composition-browser.tap"
 PRE_WEB_BUILD_DIR="$OUT/dist" node web/app/build-prototype.mjs | tee "$OUT/build.log"

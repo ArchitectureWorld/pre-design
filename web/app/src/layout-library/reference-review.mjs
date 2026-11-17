@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import {packageDigest,fail,rendererForPackage} from './contract.mjs'
 import {FIXTURES_VERSION} from './validation.mjs'
 
-export const requiresReferenceReview=pkg=>pkg.schemaVersion==='pre-design.layout-package.v2'
+export const requiresReferenceReview=pkg=>['pre-design.layout-package.v2','pre-design.layout-package.v3'].includes(pkg.schemaVersion)
 
 /** Follow the selected archetype's evidence; a cover is not evidence for every page. */
 export function referencePagesForLayout(pkg,layoutId){

@@ -163,7 +163,7 @@ export function registerLayoutRoutes({app,library,uploads,project,workflows,seri
   app.get('/api/layout-library/conversations/:conversationId',req=>{id.parse(req.params.conversationId);return getConversation(req)})
   app.post('/api/layout-library/conversations',async req=>{
    const b=mutation.extend({conversationId:id.optional(),resourceId:id.optional(),resourceVersion:version.optional(),package:z.unknown().optional(),
-    referenceIntent:z.enum(['style','structure']).optional(),name:z.string().trim().min(1).max(100).optional(),text:z.string().trim().max(16000).default(''),
+    referencePipeline:z.enum(['native-v3','legacy-v2']).optional(),referenceScope:z.enum(['brand','style','layout','deck']).optional(),referenceFidelity:z.enum(['standard','fidelity']).optional(),referenceIntent:z.enum(['style','structure']).optional(),name:z.string().trim().min(1).max(100).optional(),text:z.string().trim().max(16000).default(''),
     files:z.array(z.union([z.object({id}).strict(),z.object({name:z.string().min(1).max(180),text:z.string().min(1).max(16000)}).strict()])).max(8).default([]),
     selection:z.object({layoutId:z.string().max(48),slot:z.enum(['title','claim','body','image','table','chart','timeline','diagram','source'])}).strict().nullable().optional(),
     allowModel:z.literal(true)}).strict().refine(b=>b.text||b.files.length,'请输入消息或上传参考文件').refine(b=>!b.resourceId||b.resourceVersion,'请选择具体版式版本').parse(req.body)

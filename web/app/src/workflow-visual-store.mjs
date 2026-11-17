@@ -2,7 +2,7 @@ import {randomUUID,createHash} from 'node:crypto'
 import {workflowError} from './workflow-contract.mjs'
 import {workflowBlockItems} from './workflow-content.mjs'
 import {verifyPages} from './layout-library/validation.mjs'
-import {packageDigest,RENDERER,RENDERER_V2} from './layout-library/contract.mjs'
+import {packageDigest,RENDERER,RENDERER_V2,RENDERER_V3} from './layout-library/contract.mjs'
 import {VISUAL_THEME,renderVisualDeck} from './workflow-visual-view.mjs'
 const fingerprint=body=>createHash('sha256').update(JSON.stringify(body)).digest('hex')
 export async function createWorkflowVisualStore(db,{currentDraft,layoutLibrary,verifyLayoutPages=verifyPages,resolveLayoutAssets=async pages=>pages}){
@@ -44,9 +44,9 @@ export async function createWorkflowVisualStore(db,{currentDraft,layoutLibrary,v
    let bindingRevision=null,qa=null
    if(layoutLibrary){
     const config=await layoutLibrary.bindings(p,conn)
-    if(isRevision&&!body.applyLibrary&&[RENDERER,RENDERER_V2].includes(source?.renderer)&&config.revision!==source.layoutBindingRevision)throw workflowError('另有版式配置待应用，请先应用该配置，再做单页修改。')
+    if(isRevision&&!body.applyLibrary&&[RENDERER,RENDERER_V2,RENDERER_V3].includes(source?.renderer)&&config.revision!==source.layoutBindingRevision)throw workflowError('另有版式配置待应用，请先应用该配置，再做单页修改。')
     if(body.applyLibrary&&body.expectedBindingRevision!==config.revision)throw workflowError('版式配置已经改变，请刷新后重排。')
-    if(body.applyLibrary||config.revision||[RENDERER,RENDERER_V2].includes(source?.renderer)||pages.some(p=>p.item.figure||p.item.figures?.length||p.item.table||p.item.chart||p.item.timeline||p.item.diagram)){
+    if(body.applyLibrary||config.revision||[RENDERER,RENDERER_V2,RENDERER_V3].includes(source?.renderer)||pages.some(p=>p.item.figure||p.item.figures?.length||p.item.table||p.item.chart||p.item.timeline||p.item.diagram)){
      if(config.draftId!==null&&config.draftId!==draft.id)throw workflowError('版式绑定属于旧稿，请先在版式库为当前稿重新保存配置。')
      pages=layoutLibrary.compilePages(pages,config)
      pages=await resolveLayoutAssets(pages,p)
@@ -57,7 +57,7 @@ export async function createWorkflowVisualStore(db,{currentDraft,layoutLibrary,v
 
    const id=randomUUID(),version=(previous?.version??0)+1,createdAt=new Date().toISOString(),document={id,version,projectName:draft.projectName,draftId:draft.id,draftVersion:draft.version,theme:source?.theme??VISUAL_THEME,pages,evidence:draft.evidence,createdAt,sourceVisualId:source?.id??null}
    if(bindingRevision!==null){
-    document.layoutBindingRevision=bindingRevision;document.renderer=pages.some(p=>p.nativeLayout.renderer===RENDERER_V2)?RENDERER_V2:RENDERER;document.layoutQa=qa;document.layoutSkillIds=['V07','V08','V10','V11','V12','V13','Q07']
+    document.layoutBindingRevision=bindingRevision;document.renderer=pages.some(p=>p.nativeLayout.renderer===RENDERER_V3)?RENDERER_V3:pages.some(p=>p.nativeLayout.renderer===RENDERER_V2)?RENDERER_V2:RENDERER;document.layoutQa=qa;document.layoutSkillIds=['V07','V08','V10','V11','V12','V13','Q07']
     document.renderedHtml=renderVisualDeck(document);document.renderedHtmlHash=packageDigest(document.renderedHtml)
    }
    await conn.query('INSERT INTO workflow_visuals(id,project_id,version,draft_id,document) VALUES($1,$2,$3,$4,$5)',[id,p.id,version,draft.id,document])

@@ -1,0 +1,6 @@
+import {profileFixture,packageFixture} from './reference-workflow.mjs'
+export function nativeDesignInput(){
+ const profile=profileFixture(),{kind,...prototype}=packageFixture(profile).layouts[0]
+ return {name:'原生设计',designSpec:{schemaVersion:'pre-design.design-spec.v1',scope:'deck',fidelity:'fidelity',profile,masterLayoutGraph:[{id:'master-1',kind:'master',parentId:null,evidenceIds:['evidence-1']},{id:'layout-1',kind:'layout',parentId:'master-1',archetypeId:'archetype-1',evidenceIds:['evidence-1']}],components:[{id:'component-1',kind:'decoration',style:{background:'#3454a0'},evidenceIds:['evidence-1']}]},prototypes:[{...prototype,prototypeSvg:'<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900"><rect x="0" y="0" width="16" height="900" fill="#3454a0"/></svg>',contentFitRules:{overflow:'reject',maxTitleCharacters:120,maxClaimCharacters:400,maxBodyPoints:8,maxBodyCharacters:1800,maxImages:1,maxTableRows:0,maxTableColumns:0}}],rights:{basis:'permission',shareAllowed:false,note:''}}
+}
+export async function nativePackageFixture(){const {compileNativeDesignPackageV3}=await import('../../src/layout-library/native-design-compiler.mjs');return compileNativeDesignPackageV3(nativeDesignInput())}

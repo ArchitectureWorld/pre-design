@@ -8,8 +8,11 @@ import {runReferenceWorkflow} from '../src/layout-library/reference-workflow.mjs
 
 test('真实PPTX提取器的sp/pic/graphicFrame进入工作流后保持文字、图片、表格类型',{timeout:90000},async()=>{
  const Pptx=createRequire(import.meta.url)('pptxgenjs'),pptx=new Pptx();pptx.layout='LAYOUT_WIDE'
- const slide=pptx.addSlide();slide.addText('Synthetic title',{x:.3,y:.3,w:5,h:.6})
+ const slide=pptx.addSlide()
+ // PptxGenJS 4.0.1 assigns a duplicate object ID when a table follows text.
+ // Generate a valid fixture; the pinned importer correctly rejects duplicate IDs.
  slide.addTable([['A','B'],['1','2']],{x:.3,y:1.2,w:4,h:1})
+ slide.addText('Synthetic title',{x:.3,y:.3,w:5,h:.6})
  const png=await sharp({create:{width:16,height:16,channels:3,background:'#008800'}}).png().toBuffer()
  slide.addImage({data:'image/png;base64,'+png.toString('base64'),x:6,y:1.2,w:2,h:2})
  const bytes=await pptx.write({outputType:'nodebuffer'}),parsed=await extractReferenceDocument({bytes,filename:'synthetic.pptx'}),id=randomUUID()

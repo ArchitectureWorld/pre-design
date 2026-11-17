@@ -254,3 +254,21 @@ test('重开结构迁移会话保留意图，已有Profile的文字讨论不受�
  input(dom,document.querySelector('textarea'),'重新学习设计风格。');await settle(()=>!ui.busy)
  assert.equal(document.querySelector('[data-layout-send]').disabled,true,'显式改变意图重新分析历史图像时才依赖视觉模型')
 })
+test('V3 design controls restore saved intent and submit native pipeline without resetting user choices',async t=>{
+ const dom=new JSDOM('<aside></aside>'),document=dom.window.document,posted=[]
+ const {nativePackageFixture}=await import('./fixtures/native-design-v3-fixture.mjs'),pkg=await nativePackageFixture();pkg.designSpec.scope='layout'
+ const request=async(path,options={})=>{
+  if(path.endsWith('reference-config'))return {configured:true,vision:{configured:true}}
+  if(options.method==='POST'){posted.push(options.body);return {conversationId:'A'}}
+  return {id:'A',resource:{package:pkg},referenceFiles:[],turns:[]}
+ }
+ const ui=mountLayoutConversation({container:document.querySelector('aside'),request,notify(){},getContext:()=>({package:pkg}),onResource(){},onImport(){}})
+ t.after(()=>{ui.dispose();dom.window.close()});await ui.select('A')
+ assert.equal(document.querySelector('[data-reference-scope]').value,'layout')
+ assert.equal(document.querySelector('[data-reference-fidelity]').value,'fidelity')
+ const scope=document.querySelector('[data-reference-scope]');scope.value='brand';scope.dispatchEvent(new dom.window.Event('change'))
+ await ui.refresh();assert.equal(scope.value,'brand')
+ input(dom,document.querySelector('textarea'),'按品牌规则整理');await settle(()=>!document.querySelector('[data-layout-send]').disabled)
+ document.querySelector('[data-layout-send]').click();await settle(()=>posted.length===1)
+ assert.equal(posted[0].referencePipeline,'native-v3');assert.equal(posted[0].referenceScope,'brand');assert.equal(posted[0].referenceFidelity,'fidelity')
+})

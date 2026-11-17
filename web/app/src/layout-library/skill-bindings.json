@@ -1,32 +1,49 @@
 {
-  "schemaVersion": "pre-design.layout-skill-bindings.v2",
-  "resourceSchemas": ["pre-design.layout-package.v1", "pre-design.layout-package.v2"],
-  "renderers": ["pre-design-native-html-v1.0", "pre-design-native-html-v2.0"],
+  "schemaVersion": "pre-design.layout-skill-bindings.v3",
+  "resourceSchemas": [
+    "pre-design.layout-package.v1",
+    "pre-design.layout-package.v2",
+    "pre-design.layout-package.v3"
+  ],
+  "renderers": [
+    "pre-design-native-html-v1.0",
+    "pre-design-native-html-v2.0",
+    "pre-design-native-html-v3.0"
+  ],
   "bindings": {
     "V14": {
-      "module": "reference-workflow.mjs / reference-profile.mjs / jobs.mjs",
-      "stages": ["server inventory", "at most 6 actual page images per observation", "validated reference profile", "V2 composition compile"],
+      "module": "reference-workflow.mjs / native-reference-workflow.mjs / native-design-compiler.mjs / jobs.mjs",
+      "stages": [
+        "server inventory + private Reference Bundle",
+        "at most 6 actual page images per observation",
+        "validated reference profile",
+        "native source artifact verification",
+        "Design Spec",
+        "per-archetype SVG prototype with actual evidence images",
+        "pinned upstream SVG quality check",
+        "deterministic Native V3 compile"
+      ],
       "output": "native package candidate with public designProfile; private analysis and actual receipts stay on owner job",
-      "compatibility": "V1 text edits and discussion remain single-call; V2 revisions retain profile evidence and parent version trace"
+      "compatibility": "Existing V1/V2 resources and legacy-v2 API pipeline remain supported; current Web reference composer requests native-v3. V3 edits preserve source evidence and recheck upstream SVG quality."
     },
     "V07": {
       "read": "canvas, formats",
-      "supported": "V1 1600x900 HTML; V2 bounded source-aspect canvas HTML"
+      "supported": "V1/V2/V3 bounded canvas HTML. No unverified editable PPTX claim."
     },
     "V08": {
-      "read": "theme, designProfile.designSystem",
+      "read": "theme, designProfile.designSystem, designSpec, versioned V3 prototypes",
       "output": "effective theme after property inheritance"
     },
     "V09": {
-      "read": "designProfile.archetypes, composition slots and supported content capacity",
+      "read": "designProfile.archetypes, complete slots, V3 contentFitRules; no overcapacity clipping",
       "constraint": "one approved item -> one page; overcapacity returns to script"
     },
     "V10": {
       "module": "contract.mjs#chooseLayout / composition-contract.mjs#chooseCompositionLayout",
-      "read": "layouts[].archetypeId, complete item content and explicit capacity rejection"
+      "read": "layouts[].archetypeId, full content, V3 capacity selection and explicit rejection"
     },
     "V11": {
-      "module": "render.mjs#renderNativePage / composition-render.mjs",
+      "module": "render.mjs / composition-render.mjs / svg-native-renderer.mjs (isolated sanitized SVG background + editable content slots)",
       "read": "frozen spec + approved paragraphs/points/figures/table/chart/timeline/diagram + project assets"
     },
     "V12": {

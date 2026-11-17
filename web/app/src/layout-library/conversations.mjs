@@ -38,10 +38,12 @@ export function createLayoutConversations(db,library,uploads){
   await uploads?.validateImageBudget(actor,referenceFiles,c)
   const isDocument=file=>file.hasImages||['pdf','pptx','image','docx'].includes(file.kind)
   const referenceIntent=input.referenceIntent??basePackage.designProfile?.intent??history.at(-1)?.payload.referenceIntent??'style'
-  const referenceAnalysisRequired=files.some(isDocument)||referenceFiles.some(isDocument)&&(!basePackage.designProfile||referenceIntent!==basePackage.designProfile.intent)
+  const referencePipeline=input.referencePipeline??history.at(-1)?.payload.referencePipeline??(basePackage.schemaVersion==='pre-design.layout-package.v3'?'native-v3':'legacy-v2')
+  const referenceScope=input.referenceScope??basePackage.designSpec?.scope??'deck',referenceFidelity=input.referenceFidelity??basePackage.designSpec?.fidelity??'standard'
+  const referenceAnalysisRequired=files.some(isDocument)||referenceFiles.some(isDocument)&&(!basePackage.designProfile||referenceIntent!==basePackage.designProfile.intent||!!basePackage.designSpec&&(referenceScope!==basePackage.designSpec.scope||referenceFidelity!==basePackage.designSpec.fidelity))
   const analysisTurn=history.findLast(row=>row.result?.analysis&&row.result.id===resource?.id&&row.result.version===resource?.version)
   return {mode:'conversation',conversationId:input.conversationId??jobId,name,text:input.text||'请根据上传参考生成版式。',files,
-   referenceFiles,referenceIntent,referenceAnalysisRequired,modelRole:referenceAnalysisRequired&&referenceFiles.some(f=>f.hasImages)?'vision':'parent',basePackage,providedPackage:!!input.package||history.at(-1)?.payload.providedPackage===true,
+   referenceFiles,referenceIntent,referencePipeline,referenceScope,referenceFidelity,referenceAnalysisRequired,modelRole:referenceAnalysisRequired&&referenceFiles.some(f=>f.hasImages)?'vision':'parent',basePackage,providedPackage:!!input.package||history.at(-1)?.payload.providedPackage===true,
    baseAnalysis:analysisTurn?.result.analysis??null,
    baseResource:resource?{id:resource.id,version:resource.version,hash:resource.hash,ownerId:resource.ownerId}:null,
    selection:input.selection??null,

@@ -90,3 +90,9 @@
 继 `2b811d4` 后的云端增量已经在既有上传存储中保留上游衍生产物字节，并在 V14 inventory 建立私有 Reference Bundle。旧记录仅有清单时标记 `inventory-only`，新记录核对路径与指纹后标记 `private-upload`。同时修复成功解析后的 upstream 作用域错误，恢复上游调用前的 ZIP/XML 安全校验。
 
 这仅替代上表中“临时 SVG 字节尚未持久化”的状态；Design Spec/Prototype、Native Compiler V3、SVG-backed V11、上游质量工具和真实视觉验收仍未完成。验证范围及未通过项见 `docs/reviews/ppt-master-native-integration/CLOUD_REFERENCE_RETENTION.md`。
+
+## 7. 云端 V3 代码闭环检查点
+
+当前增量新增 Design Spec、逐原型模型阶段、真实上游 SVG 结构检查、确定性 V3 编译，以及 V08–V13 的安全装饰 SVG 背景+可编辑内容槽消费；保留 V1/V2 兼容及 Q05。此状态替代前文相应“未有代码实现”的记录，但不替代真实供应商模型、Chromium视觉、客户样稿和生产验收。
+
+严格安全子集不等于任意上游SVG保真；具体支持边界、已过回归和云端环境阻塞见 `docs/reviews/ppt-master-native-integration/V3_CLOUD_CHECKPOINT.md`。

@@ -79,3 +79,16 @@ test('V2新上传文字要求仍进入单调用上下文，历史视觉原件只
  await h.jobs.execute(h.job)
  assert.equal(calls.length,1);assert.match(calls[0].prompt,/UNIQUE NEW REQUIREMENT/);assert.doesNotMatch(calls[0].prompt,/PRIVATE BUSINESS PAGE/)
 })
+test('V3 text revision keeps original evidence, preserves prototypes, reruns actual quality and forbids downgrade',async()=>{
+ const {nativePackageFixture}=await import('./fixtures/native-design-v3-fixture.mjs'),base=await nativePackageFixture(),candidate=structuredClone(base)
+ candidate.theme.accent='#111111'
+ const h=jobHarness({mode:'conversation',name:base.name,text:'标题改黑色',referenceAnalysisRequired:false,basePackage:base,referenceFiles:[],baseResource:{id:randomUUID(),version:1,hash:'a'.repeat(64),ownerId:'owner'}},[],async()=>({response:{reply:'已修改',package:candidate}}))
+ await h.jobs.execute(h.job)
+ assert.equal(h.packages[0]?.schemaVersion,'pre-design.layout-package.v3')
+ assert(h.packages[0].designProfile.evidence.some(e=>e.provenance==='user'))
+ assert.deepEqual(h.packages[0].designSpec.profile,h.packages[0].designProfile)
+ const done=h.writes.find(w=>w.sql.includes("SET status='completed'"))
+ assert.equal(done.args[1].analysis.nativeQuality.status,'passed')
+ const bad=jobHarness({mode:'conversation',name:base.name,text:'改色',referenceAnalysisRequired:false,basePackage:base,referenceFiles:[]},[],async()=>({response:{reply:'已修改',package:packageFixture()}}))
+ await bad.jobs.execute(bad.job);assert.equal(bad.packages.length,0)
+})

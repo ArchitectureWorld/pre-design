@@ -6,7 +6,7 @@ import {renderNativeDocument} from './render.mjs'
 export const FIXTURES_VERSION='native-layout-fixtures-2'
 const PNG='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='
 export function samplePages(pkg){
- if(pkg.schemaVersion==='pre-design.layout-package.v2')return compositionSamplePages(pkg)
+ if(['pre-design.layout-package.v2','pre-design.layout-package.v3'].includes(pkg.schemaVersion))return compositionSamplePages(pkg)
  const pages=[]
  for(const l of pkg.layouts)for(const density of ['short','typical']){
   const item={title:density==='short'?'城市更新 · 参考页':'围绕居民服务组织片区更新与分期实施',paragraphs:['明确本页结论，图文和数据均使用公开的合成测试内容。'],points:density==='short'?['公共空间','服务设施']:['比较不同人群的使用需求和活动时间。','根据真实条件安排公共空间和服务设施。','建设内容与后续运营维护相互衔接。'],evidenceIndexes:[0]}

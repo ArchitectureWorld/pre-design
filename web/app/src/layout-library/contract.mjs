@@ -2,10 +2,13 @@ import {createHash} from 'node:crypto'
 import {z} from 'zod'
 import {SCHEMA_V2,RENDERER_V2,compositionCanvasSchema,compositionLayoutSchema,validateCompositionLayout,chooseCompositionLayout,nativeFigures,nativeChartSchema,nativeTimelineSchema,nativeDiagramSchema} from './composition-contract.mjs'
 import {validateReferenceProfile} from './reference-profile.mjs'
+import {SCHEMA_V3,RENDERER_V3,nativePackageFields,validateNativeDesignPackage} from './native-design-v3.mjs'
+export {SCHEMA_V3,RENDERER_V3}
+import {assertNativeContentFits} from './svg-native-renderer.mjs'
 export {SCHEMA_V2,RENDERER_V2,nativeFigures,nativeChartSchema,nativeTimelineSchema,nativeDiagramSchema}
 export const SCHEMA='pre-design.layout-package.v1'
 export const RENDERER='pre-design-native-html-v1.0'
-export const rendererForPackage=p=>p.schemaVersion===SCHEMA_V2?RENDERER_V2:RENDERER
+export const rendererForPackage=p=>p.schemaVersion===SCHEMA_V3?RENDERER_V3:p.schemaVersion===SCHEMA_V2?RENDERER_V2:RENDERER
 export const SKILL_IDS=Object.freeze(['V07','V08','V09','V10','V11','V12','V13','V14','Q05','Q07','Q08'])
 export const fail=(message,statusCode=400,code='LAYOUT_INVALID')=>Object.assign(new Error(message),{statusCode,code})
 const text=n=>z.string().trim().min(1).max(n)
@@ -18,6 +21,7 @@ const layoutSchema=z.object({id:z.string().regex(/^[a-z][a-z0-9-]{0,47}$/),label
 const source=z.object({kind:z.enum(['manual','built-in','pptx','reference-text','reference-document','project-page']),name:text(180).optional(),sha256:z.string().regex(/^[a-f0-9]{64}$/).optional(),limitations:z.array(text(400)).max(20).default([]),parents:z.array(z.object({resourceId:z.string().uuid(),version:z.number().int().positive(),hash:z.string().regex(/^[a-f0-9]{64}$/)}).strict()).max(4).optional()}).strict()
 const resourceSchema=z.object({schemaVersion:z.literal(SCHEMA),name:text(100),description:z.string().max(600).default(''),kind:z.enum(['theme','page','set']),tags:z.array(text(40)).max(12).default([]),canvas:z.object({width:z.literal(1600),height:z.literal(900)}).strict(),theme:themeSchema,layouts:z.array(layoutSchema).min(1).max(12),formats:z.tuple([z.literal('html')]),source,rights:z.object({basis:z.enum(['original','licensed','permission','unknown']),shareAllowed:z.boolean(),note:z.string().max(600)}).strict()}).strict()
 const resourceSchemaV2=resourceSchema.extend({schemaVersion:z.literal(SCHEMA_V2),canvas:compositionCanvasSchema,layouts:z.array(compositionLayoutSchema).min(1).max(24),designProfile:z.record(z.string(),z.unknown())}).strict()
+const resourceSchemaV3=resourceSchemaV2.extend(nativePackageFields).strict()
 export const nativeFigureSchema=z.object({materialId:z.uuid(),caption:text(160)}).strict()
 export const nativeFiguresSchema=z.array(nativeFigureSchema).min(1).max(6)
 export const nativeTableSchema=z.object({columns:z.array(text(100)).min(2).max(8),rows:z.array(z.array(z.string().max(300)).min(2).max(8)).min(1).max(40)}).strict().refine(t=>t.rows.every(r=>r.length===t.columns.length),'每行列数须与表头一致')
@@ -47,9 +51,10 @@ export function validateTheme(value){
  return t
 }
 export function validatePackage(value){
- const p=(value?.schemaVersion===SCHEMA_V2?resourceSchemaV2:resourceSchema).parse(value);validateTheme(p.theme)
+ const p=(value?.schemaVersion===SCHEMA_V3?resourceSchemaV3:value?.schemaVersion===SCHEMA_V2?resourceSchemaV2:resourceSchema).parse(value);validateTheme(p.theme)
  if(new Set(p.layouts.map(x=>x.id)).size!==p.layouts.length)throw fail('版式ID重复。')
- if(p.schemaVersion===SCHEMA_V2){
+ if(p.schemaVersion===SCHEMA_V3)validateNativeDesignPackage(p)
+ if([SCHEMA_V2,SCHEMA_V3].includes(p.schemaVersion)){
   p.designProfile=validateReferenceProfile(p.designProfile)
   const canvas=p.designProfile.designSystem.canvas
   if(Math.abs((p.canvas.width/p.canvas.height)/(canvas.width/canvas.height)-1)>.00001)throw fail('资源画布比例与参考设计画布不一致。')
@@ -75,6 +80,12 @@ export function validatePackage(value){
 function canonical(v){return Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v}
 export const packageDigest=v=>createHash('sha256').update(JSON.stringify(canonical(v))).digest('hex')
 export function chooseLayout(p,item,id){
+ if(p.schemaVersion===SCHEMA_V3){
+  if(id){const layout=chooseCompositionLayout(p,item,id);return assertNativeContentFits(item,layout)}
+  const layouts=p.layouts.filter(layout=>{try{assertNativeContentFits(item,layout);return true}catch{return false}})
+  if(!layouts.length)throw fail('原生设计容量不足，请调整分页，不会裁剪正文。',409)
+  return chooseCompositionLayout({...p,layouts},item)
+ }
  if(p.schemaVersion===SCHEMA_V2)return chooseCompositionLayout(p,item,id)
  const figures=nativeFigures(item)
  if(item.chart||item.timeline||item.diagram)throw fail('图表、时间轴与关系图需要能够完整承载内容的 V2 组合版式。',409)
@@ -94,13 +105,27 @@ export function resolvePage({page,globalPackage,globalOverrides,local,manual,res
  const globalPatch=patchSchema.parse(globalOverrides??{}),localPatch=patchSchema.parse(local?.overrides??{}),manualPatch=patchSchema.parse(manual??{})
  const theme=validateTheme({...global.theme,...globalPatch.theme,...(local?.package?p.theme:{}),...localPatch.theme,...manualPatch.theme})
  const layout=chooseLayout(p,page.item,manualPatch.layoutId??localPatch.layoutId??(local?.package?undefined:globalPatch.layoutId))
- if(p.schemaVersion===SCHEMA_V2)validateCompositionLayout(layout,theme,contrast)
- return {schemaVersion:p.schemaVersion,renderer:rendererForPackage(p),canvas:p.canvas,theme,layout,...(p.designProfile?{designProfile:p.designProfile}:{}),resourceRefs,manual:manualPatch,formats:['html']}
+ if([SCHEMA_V2,SCHEMA_V3].includes(p.schemaVersion))validateCompositionLayout(layout,theme,contrast)
+ return {schemaVersion:p.schemaVersion,renderer:rendererForPackage(p),canvas:p.canvas,theme,layout,...(p.designProfile?{designProfile:p.designProfile}:{}),...(p.schemaVersion===SCHEMA_V3?Object.fromEntries(['designSpec','compilerVersion','upstreamRevision','rendererCompatibility','validationReceipts'].map(k=>[k,p[k]])):{}),resourceRefs,manual:manualPatch,formats:['html']}
 }
 export function exportReusable(page,name){
- if(!page.nativeLayout||![RENDERER,RENDERER_V2].includes(page.nativeLayout.renderer))throw fail('请先应用原生版式后再保存为资源。',409)
+ if(!page.nativeLayout||![RENDERER,RENDERER_V2,RENDERER_V3].includes(page.nativeLayout.renderer))throw fail('请先应用原生版式后再保存为资源。',409)
  const p=createPackage(name);p.theme={...page.nativeLayout.theme};p.layouts=[structuredClone(page.nativeLayout.layout)];p.kind='page';p.source={kind:'project-page',parents:page.nativeLayout.resourceRefs??[],limitations:['仅保留样式和内容位置；项目正文、图片、表格、身份和原件均不复制。']}
- if(page.nativeLayout.renderer===RENDERER_V2){p.schemaVersion=SCHEMA_V2;p.canvas={...page.nativeLayout.canvas};p.designProfile=structuredClone(page.nativeLayout.designProfile)}
+ if([RENDERER_V2,RENDERER_V3].includes(page.nativeLayout.renderer)){p.schemaVersion=page.nativeLayout.renderer===RENDERER_V3?SCHEMA_V3:SCHEMA_V2;p.canvas={...page.nativeLayout.canvas};p.designProfile=structuredClone(page.nativeLayout.designProfile)}
+ if(p.schemaVersion===SCHEMA_V3){
+  for(const k of ['designSpec','compilerVersion','upstreamRevision','rendererCompatibility','validationReceipts'])p[k]=structuredClone(page.nativeLayout[k])
+  p.designProfile.archetypes=p.designProfile.archetypes.filter(a=>a.id===p.layouts[0].archetypeId)
+  const fit=p.layouts[0].contentFitRules,archetype=p.designProfile.archetypes[0]
+  const reduced=archetype.capacity.images!==fit.maxImages||archetype.capacity.bodyPoints!==fit.maxBodyPoints||archetype.capacity.tableRows!==fit.maxTableRows
+  archetype.capacity={images:fit.maxImages,bodyPoints:fit.maxBodyPoints,tableRows:fit.maxTableRows}
+  const system=p.designProfile.designSystem,next={...system,canvas:p.canvas,colors:Object.fromEntries(Object.keys(system.colors).map(k=>[k,p.theme[k]])),typography:Object.fromEntries(Object.keys(system.typography).map(k=>[k,p.theme[k]]))}
+  const changedSystem=packageDigest(system)!==packageDigest(next);p.designProfile.designSystem=next
+  if(reduced||changedSystem){let i=1;while(p.designProfile.evidence.some(e=>e.id==='user-export-'+i))i++;const id='user-export-'+i;p.designProfile.evidence.push({id,provenance:'user'});if(reduced)archetype.evidenceIds.push(id);if(changedSystem)next.evidenceIds.push(id)}
+  p.designSpec.profile=structuredClone(p.designProfile)
+  const graph=p.designSpec.masterLayoutGraph,keep=new Set(graph.filter(n=>n.archetypeId===p.layouts[0].archetypeId).map(n=>n.id))
+  for(const n of graph.filter(n=>keep.has(n.id)))if(n.parentId)keep.add(n.parentId)
+  p.designSpec.masterLayoutGraph=graph.filter(n=>keep.has(n.id))
+ }
  return validatePackage(p)
 }
 export function assertInstanceContent(page,{requireId=true}={}){

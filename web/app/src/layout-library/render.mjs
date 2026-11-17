@@ -1,7 +1,8 @@
 // Pure, shared renderer: the same module is served to the Web UI and used on the server.
 // Only validated declarative tokens/slots enter here. No package-supplied HTML/CSS/JS is executed.
 import {RENDERER_V2,COMPOSITION_CSS,renderCompositionPage,assertCompositionCoverage} from './composition-render.mjs'
-export {RENDERER_V2}
+import {RENDERER_V3,NATIVE_V3_CSS,renderNativeDesignPageV3} from './svg-native-renderer.mjs'
+export {RENDERER_V2,RENDERER_V3}
 export const RENDERER='pre-design-native-html-v1.0'
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
 const color=v=>/^#[0-9a-f]{6}$/i.test(v)?v:'#24364c'
@@ -10,9 +11,11 @@ export const NATIVE_CSS=`
 .layout-native-page{container-type:inline-size;position:relative!important;box-sizing:border-box;width:100%;aspect-ratio:16/9;display:block!important;padding:0!important;border:0!important;overflow:hidden!important;background:var(--ln-bg);color:var(--ln-ink);font-family:var(--ln-font)}
 .layout-native-page *{box-sizing:border-box}.ln-slot{position:absolute;margin:0;overflow:hidden;overflow-wrap:anywhere}.ln-slot h2,.ln-slot p,.ln-slot ul{margin:0}.ln-slot h2{font:inherit;color:var(--ln-accent);line-height:1.2}.ln-title{font-weight:700}.ln-claim{font-weight:500}.ln-body{padding:0}.ln-body ul{padding-left:1.3em}.ln-body li{padding-bottom:.45em;break-inside:avoid}.ln-body[data-kind=columns] ul{columns:2;column-gap:2em}.ln-body[data-kind=focus]{border-left:.16em solid var(--ln-accent);padding-left:1em}.ln-source{color:var(--ln-muted);border-top:1px solid var(--ln-muted);padding-top:.3em;display:flex;justify-content:space-between;gap:1em;line-height:1.3}.ln-image{display:flex;flex-direction:column;gap:.3em}.ln-image img{width:100%;height:calc(100% - 1.7em);object-fit:contain;display:block}.ln-image figcaption{font-size:.75em;color:var(--ln-muted)}.ln-table table{border-collapse:collapse;table-layout:fixed;width:100%;line-height:1.35}.ln-table th,.ln-table td{padding:.35em .5em;text-align:left;vertical-align:top;border-bottom:1px solid var(--ln-muted);overflow-wrap:anywhere}.ln-table th{border-top:3px solid var(--ln-accent);font-weight:700;color:var(--ln-ink);background:transparent}.ln-missing{color:#9c2430;background:#fff1f2;padding:1em}
 ${COMPOSITION_CSS}
+${NATIVE_V3_CSS}
 @media print{.layout-native-page{break-after:page;page-break-after:always;break-inside:avoid}}
 `
 export function renderNativePage(page,spec=page.nativeLayout){
+ if(spec?.renderer===RENDERER_V3)return renderNativeDesignPageV3(page,spec)
  if(spec?.renderer===RENDERER_V2)return renderCompositionPage(page,spec)
  if(!spec||spec.renderer!==RENDERER)throw new Error('LAYOUT_RENDERER_INCOMPATIBLE')
  assertCompositionCoverage(spec.layout,page.item)
