@@ -21,6 +21,8 @@ export PRE_LAYOUT_SCREENSHOTS="$OUT/screens"
 # Only this isolated CI is allowed to use no-sandbox for distro restrictions.
 export PRE_LAYOUT_TEST_NO_SANDBOX=1
 node --check web/app/src/server.mjs
+node --check web/app/src/layout-library/ppt-master-adapter.mjs
+node --test --test-concurrency=1 web/app/tests/layout-ppt-master-vendor.test.mjs web/app/tests/ppt-master-adapter.test.mjs | tee "$OUT/ppt-master-adapter.tap"
 node --check web/worker/layout-reference-runner.mjs
 node --test --test-concurrency=1 web/app/tests/layout-*.test.mjs web/app/tests/research-model-runtime.test.mjs web/app/tests/service-policy.test.mjs | tee "$OUT/layout-postgres.tap"
 node --test --test-concurrency=1 web/app/tests/workflow-contract.test.mjs web/app/tests/workflow-content.test.mjs web/app/tests/workflow-section-pages.test.mjs web/app/tests/material-policy.test.mjs web/app/tests/material-storage.test.mjs web/app/tests/workflow-api.test.mjs web/app/tests/workflow-structured-api.test.mjs web/app/tests/recovery.test.mjs | tee "$OUT/regression.tap"
