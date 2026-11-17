@@ -27,6 +27,7 @@ node --check web/worker/layout-reference-runner.mjs
 node --test web/app/tests/native-design-renderer.browser.mjs | tee "$OUT/native-v3-browser.tap"
 node --test --test-concurrency=1 web/app/tests/layout-*.test.mjs web/app/tests/native-*.test.mjs web/app/tests/ppt-master-quality.test.mjs web/app/tests/workflow-visual-native-v3.test.mjs web/app/tests/research-model-runtime.test.mjs web/app/tests/service-policy.test.mjs | tee "$OUT/layout-postgres.tap"
 node --test --test-concurrency=1 web/app/tests/workflow-contract.test.mjs web/app/tests/workflow-content.test.mjs web/app/tests/workflow-section-pages.test.mjs web/app/tests/material-policy.test.mjs web/app/tests/material-storage.test.mjs web/app/tests/workflow-api.test.mjs web/app/tests/workflow-structured-api.test.mjs web/app/tests/recovery.test.mjs | tee "$OUT/regression.tap"
+node --test --test-concurrency=1 web/app/tests/*.test.mjs | tee "$OUT/full-web-regression.tap"
 node --test --test-concurrency=1 web/app/tests/layout-library-composition.browser.mjs | tee "$OUT/composition-browser.tap"
 PRE_WEB_BUILD_DIR="$OUT/dist" node web/app/build-prototype.mjs | tee "$OUT/build.log"
 PRE_WEB_BUILD_DIR="$OUT/dist" PRE_LAYOUT_SCREENSHOTS="$OUT/screens-postgres" node web/app/tests/layout-library-ui.browser.mjs | tee "$OUT/ui-postgres.json" "$OUT/ui.json"

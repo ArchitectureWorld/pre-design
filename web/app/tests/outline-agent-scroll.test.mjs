@@ -2,10 +2,11 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {readFile} from 'node:fs/promises'
 import {chromium} from '@playwright/test'
+import {resolveBrowserExecutable} from '../../../src/report/browser-executable.ts'
 
 test('隐藏时首次挂载的对话在显示后定位最新，主动翻阅与底部跟随分别保留',async()=>{
  const source=await readFile(new URL('../src/outline-agent.js',import.meta.url),'utf8')
- const browser=await chromium.launch({executablePath:'/home/zetta/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome',args:['--no-proxy-server']})
+ const browser=await chromium.launch({executablePath:resolveBrowserExecutable(),chromiumSandbox:process.env.PRE_LAYOUT_TEST_NO_SANDBOX!=='1',args:['--no-proxy-server']})
  const page=await browser.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message))
  try{
   await page.setContent('<style>#stage[hidden]{display:none}.outline-agent-history{height:70px;overflow:auto}.outline-agent-message{min-height:30px}.outline-agent-message p{margin:0}</style><section id="stage" hidden><div id="bottom"><div id="consultComposer"><input id="input"><button id="send">发送</button></div></div></section>')
