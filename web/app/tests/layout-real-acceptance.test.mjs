@@ -15,3 +15,9 @@ test('acceptance disables provider retries only in the private runtime copy',asy
  const original={model:{providers:{known:{baseURL:'https://example.test',retryPolicy:{mode:'always'},models:[]}},env:{secret:'private'}},search:{}}
  const capped=boundedModelRuntime(original);assert.deepEqual(capped.model.providers.known.retryPolicy,{mode:'normal',maxRetries:0});assert.equal(original.model.providers.known.retryPolicy.mode,'always');assert.deepEqual(capped.model.env,original.model.env)
 })
+test('selected PDF pages retain original identity and exclude unselected images and text',()=>{
+ const parsed={kind:'pdf',pageCount:87,readPages:[1,5,13],text:'whole-document-private',summary:'whole summary',images:[1,5,13].map(page=>({page,data:Buffer.from(String(page))})),pages:[1,5,13].map(page=>({page,text:`page-${page}`})),limitations:[]}
+ const x=referenceInput({filename:'reference.pdf',bytes:Buffer.from('original'),parsed,selectedPages:[5,13]})
+ assert.deepEqual(x.images.map(p=>p.page),[5,13]);assert.deepEqual(x.file.readPages,[5,13]);assert.equal(x.file.pageCount,87);assert.equal(x.file.text,'');assert.deepEqual(x.file.pages.map(p=>p.page),[5,13]);assert.match(x.file.summary,/5, 13/);assert.equal(parsed.text,'whole-document-private')
+ for(const selectedPages of [[],[5,5],[88],[1.5]])assert.throws(()=>referenceInput({filename:'reference.pdf',bytes:Buffer.from('original'),parsed,selectedPages}))
+})

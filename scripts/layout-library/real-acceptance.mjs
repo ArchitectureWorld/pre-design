@@ -15,7 +15,12 @@ export function boundedModelRuntime(runtime){
  for(const provider of Object.values(value.model.providers))provider.retryPolicy={mode:'normal',maxRetries:0}
  return value
 }
-export function referenceInput({filename,bytes,parsed}){
+export function referenceInput({filename,bytes,parsed,selectedPages}){
+ if(selectedPages!==undefined){
+  if(parsed.kind!=='pdf'||!Array.isArray(selectedPages)||!selectedPages.length||selectedPages.length>6||new Set(selectedPages).size!==selectedPages.length||selectedPages.some(n=>!Number.isSafeInteger(n)||n<1||n>parsed.pageCount||!parsed.images?.some(image=>image.page===n)))throw Error('INVALID_SELECTED_PDF_PAGES')
+  const selected=new Set(selectedPages),readPages=[...selectedPages].sort((a,b)=>a-b)
+  parsed={...parsed,text:'',images:parsed.images.filter(image=>selected.has(image.page)),pages:(parsed.pages??[]).filter(page=>selected.has(page.page??page.pageNumber)),readPages,privateArtifacts:[],summary:`PDF 共 ${parsed.pageCount} 页；本次仅分析原页 ${readPages.join(', ')}。`,limitations:[...(parsed.limitations??[]),`本次只选取原页 ${readPages.join(', ')}；其他页面未送入模型，不代表整份文档版式覆盖。`]}
+ }
  const id=randomUUID(),artifacts=new Map((parsed.privateArtifacts??[]).map(a=>[a.path,a]))
  const {images:raw=[],privateArtifacts=[],...document}=parsed
  const file={...document,id,name:filename,sha256:digest(bytes),bytes:bytes.length,hasImages:raw.length>0,imageCount:raw.length,privateArtifacts:privateArtifacts.map(({data,...a})=>a)}
@@ -45,7 +50,7 @@ export async function runAcceptance(manifestPath){
    if(typeof c.file!=='string'||!c.file.startsWith('/'))throw Error('ABSOLUTE_REFERENCE_REQUIRED')
    const info=await stat(c.file);if(!info.isFile()||info.size>100*1024*1024)throw Error('REFERENCE_LIMIT')
    const bytes=await readFile(c.file),filename=basename(c.file),parsed=await extractReferenceDocument({bytes,filename,signal:controller.signal})
-   const source=referenceInput({filename,bytes,parsed});record.sourceKind=parsed.kind;record.sourceSha256=source.file.sha256
+   const source=referenceInput({filename,bytes,parsed,selectedPages:c.selectedPages});record.selectedPages=c.selectedPages??null;record.sourceKind=parsed.kind;record.sourceSha256=source.file.sha256
    const result=await runReferenceWorkflow({jobId:randomUUID(),payload:{name:'真实参考验收候选',text:c.request??'提炼参考设计，保留真实设计关系并用于实际内容试排。',referenceIntent:c.intent??'style',referenceScope:c.scope??'deck',referenceFidelity:c.fidelity??'standard',referencePipeline:'native-v3',referenceFiles:[source.file]},images:source.images,policy,skill,signal:controller.signal,
     loadArtifact:async ref=>{if(ref.sourceId!==source.file.id)throw Error('ARTIFACT_OWNER_MISMATCH');const a=source.artifacts.get(ref.path);if(!a||a.sha256!==ref.sha256)throw Error('ARTIFACT_HASH_MISMATCH');return a},
     runModel:async input=>{if(modelCalls>=maxCalls)throw Object.assign(Error('ACCEPTANCE_CALL_BUDGET'),{code:'ACCEPTANCE_CALL_BUDGET'});modelCalls++;record.modelCalls++;console.log(JSON.stringify({case:i+1,stage:input.stage,modelCalls}));try{const value=await workers.runLayoutReference(input);record.actualRequests+=(value.execution?.parent?.requests??[]).length;return value}catch(error){record.actualRequests+=(error.execution?.parent?.requests??[]).length;throw error}}})
