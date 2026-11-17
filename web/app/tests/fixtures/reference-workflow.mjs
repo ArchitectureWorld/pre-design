@@ -42,7 +42,9 @@ export function referenceStageFixture(input){
   response=profileFixture({page:observed?.pageNumber??page?.pageNumber??null,provenance:observed?'observed':'extracted',factId:observed?.facts[0].id??page?.extractedFacts[0]?.id??file.extractedFacts[0].id})
   response.intent=context.intent;response.evidence[0].fileSha256=file.sha256;response.archetypes[0].pageType=observed?.pageType??'mixed'
   const canvas=page?.extractedFacts.find(f=>f.property==='canvas')?.value
-  if(canvas){const scale=Math.max(1,240/Math.min(canvas.width,canvas.height));response.designSystem.canvas={width:Math.round(canvas.width*scale),height:Math.round(canvas.height*scale)}}
+  // Fixture typography and capacities are authored on a 1600×900 presentation baseline.
+  // Preserve source aspect ratio, not tiny raster pixel dimensions; extraction facts stay untouched.
+  if(canvas){const scale=Math.max(1,1600/canvas.width,900/canvas.height);response.designSystem.canvas={width:Math.round(canvas.width*scale),height:Math.round(canvas.height*scale)}}
  }else if(input.stage==='design-spec'){
   const profile=context.profile
   response={schemaVersion:'pre-design.design-spec.v1',scope:context.scope,fidelity:context.fidelity,profile,masterLayoutGraph:[{id:'master-1',kind:'master',parentId:null,evidenceIds:profile.designSystem.evidenceIds},...profile.archetypes.map((a,i)=>({id:'layout-'+(i+1),kind:'layout',parentId:'master-1',archetypeId:a.id,evidenceIds:a.evidenceIds}))],components:[]}
