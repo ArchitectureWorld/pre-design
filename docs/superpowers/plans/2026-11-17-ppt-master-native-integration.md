@@ -41,10 +41,10 @@
 - Modify: docs/superpowers/plans/2026-11-16-v14-reference-design-v2.md (historical branch notice)
 - Modify: docs/reviews/v14-reference-design-v2/README.md (historical review notice)
 
-- [ ] 先写冲突审计测试，断言上述旧文件明确标注 superseded/historical，AGENTS 指向权威原则。
-- [ ] 运行文档契约测试，确认其按当前基线失败。
-- [ ] 写入架构原则和冲突审计，更新旧文档提示，不删除历史证据。
-- [ ] 运行文档契约测试，确认通过。
+- [x] 已核对历史规格、计划、Claude评审入口均标注 historical/superseded；AGENTS 指向权威原则。
+- [x] 通过当前仓库文件、提交历史与实现逐项对照，建立冲突审计表。
+- [x] 架构原则与历史文档提示已在 7ef49ac 提交；当前实现复核追加于 43e5733。
+- [x] 架构文档、AGENTS、旧规格提示和当前实现审计均已远端回读。
 
 ### Task 2: Vendor 完整上游工具链
 
@@ -54,10 +54,10 @@
 - Modify: web/app/src/layout-library/vendor/ppt_master/README.md
 - Test: web/app/tests/ppt-master-vendor.test.mjs
 
-- [ ] 测试固定 revision、必需工具文件、Attribution Guard、License、禁止AGPL依赖。
-- [ ] 验证上游文件哈希与固定 Git Blob SHA 一致。
-- [ ] 原样 vendor 依赖闭包，保留完整路径和守卫；不把它放进 DSH 自动发现目录。
-- [ ] 运行上游 attribution_guard.py 和版本/哈希测试。
+- [x] layout-ppt-master-vendor.test.mjs 覆盖固定 revision、必需文件、Attribution Guard、MIT与AGPL排除。
+- [x] UPSTREAM.json 逐文件 SHA/字节校验由 vendor 测试执行；CI 已通过。
+- [x] 215 个必要上游文件已按原路径 vendor，保留守卫与许可证，不在 DSH 自动发现目录。
+- [x] CI 运行 Attribution Guard 与逐文件哈希检查通过。
 
 ### Task 3: Pre-design 内部 PPT Master Adapter
 
