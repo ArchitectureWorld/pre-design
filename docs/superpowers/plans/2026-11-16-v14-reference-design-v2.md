@@ -1,3 +1,5 @@
+> **历史执行计划（2026-11-17）：** 本计划已完成并留下独立评审分支记录。后续开发目标已由用户明确改为现有 codex/web-v210，不能继续以 codex/v14-reference-design-v2 作为开发目标。新实施以 docs/superpowers/plans/2026-11-17-ppt-master-native-integration.md 为准。
+
 # V14 Reference Design V2 Implementation Plan
 
 > **For agentic workers:** Use superpowers:subagent-driven-development or executing-plans; tasks have separate file ownership and shared interface coordination.

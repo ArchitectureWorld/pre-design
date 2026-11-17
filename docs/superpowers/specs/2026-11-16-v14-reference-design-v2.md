@@ -1,3 +1,5 @@
+> **历史规格说明（2026-11-17）：** 本规格记录 V14 Reference Design V2 的已交付实现。其 V2 composition package、仅 HTML renderer 和“PPT Master 纯模块子集”是当时版本的事实，不再作为后续架构上限。新开发与冲突裁决遵循 docs/architecture/REFERENCE_DESIGN_INTEGRATION.md 和 docs/superpowers/specs/2026-11-17-ppt-master-native-integration.md。V1/V2 继续向后兼容，不批量迁移。
+
 # V14 参考设计理解与迁移 V2
 
 ## 授权与目标

@@ -1,3 +1,5 @@
+> **历史评审记录：** 本目录评审的是 V14 Reference Design V2 的原始实现及其独立评审分支，记录仍有效但不代表当前架构。后续开发和部署请以 codex/web-v210 及 docs/architecture/REFERENCE_DESIGN_INTEGRATION.md 为准。
+
 # V14 参考设计理解与迁移 V2：Claude 评审入口
 
 ## 1. 评审范围与当前状态
