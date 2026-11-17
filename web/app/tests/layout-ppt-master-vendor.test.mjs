@@ -27,7 +27,7 @@ test('PPT Master is vendored as a complete pinned internal engine, not a standal
  }
  assert.equal(manifest.integration.userFacingEntryPoint,'Pre-design V14')
  assert.equal(manifest.integration.independentSkillRegistration,false)
- assert.ok(manifest.excludedDependencies.includes('PyMuPDF (AGPL-3.0)'))
+ assert.ok(manifest.excludedDependencies.some(value=>value.includes('PyMuPDF (AGPL-3.0)')))
 })
 
 test('upstream attribution guard remains intact and executable',()=>{
