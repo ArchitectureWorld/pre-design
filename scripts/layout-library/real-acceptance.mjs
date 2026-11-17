@@ -4,6 +4,11 @@ import {createHash,randomUUID} from 'node:crypto'
 import {basename,resolve,join} from 'node:path'
 import {pathToFileURL} from 'node:url'
 import {privateCheckpointStore} from './private-checkpoints.mjs'
+import {validateStageOutputLimits} from '../../web/app/src/layout-library/reference-stage-policy.mjs'
+export function acceptanceWorkflowOptions(c){
+ validateStageOutputLimits(c.stageOutputTokenLimits)
+ return {payload:{...(c.referenceWorkflowVersion!==undefined?{referenceWorkflowVersion:c.referenceWorkflowVersion}:{}),...(c.prototypeContractVersions!==undefined?{prototypeContractVersions:c.prototypeContractVersions}:{})},stageOutputTokenLimits:c.stageOutputTokenLimits}
+}
 const digest=x=>createHash('sha256').update(x).digest('hex')
 export function acceptanceSummary(results){
  const attempts=results.length,passed=results.filter(r=>r.passed===true).length,p=attempts?passed/attempts:null,z=1.959963984540054
@@ -28,6 +33,26 @@ export function referenceInput({filename,bytes,parsed,selectedPages}){
  const images=raw.map(image=>({...image,fileId:id,name:filename,data:image.data.toString('base64'),sha256:digest(image.data)}))
  return {file,images,artifacts}
 }
+export async function extractAcceptanceDocument({extract,bytes,filename,signal,fullDocument=false}){
+ const parsed=await extract({bytes,filename,signal})
+ if(!fullDocument)return parsed
+ if(!['pdf','pptx'].includes(parsed.kind)||!Number.isSafeInteger(parsed.pageCount)||parsed.pageCount<1||parsed.pageCount>300)throw Error('FULL_REFERENCE_LIMIT')
+ const images=new Map(parsed.images.map(image=>[image.page,image])),pages=new Map((parsed.pages??[]).map(page=>[page.page??page.pageNumber,page]))
+ const checkBudget=()=>{if([...images.values()].reduce((n,image)=>n+image.data.length,0)>200*1024*1024)throw Error('FULL_REFERENCE_IMAGE_BYTES_LIMIT')}
+ checkBudget()
+ for(let start=1;start<=parsed.pageCount;start+=30){
+  signal?.throwIfAborted()
+  const expected=Array.from({length:Math.min(30,parsed.pageCount-start+1)},(_,i)=>start+i)
+  if(expected.every(page=>images.has(page)))continue
+  const batch=await extract({bytes,filename,signal,...(parsed.kind==='pdf'?{pdfStartPage:start}:{pptxStartPage:start})})
+  if(batch.kind!==parsed.kind||batch.pageCount!==parsed.pageCount||JSON.stringify(batch.readPages)!==JSON.stringify(expected)||batch.sourceSha256&&batch.sourceSha256!==digest(bytes))throw Error('FULL_REFERENCE_RANGE_CHANGED')
+  for(const image of batch.images){if(!expected.includes(image.page))throw Error('FULL_REFERENCE_RANGE_CHANGED');images.set(image.page,image)}
+  for(const page of batch.pages??[])pages.set(page.page??page.pageNumber,page)
+  if(!expected.every(page=>images.has(page)&&pages.has(page)))throw Error('FULL_REFERENCE_PAGE_MISSING')
+  checkBudget()
+ }
+ return {...parsed,text:'',images:[...images.values()].sort((a,b)=>a.page-b.page),pages:[...pages.values()].sort((a,b)=>(a.page??a.pageNumber)-(b.page??b.pageNumber)),readPages:[...images.keys()].sort((a,b)=>a-b),summary:`完整参考共 ${parsed.pageCount} 页，原页预览已全部提取；模型观察和设计综合独立核验。`,limitations:[...(parsed.limitations??[]),'原先批次/抽样说明为提取历史；当前已提取全部原页，不等于已完成模型综合或视觉验收。']}
+}
 export async function runAcceptance(manifestPath){
  const m=JSON.parse(await readFile(manifestPath,'utf8'))
  if(m.allowRealModelCalls!==true||!Array.isArray(m.cases)||!m.cases.length||m.cases.length>12)throw Error('EXPLICIT_REAL_ACCEPTANCE_MANIFEST_REQUIRED')
@@ -51,9 +76,11 @@ export async function runAcceptance(manifestPath){
   try{
    if(typeof c.file!=='string'||!c.file.startsWith('/'))throw Error('ABSOLUTE_REFERENCE_REQUIRED')
    const info=await stat(c.file);if(!info.isFile()||info.size>100*1024*1024)throw Error('REFERENCE_LIMIT')
-   const bytes=await readFile(c.file),filename=basename(c.file),parsed=await extractReferenceDocument({bytes,filename,signal:controller.signal})
-   const source=referenceInput({filename,bytes,parsed,selectedPages:c.selectedPages});record.selectedPages=c.selectedPages??null;record.sourceKind=parsed.kind;record.sourceSha256=source.file.sha256
-   const result=await runReferenceWorkflow({jobId:randomUUID(),payload:{name:'真实参考验收候选',text:c.request??'提炼参考设计，保留真实设计关系并用于实际内容试排。',referenceIntent:c.intent??'style',referenceScope:c.scope??'deck',referenceFidelity:c.fidelity??'standard',referencePipeline:'native-v3',referenceFiles:[source.file]},images:source.images,policy,skill,signal:controller.signal,stageCheckpoints,
+   if(c.fullDocument&&c.selectedPages)throw Error('CONFLICTING_REFERENCE_SCOPE')
+   const bytes=await readFile(c.file),filename=basename(c.file),parsed=await extractAcceptanceDocument({extract:extractReferenceDocument,bytes,filename,signal:controller.signal,fullDocument:c.fullDocument===true})
+   const options=acceptanceWorkflowOptions(c);record.workflowOptions=structuredClone(options);
+   const source=referenceInput({filename,bytes,parsed,selectedPages:c.selectedPages});record.selectedPages=c.selectedPages??null;record.sourceKind=parsed.kind;record.sourceSha256=source.file.sha256;record.extractionCoverage={totalPages:source.file.pageCount??null,readPages:source.file.readPages??[]}
+   const result=await runReferenceWorkflow({jobId:randomUUID(),payload:{...options.payload,name:'真实参考验收候选',text:c.request??'提炼参考设计，保留真实设计关系并用于实际内容试排。',referenceIntent:c.intent??'style',referenceScope:c.scope??'deck',referenceFidelity:c.fidelity??'standard',referencePipeline:'native-v3',referenceFiles:[source.file]},images:source.images,policy,skill,signal:controller.signal,stageCheckpoints,stageOutputTokenLimits:options.stageOutputTokenLimits,
     loadArtifact:async ref=>{if(ref.sourceId!==source.file.id)throw Error('ARTIFACT_OWNER_MISMATCH');const a=source.artifacts.get(ref.path);if(!a||a.sha256!==ref.sha256)throw Error('ARTIFACT_HASH_MISMATCH');return a},
     runModel:async input=>{if(modelCalls>=maxCalls)throw Object.assign(Error('ACCEPTANCE_CALL_BUDGET'),{code:'ACCEPTANCE_CALL_BUDGET'});modelCalls++;record.modelCalls++;console.log(JSON.stringify({case:i+1,stage:input.stage,modelCalls}));try{const value=await workers.runLayoutReference(input);record.actualRequests+=(value.execution?.parent?.requests??[]).length;return value}catch(error){record.actualRequests+=(error.execution?.parent?.requests??[]).length;throw error}}})
    record.stages=result.execution.stages.map(s=>({stage:s.stage,status:s.status,actualRoute:s.execution?.actualRoute??null,modelInvoked:s.modelInvoked!==false,reused:s.reused===true}))

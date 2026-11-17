@@ -28,3 +28,17 @@ test('private checkpoint files are atomic, non-overwriting and readable only fro
  assert.equal(await store.get(key),undefined);await store.put(key,record);assert.deepEqual(await store.get(key),record)
  await store.put(key,record);await assert.rejects(store.put(key,{key,recordHash:'two'}));await assert.rejects(store.get('../source'))
 })
+test('full acceptance reads bounded original ranges and keeps all 87 page identities',async()=>{
+ const {extractAcceptanceDocument}=await import('../../../scripts/layout-library/real-acceptance.mjs'),starts=[],bytes=Buffer.from('source')
+ const extract=async({pdfStartPage=1,bytes:actual})=>{assert.equal(actual,bytes);starts.push(pdfStartPage);const readPages=Array.from({length:Math.min(30,88-pdfStartPage)},(_,i)=>pdfStartPage+i);return {kind:'pdf',pageCount:87,readPages,images:readPages.map(page=>({page,data:Buffer.from('page '+page)})),pages:readPages.map(page=>({page,text:'page '+page})),limitations:[]}}
+ const parsed=await extractAcceptanceDocument({extract,bytes,filename:'reference.pdf',fullDocument:true})
+ assert.deepEqual(starts,[1,31,61]);assert.equal(parsed.images.length,87);assert.equal(parsed.images.at(-1).page,87);assert.equal(parsed.pages.at(-1).text,'page 87');assert.equal(parsed.text,'')
+})
+
+test('recovery options preserve explicit stage versions and scoped caps',async()=>{
+ const {acceptanceWorkflowOptions}=await import('../../../scripts/layout-library/real-acceptance.mjs')
+ const c={referenceWorkflowVersion:1,prototypeContractVersions:{a:'legacy-image-v1'},stageOutputTokenLimits:{'prototype-3':8192}}
+ assert.deepEqual(acceptanceWorkflowOptions(c),{payload:{referenceWorkflowVersion:1,prototypeContractVersions:{a:'legacy-image-v1'}},stageOutputTokenLimits:{'prototype-3':8192}})
+ assert.deepEqual(acceptanceWorkflowOptions({}),{payload:{},stageOutputTokenLimits:undefined})
+ assert.throws(()=>acceptanceWorkflowOptions({stageOutputTokenLimits:{oops:1}}),/REFERENCE_STAGE_LIMIT_INVALID/)
+})
