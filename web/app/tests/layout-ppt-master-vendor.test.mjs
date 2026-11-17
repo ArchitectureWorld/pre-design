@@ -15,7 +15,7 @@ test('PPT Master is vendored as a complete pinned internal engine, not a standal
  assert.equal(manifest.repository,'https://github.com/hugohe3/ppt-master')
  assert.equal(manifest.revision,'3af3e8ef774c4d67ee57e1306d9256d08c9ee1bf')
  assert.equal(manifest.license,'MIT')
- assert.ok(manifest.files.length>=447,'the complete upstream scripts tree must be present')
+ assert.ok(manifest.files.length>=235,'the complete upstream scripts tree must be present')
  for(const item of manifest.files){
   const path=join(vendor,item.path)
   const bytes=await readFile(path)

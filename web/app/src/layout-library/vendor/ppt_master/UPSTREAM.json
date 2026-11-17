@@ -1,39 +1,1451 @@
 {
+  "schemaVersion": "pre-design.ppt-master-vendor.v1",
   "repository": "https://github.com/hugohe3/ppt-master",
   "revision": "3af3e8ef774c4d67ee57e1306d9256d08c9ee1bf",
+  "release": "6.9.0",
   "license": "MIT",
   "copyright": "Copyright (c) 2025-2026 Hugo He",
-  "retrievedAt": "2026-11-16",
-  "scope": "Unmodified pure Python library modules only. Upstream CLI/Skill workflow and its attribution guards are not included or called.",
+  "integration": {
+    "userFacingEntryPoint": "Pre-design V14",
+    "independentSkillRegistration": false,
+    "independentTaskStore": false,
+    "independentResourceLibrary": false,
+    "execution": "internal adapter under existing Web/DSH job, identity and permission model"
+  },
+  "scriptsDependencyClosure": {
+    "fileCount": 215,
+    "scope": [
+      "root import/guard tools",
+      "pptx_ooxml",
+      "pptx_shapes",
+      "pptx_to_svg",
+      "project_management",
+      "svg_quality",
+      "svg_to_pptx",
+      "template_import",
+      "svg_finalize"
+    ],
+    "excludedUnrelatedFeatures": [
+      "image backends",
+      "web search",
+      "standalone SVG editor UI",
+      "confirm UI",
+      "TTS",
+      "unrelated tests and fixtures"
+    ]
+  },
+  "excludedDependencies": [
+    "PyMuPDF (AGPL-3.0); PDF remains on Pre-design Poppler pipeline"
+  ],
   "files": [
     {
-      "path": "pptx_to_svg/__init__.py",
+      "path": "scripts/analyze_images.py",
+      "upstreamPath": "skills/ppt-master/scripts/analyze_images.py",
+      "bytes": 16924,
+      "gitBlobSha": "d058cb950588459a983c59e74da5f170d470cf08"
+    },
+    {
+      "path": "scripts/animation_config.py",
+      "upstreamPath": "skills/ppt-master/scripts/animation_config.py",
+      "bytes": 5542,
+      "gitBlobSha": "ecbb2154d088ceeb4e3f4f69b948a3aa22c4f8e5"
+    },
+    {
+      "path": "scripts/apply_template.py",
+      "upstreamPath": "skills/ppt-master/scripts/apply_template.py",
+      "bytes": 26896,
+      "gitBlobSha": "0a793eff1ed00fb7f4aa3b6298fef77e46405cfb"
+    },
+    {
+      "path": "scripts/attribution_guard.py",
+      "upstreamPath": "skills/ppt-master/scripts/attribution_guard.py",
+      "bytes": 7652,
+      "gitBlobSha": "35c3313165a7f94d1f0d005c137afd2b9bfe26f2"
+    },
+    {
+      "path": "scripts/authoring_roundtrip.py",
+      "upstreamPath": "skills/ppt-master/scripts/authoring_roundtrip.py",
+      "bytes": 93345,
+      "gitBlobSha": "d4b9276e4fdb0b4795406767d35784379b006f88"
+    },
+    {
+      "path": "scripts/batch_validate.py",
+      "upstreamPath": "skills/ppt-master/scripts/batch_validate.py",
+      "bytes": 10790,
+      "gitBlobSha": "72f65b8a35726f0cf142079abcd2992b72bb72a9"
+    },
+    {
+      "path": "scripts/beautify_identity.py",
+      "upstreamPath": "skills/ppt-master/scripts/beautify_identity.py",
+      "bytes": 12314,
+      "gitBlobSha": "6192874e08a40ba851ca03056eaf8ab876b03f23"
+    },
+    {
+      "path": "scripts/beautify_inventory.py",
+      "upstreamPath": "skills/ppt-master/scripts/beautify_inventory.py",
+      "bytes": 18337,
+      "gitBlobSha": "0f26e5517b7c396fd02433b6dd44a91d6f570b00"
+    },
+    {
+      "path": "scripts/chart_recall.py",
+      "upstreamPath": "skills/ppt-master/scripts/chart_recall.py",
+      "bytes": 853,
+      "gitBlobSha": "74b7fd694e2284a76b65a262c654ed7393097ef2"
+    },
+    {
+      "path": "scripts/check_annotations.py",
+      "upstreamPath": "skills/ppt-master/scripts/check_annotations.py",
+      "bytes": 4753,
+      "gitBlobSha": "fca2496b21d9dbe85c6ab23c349343f767cf7b94"
+    },
+    {
+      "path": "scripts/check_spec_annotations.py",
+      "upstreamPath": "skills/ppt-master/scripts/check_spec_annotations.py",
+      "bytes": 2067,
+      "gitBlobSha": "c372a09f5d14bcaae0e3c1ebfce63925a8418dd3"
+    },
+    {
+      "path": "scripts/compact_svg_coordinates.py",
+      "upstreamPath": "skills/ppt-master/scripts/compact_svg_coordinates.py",
+      "bytes": 10579,
+      "gitBlobSha": "aea347ffbfbaf620f51ac7d7acdb06ef5e038288"
+    },
+    {
+      "path": "scripts/compact_svg_styles.py",
+      "upstreamPath": "skills/ppt-master/scripts/compact_svg_styles.py",
+      "bytes": 20268,
+      "gitBlobSha": "edf4dd004732ded5e60672ad8135281bde55729a"
+    },
+    {
+      "path": "scripts/config.py",
+      "upstreamPath": "skills/ppt-master/scripts/config.py",
+      "bytes": 20089,
+      "gitBlobSha": "b539a7eaa41faa927a5c49c9e6236357e7701d6e"
+    },
+    {
+      "path": "scripts/console_encoding.py",
+      "upstreamPath": "skills/ppt-master/scripts/console_encoding.py",
+      "bytes": 3053,
+      "gitBlobSha": "8970f24dc44f38d20f6a282a1ade383266855687"
+    },
+    {
+      "path": "scripts/error_helper.py",
+      "upstreamPath": "skills/ppt-master/scripts/error_helper.py",
+      "bytes": 16735,
+      "gitBlobSha": "be7c1f5733d7b5de8dd5e0414f64b0150224fe1a"
+    },
+    {
+      "path": "scripts/extract_svg_assets.py",
+      "upstreamPath": "skills/ppt-master/scripts/extract_svg_assets.py",
+      "bytes": 44968,
+      "gitBlobSha": "58706f546df7e37fc50409c5177b4aa37f90ae8a"
+    },
+    {
+      "path": "scripts/extract_svg_pictures.py",
+      "upstreamPath": "skills/ppt-master/scripts/extract_svg_pictures.py",
+      "bytes": 34553,
+      "gitBlobSha": "1555764d172bc414b8df5cc5373bc52cbca35e30"
+    },
+    {
+      "path": "scripts/finalize_svg.py",
+      "upstreamPath": "skills/ppt-master/scripts/finalize_svg.py",
+      "bytes": 18344,
+      "gitBlobSha": "3f16062f0387896060d0a97606d22d6b6dd351d1"
+    },
+    {
+      "path": "scripts/gemini_watermark_remover.py",
+      "upstreamPath": "skills/ppt-master/scripts/gemini_watermark_remover.py",
+      "bytes": 6966,
+      "gitBlobSha": "c1bc72b027a3d637ecc3a7cd21a14dbfd8862553"
+    },
+    {
+      "path": "scripts/generate_examples_index.py",
+      "upstreamPath": "skills/ppt-master/scripts/generate_examples_index.py",
+      "bytes": 9658,
+      "gitBlobSha": "2012adcc91d9a4c0d9d793bbda71ee8c58075552"
+    },
+    {
+      "path": "scripts/hyperlink_contract.py",
+      "upstreamPath": "skills/ppt-master/scripts/hyperlink_contract.py",
+      "bytes": 13681,
+      "gitBlobSha": "2400ad0b580459a8ad59f7f97e740c7a5b9a6dd3"
+    },
+    {
+      "path": "scripts/icon_sync.py",
+      "upstreamPath": "skills/ppt-master/scripts/icon_sync.py",
+      "bytes": 4910,
+      "gitBlobSha": "b7ee0b4e0779c664bf2f4c5aea85d66445a0a523"
+    },
+    {
+      "path": "scripts/image_gen.py",
+      "upstreamPath": "skills/ppt-master/scripts/image_gen.py",
+      "bytes": 57708,
+      "gitBlobSha": "0a0428a648ba6806e58911d666190142c7e56a1f"
+    },
+    {
+      "path": "scripts/image_layers.py",
+      "upstreamPath": "skills/ppt-master/scripts/image_layers.py",
+      "bytes": 12171,
+      "gitBlobSha": "c0f86a9051e9cd7608be8e2d572e6f588a4e5c0b"
+    },
+    {
+      "path": "scripts/image_normalization.py",
+      "upstreamPath": "skills/ppt-master/scripts/image_normalization.py",
+      "bytes": 1630,
+      "gitBlobSha": "1afcba265e5ec80ef172aa3d86f4bcc03a786e88"
+    },
+    {
+      "path": "scripts/image_ocr.py",
+      "upstreamPath": "skills/ppt-master/scripts/image_ocr.py",
+      "bytes": 21888,
+      "gitBlobSha": "0df5792c4fba7ce62fd6fb01c805bf2edacc36f4"
+    },
+    {
+      "path": "scripts/image_search.py",
+      "upstreamPath": "skills/ppt-master/scripts/image_search.py",
+      "bytes": 106557,
+      "gitBlobSha": "5f13c056579d36d8f0d2e09c4ff90734ceed97e3"
+    },
+    {
+      "path": "scripts/image_treat.py",
+      "upstreamPath": "skills/ppt-master/scripts/image_treat.py",
+      "bytes": 22392,
+      "gitBlobSha": "88571f138362f948be9e3eb93bed61c9aad8ed32"
+    },
+    {
+      "path": "scripts/language_tags.py",
+      "upstreamPath": "skills/ppt-master/scripts/language_tags.py",
+      "bytes": 8437,
+      "gitBlobSha": "29c101655bb08543c770726d4e50a1209f393bee"
+    },
+    {
+      "path": "scripts/latex_render.py",
+      "upstreamPath": "skills/ppt-master/scripts/latex_render.py",
+      "bytes": 20534,
+      "gitBlobSha": "1ae4f9ac90ef2544f115032e8e67e5b948dd11c3"
+    },
+    {
+      "path": "scripts/mirror_template_materialize.py",
+      "upstreamPath": "skills/ppt-master/scripts/mirror_template_materialize.py",
+      "bytes": 135086,
+      "gitBlobSha": "8f4e325cbcebf53409223142b3136cd51254c9af"
+    },
+    {
+      "path": "scripts/narration_sync.py",
+      "upstreamPath": "skills/ppt-master/scripts/narration_sync.py",
+      "bytes": 77133,
+      "gitBlobSha": "439767504e02fbbd7b55a448e1a22ba17a314b96"
+    },
+    {
+      "path": "scripts/native_payloads.py",
+      "upstreamPath": "skills/ppt-master/scripts/native_payloads.py",
+      "bytes": 24870,
+      "gitBlobSha": "a68c94f72aba4229f291162ea8b060445ac9582c"
+    },
+    {
+      "path": "scripts/notes_to_audio.py",
+      "upstreamPath": "skills/ppt-master/scripts/notes_to_audio.py",
+      "bytes": 38734,
+      "gitBlobSha": "5b78f1e1142869241dcda475ecb94e98208de62e"
+    },
+    {
+      "path": "scripts/page_context.py",
+      "upstreamPath": "skills/ppt-master/scripts/page_context.py",
+      "bytes": 1235,
+      "gitBlobSha": "55b2689fd26cb9f60eee3bd03aa2590c7041ad4e"
+    },
+    {
+      "path": "scripts/powerpoint_video.py",
+      "upstreamPath": "skills/ppt-master/scripts/powerpoint_video.py",
+      "bytes": 11849,
+      "gitBlobSha": "f5991dde821d702af2ed74121f01d739e1c18b2d"
+    },
+    {
+      "path": "scripts/pptx_animation_presets.json",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_animation_presets.json",
+      "bytes": 572130,
+      "gitBlobSha": "87489309c192f1e0696bfb4d372cbd37dbc8820a"
+    },
+    {
+      "path": "scripts/pptx_animations.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_animations.py",
+      "bytes": 139139,
+      "gitBlobSha": "a264853705b780e0c5e1078b6cf3c1e499a45d68"
+    },
+    {
+      "path": "scripts/pptx_delivery_check.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_delivery_check.py",
+      "bytes": 41878,
+      "gitBlobSha": "76e0dd50b90b06b567367ada0b9e0adf44db5177"
+    },
+    {
+      "path": "scripts/pptx_effects.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_effects.py",
+      "bytes": 8488,
+      "gitBlobSha": "e9200e2ef1c33f9986de8928df56e91e178cb14c"
+    },
+    {
+      "path": "scripts/pptx_embedded_fonts.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_embedded_fonts.py",
+      "bytes": 14102,
+      "gitBlobSha": "fb48c2384c2f11413a1bd81c0ff2dfc5ba5af638"
+    },
+    {
+      "path": "scripts/pptx_gradients.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_gradients.py",
+      "bytes": 4353,
+      "gitBlobSha": "abe29a5e6c44f896b6a1862cd863dee5b86fbff4"
+    },
+    {
+      "path": "scripts/pptx_intake.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_intake.py",
+      "bytes": 13855,
+      "gitBlobSha": "42747d83b7861b4582d6f224b34d0b0cebaa4ef4"
+    },
+    {
+      "path": "scripts/pptx_ooxml/__init__.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_ooxml/__init__.py",
+      "bytes": 658,
+      "gitBlobSha": "6b8adfc5fd8c886e18082dd342ac10136a10d04e"
+    },
+    {
+      "path": "scripts/pptx_ooxml/analyzer.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_ooxml/analyzer.py",
+      "bytes": 12845,
+      "gitBlobSha": "198826cd8b88fdac01b8f245b305a4061779e8c0"
+    },
+    {
+      "path": "scripts/pptx_ooxml/chart_read.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_ooxml/chart_read.py",
+      "bytes": 3838,
+      "gitBlobSha": "c4653558c00e3db88a5a6cfbc805e0e67bd8e915"
+    },
+    {
+      "path": "scripts/pptx_ooxml/clone.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_ooxml/clone.py",
+      "bytes": 36689,
+      "gitBlobSha": "9e392baedcbabdc386397fd1956cdc7950ef2c11"
+    },
+    {
+      "path": "scripts/pptx_ooxml/diagram_read.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_ooxml/diagram_read.py",
+      "bytes": 19703,
+      "gitBlobSha": "3c8771075d3b58d531a0760349bf5142889c3ed6"
+    },
+    {
+      "path": "scripts/pptx_ooxml/edit_safety.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_ooxml/edit_safety.py",
+      "bytes": 10449,
+      "gitBlobSha": "c372e5c6a009475efe1fb52f5496c07c8ca65932"
+    },
+    {
+      "path": "scripts/pptx_ooxml/ooxml.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_ooxml/ooxml.py",
+      "bytes": 12511,
+      "gitBlobSha": "a2f9773b01d53247e56f2c86f880bc4354a0d1bc"
+    },
+    {
+      "path": "scripts/pptx_ooxml/package.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_ooxml/package.py",
+      "bytes": 12336,
+      "gitBlobSha": "14c95ebbd0b8de6d4cb6c137ac750b886d8d6701"
+    },
+    {
+      "path": "scripts/pptx_ooxml/slideshow.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_ooxml/slideshow.py",
+      "bytes": 3161,
+      "gitBlobSha": "20855282ba493b017b6a85543094bce509f2e1c2"
+    },
+    {
+      "path": "scripts/pptx_opc_validation.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_opc_validation.py",
+      "bytes": 12373,
+      "gitBlobSha": "1f2e5a861f96ef416c352b0ac90ab50d85f5b24e"
+    },
+    {
+      "path": "scripts/pptx_shapes/__init__.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_shapes/__init__.py",
+      "bytes": 3311,
+      "gitBlobSha": "52d7ccbefec89d87933019e24b1a8ac49d195d1e"
+    },
+    {
+      "path": "scripts/pptx_shapes/data/LICENSE-APACHE-2.0.txt",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_shapes/data/LICENSE-APACHE-2.0.txt",
+      "bytes": 11358,
+      "gitBlobSha": "d645695673349e3947e8e5ae42332d0ac3164cd7"
+    },
+    {
+      "path": "scripts/pptx_shapes/data/LICENSE-OPEN-XML-SDK-MIT.txt",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_shapes/data/LICENSE-OPEN-XML-SDK-MIT.txt",
+      "bytes": 1116,
+      "gitBlobSha": "984713a49622a96da110443c15477613bc12656b"
+    },
+    {
+      "path": "scripts/pptx_shapes/data/NOTICE.md",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_shapes/data/NOTICE.md",
+      "bytes": 2365,
+      "gitBlobSha": "0f1424823026959f8ba871dc8951c883f5cd53bc"
+    },
+    {
+      "path": "scripts/pptx_shapes/data/presetShapeDefinitions.xml",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_shapes/data/presetShapeDefinitions.xml",
+      "bytes": 538970,
+      "gitBlobSha": "b425872e062cb992ae78d3cf288192724c0b25c8"
+    },
+    {
+      "path": "scripts/pptx_shapes/data/presetShapeSemantics.json",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_shapes/data/presetShapeSemantics.json",
+      "bytes": 56073,
+      "gitBlobSha": "bdf70a2b202c4046f8db8b113cc8975f62ce0b35"
+    },
+    {
+      "path": "scripts/pptx_shapes/data/shape_type_values.txt",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_shapes/data/shape_type_values.txt",
+      "bytes": 2527,
+      "gitBlobSha": "cba0a418cd6af38c28724cb4ac6b6515c435303f"
+    },
+    {
+      "path": "scripts/pptx_shapes/errors.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_shapes/errors.py",
+      "bytes": 1017,
+      "gitBlobSha": "e0d3199a4f02ed18deccbd44655c501752fd19a7"
+    },
+    {
+      "path": "scripts/pptx_shapes/formula.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_shapes/formula.py",
+      "bytes": 11046,
+      "gitBlobSha": "3c07a23f196a72c4d88be0285213c032211ba2ae"
+    },
+    {
+      "path": "scripts/pptx_shapes/loader.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_shapes/loader.py",
+      "bytes": 12654,
+      "gitBlobSha": "8089a2a2672a4334f540707c94be903782a50eac"
+    },
+    {
+      "path": "scripts/pptx_shapes/models.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_shapes/models.py",
+      "bytes": 4881,
+      "gitBlobSha": "0c60151953d9842f00e9cbbf4a831fe287b7553b"
+    },
+    {
+      "path": "scripts/pptx_shapes/registry.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_shapes/registry.py",
+      "bytes": 8888,
+      "gitBlobSha": "adb8cc14fc4a1e8af62154f3ddf1d73ef5acdc68"
+    },
+    {
+      "path": "scripts/pptx_shapes/semantic_hash.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_shapes/semantic_hash.py",
+      "bytes": 14001,
+      "gitBlobSha": "88cea092f8838ffa612b5975ce1bca4b42d37bca"
+    },
+    {
+      "path": "scripts/pptx_shapes/semantics.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_shapes/semantics.py",
+      "bytes": 18810,
+      "gitBlobSha": "e7043a5e27fc21b73693daa5f34160e6af91777d"
+    },
+    {
+      "path": "scripts/pptx_shapes/xml_safety.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_shapes/xml_safety.py",
+      "bytes": 634,
+      "gitBlobSha": "c0b717e6a7856780ae7382b92f68060a428d7c20"
+    },
+    {
+      "path": "scripts/pptx_template_import.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_template_import.py",
+      "bytes": 14294,
+      "gitBlobSha": "4f44e1deda088145f4dd4ef49d8d99e4ac2e9c75"
+    },
+    {
+      "path": "scripts/pptx_to_svg.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg.py",
+      "bytes": 9318,
+      "gitBlobSha": "61bded5f55f0174ac12ce08ea20ac0f14ca6aa50"
+    },
+    {
+      "path": "scripts/pptx_to_svg/__init__.py",
       "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/__init__.py",
+      "bytes": 684,
       "gitBlobSha": "e23cd0826ed2b3f53a7bc41c86452da9db615a0a"
     },
     {
-      "path": "pptx_to_svg/ooxml_loader.py",
-      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/ooxml_loader.py",
-      "gitBlobSha": "3a60a665de118e9edd8f23c53c6668a1d55430db"
+      "path": "scripts/pptx_to_svg/animation_import.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/animation_import.py",
+      "bytes": 9289,
+      "gitBlobSha": "bc17eafdccf9cc0386b7d0a186bb8859a63d6a6e"
     },
     {
-      "path": "pptx_to_svg/shape_walker.py",
-      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/shape_walker.py",
-      "gitBlobSha": "2f76f6688038850736661077f6c594ba1e84977d"
+      "path": "scripts/pptx_to_svg/chart_to_svg.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/chart_to_svg.py",
+      "bytes": 122156,
+      "gitBlobSha": "f5f7263442b6946c1774a99a7a404ee053abfbfa"
     },
     {
-      "path": "pptx_to_svg/emu_units.py",
-      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/emu_units.py",
-      "gitBlobSha": "ab48120449dd0c184c4f00cfd36420a9a87d9e2a"
+      "path": "scripts/pptx_to_svg/chartex_to_svg.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/chartex_to_svg.py",
+      "bytes": 15438,
+      "gitBlobSha": "669028d9e794613e1fe67aa460173710c87f3050"
     },
     {
-      "path": "pptx_to_svg/color_resolver.py",
+      "path": "scripts/pptx_to_svg/color_resolver.py",
       "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/color_resolver.py",
+      "bytes": 31423,
       "gitBlobSha": "4785377cbfe8ff9b17fba19280bdb78e16296c70"
     },
     {
+      "path": "scripts/pptx_to_svg/converter.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/converter.py",
+      "bytes": 71278,
+      "gitBlobSha": "f038402bb2da789b9217a38295b012ee9f78f5e3"
+    },
+    {
+      "path": "scripts/pptx_to_svg/custgeom_to_svg.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/custgeom_to_svg.py",
+      "bytes": 4965,
+      "gitBlobSha": "e976fd01b8583fdbe28d2a21e1fb0269ea48d1a2"
+    },
+    {
+      "path": "scripts/pptx_to_svg/effect_to_svg.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/effect_to_svg.py",
+      "bytes": 13857,
+      "gitBlobSha": "c81823d08f0edf507a9e993d5eaaa864a85a57b1"
+    },
+    {
+      "path": "scripts/pptx_to_svg/emu_units.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/emu_units.py",
+      "bytes": 8845,
+      "gitBlobSha": "ab48120449dd0c184c4f00cfd36420a9a87d9e2a"
+    },
+    {
+      "path": "scripts/pptx_to_svg/fill_to_svg.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/fill_to_svg.py",
+      "bytes": 30000,
+      "gitBlobSha": "52bd26f73501479ee0dd5952732603d1f882bf8e"
+    },
+    {
+      "path": "scripts/pptx_to_svg/formula_import.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/formula_import.py",
+      "bytes": 26359,
+      "gitBlobSha": "935907fea5cca952fa2e195cfa6b1b863b9edaca"
+    },
+    {
+      "path": "scripts/pptx_to_svg/hyperlinks.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/hyperlinks.py",
+      "bytes": 2938,
+      "gitBlobSha": "5aae61a5e59766a7127fbe247d6230406edb9231"
+    },
+    {
+      "path": "scripts/pptx_to_svg/import_diagnostics.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/import_diagnostics.py",
+      "bytes": 988,
+      "gitBlobSha": "a6f10b974c4c827317edc8fb00ea88d92d0ccfd4"
+    },
+    {
+      "path": "scripts/pptx_to_svg/ln_to_svg.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/ln_to_svg.py",
+      "bytes": 15187,
+      "gitBlobSha": "258745b6e89e6bc6897021170899b2d9252f58e8"
+    },
+    {
+      "path": "scripts/pptx_to_svg/normalized_chart_svg.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/normalized_chart_svg.py",
+      "bytes": 50924,
+      "gitBlobSha": "a16d347dc1e53d4fac18b42fa5f902248fef8250"
+    },
+    {
+      "path": "scripts/pptx_to_svg/notes_import.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/notes_import.py",
+      "bytes": 4811,
+      "gitBlobSha": "ac9739cbec0d29e2ba2d160ff7fac8fd31068e3f"
+    },
+    {
+      "path": "scripts/pptx_to_svg/ooxml_loader.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/ooxml_loader.py",
+      "bytes": 19491,
+      "gitBlobSha": "3a60a665de118e9edd8f23c53c6668a1d55430db"
+    },
+    {
+      "path": "scripts/pptx_to_svg/pic_to_svg.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/pic_to_svg.py",
+      "bytes": 23648,
+      "gitBlobSha": "05b3de6f9162223e8fd9785b874949c4ece94716"
+    },
+    {
+      "path": "scripts/pptx_to_svg/preset_authoring.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/preset_authoring.py",
+      "bytes": 32084,
+      "gitBlobSha": "04b200e6ae45dfb2be619512a427f63e906eb52f"
+    },
+    {
+      "path": "scripts/pptx_to_svg/preset_registry_to_svg.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/preset_registry_to_svg.py",
+      "bytes": 6695,
+      "gitBlobSha": "db0a7fd25add19f5917a7cd0b031f8ca988a9304"
+    },
+    {
+      "path": "scripts/pptx_to_svg/preset_svg_markup.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/preset_svg_markup.py",
+      "bytes": 6284,
+      "gitBlobSha": "d64532378569fc189b4b054e9ce2ead65d88be4c"
+    },
+    {
+      "path": "scripts/pptx_to_svg/prstgeom_to_svg.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/prstgeom_to_svg.py",
+      "bytes": 5409,
+      "gitBlobSha": "e60b1a083394f5dad1970463224a5a286b2e761c"
+    },
+    {
+      "path": "scripts/pptx_to_svg/shape_walker.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/shape_walker.py",
+      "bytes": 20617,
+      "gitBlobSha": "2f76f6688038850736661077f6c594ba1e84977d"
+    },
+    {
+      "path": "scripts/pptx_to_svg/slide_to_svg.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/slide_to_svg.py",
+      "bytes": 99333,
+      "gitBlobSha": "b742c1d528a25a9add8cde950303cb94eae41ce2"
+    },
+    {
+      "path": "scripts/pptx_to_svg/tbl_to_svg.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/tbl_to_svg.py",
+      "bytes": 70137,
+      "gitBlobSha": "2ee0542b7f4d38ab0fd35162e208cdb55c797a0f"
+    },
+    {
+      "path": "scripts/pptx_to_svg/transition_import.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/transition_import.py",
+      "bytes": 6642,
+      "gitBlobSha": "8c7cd30fa3f94adf413482a24361942a3c000dcd"
+    },
+    {
+      "path": "scripts/pptx_to_svg/txbody_to_svg.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_to_svg/txbody_to_svg.py",
+      "bytes": 63165,
+      "gitBlobSha": "f6a2db97920aedf726a089a838d6d038e530299a"
+    },
+    {
+      "path": "scripts/pptx_transitions.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_transitions.py",
+      "bytes": 102764,
+      "gitBlobSha": "4cb598bfd87401af910086066b5d83210433be2a"
+    },
+    {
+      "path": "scripts/pptx_workspace.py",
+      "upstreamPath": "skills/ppt-master/scripts/pptx_workspace.py",
+      "bytes": 35840,
+      "gitBlobSha": "57a50d6322b23a7c2c6a8f69c8d1e82aabf567e9"
+    },
+    {
+      "path": "scripts/preset_shape_svg.py",
+      "upstreamPath": "skills/ppt-master/scripts/preset_shape_svg.py",
+      "bytes": 17695,
+      "gitBlobSha": "4419f837c84e0c5e3a24db88cc23d2e49c5dafc9"
+    },
+    {
+      "path": "scripts/project_management/__init__.py",
+      "upstreamPath": "skills/ppt-master/scripts/project_management/__init__.py",
+      "bytes": 466,
+      "gitBlobSha": "93a20f3bdbf493ed29983c33aedac3708ae5f2b6"
+    },
+    {
+      "path": "scripts/project_management/cli.py",
+      "upstreamPath": "skills/ppt-master/scripts/project_management/cli.py",
+      "bytes": 64626,
+      "gitBlobSha": "1290c0bd436ba41682904e801d98066d384d3274"
+    },
+    {
+      "path": "scripts/project_management/page_context.py",
+      "upstreamPath": "skills/ppt-master/scripts/project_management/page_context.py",
+      "bytes": 33051,
+      "gitBlobSha": "25b8eb10bf79a2339190ef5ebe7177e6e4ea4bbb"
+    },
+    {
+      "path": "scripts/project_management/paths.py",
+      "upstreamPath": "skills/ppt-master/scripts/project_management/paths.py",
+      "bytes": 773,
+      "gitBlobSha": "fbb3b9ca47daffb042633f714bb7fa17ce0e040b"
+    },
+    {
+      "path": "scripts/project_management/project_specs.py",
+      "upstreamPath": "skills/ppt-master/scripts/project_management/project_specs.py",
+      "bytes": 59307,
+      "gitBlobSha": "eb0e5f230ef0cbe97ed737ee5ec1679bee326376"
+    },
+    {
+      "path": "scripts/project_management/spec_blocks.py",
+      "upstreamPath": "skills/ppt-master/scripts/project_management/spec_blocks.py",
+      "bytes": 6751,
+      "gitBlobSha": "468b492f6f2baa404e3bd7fe9f390b88a537e806"
+    },
+    {
+      "path": "scripts/project_manager.py",
+      "upstreamPath": "skills/ppt-master/scripts/project_manager.py",
+      "bytes": 1991,
+      "gitBlobSha": "79d51bbc47377a78d50d6ec23322469549fc328a"
+    },
+    {
+      "path": "scripts/project_specs.py",
+      "upstreamPath": "skills/ppt-master/scripts/project_specs.py",
+      "bytes": 1175,
+      "gitBlobSha": "d5617cf82bd4d5fcb76d36bf9e1f6a74df6b5c88"
+    },
+    {
+      "path": "scripts/project_utils.py",
+      "upstreamPath": "skills/ppt-master/scripts/project_utils.py",
+      "bytes": 29761,
+      "gitBlobSha": "098979c6edd8ee8c65f47199386a2c02905ba615"
+    },
+    {
+      "path": "scripts/prompt_audit_manifest.json",
+      "upstreamPath": "skills/ppt-master/scripts/prompt_audit_manifest.json",
+      "bytes": 99944,
+      "gitBlobSha": "67463cf25a1d5027e38db25490965152ff132eec"
+    },
+    {
+      "path": "scripts/prompt_audit.py",
+      "upstreamPath": "skills/ppt-master/scripts/prompt_audit.py",
+      "bytes": 91792,
+      "gitBlobSha": "5d77d9f604417c273184dc325273e872c888cb0e"
+    },
+    {
+      "path": "scripts/README.md",
+      "upstreamPath": "skills/ppt-master/scripts/README.md",
+      "bytes": 35808,
+      "gitBlobSha": "5d138821dc684b39badd133b1942650dd4ffa628"
+    },
+    {
+      "path": "scripts/register_template.py",
+      "upstreamPath": "skills/ppt-master/scripts/register_template.py",
+      "bytes": 51306,
+      "gitBlobSha": "f5b67dff53b324536d176729bfa2fc867ec22e98"
+    },
+    {
+      "path": "scripts/resource_paths.py",
+      "upstreamPath": "skills/ppt-master/scripts/resource_paths.py",
+      "bytes": 9638,
+      "gitBlobSha": "00fe7a2659e29608300d3157a37addedbc9aa7b3"
+    },
+    {
+      "path": "scripts/rotate_images.py",
+      "upstreamPath": "skills/ppt-master/scripts/rotate_images.py",
+      "bytes": 29416,
+      "gitBlobSha": "3159fbc901ae8b3fb22cca2837054837b4e576a4"
+    },
+    {
+      "path": "scripts/semantic_table.py",
+      "upstreamPath": "skills/ppt-master/scripts/semantic_table.py",
+      "bytes": 16371,
+      "gitBlobSha": "c4e30986ad64880918bfa160e5fef701d2a49009"
+    },
+    {
+      "path": "scripts/server_common.py",
+      "upstreamPath": "skills/ppt-master/scripts/server_common.py",
+      "bytes": 11236,
+      "gitBlobSha": "9f7fee3353bfb66da2ada9350e294cab5f0bdf57"
+    },
+    {
+      "path": "scripts/shape_boolean_svg.py",
+      "upstreamPath": "skills/ppt-master/scripts/shape_boolean_svg.py",
+      "bytes": 6332,
+      "gitBlobSha": "f8ac8ee77e92d3ced9ea0f7dfc48578150606b78"
+    },
+    {
+      "path": "scripts/slice_images.py",
+      "upstreamPath": "skills/ppt-master/scripts/slice_images.py",
+      "bytes": 53485,
+      "gitBlobSha": "7a069684d547b42ffcad5fde7816a4a5e26bde46"
+    },
+    {
+      "path": "scripts/slide_roster.py",
+      "upstreamPath": "skills/ppt-master/scripts/slide_roster.py",
+      "bytes": 1261,
+      "gitBlobSha": "44f9cc249f8145fdb619b506f5250cede15ce127"
+    },
+    {
+      "path": "scripts/sound_sync.py",
+      "upstreamPath": "skills/ppt-master/scripts/sound_sync.py",
+      "bytes": 10956,
+      "gitBlobSha": "370b5f6b5d10d97c6d669f02e4cf5d8fb1174b0e"
+    },
+    {
+      "path": "scripts/source_to_md.py",
+      "upstreamPath": "skills/ppt-master/scripts/source_to_md.py",
+      "bytes": 20959,
+      "gitBlobSha": "b514439b9d90f5741a381f837edbbfe6ba0b159c"
+    },
+    {
+      "path": "scripts/stamp_native_fallbacks.py",
+      "upstreamPath": "skills/ppt-master/scripts/stamp_native_fallbacks.py",
+      "bytes": 11853,
+      "gitBlobSha": "0b6e38154b1b2ece281b9c570beb16111b545a1b"
+    },
+    {
+      "path": "scripts/svg_authoring_contract.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_authoring_contract.py",
+      "bytes": 12262,
+      "gitBlobSha": "6a240da49e8ca79939ef3a8e7dc4a7125895d25f"
+    },
+    {
+      "path": "scripts/svg_authoring_view.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_authoring_view.py",
+      "bytes": 99624,
+      "gitBlobSha": "bb9e6e52ba9870821d3cc44b3d1080f8dc372834"
+    },
+    {
+      "path": "scripts/svg_compatibility.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_compatibility.py",
+      "bytes": 1939,
+      "gitBlobSha": "8cba0497c8cf45c9e0ae4063734ccdf229163c6c"
+    },
+    {
+      "path": "scripts/svg_finalize/__init__.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_finalize/__init__.py",
+      "bytes": 448,
+      "gitBlobSha": "4434081c9df6ad0b62b868f76620db4ba6c97581"
+    },
+    {
+      "path": "scripts/svg_finalize/align_embed_images.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_finalize/align_embed_images.py",
+      "bytes": 24205,
+      "gitBlobSha": "624d104a89bc4b4d16a42579237b889230e4e8d2"
+    },
+    {
+      "path": "scripts/svg_finalize/crop_images.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_finalize/crop_images.py",
+      "bytes": 12307,
+      "gitBlobSha": "ef7f1ad3e408acd419f7167469fb3e8ab47cec58"
+    },
+    {
+      "path": "scripts/svg_finalize/embed_icons.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_finalize/embed_icons.py",
+      "bytes": 26125,
+      "gitBlobSha": "c624ae13fd78e03d888d0724cf7eface63f0eaa5"
+    },
+    {
+      "path": "scripts/svg_finalize/embed_images.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_finalize/embed_images.py",
+      "bytes": 11043,
+      "gitBlobSha": "39912efb6d32b42583a686f44116068808cf0905"
+    },
+    {
+      "path": "scripts/svg_finalize/fix_image_aspect.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_finalize/fix_image_aspect.py",
+      "bytes": 13908,
+      "gitBlobSha": "f0b9dc11a67797b62c1c6a80f9dd5fa886618f95"
+    },
+    {
+      "path": "scripts/svg_finalize/flatten_tspan.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_finalize/flatten_tspan.py",
+      "bytes": 36902,
+      "gitBlobSha": "76c0fcdb582ae18c13e34588f5296cd5e3c2a634"
+    },
+    {
+      "path": "scripts/svg_finalize/svg_rect_to_path.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_finalize/svg_rect_to_path.py",
+      "bytes": 10998,
+      "gitBlobSha": "ffb797c1b87665da7f5b0c34aba6329275d3de69"
+    },
+    {
+      "path": "scripts/svg_position_calculator.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_position_calculator.py",
+      "bytes": 61914,
+      "gitBlobSha": "c937a3ab255eadc26b6780b6924a7e578ed54bd2"
+    },
+    {
+      "path": "scripts/svg_quality_checker.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_quality_checker.py",
+      "bytes": 1682,
+      "gitBlobSha": "e716ad979da3eb988926af6bc70416b8604fc627"
+    },
+    {
+      "path": "scripts/svg_quality/__init__.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_quality/__init__.py",
+      "bytes": 351,
+      "gitBlobSha": "8c3c7741fad4f74a4e9fd9f21e6521495b7e1991"
+    },
+    {
+      "path": "scripts/svg_quality/checker.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_quality/checker.py",
+      "bytes": 411923,
+      "gitBlobSha": "b59e47a382b990531ee09563a0e1bf5752055eb0"
+    },
+    {
+      "path": "scripts/svg_quality/cli.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_quality/cli.py",
+      "bytes": 15387,
+      "gitBlobSha": "7e66f8407ce7b7e6ace6a4bbd543c2cd1b311315"
+    },
+    {
+      "path": "scripts/svg_quality/slot_capacity.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_quality/slot_capacity.py",
+      "bytes": 10768,
+      "gitBlobSha": "158b512f234e47b59aa81866f82b138833f21c34"
+    },
+    {
+      "path": "scripts/svg_quality/svg_contracts.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_quality/svg_contracts.py",
+      "bytes": 44834,
+      "gitBlobSha": "db39f92142072a4f1b2d25463cc224f0b3ce531b"
+    },
+    {
+      "path": "scripts/svg_quality/xml_support.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_quality/xml_support.py",
+      "bytes": 948,
+      "gitBlobSha": "17df13f3441304b9524a07e0be73171868deb698"
+    },
+    {
+      "path": "scripts/svg_to_pptx.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx.py",
+      "bytes": 1071,
+      "gitBlobSha": "6d80d05fe1a84edeeb0ee3903d99cbd5efca9487"
+    },
+    {
+      "path": "scripts/svg_to_pptx/__init__.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/__init__.py",
+      "bytes": 1043,
+      "gitBlobSha": "f8a1e412623c9ea590565ef97ff0b101e53f5c45"
+    },
+    {
+      "path": "scripts/svg_to_pptx/animation_config.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/animation_config.py",
+      "bytes": 69461,
+      "gitBlobSha": "9a3221c48cb7a73e0e0501dd9b5a7ec7dcf3154a"
+    },
+    {
+      "path": "scripts/svg_to_pptx/canvas_contract.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/canvas_contract.py",
+      "bytes": 7507,
+      "gitBlobSha": "f8e2f5aec82f01200c9861dc1bc19547e75d7fde"
+    },
+    {
+      "path": "scripts/svg_to_pptx/drawingml/__init__.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/drawingml/__init__.py",
+      "bytes": 59,
+      "gitBlobSha": "a892d4d57c43b20428aecf052b192961671e8553"
+    },
+    {
+      "path": "scripts/svg_to_pptx/drawingml/context.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/drawingml/context.py",
+      "bytes": 13152,
+      "gitBlobSha": "580c37043a425774eddaf6635b92de159bc7dd9d"
+    },
+    {
+      "path": "scripts/svg_to_pptx/drawingml/converter.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/drawingml/converter.py",
+      "bytes": 96273,
+      "gitBlobSha": "c95c0ead20bebe7812e4ad05d49e3e1ebef9c48a"
+    },
+    {
+      "path": "scripts/svg_to_pptx/drawingml/elements.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/drawingml/elements.py",
+      "bytes": 201254,
+      "gitBlobSha": "cf86dfa522ce5666857b982f637acd46fed21721"
+    },
+    {
+      "path": "scripts/svg_to_pptx/drawingml/font_advances.json",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/drawingml/font_advances.json",
+      "bytes": 111241,
+      "gitBlobSha": "3faefcaa111f70f85897a1558f3f5a1bc142a850"
+    },
+    {
+      "path": "scripts/svg_to_pptx/drawingml/font_metrics.json",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/drawingml/font_metrics.json",
+      "bytes": 38011,
+      "gitBlobSha": "c4d0758250e8f5f99b97568d0256b4fe7c6aea92"
+    },
+    {
+      "path": "scripts/svg_to_pptx/drawingml/hyperlinks.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/drawingml/hyperlinks.py",
+      "bytes": 5001,
+      "gitBlobSha": "a1123973a96740bba0c8f2550d60f17a3b5b76b6"
+    },
+    {
+      "path": "scripts/svg_to_pptx/drawingml/paths.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/drawingml/paths.py",
+      "bytes": 29381,
+      "gitBlobSha": "a12a6594e3e4d2bb1ba02d8b1e765f922612bdee"
+    },
+    {
+      "path": "scripts/svg_to_pptx/drawingml/styles.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/drawingml/styles.py",
+      "bytes": 27332,
+      "gitBlobSha": "889ba3794bdd115fa264fcac365046dd9a0d7a0d"
+    },
+    {
+      "path": "scripts/svg_to_pptx/drawingml/text_baseline.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/drawingml/text_baseline.py",
+      "bytes": 4707,
+      "gitBlobSha": "da330d15003da6572c58626e297298a3046dbe8d"
+    },
+    {
+      "path": "scripts/svg_to_pptx/drawingml/text_properties.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/drawingml/text_properties.py",
+      "bytes": 25881,
+      "gitBlobSha": "a15115c480fdd6f35f44441dd2472cced02105da"
+    },
+    {
+      "path": "scripts/svg_to_pptx/drawingml/theme_colors.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/drawingml/theme_colors.py",
+      "bytes": 10018,
+      "gitBlobSha": "a296d9d4fc7793f143be804bd3aad23e4a9b897d"
+    },
+    {
+      "path": "scripts/svg_to_pptx/drawingml/theme_fonts.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/drawingml/theme_fonts.py",
+      "bytes": 17886,
+      "gitBlobSha": "319ed5366414eb21e0e52462e7783928546a4707"
+    },
+    {
+      "path": "scripts/svg_to_pptx/drawingml/utils.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/drawingml/utils.py",
+      "bytes": 139545,
+      "gitBlobSha": "71239bc28862ac305a0b21c908abf42085ef32e4"
+    },
+    {
+      "path": "scripts/svg_to_pptx/geometry_properties.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/geometry_properties.py",
+      "bytes": 4894,
+      "gitBlobSha": "b1e26a7bc70d662b1e92b37dadcadd863389a89a"
+    },
+    {
+      "path": "scripts/svg_to_pptx/native_objects/__init__.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/native_objects/__init__.py",
+      "bytes": 29953,
+      "gitBlobSha": "15ef20d3dc7f71da073293e3b523d94209a43637"
+    },
+    {
+      "path": "scripts/svg_to_pptx/native_objects/chart_data.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/native_objects/chart_data.py",
+      "bytes": 67909,
+      "gitBlobSha": "e055d3757adabcb558cfbb915fe2c5d644dd2899"
+    },
+    {
+      "path": "scripts/svg_to_pptx/native_objects/chart_patch.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/native_objects/chart_patch.py",
+      "bytes": 22659,
+      "gitBlobSha": "bfb2e6d781be9e43491f79104c7e5fefb9b8f75b"
+    },
+    {
+      "path": "scripts/svg_to_pptx/native_objects/chart_style.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/native_objects/chart_style.py",
+      "bytes": 60403,
+      "gitBlobSha": "866986857a8e25ea8fc77c4e3ab34c82ac3569d8"
+    },
+    {
+      "path": "scripts/svg_to_pptx/native_objects/chart_xml.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/native_objects/chart_xml.py",
+      "bytes": 62050,
+      "gitBlobSha": "c8d4462df131889b967b76db24dfab5e5faf3e36"
+    },
+    {
+      "path": "scripts/svg_to_pptx/native_objects/chartex.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/native_objects/chartex.py",
+      "bytes": 22173,
+      "gitBlobSha": "36c8fcfd49b9164390b9dceb91d2cff2276689a1"
+    },
+    {
+      "path": "scripts/svg_to_pptx/native_objects/fallback_hash.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/native_objects/fallback_hash.py",
+      "bytes": 5831,
+      "gitBlobSha": "0bf3a5fba4acce3f7ed046bf948dff24bf036ea4"
+    },
+    {
+      "path": "scripts/svg_to_pptx/native_objects/formula_ast.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/native_objects/formula_ast.py",
+      "bytes": 17422,
+      "gitBlobSha": "1d6c9fa1c028cd6b576fed8005b6a7e71485c344"
+    },
+    {
+      "path": "scripts/svg_to_pptx/native_objects/formula_compiler.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/native_objects/formula_compiler.py",
+      "bytes": 2897,
+      "gitBlobSha": "fa4bdaa79655d8ff3a80dbcdd6116e52fbb26d05"
+    },
+    {
+      "path": "scripts/svg_to_pptx/native_objects/formula_omml.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/native_objects/formula_omml.py",
+      "bytes": 39999,
+      "gitBlobSha": "2a6fe44086f85a80c3c8184d0d727a5f7dad39d6"
+    },
+    {
+      "path": "scripts/svg_to_pptx/native_objects/formula_parser.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/native_objects/formula_parser.py",
+      "bytes": 86442,
+      "gitBlobSha": "30c13539294be6d3affe549ae75fe8e8860fa846"
+    },
+    {
+      "path": "scripts/svg_to_pptx/native_objects/formula_profile.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/native_objects/formula_profile.py",
+      "bytes": 14976,
+      "gitBlobSha": "604dcd60cab5028d5442adddc1a19ab485c5b5cf"
+    },
+    {
+      "path": "scripts/svg_to_pptx/native_objects/formula_run_properties.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/native_objects/formula_run_properties.py",
+      "bytes": 7058,
+      "gitBlobSha": "5f449d34635019ced673042a9343bd39f0056a8b"
+    },
+    {
+      "path": "scripts/svg_to_pptx/native_objects/formula.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/native_objects/formula.py",
+      "bytes": 9552,
+      "gitBlobSha": "4689787117d5d2b5c12003cac8da1fd059ef9636"
+    },
+    {
+      "path": "scripts/svg_to_pptx/native_objects/inline_formula.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/native_objects/inline_formula.py",
+      "bytes": 11462,
+      "gitBlobSha": "2ae47aba37f2f353ae897f3ec707a91d996d1533"
+    },
+    {
+      "path": "scripts/svg_to_pptx/native_objects/marker_attributes.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/native_objects/marker_attributes.py",
+      "bytes": 6984,
+      "gitBlobSha": "db7f29a293b090cb133cd82a7d942aaaefa96c69"
+    },
+    {
+      "path": "scripts/svg_to_pptx/native_objects/marker_common.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/native_objects/marker_common.py",
+      "bytes": 37364,
+      "gitBlobSha": "d96e8e5aa86390cb5adfc40bf3cf2cf92b8dc548"
+    },
+    {
+      "path": "scripts/svg_to_pptx/native_objects/marker_status.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/native_objects/marker_status.py",
+      "bytes": 8185,
+      "gitBlobSha": "996e52bc4a51b7b03cc529ac269d1966bf2c5b2f"
+    },
+    {
+      "path": "scripts/svg_to_pptx/native_objects/table.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/native_objects/table.py",
+      "bytes": 74202,
+      "gitBlobSha": "dde9dfc5f67e00d9ef24b8d02b072b074bbc33e6"
+    },
+    {
+      "path": "scripts/svg_to_pptx/native_objects/workbook.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/native_objects/workbook.py",
+      "bytes": 9518,
+      "gitBlobSha": "29770395b01bcb33958134dbf705fda935eedcb3"
+    },
+    {
+      "path": "scripts/svg_to_pptx/pptx_package/__init__.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/pptx_package/__init__.py",
+      "bytes": 60,
+      "gitBlobSha": "b677487d64dc9dc5656f5bf67f660ffebfd631c1"
+    },
+    {
+      "path": "scripts/svg_to_pptx/pptx_package/builder.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/pptx_package/builder.py",
+      "bytes": 346049,
+      "gitBlobSha": "95bde42bd5366817a465eb962a806bb4d78405bc"
+    },
+    {
+      "path": "scripts/svg_to_pptx/pptx_package/cli.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/pptx_package/cli.py",
+      "bytes": 156534,
+      "gitBlobSha": "de9f5283ad43fa99c0e58cec26bcefed61a599a8"
+    },
+    {
+      "path": "scripts/svg_to_pptx/pptx_package/dimensions.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/pptx_package/dimensions.py",
+      "bytes": 5815,
+      "gitBlobSha": "7a1446b69f751cfa8f5f708e4cc0b5e33d5b7eaf"
+    },
+    {
+      "path": "scripts/svg_to_pptx/pptx_package/discovery.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/pptx_package/discovery.py",
+      "bytes": 4321,
+      "gitBlobSha": "f2a26428afa85d557fd54507c2165ce209adc664"
+    },
+    {
+      "path": "scripts/svg_to_pptx/pptx_package/media.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/pptx_package/media.py",
+      "bytes": 4534,
+      "gitBlobSha": "e54c6a4302468cab7c98911c884ae6a5c86399cc"
+    },
+    {
+      "path": "scripts/svg_to_pptx/pptx_package/narration.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/pptx_package/narration.py",
+      "bytes": 29160,
+      "gitBlobSha": "17062bebfa2b178a91fd0f8c24a65340896a40c1"
+    },
+    {
+      "path": "scripts/svg_to_pptx/pptx_package/notes.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/pptx_package/notes.py",
+      "bytes": 11228,
+      "gitBlobSha": "fd334dff9b7537a4fad588487c3e67e24e130df3"
+    },
+    {
+      "path": "scripts/svg_to_pptx/pptx_package/slide_xml.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/pptx_package/slide_xml.py",
+      "bytes": 5017,
+      "gitBlobSha": "f9ec9e638613880f42d4b3fb50c8898539df2b20"
+    },
+    {
+      "path": "scripts/svg_to_pptx/pptx_package/template_structure.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/pptx_package/template_structure.py",
+      "bytes": 144174,
+      "gitBlobSha": "400b3208ec278f2b190b5714cbc9e9ffd8e3cafd"
+    },
+    {
+      "path": "scripts/svg_to_pptx/pptx_package/template_validation.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/pptx_package/template_validation.py",
+      "bytes": 59280,
+      "gitBlobSha": "052f6cc4d265f5604713cd43e281094ef1bcc649"
+    },
+    {
+      "path": "scripts/svg_to_pptx/semantic_markers.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/semantic_markers.py",
+      "bytes": 7787,
+      "gitBlobSha": "f1dbb2e64c186765991a72bbf71a414518b0910e"
+    },
+    {
+      "path": "scripts/svg_to_pptx/shape_boolean.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/shape_boolean.py",
+      "bytes": 42515,
+      "gitBlobSha": "8cd7cab047cc1c9f1c761d4079d2d3d9d991baa8"
+    },
+    {
+      "path": "scripts/svg_to_pptx/text_outline.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/text_outline.py",
+      "bytes": 34188,
+      "gitBlobSha": "fe6d923b19d7fb75ccdb00b0f23522805538eaf7"
+    },
+    {
+      "path": "scripts/svg_to_pptx/tspan_flattener.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/tspan_flattener.py",
+      "bytes": 3007,
+      "gitBlobSha": "21ab62417c43890bc7f4f1e292b97640cf463d82"
+    },
+    {
+      "path": "scripts/svg_to_pptx/use_expander.py",
+      "upstreamPath": "skills/ppt-master/scripts/svg_to_pptx/use_expander.py",
+      "bytes": 22337,
+      "gitBlobSha": "1e666c54feed46bfac71d84a33e96ef092deaff6"
+    },
+    {
+      "path": "scripts/template_import/__init__.py",
+      "upstreamPath": "skills/ppt-master/scripts/template_import/__init__.py",
+      "bytes": 52,
+      "gitBlobSha": "ac7715c7915a420886e4743e65bfc64370d75920"
+    },
+    {
+      "path": "scripts/template_import/manifest.py",
+      "upstreamPath": "skills/ppt-master/scripts/template_import/manifest.py",
+      "bytes": 30723,
+      "gitBlobSha": "2230138deaaf0525660258fbb8cd63fd9382555a"
+    },
+    {
+      "path": "scripts/template_import/native_structure.py",
+      "upstreamPath": "skills/ppt-master/scripts/template_import/native_structure.py",
+      "bytes": 7492,
+      "gitBlobSha": "d5474671420d2fc43e976eba473fc1f26001e585"
+    },
+    {
+      "path": "scripts/template_preview_pptx.py",
+      "upstreamPath": "skills/ppt-master/scripts/template_preview_pptx.py",
+      "bytes": 16716,
+      "gitBlobSha": "a07de2980fca28684bfe5c0844bbba61b8440fb1"
+    },
+    {
+      "path": "scripts/template_text_slots.py",
+      "upstreamPath": "skills/ppt-master/scripts/template_text_slots.py",
+      "bytes": 5345,
+      "gitBlobSha": "2ffbc235fb928aa13f6fbe6ed5294b24a0675e86"
+    },
+    {
+      "path": "scripts/text_measure.py",
+      "upstreamPath": "skills/ppt-master/scripts/text_measure.py",
+      "bytes": 39486,
+      "gitBlobSha": "11e2ae77d6690c2feb4bcf3102ba2320c004cbe7"
+    },
+    {
+      "path": "scripts/total_md_split.py",
+      "upstreamPath": "skills/ppt-master/scripts/total_md_split.py",
+      "bytes": 11546,
+      "gitBlobSha": "f27c6828264250aca57d63d4f02a003e017e66db"
+    },
+    {
+      "path": "scripts/update_repo.py",
+      "upstreamPath": "skills/ppt-master/scripts/update_repo.py",
+      "bytes": 7928,
+      "gitBlobSha": "91280209fb245a02d3f1b98fa8eaa018def04a0c"
+    },
+    {
+      "path": "scripts/update_spec.py",
+      "upstreamPath": "skills/ppt-master/scripts/update_spec.py",
+      "bytes": 15867,
+      "gitBlobSha": "5dc5b147dbeb7234886f067ac31af6e759fd4886"
+    },
+    {
+      "path": "scripts/video_motion_plan.py",
+      "upstreamPath": "skills/ppt-master/scripts/video_motion_plan.py",
+      "bytes": 23243,
+      "gitBlobSha": "c78215b47511d6df1585c3f3c2947b0f5fa31aa5"
+    },
+    {
+      "path": "scripts/video_sound_mix.py",
+      "upstreamPath": "skills/ppt-master/scripts/video_sound_mix.py",
+      "bytes": 58231,
+      "gitBlobSha": "69c401bfd28a8c482d64c5c8cd4895cd95beaef7"
+    },
+    {
+      "path": "scripts/video_subtitles.py",
+      "upstreamPath": "skills/ppt-master/scripts/video_subtitles.py",
+      "bytes": 13630,
+      "gitBlobSha": "c52ccd82dae66927577e05c2d0316e119643040f"
+    },
+    {
+      "path": "scripts/visual_review.py",
+      "upstreamPath": "skills/ppt-master/scripts/visual_review.py",
+      "bytes": 14561,
+      "gitBlobSha": "ba64fa4bcc6f1d7cec447ff2efdb0b21518cab5a"
+    },
+    {
+      "path": "scripts/visualization_catalog.py",
+      "upstreamPath": "skills/ppt-master/scripts/visualization_catalog.py",
+      "bytes": 12758,
+      "gitBlobSha": "e50e8296c206a75e8aaad600ad15f70ee31ffcfe"
+    },
+    {
+      "path": "scripts/visualization_recall.py",
+      "upstreamPath": "skills/ppt-master/scripts/visualization_recall.py",
+      "bytes": 14801,
+      "gitBlobSha": "e22f4de71022093b860ff16b85d189d9a6fecff2"
+    },
+    {
+      "path": "scripts/workflow_log.py",
+      "upstreamPath": "skills/ppt-master/scripts/workflow_log.py",
+      "bytes": 3065,
+      "gitBlobSha": "486f83450d1564511d12abe1004b75c8ff7f9465"
+    },
+    {
+      "path": "scripts/workflow_transcript.py",
+      "upstreamPath": "skills/ppt-master/scripts/workflow_transcript.py",
+      "bytes": 12089,
+      "gitBlobSha": "2602c2e90581a496461167b1f487606bfccd2a41"
+    },
+    {
+      "path": "SKILL.md",
+      "upstreamPath": "skills/ppt-master/SKILL.md",
+      "bytes": 10323,
+      "gitBlobSha": "fb53783e6b75cff35c7048c3af2ee1229b14a809"
+    },
+    {
+      "path": "SPONSORS.md",
+      "upstreamPath": "skills/ppt-master/SPONSORS.md",
+      "bytes": 5277,
+      "gitBlobSha": "b12a41eee301cd966fcae9c9c01f1a30db32416d"
+    },
+    {
+      "path": "SPONSORS_CN.md",
+      "upstreamPath": "skills/ppt-master/SPONSORS_CN.md",
+      "bytes": 4926,
+      "gitBlobSha": "5ea559dce09ea768cc43c954b8a480ec558d20be"
+    },
+    {
+      "path": "requirements.txt",
+      "upstreamPath": "skills/ppt-master/requirements.txt",
+      "bytes": 8561,
+      "gitBlobSha": "e686b944c0fced2fcde22cfa37bc4dbb9aade242"
+    },
+    {
+      "path": "workflows/create-template.md",
+      "upstreamPath": "skills/ppt-master/workflows/create-template.md",
+      "bytes": 41038,
+      "gitBlobSha": "cea1e76dc2a768bd014a8498363f1c0fe0cc80c4"
+    },
+    {
+      "path": "workflows/create-template/create-brand.md",
+      "upstreamPath": "skills/ppt-master/workflows/create-template/create-brand.md",
+      "bytes": 6299,
+      "gitBlobSha": "56ad96eb9e93fcbf973aea51416d064aaa5219dc"
+    },
+    {
+      "path": "workflows/create-template/create-style.md",
+      "upstreamPath": "skills/ppt-master/workflows/create-template/create-style.md",
+      "bytes": 8397,
+      "gitBlobSha": "d7340843a853df0ca9cd02699f70dd741858a5d5"
+    },
+    {
+      "path": "workflows/create-template/create-layout.md",
+      "upstreamPath": "skills/ppt-master/workflows/create-template/create-layout.md",
+      "bytes": 6695,
+      "gitBlobSha": "4f0bd3b82521c5ece4e03101ff0b1979da183c80"
+    },
+    {
+      "path": "workflows/create-template/create-deck.md",
+      "upstreamPath": "skills/ppt-master/workflows/create-template/create-deck.md",
+      "bytes": 6648,
+      "gitBlobSha": "3c349c95aff6c4622028400f85437c68893e33d1"
+    },
+    {
+      "path": "references/template-designer.md",
+      "upstreamPath": "skills/ppt-master/references/template-designer.md",
+      "bytes": 26130,
+      "gitBlobSha": "a074c7714a88ab43878294e3edec132911fdab7a"
+    },
+    {
+      "path": "references/shared-standards-core.md",
+      "upstreamPath": "skills/ppt-master/references/shared-standards-core.md",
+      "bytes": 32310,
+      "gitBlobSha": "12ced6c9c2811350f049c405db4a54199b4e8a31"
+    },
+    {
+      "path": "references/native-shape-authoring.md",
+      "upstreamPath": "skills/ppt-master/references/native-shape-authoring.md",
+      "bytes": 22756,
+      "gitBlobSha": "bd3607dd7fe28b98d0a117dad98cc29f9bc31465"
+    },
+    {
+      "path": "references/preset-shape-vocabulary.md",
+      "upstreamPath": "skills/ppt-master/references/preset-shape-vocabulary.md",
+      "bytes": 10017,
+      "gitBlobSha": "e2c9075f247aa5d7fd216512bb2e95f9c6c6c51c"
+    },
+    {
+      "path": "templates/schemas/design_spec.schema.json",
+      "upstreamPath": "skills/ppt-master/templates/schemas/design_spec.schema.json",
+      "bytes": 3400,
+      "gitBlobSha": "53c2b50d3ba4a5cb4d10e0bdf85e07855d417108"
+    },
+    {
+      "path": "templates/schemas/spec_lock.schema.json",
+      "upstreamPath": "skills/ppt-master/templates/schemas/spec_lock.schema.json",
+      "bytes": 11999,
+      "gitBlobSha": "c025f47cbcec3f442a75ec6882853eb5171ae67b"
+    },
+    {
+      "path": "templates/design_spec_reference.md",
+      "upstreamPath": "skills/ppt-master/templates/design_spec_reference.md",
+      "bytes": 15644,
+      "gitBlobSha": "bbf7232202c566ce4799e181f3b0325ba17f1b63"
+    },
+    {
+      "path": "templates/layouts/presentation_core/templates/design_spec.md",
+      "upstreamPath": "skills/ppt-master/templates/layouts/presentation_core/templates/design_spec.md",
+      "bytes": 6186,
+      "gitBlobSha": "be2a1626297ace9f405bb75b288c85f2b206eef0"
+    },
+    {
+      "path": "scripts/docs/template-tools.md",
+      "upstreamPath": "skills/ppt-master/scripts/docs/template-tools.md",
+      "bytes": 19232,
+      "gitBlobSha": "9c36ac819554379f0a27ae1b5f86dd2418acb318"
+    },
+    {
+      "path": "scripts/docs/svg-pipeline.md",
+      "upstreamPath": "skills/ppt-master/scripts/docs/svg-pipeline.md",
+      "bytes": 107620,
+      "gitBlobSha": "bed11d5c0cd7a240859618e78ea6ac1ece4327fc"
+    },
+    {
       "path": "LICENSE",
-      "upstreamPath": "LICENSE",
+      "upstreamPath": "skills/ppt-master/LICENSE",
+      "bytes": 1069,
       "gitBlobSha": "9c261c3d9a1d3249fa8f18611c950d719d288560"
     }
   ]

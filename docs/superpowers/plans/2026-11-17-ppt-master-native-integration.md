@@ -49,7 +49,7 @@
 ### Task 2: Vendor 完整上游工具链
 
 **Files:**
-- Create: web/app/src/layout-library/vendor/ppt_master/upstream/skills/ppt-master/** (固定上游 scripts、SKILL.md、License、Sponsors、Create Template workflows、Template Designer references、Design Spec schema)
+- Create: web/app/src/layout-library/vendor/ppt_master/upstream/skills/ppt-master/** (固定上游 Create Template 依赖闭包（215 个原样文件）、SKILL.md、License、Sponsors、Create Template workflows、Template Designer references、Design Spec schema)
 - Create: web/app/src/layout-library/vendor/ppt_master/UPSTREAM.json
 - Modify: web/app/src/layout-library/vendor/ppt_master/README.md
 - Test: web/app/tests/ppt-master-vendor.test.mjs
