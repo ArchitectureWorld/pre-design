@@ -6,8 +6,8 @@ import {spawnSync} from 'node:child_process'
 import {fileURLToPath} from 'node:url'
 import {dirname,resolve,join} from 'node:path'
 
-const root=resolve(dirname(fileURLToPath(import.meta.url)),'../..')
-const vendor=join(root,'src/layout-library/vendor/ppt_master/upstream/skills/ppt-master')
+const root=resolve(dirname(fileURLToPath(import.meta.url)),'..')
+const vendor=join(root,'src/layout-library/vendor/ppt_master/upstream')
 const blobHash=bytes=>createHash('sha1').update(Buffer.concat([Buffer.from('blob '+bytes.length+'\0'),bytes])).digest('hex')
 
 test('PPT Master is vendored as a complete pinned internal engine, not a standalone Skill',async()=>{
