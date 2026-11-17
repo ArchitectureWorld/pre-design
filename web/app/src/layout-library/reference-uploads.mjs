@@ -3,6 +3,7 @@ import{mkdir,realpath,writeFile,open,rm}from'node:fs/promises'
 import{constants}from'node:fs'
 import{join,resolve}from'node:path'
 import{fail}from'./contract.mjs'
+import{validatePrivateArtifacts,MAX_PRIVATE_ARTIFACT_BYTES}from'./reference-artifacts.mjs'
 import{MAX_REFERENCE_BYTES,MAX_REFERENCE_PDF_PAGES,MAX_REFERENCE_IMAGES,MAX_REFERENCE_IMAGE_BYTES,referenceByteLimit,referenceLimitLabel}from'./reference-limits.mjs'
 
 export const MAX_REFERENCE_UPLOAD_BYTES=MAX_REFERENCE_BYTES
@@ -19,7 +20,7 @@ export async function createReferenceUploads(db,{root:storageRoot,extractor}={})
  filename text NOT NULL,sha256 text NOT NULL,bytes integer NOT NULL,mime_type text NOT NULL,
  document jsonb NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(owner_id,request_id));`)
  const query=async(sql,params=[],c=db)=>(await c.query(sql,params)).rows
- function describe(row){const d=typeof row.document==='string'?JSON.parse(row.document):row.document;return {id:row.id,name:row.filename,sha256:row.sha256,bytes:row.bytes,mimeType:row.mime_type,kind:d.kind,text:d.text,hasImages:d.images.length>0,imageCount:d.images.length,pageCount:d.pageCount,readPages:d.readPages,limitations:d.limitations,summary:d.summary,...(d.structure?{structure:d.structure}:{}),...(d.pages?{pages:d.pages}:{})}}
+ function describe(row){const d=typeof row.document==='string'?JSON.parse(row.document):row.document;return {id:row.id,name:row.filename,sha256:row.sha256,bytes:row.bytes,mimeType:row.mime_type,kind:d.kind,text:d.text,hasImages:d.images.length>0,imageCount:d.images.length,pageCount:d.pageCount,readPages:d.readPages,limitations:d.limitations,summary:d.summary,...(d.structure?{structure:d.structure}:{}),...(d.pages?{pages:d.pages}:{}),...(d.privateArtifacts?{privateArtifacts:d.privateArtifacts}:{})}}
  async function record(actor,id,c=db){
   if(!uuid.test(id??''))throw fail('参考文件不存在。',404)
   const [row]=await query('SELECT * FROM layout_reference_uploads WHERE id=$1 AND owner_id=$2',[id,actor.id],c)
@@ -60,7 +61,14 @@ export async function createReferenceUploads(db,{root:storageRoot,extractor}={})
     await writeFile(join(folder,file),image.data,{mode:0o600,flag:'wx',signal})
     images.push({file,mimeType:image.mimeType,width:image.width,height:image.height,page:image.page,bytes:image.data.length,sha256:hash(image.data)})
    }
-   const document={kind:parsed.kind,text:parsed.text??'',images,pageCount:parsed.pageCount,readPages:parsed.readPages,limitations:parsed.limitations??[],summary:parsed.summary,...(parsed.structure?{structure:parsed.structure}:{}),...(parsed.pages?{pages:parsed.pages}:{})}
+   const privateArtifacts=[]
+   for(const [index,artifact] of validatePrivateArtifacts(parsed.privateArtifacts??[]).entries()){
+    signal?.throwIfAborted()
+    const file='artifact-'+(index+1)
+    await writeFile(join(folder,file),artifact.data,{mode:0o600,flag:'wx',signal})
+    privateArtifacts.push({path:artifact.path,file,sha256:artifact.sha256,bytes:artifact.bytes})
+   }
+   const document={privateArtifacts,kind:parsed.kind,text:parsed.text??'',images,pageCount:parsed.pageCount,readPages:parsed.readPages,limitations:parsed.limitations??[],summary:parsed.summary,...(parsed.structure?{structure:parsed.structure}:{}),...(parsed.pages?{pages:parsed.pages}:{})}
    signal?.throwIfAborted()
    const [saved]=await query('INSERT INTO layout_reference_uploads(id,owner_id,request_id,fingerprint,filename,sha256,bytes,mime_type,document) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(owner_id,request_id) DO NOTHING RETURNING *',[id,actor.id,input.requestId,fingerprint,input.filename,sha256,bytes.length,parsed.mimeType,document])
    if(saved)return {...referenceFileSummary(describe(saved)),status:'ready'}
@@ -98,13 +106,19 @@ export async function createReferenceUploads(db,{root:storageRoot,extractor}={})
  async function verifiedBytes(id,file,sha256,maxBytes){
   let handle
   try{
-   if(!uuid.test(id)||!/^source$|^page-\d+\.(?:jpg|png)$/.test(file))throw Error('INVALID_FILE')
+   if(!uuid.test(id)||!/^(?:source|page-\d+\.(?:jpg|png)|artifact-\d+)$/.test(file))throw Error('INVALID_FILE')
    const folder=join(root,id);if(await realpath(folder)!==folder)throw Error('INVALID_PATH')
    handle=await open(join(folder,file),constants.O_RDONLY|constants.O_NOFOLLOW)
    const info=await handle.stat();if(!info.isFile()||info.size>maxBytes)throw Error('INVALID_SIZE')
    const bytes=await handle.readFile();if(bytes.length>maxBytes||hash(bytes)!==sha256)throw Error('INVALID_HASH')
    return bytes
   }catch{throw fail('参考文件已变化或不可读，请重新上传。',409)}finally{await handle?.close()}
+ }
+ async function artifact(actor,id,path){
+  const row=await record(actor,id),document=typeof row.document==='string'?JSON.parse(row.document):row.document
+  const a=document.privateArtifacts?.find(a=>a.path===path)
+  if(!a)throw fail('参考设计产物不存在。',404)
+  return {path:a.path,sha256:a.sha256,bytes:a.bytes,data:await verifiedBytes(id,a.file,a.sha256,MAX_PRIVATE_ARTIFACT_BYTES)}
  }
  async function download(actor,id){const row=await record(actor,id);return {name:row.filename,mimeType:row.mime_type,data:await verifiedBytes(id,'source',row.sha256,MAX_REFERENCE_UPLOAD_BYTES)}}
  async function preview(actor,id,page){
@@ -159,5 +173,5 @@ export async function createReferenceUploads(db,{root:storageRoot,extractor}={})
   }
   return output
  }
- return {create,createFromStream,get,download,preview,previewBySource,resolveFiles,validateImageBudget,modelImages}
+ return {create,createFromStream,get,download,artifact,preview,previewBySource,resolveFiles,validateImageBudget,modelImages}
 }

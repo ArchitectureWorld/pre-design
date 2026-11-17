@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import sharp from 'sharp'
 import {runPptMasterImport} from './ppt-master-adapter.mjs'
+import {captureReferenceArtifacts} from './reference-artifacts.mjs'
 import { PPTX_PARSE_TIMEOUT_MS } from './reference-limits.mjs'
 
 const adapter = fileURLToPath(new URL('./reference-pptx.py', import.meta.url))
@@ -69,14 +70,14 @@ export async function extractPptxReference(bytes, { signal } = {}) {
   try {
     const input = join(directory, 'source.pptx'), preview = join(directory, 'preview.pptx')
     await writeFile(input, bytes, { mode: 0o600, flag: 'wx', signal })
-    let parsed
+    let parsed, upstream
     try {
-      // The pinned upstream importer is the canonical PPTX design parser.
-      // The legacy bounded reader remains only as a compatibility facts adapter
-      // until Reference Bundle V3 persists the full native artifact workspace.
-      const upstream = await runPptMasterImport({sourcePath:input,workspace:join(directory,'ppt-master-import'),signal,timeoutMs:PPTX_PARSE_TIMEOUT_MS})
+      // Validate ZIP/XML, relationship and resource limits BEFORE handing the
+      // untrusted source to the pinned importer. The bounded reader also keeps
+      // legacy facts/preview compatibility; upstream is the native design source.
       const raw = await runTool(process.env.PRE_LAYOUT_PYTHON_BINARY || '/usr/bin/python3', [adapter, input, preview], { signal, deadline, label: 'PPTX 结构解析器' })
       parsed = JSON.parse(raw.toString('utf8'))
+      upstream = await runPptMasterImport({sourcePath:input,workspace:join(directory,'ppt-master-import'),signal,timeoutMs:Math.max(1,deadline-Date.now())})
     } catch (error) {
       if (signal?.aborted) throw signal.reason
       if (error.stdout) {
@@ -149,6 +150,7 @@ export async function extractPptxReference(bytes, { signal } = {}) {
       kind: 'pptx', mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
       text: parsed.text, images, pageCount: parsed.pageCount, readPages: parsed.readPages,
       structure: parsed.structure, pages: parsed.pages, limitations,
+      privateArtifacts: await captureReferenceArtifacts({workspace:upstream.workspace,inventory:upstream.artifacts,signal}),
       summary: `PPTX 共 ${parsed.pageCount} 页，已读取原生结构并${sampled ? '从全篇抽样' : '生成'} ${images.length} 张真实页面预览${parsed.structure.limits.truncated ? '；结构详情已按上限截断' : ''}。`,
     }
   } finally {

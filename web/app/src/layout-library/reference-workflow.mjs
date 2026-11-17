@@ -1,5 +1,6 @@
 import {createHash,randomUUID} from 'node:crypto'
 import {z} from 'zod'
+import {buildReferenceBundle} from './reference-bundle.mjs'
 import {validatePackage,packageDigest,fail} from './contract.mjs'
 import {decodeLayoutResponse} from './response.mjs'
 import {validateReferenceProfile,referenceDesignFactSchema,referencePageTypes,referenceStructures} from './reference-profile.mjs'
@@ -198,6 +199,7 @@ export async function runReferenceWorkflow({jobId,payload,images=[],policy,signa
   if(!files.length)throw sourceError('本轮没有可分析的参考文件。')
   current={stage:'inventory',status:'running',modelInvoked:false,startedAt:new Date().toISOString()};execution.stages.push(current)
   analysis.inventory=inventoryOf(files,images)
+  analysis.referenceBundle=buildReferenceBundle({files,sourceRecords:analysis.inventory.files})
   analysis.limitations=[...new Set(analysis.inventory.files.flatMap(f=>f.limitations))]
   check();current.status='completed';current.finishedAt=new Date().toISOString();current.outputHash=hash(analysis.inventory);current=null
   const seenPages=new Set(),uniqueImages=images.filter(image=>{const p=pageInput(analysis.inventory,image),key=sourceKey(p.fileSha256,p.pageNumber);if(seenPages.has(key))return false;seenPages.add(key);return true})

@@ -139,3 +139,13 @@ test('有视觉参考时页面原型必须关联可实际对照的图像，只�
  })
  assert.equal(calls.at(-1).stage,'profile')
 })
+test('V14 retains owner-private Reference Bundle and importer graph without copying it to reusable package',async()=>{
+ const fixture=workflowFixture(),calls=[]
+ fixture.payload.referenceFiles[0].kind='pptx'
+ fixture.payload.referenceFiles[0].structure={pptMaster:{masters:[{id:'master-1'}],layouts:[{id:'layout-1'}],slides:[{id:'slide-1'}],nativeStructure:{text:'PRIVATE ORIGINAL'},inheritance:{'slide-1':'layout-1'},artifactInventory:{files:[]}}}
+ const result=await runReferenceWorkflow({jobId:randomUUID(),...fixture,policy,runModel:modelFixture(calls)})
+ assert.equal(result.analysis.referenceBundle.visibility,'private')
+ assert.equal(result.analysis.referenceBundle.sources[0].native.masterLayoutGraph.masters[0].id,'master-1')
+ assert.deepEqual(result.analysis.referenceBundle.sources[0].coverage.visualPages,[1,2,3,4,5,6,7])
+ assert.doesNotMatch(JSON.stringify(result.response.package),/PRIVATE ORIGINAL|referenceBundle|nativeStructure/)
+})

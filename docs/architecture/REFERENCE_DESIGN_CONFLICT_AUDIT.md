@@ -84,3 +84,9 @@
 - 内部 Adapter 已新增并接入 PPTX 参考解析；完整 Reference Bundle 持久化、V14 Design Spec/Prototype 阶段、Native Compiler V3、SVG-backed V11、上游质量工具和部署交接：待实施。
 - 当前分支 CI 仅证明已有代码和 vendor 门禁通过，不代表以上待实施项目完成。
 
+
+## 6. 云端接续增量：私有产物保留
+
+继 `2b811d4` 后的云端增量已经在既有上传存储中保留上游衍生产物字节，并在 V14 inventory 建立私有 Reference Bundle。旧记录仅有清单时标记 `inventory-only`，新记录核对路径与指纹后标记 `private-upload`。同时修复成功解析后的 upstream 作用域错误，恢复上游调用前的 ZIP/XML 安全校验。
+
+这仅替代上表中“临时 SVG 字节尚未持久化”的状态；Design Spec/Prototype、Native Compiler V3、SVG-backed V11、上游质量工具和真实视觉验收仍未完成。验证范围及未通过项见 `docs/reviews/ppt-master-native-integration/CLOUD_REFERENCE_RETENTION.md`。
