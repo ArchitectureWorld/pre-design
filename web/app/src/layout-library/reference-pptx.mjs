@@ -63,8 +63,9 @@ async function runTool(command, args, { signal, deadline, maxOutput = MAX_OUTPUT
 }
 
 /** Native OOXML facts and genuine, bounded page previews. No model inference. */
-export async function extractPptxReference(bytes, { signal } = {}) {
+export async function extractPptxReference(bytes, { signal, pptxStartPage } = {}) {
   signal?.throwIfAborted()
+  if(pptxStartPage!==undefined&&(!Number.isSafeInteger(pptxStartPage)||pptxStartPage<1))throw fail('PPTX 起始页必须是正整数。')
   const directory = await mkdtemp(join(tmpdir(), 'layout-reference-pptx-'))
   const deadline = Date.now() + PPTX_PARSE_TIMEOUT_MS
   try {
@@ -75,9 +76,9 @@ export async function extractPptxReference(bytes, { signal } = {}) {
       // Validate ZIP/XML, relationship and resource limits BEFORE handing the
       // untrusted source to the pinned importer. The bounded reader also keeps
       // legacy facts/preview compatibility; upstream is the native design source.
-      const raw = await runTool(process.env.PRE_LAYOUT_PYTHON_BINARY || '/usr/bin/python3', [adapter, input, preview], { signal, deadline, label: 'PPTX 结构解析器' })
+      const raw = await runTool(process.env.PRE_LAYOUT_PYTHON_BINARY || '/usr/bin/python3', [adapter, input, preview,...(pptxStartPage===undefined?[]:['--start-page',String(pptxStartPage)])], { signal, deadline, label: 'PPTX 结构解析器' })
       parsed = JSON.parse(raw.toString('utf8'))
-      upstream = await runPptMasterImport({sourcePath:input,workspace:join(directory,'ppt-master-import'),signal,timeoutMs:Math.max(1,deadline-Date.now())})
+      if(pptxStartPage===undefined)upstream = await runPptMasterImport({sourcePath:input,workspace:join(directory,'ppt-master-import'),signal,timeoutMs:Math.max(1,deadline-Date.now())})
     } catch (error) {
       if (signal?.aborted) throw signal.reason
       if (error.stdout) {
@@ -89,6 +90,7 @@ export async function extractPptxReference(bytes, { signal } = {}) {
       throw error
     }
     if (!parsed?.structure || !Array.isArray(parsed.readPages) || !parsed.readPages.length || parsed.readPages.length > 30) throw fail('PPTX 结构或预览页码不完整。')
+    if(pptxStartPage!==undefined&&(!Number.isSafeInteger(parsed.pageCount)||parsed.pageCount<pptxStartPage||parsed.readPages.length!==Math.min(30,parsed.pageCount-pptxStartPage+1)||parsed.readPages.some((page,index)=>page!==pptxStartPage+index)))throw fail('PPTX 续读范围与原始页序不一致。')
     signal?.throwIfAborted()
     const profile = join(directory, 'office-profile')
     await mkdir(join(profile, 'user'), { recursive: true })
@@ -129,6 +131,15 @@ export async function extractPptxReference(bytes, { signal } = {}) {
     }
     signal?.throwIfAborted()
     const limitations = parsed.structure.warnings.map(warning => warning.message)
+    if(pptxStartPage!==undefined){
+      // Continuation only appends previews. Never replace the original graph, importer receipt or SVG identities.
+      const selected=new Set(parsed.readPages),slides=new Map(parsed.structure.slides.map(slide=>[slide.page,slide]))
+      const pages=parsed.pages.filter(page=>selected.has(page.page)).map(page=>{const slide=slides.get(page.page);return {...page,slideId:slide.slideId,part:slide.part,hidden:slide.hidden,preview:true}})
+      if(pages.length!==parsed.readPages.length)throw fail('PPTX 续读页事实不完整。')
+      const range=`第 ${parsed.readPages[0]}–${parsed.readPages.at(-1)} 页`
+      limitations.unshift(`PPTX 共 ${parsed.pageCount} 页，本批仅生成${range}预览；其余页不在本批视觉读取范围内。原有原生产物与继承关系保持不变。`)
+      return {kind:'pptx',mimeType:'application/vnd.openxmlformats-officedocument.presentationml.presentation',previewOnly:true,sourceSha256:parsed.structure.provenance.sourceSha256,text:pages.map(page=>page.text??'').join('\n\n'),images,pageCount:parsed.pageCount,readPages:parsed.readPages,pages,limitations,summary:`PPTX 共 ${parsed.pageCount} 页，本批续读${range}并生成 ${images.length} 张真实页面预览。`}
+    }
     parsed.structure.pptMaster = {
       revision: upstream.upstream.revision,
       source: upstream.source,

@@ -106,6 +106,8 @@ test('PPTX 预览从全篇抽样而非只读前 30 页，结构页序完整', { 
   assert.equal(result.readPages.at(-1), 41)
   assert.equal(new Set(result.readPages).size, 30)
   assert.equal(result.structure.slides.length, 41)
+  assert.equal(result.structure.pptMaster.slides.length,41)
+  assert(result.privateArtifacts.some(a=>a.path==='svg-flat/slide_41.svg'),'初始原件导入必须保留未逐页预览的全篇SVG身份')
   assert.equal(result.pages.length, 41)
   assert.match(result.limitations.join(' '), /抽样/)
   assert.match(result.structure.slides.at(-1).text, /Synthetic page 41/)
@@ -170,11 +172,11 @@ test('PPTX 分组按子坐标比例展开，旋转分组后代明确标为近似
   assert(result.structure.warnings.some(warning => warning.code === 'group-transform'))
 })
 
-test('PPTX 运行中取消会清理该解析的私有临时目录', { timeout: 90_000 }, async () => {
+for(const pptxStartPage of [undefined,31])test(`PPTX ${pptxStartPage??'初次'}批次运行中取消会清理该解析的私有临时目录`, { timeout: 90_000 }, async () => {
   const bytes = await deck({ count: 41 })
   const before = new Set((await readdir(tmpdir())).filter(name => name.startsWith('layout-reference-pptx-')))
   const controller = new AbortController(), reason = new Error('cancel running native parse')
-  const pending = extractReferenceDocument({ bytes, filename: 'synthetic.pptx', signal: controller.signal })
+  const pending = extractReferenceDocument({ bytes, filename: 'synthetic.pptx', signal: controller.signal, pptxStartPage })
   const timer = setTimeout(() => controller.abort(reason), 100)
   try { await assert.rejects(() => pending, error => error === reason) }
   finally { clearTimeout(timer) }
@@ -234,4 +236,82 @@ test('PPTX 验证根据 OPC 媒体类型检查隐藏 SVG，并检查实体解码
     assert.equal(result.statusCode, 400, JSON.stringify(result))
     assert.match(result.error, /外部|样式|SVG/)
   }
+})
+
+async function rangeDeck(){
+ return deck({count:87,mutate:async zip=>{
+  for(const [from,to] of [['ppt/slideMasters/slideMaster1.xml','ppt/slideMasters/slideMaster2.xml'],['ppt/slideMasters/_rels/slideMaster1.xml.rels','ppt/slideMasters/_rels/slideMaster2.xml.rels'],['ppt/slideLayouts/slideLayout1.xml','ppt/slideLayouts/slideLayout2.xml'],['ppt/slideLayouts/_rels/slideLayout1.xml.rels','ppt/slideLayouts/_rels/slideLayout2.xml.rels']]){
+   let xml=await zip.file(from).async('string')
+   if(to.endsWith('.rels'))xml=xml.replaceAll('slideLayout1.xml','slideLayout2.xml').replaceAll('slideMaster1.xml','slideMaster2.xml')
+   zip.file(to,xml)
+  }
+  const presentation=await zip.file('ppt/presentation.xml').async('string')
+  zip.file('ppt/presentation.xml',presentation.replace('</p:sldMasterIdLst>','<p:sldMasterId id="2147483649" r:id="rIdRangeMaster"/></p:sldMasterIdLst>'))
+  const rels=await zip.file('ppt/_rels/presentation.xml.rels').async('string')
+  zip.file('ppt/_rels/presentation.xml.rels',rels.replace('</Relationships>','<Relationship Id="rIdRangeMaster" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster2.xml"/></Relationships>'))
+  const types=await zip.file('[Content_Types].xml').async('string')
+  zip.file('[Content_Types].xml',types.replace('</Types>','<Override PartName="/ppt/slideMasters/slideMaster2.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/><Override PartName="/ppt/slideLayouts/slideLayout2.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/></Types>'))
+  for(const page of [61,87]){
+   const path='ppt/slides/_rels/slide'+page+'.xml.rels'
+   zip.file(path,(await zip.file(path).async('string')).replaceAll('slideLayout1.xml','slideLayout2.xml'))
+  }
+  const path='ppt/slides/slide31.xml'
+  zip.file(path,(await zip.file(path).async('string')).replace('<p:sld ','<p:sld show="0" '))
+ }})
+}
+async function pythonRange(bytes,start){
+ const directory=await mkdtemp(join(tmpdir(),'pptx-range-test-'))
+ try{
+  const source=join(directory,'source.pptx'),preview=join(directory,'preview.pptx')
+  await writeFile(source,bytes)
+  const adapter=fileURLToPath(new URL('../src/layout-library/reference-pptx.py',import.meta.url))
+  const {stdout}=await promisify(execFile)('/usr/bin/python3',[adapter,source,preview,...(start===undefined?[]:['--start-page',String(start)])],{timeout:60_000,maxBuffer:8*1024*1024})
+  const result=JSON.parse(stdout),{readFile}=await import('node:fs/promises'),archive=await JSZip.loadAsync(await readFile(preview))
+  return {result,archive}
+ }finally{await rm(directory,{recursive:true,force:true})}
+}
+test('PPTX 87页范围续读保留原Slide/Master/Layout身份及隐藏页，默认仍全篇抽样', {timeout:120_000},async()=>{
+ const bytes=await rangeDeck(),initial=(await pythonRange(bytes)).result
+ assert.equal(initial.structure.slides.length,87);assert.equal(initial.readPages.length,30);assert.equal(initial.readPages.at(-1),87)
+ assert(initial.structure.masters.length>=2);assert(initial.structure.layouts.length>=2)
+ for(const start of [31,61,87]){
+  const {result,archive}=await pythonRange(bytes,start),expected=Array.from({length:Math.min(30,88-start)},(_,i)=>i+start)
+  assert.equal(result.pageCount,87);assert.deepEqual(result.readPages,expected)
+  for(const page of expected){
+   const a=initial.structure.slides[page-1],b=result.structure.slides[page-1]
+   for(const key of ['page','slideId','part','layoutId','masterId','hidden'])assert.equal(b[key],a[key],key)
+   assert.match(b.text,new RegExp('Synthetic page '+page+'(?:$|\\s)'))
+  }
+  const xml=await archive.file('ppt/presentation.xml').async('string')
+  assert.equal((xml.match(/<p:sldId\b/g)??[]).length,expected.length)
+  if(start===31){assert.equal(result.structure.slides[30].hidden,true);assert.match(await archive.file('ppt/slides/slide31.xml').async('string'),/show="1"/)}
+ }
+})
+test('PPTX 续读参数非法/格式冲突/越界明确拒绝并保留预先取消',async()=>{
+ const bytes=await deck()
+ for(const pptxStartPage of [null,0,-1,1.5,'1',NaN,Infinity,Number.MAX_SAFE_INTEGER+1,3])await assert.rejects(extractReferenceDocument({bytes,filename:'range.pptx',pptxStartPage}),rejects(400,/页/))
+ await assert.rejects(extractReferenceDocument({bytes:Buffer.from('text'),filename:'x.txt',pptxStartPage:1}),rejects(400,/PPTX/))
+ await assert.rejects(extractReferenceDocument({bytes,filename:'range.pptx',pptxStartPage:1,pdfStartPage:2}),rejects(400,/PDF|页/))
+ const controller=new AbortController(),reason=Error('stop continuation');controller.abort(reason)
+ await assert.rejects(extractReferenceDocument({bytes,filename:'range.pptx',pptxStartPage:2,signal:controller.signal}),e=>e===reason)
+})
+test('PPTX 续读只追加真实原页预览，不运行完整importer或返回替换graph/artifacts',{timeout:120_000},async()=>{
+ const bytes=await rangeDeck(),root=await mkdtemp(join(tmpdir(),'pptx-range-guard-')),previous=process.env.PRE_LAYOUT_PYTHON_BINARY
+ const {chmod}=await import('node:fs/promises'),wrapper=join(root,'python-guard')
+ await writeFile(wrapper,'#!/bin/sh\ncase "$1" in *pptx_template_import.py|*attribution_guard.py) echo "full importer forbidden in preview continuation" >&2; exit 97;; esac\nexec /usr/bin/python3 "$@"\n')
+ await chmod(wrapper,0o700);process.env.PRE_LAYOUT_PYTHON_BINARY=wrapper
+ try{
+  for(const start of [31,61,87]){
+   const result=await extractReferenceDocument({bytes,filename:'range.pptx',pptxStartPage:start}),expected=Array.from({length:Math.min(30,88-start)},(_,i)=>start+i)
+   assert.equal(result.previewOnly,true);assert.equal(result.sourceSha256,createHash('sha256').update(bytes).digest('hex'))
+   assert.equal(result.structure,undefined);assert.equal(result.privateArtifacts,undefined)
+   assert.equal(result.pageCount,87);assert.deepEqual(result.readPages,expected)
+   assert.deepEqual(result.images.map(image=>image.page),expected);assert.deepEqual(result.pages.map(page=>page.page),expected)
+   for(const page of result.pages){assert.match(page.text,new RegExp('Synthetic page '+page.page+'(?:$|\\s)'));assert(page.masterId&&page.layoutId&&page.slideId&&page.part)}
+   assert.match(result.summary,/本批/);assert.doesNotMatch(result.summary,/全篇.*已读|抽样/)
+   assert(result.images.every(image=>image.data.length>0))
+   if(start===31)assert.equal(result.pages[0].hidden,true)
+   if(start===87){const {data,info}=await sharp(result.images[0].data).raw().toBuffer({resolveWithObject:true});const i=(Math.floor(info.height*.9)*info.width+Math.floor(info.width*.9))*info.channels;assert(data[i+1]>data[i]+50,'原第87页应为绿色末页而非错误重编号的第1页')}
+  }
+ }finally{if(previous===undefined)delete process.env.PRE_LAYOUT_PYTHON_BINARY;else process.env.PRE_LAYOUT_PYTHON_BINARY=previous;await rm(root,{recursive:true,force:true})}
 })

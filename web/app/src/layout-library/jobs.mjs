@@ -60,7 +60,7 @@ export function createLayoutJobs({db,platform,workers,library,uploads,serial,con
  }
  async function execute(job){
   const controller=new AbortController();controllers.set(job.id,controller)
-  const fullReference=job.payload.referencePipeline==='native-v3'&&(job.payload.referenceFiles??[]).some(f=>f.kind==='pdf'&&f.pageCount>30)
+  const fullReference=job.payload.referencePipeline==='native-v3'&&(job.payload.referenceFiles??[]).some(f=>['pdf','pptx'].includes(f.kind)&&f.pageCount>30)
   const signal=AbortSignal.any([controller.signal,AbortSignal.timeout(fullReference?30*60*1000:REFERENCE_ANALYSIS_TIMEOUT_MS)])
   let latestCoverage
   const activity=createTaskProgressReporter({write:progress=>db.query("UPDATE jobs SET progress=$2 WHERE id=$1 AND status='running'",[job.id,latestCoverage?{...progress,label:progress.label+' · '+coverageLabel(latestCoverage),referenceCoverage:latestCoverage}:progress])})
@@ -74,8 +74,8 @@ export function createLayoutJobs({db,platform,workers,library,uploads,serial,con
    const lazy=workflow&&uploads&&job.payload.referencePipeline==='native-v3',actor={id:job.owner_id}
    if(lazy){
     for(const file of job.payload.referenceFiles??[]){
-     if(file.kind!=='pdf'||!file.id)continue
-     for(let start=1;start<=file.pageCount;start+=30){signal.throwIfAborted();activity.report({stage:'reading_material'});await uploads.ensurePdfPages(actor,file.id,start,{signal})}
+     if(!['pdf','pptx'].includes(file.kind)||!file.id)continue
+     for(let start=1;start<=file.pageCount;start+=30){signal.throwIfAborted();activity.report({stage:'reading_material'});await uploads.ensureDocumentPages(actor,file.id,start,{signal})}
     }
     job.payload={...job.payload,referenceFiles:await uploads.resolveFiles(actor,job.payload.referenceFiles??[])}
     await db.query("UPDATE jobs SET payload=$2 WHERE id=$1 AND status='running'",[job.id,job.payload])

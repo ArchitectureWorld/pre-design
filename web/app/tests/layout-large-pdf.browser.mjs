@@ -25,7 +25,7 @@ try{
  await page.locator('[data-upload-row][data-state=ready]').waitFor();assert.equal(f.modelCalls.length,0);await page.locator('[data-layout-send]').click()
  await page.waitForFunction(()=>document.querySelector('[data-chat-messages]')?.textContent.includes('已生成原生 SVG 设计候选'),null,{timeout:120000})
  const observations=f.modelCalls.filter(call=>call.stage?.startsWith('observe-')),modelImages=observations.flatMap(call=>call.images)
- assert.deepEqual(uploads,['application/octet-stream']);assert.equal(f.modelCalls.length,10);assert.equal(observations.length,6)
+ assert.deepEqual(uploads,['application/octet-stream']);assert.equal(f.modelCalls.length,11);assert.equal(observations.length,6)
  assert(observations.every(call=>call.modelRole==='vision'&&call.images.length<=6));assert.equal(modelImages.length,31);assert.equal(modelImages.at(-1).page,31)
  assert.deepEqual(f.modelCalls.slice(-3).map(call=>call.stage),['profile','design-spec','prototype-1']);assert(f.modelCalls.slice(-3,-1).every(call=>call.modelRole==='parent'&&call.images.length===0));assert.equal(f.modelCalls.at(-1).modelRole,'vision');assert(f.modelCalls.at(-1).images.length>0&&f.modelCalls.at(-1).images.length<=6)
  const list=(await f.request('GET','/layout-library/conversations')).conversations,conversation=await f.request('GET','/layout-library/conversations/'+list[0].id),file=conversation.referenceFiles[0]

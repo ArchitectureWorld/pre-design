@@ -551,10 +551,19 @@ def bound_metadata(structure: dict, pages: list):
 
 def main():
     source, preview = map(Path, sys.argv[1:3])
+    start_page = None
+    if len(sys.argv) != 3:
+        if len(sys.argv) != 5 or sys.argv[3] != "--start-page" or not sys.argv[4].isdigit():
+            raise Reject("PPTX 起始页参数不合法。")
+        start_page = int(sys.argv[4])
+        if start_page < 1:
+            raise Reject("PPTX 起始页必须是正整数。")
     package = validate_package(source)
     structure, text, _ = extract_structure(source, package)
     count = len(structure["slides"])
-    selected = sampled_pages(count)
+    if start_page is not None and start_page > count:
+        raise Reject("PPTX 起始页超过文件总页数。")
+    selected = sampled_pages(count) if start_page is None else list(range(start_page, min(count, start_page + MAX_PREVIEWS - 1) + 1))
     write_preview_package(source, preview, package, structure, selected)
     if package["inertRemoved"]:
         structure["warnings"].append({"code": "inert-preview", "message": "预览副本已移除超链接动作、嵌入执行对象及音视频关系；保留可用静态图像。"})

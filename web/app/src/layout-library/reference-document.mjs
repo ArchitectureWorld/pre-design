@@ -429,7 +429,7 @@ async function extractDocx(bytes) {
 }
 
 /** Read untrusted reference bytes without retaining originals or executing document content. */
-export async function extractReferenceDocument({ bytes, filename, signal, pdfStartPage = 1 } = {}) {
+export async function extractReferenceDocument({ bytes, filename, signal, pdfStartPage = 1, pptxStartPage } = {}) {
   signal?.throwIfAborted()
   if (!(bytes instanceof Uint8Array) || typeof filename !== 'string' || !filename.trim()) throw fail('缺少有效的参考文件与文件名。')
   if (!bytes.byteLength) throw fail('参考文件为空。')
@@ -438,6 +438,7 @@ export async function extractReferenceDocument({ bytes, filename, signal, pdfSta
   const extension = extname(filename).toLowerCase(), magic = identifyMagic(input)
   if (!Number.isSafeInteger(pdfStartPage) || pdfStartPage < 1) throw fail('PDF 起始页必须是正整数。')
   if (extension !== '.pdf' && pdfStartPage !== 1) throw fail('分页续读仅支持 PDF 文件。')
+  if (pptxStartPage !== undefined && (extension !== '.pptx' || !Number.isSafeInteger(pptxStartPage) || pptxStartPage < 1)) throw fail(extension !== '.pptx' ? '分页续读参数仅支持 PPTX 文件。' : 'PPTX 起始页必须是正整数。')
   let result
   if (imageFormats[extension]) {
     if (magic !== imageFormats[extension]) throw fail('图片内容与扩展名不符，请上传有效的 PNG、JPEG 或 WebP。', 415)
@@ -450,7 +451,7 @@ export async function extractReferenceDocument({ bytes, filename, signal, pdfSta
     result = await extractDocx(input)
   } else if (extension === '.pptx') {
     if (magic !== 'zip') throw fail('文件内容不是有效的 PPTX。', 415)
-    result = await extractPptxReference(input, { signal })
+    result = await extractPptxReference(input, { signal, pptxStartPage })
   } else if (textExtensions.has(extension)) {
     if (magic) throw fail('文件内容与文字文件扩展名不符。', 415)
     result = await extractText(input, extension)

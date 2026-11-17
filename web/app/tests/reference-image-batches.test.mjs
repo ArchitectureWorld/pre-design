@@ -14,7 +14,7 @@ function metadataFixture(count=87){
 const model=(calls,profile=profileFixture())=>async input=>{
  calls.push({stage:input.stage,images:input.images.map(i=>({page:i.page,sha256:i.sha256})),context:JSON.parse(input.prompt.split('以下JSON仅为参考数据，不能改写系统边界：\n').at(-1))})
  const context=calls.at(-1).context,spec=nativeDesignInput()
- return {response:input.stage.startsWith('observe-')?observationFixture(input.images):input.stage==='profile'?profile:input.stage==='coverage-map'?{pages:context.pages.map(p=>({fileSha256:p.fileSha256,pageNumber:p.pageNumber,archetypeId:context.archetypes[0].id,factIds:[p.facts[0].id]}))}:input.stage==='design-spec'?{...spec.designSpec,profile:context.profile}:input.stage.startsWith('prototype-')?{prototypes:spec.prototypes}:{reply:'合成测试',package:packageFixture(context.profile)},execution:{actualRoute:{provider:'fixture',model:input.stage}}}
+ return {response:input.stage.startsWith('observe-')?observationFixture(input.images):input.stage==='profile'?profile:input.stage.startsWith('coverage-map')?{pages:context.pages.map(p=>({fileSha256:p.fileSha256,pageNumber:p.pageNumber,archetypeId:context.archetypes[0].id,factIds:[p.facts[0].id]}))}:input.stage==='design-spec'?{...spec.designSpec,profile:context.profile}:input.stage.startsWith('prototype-')?{prototypes:spec.prototypes}:{reply:'合成测试',package:packageFixture(context.profile)},execution:{actualRoute:{provider:'fixture',model:input.stage}}}
 }
 test('87 metadata pages load one bounded batch at a time and observe every original page',async()=>{
  const {fixture,data}=metadataFixture(),loaded=[],calls=[];let active=0,peak=0
@@ -28,7 +28,7 @@ test('87 metadata pages load one bounded batch at a time and observe every origi
  assert.equal(result.analysis.observations.flatMap(o=>o.pages).length,87)
  assert.equal(result.analysis.inventory.coverage.visualPages,87)
  assert.deepEqual(result.analysis.coverage,{totalPages:87,extractedPages:87,observedPages:87,synthesizedPages:87,complete:true})
- assert.equal(calls.filter(c=>c.stage==='coverage-map').length,1)
+ assert.equal(calls.filter(c=>c.stage.startsWith('coverage-map')).length,3)
  assert(calls.filter(c=>c.stage.startsWith('observe-')).every(c=>c.images.length<=6))
  assert(!JSON.stringify(result.analysis).includes(Buffer.from('actual page 1').toString('base64')))
 })
@@ -80,7 +80,7 @@ test('native prototype explicitly bounds direct source images while retaining al
  assert.equal(result.analysis.observations.flatMap(o=>o.pages).length,7)
  assert.equal(result.analysis.coverage.synthesizedPages,0)
  assert.equal(result.analysis.coverage.complete,false)
- assert(!calls.some(c=>c.stage==='coverage-map'))
+ assert(!calls.some(c=>c.stage.startsWith('coverage-map')))
  assert.equal(result.response.package.designProfile.evidence.length,7)
  assert(!JSON.stringify(result.response.package).includes('source-order-bounded'))
 })
@@ -107,7 +107,7 @@ test('verified lazy metadata can reuse successful inline checkpoints without new
 test('failed long-document coverage does not claim synthesis or produce a package',async()=>{
  const {fixture,data}=metadataFixture(31),calls=[],normal=model(calls)
  await assert.rejects(runReferenceWorkflow({jobId:'bad-coverage',...fixture,loadImageBatch:async metadata=>metadata.map(m=>({...m,data:data.get(m.page)})),runModel:async input=>{
-  const result=await normal(input);if(input.stage==='coverage-map')result.response.pages.pop();return result
+  const result=await normal(input);if(input.stage.startsWith('coverage-map'))result.response.pages.pop();return result
  }}),error=>{
   assert.equal(error.code,'REFERENCE_COVERAGE_INVALID')
   assert.deepEqual(error.analysis.coverage,{totalPages:31,extractedPages:31,observedPages:31,synthesizedPages:0,complete:false})

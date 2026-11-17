@@ -75,3 +75,18 @@ test('PDF continuation safely resumes after failed or uncertain COMMIT without o
   assert.equal((await uploads.preview(actor,file.id,31)).data.toString(),'stable 31')
  }
 })
+test('PPTX continuation fills sampled gaps without replacing original graph or SVG artifacts',async t=>{
+ const {createHash}=await import('node:crypto'),env=await createTestDb(),root=await mkdtemp(join(tmpdir(),'reference-pptx-continue-'))
+ t.after(async()=>{await env.close();await rm(root,{recursive:true,force:true})})
+ const source=Buffer.from('original pptx'),sourceSha256=createHash('sha256').update(source).digest('hex'),svg=Buffer.from('<svg/>'),svgSha=createHash('sha256').update(svg).digest('hex'),structure={slides:Array.from({length:87},(_,i)=>({page:i+1,layoutId:'layout-1',masterId:'master-1'})),pptMaster:{receiptHash:'same-original-receipt'}}
+ const uploads=await createReferenceUploads(env.db,{root,extractor:async({pptxStartPage})=>{
+  const readPages=pptxStartPage===undefined?Array.from({length:30},(_,i)=>Math.round(i*86/29)+1):Array.from({length:Math.min(30,88-pptxStartPage)},(_,i)=>pptxStartPage+i)
+  const pages=(pptxStartPage===undefined?structure.slides:structure.slides.filter(p=>readPages.includes(p.page))).map(p=>({...p,preview:readPages.includes(p.page)}))
+  return {kind:'pptx',mimeType:'application/vnd.openxmlformats-officedocument.presentationml.presentation',pageCount:87,readPages,pages,images:readPages.map(page=>({page,mimeType:'image/jpeg',width:1600,height:900,data:Buffer.from('slide '+page)})),...(pptxStartPage===undefined?{structure,privateArtifacts:[{path:'svg-flat/slide_31.svg',sha256:svgSha,bytes:svg.length,data:svg}]}:{previewOnly:true,sourceSha256})}
+ }})
+ const actor={id:'owner'},file=await uploads.create(actor,{requestId:'pptx',filename:'reference.pptx',bytes:source}),before=await uploads.get(actor,file.id)
+ for(const start of [1,31,61])await uploads.ensureDocumentPages(actor,file.id,start)
+ const after=await uploads.get(actor,file.id);assert.equal(after.readPages.length,87);assert.equal(after.pages.length,87);assert.deepEqual(after.structure,before.structure);assert.deepEqual(after.privateArtifacts,before.privateArtifacts)
+ assert.equal((await uploads.preview(actor,file.id,2)).data.toString(),'slide 2');assert.equal((await uploads.preview(actor,file.id,87)).data.toString(),'slide 87');assert.deepEqual((await uploads.artifact(actor,file.id,'svg-flat/slide_31.svg')).data,svg)
+ assert.deepEqual((await uploads.download(actor,file.id)).data,source)
+})

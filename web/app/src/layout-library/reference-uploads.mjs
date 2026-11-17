@@ -164,7 +164,7 @@ export async function createReferenceUploads(db,{root:storageRoot,extractor}={})
   }
   return output
  }
- async function ensurePdfPages(actor,id,pdfStartPage,{signal}={}){
+ async function ensureDocumentPages(actor,id,pdfStartPage,{signal}={}){
   if(!Number.isSafeInteger(pdfStartPage)||pdfStartPage<1)throw fail('PDF续读页码不合法。')
   const c=await db.connect(),created=[];let commitAttempted=false
   try{
@@ -172,20 +172,20 @@ export async function createReferenceUploads(db,{root:storageRoot,extractor}={})
    // Lock this upload only. Other users and other references remain independent.
    await c.query('SELECT id FROM layout_reference_uploads WHERE id=$1 AND owner_id=$2 FOR UPDATE',[id,actor.id])
    const row=await record(actor,id,c),document=typeof row.document==='string'?JSON.parse(row.document):row.document
-   if(document.kind!=='pdf'||pdfStartPage>document.pageCount)throw fail('PDF续读范围不合法。')
+   if(!['pdf','pptx'].includes(document.kind)||pdfStartPage>document.pageCount)throw fail('PDF续读范围不合法。')
    const wanted=Array.from({length:Math.min(MAX_REFERENCE_PDF_PAGES,document.pageCount-pdfStartPage+1)},(_,i)=>pdfStartPage+i)
    if(wanted.every(page=>document.readPages.includes(page))){await c.query('COMMIT');return referenceFileSummary(describe(row))}
    const bytes=await verifiedBytes(id,'source',row.sha256,MAX_REFERENCE_UPLOAD_BYTES)
    const extract=extractor??(await import('./reference-document.mjs')).extractReferenceDocument
-   const parsed=await extract({bytes,filename:row.filename,signal,pdfStartPage})
-   if(parsed.kind!=='pdf'||parsed.pageCount!==document.pageCount||JSON.stringify(parsed.readPages)!==JSON.stringify(wanted)||parsed.images.length!==wanted.length)throw fail('PDF续读结果范围不一致。',409)
+   const parsed=await extract({bytes,filename:row.filename,signal,...(document.kind==='pdf'?{pdfStartPage}:{pptxStartPage:pdfStartPage})})
+   if(parsed.kind!==document.kind||(document.kind==='pptx'&&(!parsed.previewOnly||parsed.sourceSha256!==row.sha256))||parsed.pageCount!==document.pageCount||JSON.stringify(parsed.readPages)!==JSON.stringify(wanted)||parsed.images.length!==wanted.length)throw fail('PDF续读结果范围不一致。',409)
    const seen=new Set(),images=[...document.images],pages=[...(document.pages??[])]
    for(const image of parsed.images){
     signal?.throwIfAborted()
     if(!wanted.includes(image.page)||seen.has(image.page)||!Buffer.isBuffer(image.data)||image.data.length>8*1024*1024||!['image/png','image/jpeg'].includes(image.mimeType))throw fail('PDF续读图像不完整。',409)
     seen.add(image.page)
     if(images.some(old=>old.page===image.page))continue
-    const file='page-'+image.page+(image.mimeType==='image/png'?'.png':'.jpg'),path=join(root,id,file)
+    const file='page-'+String(image.page).padStart(6,'0')+(image.mimeType==='image/png'?'.png':'.jpg'),path=join(root,id,file)
     let handle
     try{handle=await open(path,'wx',0o600);created.push(path)}catch(error){
      if(error.code!=='EEXIST')throw error
@@ -195,15 +195,18 @@ export async function createReferenceUploads(db,{root:storageRoot,extractor}={})
     }
     if(handle)try{await handle.writeFile(image.data,{signal})}finally{await handle.close()}
     images.push({file,page:image.page,mimeType:image.mimeType,width:image.width,height:image.height,bytes:image.data.length,sha256:hash(image.data)})
-    const page=parsed.pages?.find(p=>(p.page??p.pageNumber)===image.page);if(!page)throw fail('PDF续读缺少分页记录。',409);pages.push(page)
+    const page=parsed.pages?.find(p=>(p.page??p.pageNumber)===image.page);if(!page)throw fail('续读缺少分页记录。',409)
+    const priorIndex=pages.findIndex(p=>(p.page??p.pageNumber)===image.page)
+    if(priorIndex>=0){const prior=pages[priorIndex];if(['masterId','layoutId'].some(key=>prior[key]!==undefined&&prior[key]!==page[key]))throw fail('续读改变了原生页面继承身份。',409);pages[priorIndex]={...prior,...page,preview:true}}else pages.push(page)
    }
    const readPages=images.map(image=>image.page).sort((a,b)=>a-b)
-   const updated={...document,text:'',images:images.sort((a,b)=>a.page-b.page),pages:pages.sort((a,b)=>(a.page??a.pageNumber)-(b.page??b.pageNumber)),readPages,limitations:[...new Set([...(document.limitations??[]),...(parsed.limitations??[]),'分页提取历史说明按各批次记录；当前总提取范围以readPages为准，提取不等于模型观察或设计综合。'])],summary:`PDF 共 ${document.pageCount} 页，已提取 ${readPages.length} 页；模型观察与设计综合另行计数。`}
+   const updated={...document,text:'',images:images.sort((a,b)=>a.page-b.page),pages:pages.sort((a,b)=>(a.page??a.pageNumber)-(b.page??b.pageNumber)),readPages,limitations:[...new Set([...(document.limitations??[]),...(parsed.limitations??[]),'分页提取历史说明按各批次记录；当前总提取范围以readPages为准，提取不等于模型观察或设计综合。'])],summary:`${document.kind.toUpperCase()} 共 ${document.pageCount} 页，已生成 ${readPages.length} 页预览；模型观察与设计综合另行计数。`}
    signal?.throwIfAborted()
    await c.query('UPDATE layout_reference_uploads SET document=$2 WHERE id=$1',[id,updated]);commitAttempted=true;await c.query('COMMIT')
    return referenceFileSummary(describe({...row,document:updated}))
   }catch(error){await c.query('ROLLBACK').catch(()=>{});if(!commitAttempted)for(const path of created)await rm(path,{force:true});throw error}finally{c.release()}
  }
+ async function ensurePdfPages(actor,id,start,options){if((await get(actor,id)).kind!=='pdf')throw fail('分页续读仅支持PDF。');return ensureDocumentPages(actor,id,start,options)}
  async function validateImageBudget(actor,files,c=db){
   let count=0,total=0
   for(const file of files.filter(f=>f.id)){
@@ -234,5 +237,5 @@ export async function createReferenceUploads(db,{root:storageRoot,extractor}={})
   }
   return output
  }
- return {create,createFromStream,get,download,artifact,preview,previewBySource,resolveFiles,validateImageBudget,modelImages,ensurePdfPages,imageManifest,loadImageBatch}
+ return {create,createFromStream,get,download,artifact,preview,previewBySource,resolveFiles,validateImageBudget,modelImages,ensurePdfPages,ensureDocumentPages,imageManifest,loadImageBatch}
 }

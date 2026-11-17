@@ -45,7 +45,7 @@ export function referenceStageFixture(input){
   // Fixture typography and capacities are authored on a 1600×900 presentation baseline.
   // Preserve source aspect ratio, not tiny raster pixel dimensions; extraction facts stay untouched.
   if(canvas){const scale=Math.max(1,1600/canvas.width,900/canvas.height);response.designSystem.canvas={width:Math.round(canvas.width*scale),height:Math.round(canvas.height*scale)}}
- }else if(input.stage==='coverage-map'){
+ }else if(input.stage.startsWith('coverage-map')){
   response={pages:context.pages.map(p=>({fileSha256:p.fileSha256,pageNumber:p.pageNumber,archetypeId:context.archetypes[0].id,factIds:[p.facts[0].id]}))}
  }else if(input.stage==='design-spec'){
   const profile=context.profile
