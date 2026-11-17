@@ -22,17 +22,36 @@ SVG 支持白名单几何、分组、渐变和受限本地裁剪。脚本、外�
 
 ## 本轮验证
 
-- 新 V3 与相关参考/上传/兼容回归：**96/96 通过**，包括真实 pinned SVG checker。
+- 新 V3 与相关参考/上传/兼容回归：**98/98 通过**，包括真实 pinned SVG checker。
 - 扩大回归：**216 项，198通过、5失败、13跳过**。5项失败均因云端 Chromium socket/crashpad 或 `/proc/<pid>/task/<pid>/children` 访问限制；没有宣称全绿。之后新增2项 API选项测试也通过。
 - 已单独通过真实 PPTX→固定上游→LibreOfficeDev 26.8→Poppler→V14事实输入测试。此前合成样本的重复对象ID已修正，未改 vendor 或放宽真实来源校验。
 - Web 构建及根项目构建通过；关键 JS/Bash 语法和 `git diff --check` 通过。
 - 独立审查发现并红绿修复：结构意图位置匹配缺失、有效手动主题另存失败。额外修复小容量变体的选版/另存/合成试排兼容。
-- `native-design-renderer.browser.mjs` 已接入 CI。云端本次即使在允许的额外执行权限下，Chromium 仍因 socket EPERM 无法启动，**未取得真实浏览器截图或视觉通过结论**。
+- 云端工作区 Chromium 仍受 socket EPERM 限制；改由隔离 GitHub runner 执行真实浏览器与 PostgreSQL 验证，结果见下节。
 - 受控模型响应只证明数据流、拒绝边界和持久化，不证明真实供应商模型理解、生成美观或客户原件保真。
 
 ## 后续验收
 
-1. GitHub CI 的真实 PostgreSQL/Chromium运行及日志。
-2. 配置真实 DSH 模型后用用户授权样稿验收多格式、逐原型质量与效果差异。
-3. 在真实浏览器试排实际项目内容，逐页对照并完成 Q05。
-4. 仅在以上完成后讨论部署/更广 SVG 支持/独立导出验收；不在本检查点宣称生产可发布。
+1. 配置真实 DSH 模型后用用户授权样稿验收多格式、逐原型质量与效果差异。
+2. 在真实浏览器试排实际项目内容，逐页对照并完成 Q05。
+3. 仅在以上完成后讨论部署/更广 SVG 支持/独立导出验收；不在本检查点宣称生产可发布。
+
+## GitHub CI 闭环（2026-11-17）
+
+测试代码提交 `a6ff284ce4dea4ed31692fe6d1da244f908c95de`：
+- [Verify run 44052952857](https://github.com/ArchitectureWorld/pre-design/actions/runs/44052952857) 与 Native layout checks 均成功。
+- 真实 PostgreSQL 核心 230/230，既有回归 54/54，上游适配器 4/4；真实 Chromium 原生 V3 1/1、组合渲染 2/2。
+- 主界面 24 项、上传 16 项、参考对照 9 项通过；100 MiB PDF 的31物理页/30解析页、5观察批、Profile→Design Spec→Prototype 阶段链与下载原件哈希通过。
+- 首次 CI 暴露旧测试供应商不支持新原生阶段；新增回归先复现 DESIGN_SPEC_INVALID，再补齐夹具与 V3 断言，无生产验证降级。
+- 下载核验 artifact `14314023185`，ZIP SHA256 `28019142ef321245509daf921c06a50631d41d6467df4b42ec2bfed60644116d`。日志、receipt 和截图相互吻合。
+- 人工检查真实截图：独立 V3 页面与1512px界面正常；792px上传结果预览存在文字裁剪，追溯为受控模型把小PNG规范化成480×240画布却沿用48/28号字，后续已修复夹具并补内容几何断言，结果见下；不能将 CI 全绿当作真实模型视觉验收。
+- `realModelVerified=false`、`productionDeployed=false`。这些是合成参考/内容与受控模型结果，不证明真实参考学习或供应商模型效果。
+
+### 截图发现闭环
+
+修复提交 `3ce224641736c071a7c90c70b7576e0364082344` 只修改测试夹具和回归：维持源长宽比，把固定48/28/18字号对应的逻辑画布规范化为宽至少1600、高至少900。未改变原始提取事实、生产预览或渲染代码。
+
+- [Verify run 44054719243](https://github.com/ArchitectureWorld/pre-design/actions/runs/44054719243) 和 Native layout checks 全绿。核心231/231、回归54/54、adapter4/4、V3 Chromium1/1、组合Chromium2/2；主UI24项、上传17项、参考对照9项和100MiB PDF闭环均通过。
+- 新增纯逻辑回归先复现小画布连一行标题都放不下，再验证图片/PDF/PPTX/竖版比例与原事实不变。
+- 真实792px浏览器等字体、图片和两帧布局稳定后量测：1800×900逻辑画布完整映射到348×174预览；文字槽无滚动溢出，图片槽仅1px舍入差（2px容差内）。人工复核本轮截图，先前裁剪消失。窄窗口预览是缩略图，不代表文字可在缩略图尺寸下逐字阅读。
+- 下载ZIP的SHA256为 `5ac0416ea945fd0096b4123518ebbfffdc392de34a0a195ef431b051355d29f7`，receipt绑定上述测试提交；远程模型验证和生产部署仍均为false。
