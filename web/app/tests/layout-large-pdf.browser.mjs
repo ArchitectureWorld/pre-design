@@ -27,7 +27,7 @@ try{
  const observations=f.modelCalls.filter(call=>call.stage?.startsWith('observe-')),modelImages=observations.flatMap(call=>call.images)
  assert.deepEqual(uploads,['application/octet-stream']);assert.equal(f.modelCalls.length,11);assert.equal(observations.length,6)
  assert(observations.every(call=>call.modelRole==='vision'&&call.images.length<=6));assert.equal(modelImages.length,31);assert.equal(modelImages.at(-1).page,31)
- assert.deepEqual(f.modelCalls.slice(-3).map(call=>call.stage),['profile','design-spec','prototype-1']);assert(f.modelCalls.slice(-3,-1).every(call=>call.modelRole==='parent'&&call.images.length===0));assert.equal(f.modelCalls.at(-1).modelRole,'vision');assert(f.modelCalls.at(-1).images.length>0&&f.modelCalls.at(-1).images.length<=6)
+ assert.deepEqual(f.modelCalls.slice(6).map(call=>call.stage),['profile','coverage-map-1','coverage-map-2','design-spec','prototype-1']);assert(f.modelCalls.slice(6,-1).every(call=>call.modelRole==='parent'&&call.images.length===0));assert.equal(f.modelCalls.at(-1).modelRole,'vision');assert(f.modelCalls.at(-1).images.length>0&&f.modelCalls.at(-1).images.length<=6)
  const list=(await f.request('GET','/layout-library/conversations')).conversations,conversation=await f.request('GET','/layout-library/conversations/'+list[0].id),file=conversation.referenceFiles[0]
  assert.equal(file.bytes,PDF_REFERENCE_MAX_BYTES);assert.equal(file.pageCount,31);assert.equal(file.readPages.length,31);assert.equal(file.readPages.at(-1),31);assert.equal(file.sha256,expectedHash)
  assert.match(await page.locator('[data-chat-messages]').innerText(),/已综合 31 页/)
