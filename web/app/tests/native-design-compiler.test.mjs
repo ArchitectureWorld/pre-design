@@ -14,3 +14,10 @@ test('V3 compiler rejects missing prototypes, false evidence, malicious SVG and 
  }
  assert.throws(()=>mod.compileNativeDesignPackageV3({...nativeDesignInput(),inventory:{files:[]}}))
 })
+test('V3 compiler rejects text boxes shorter than one rendered line instead of accepting clipped prototypes',()=>{
+ for(const role of ['title','body']){
+  const input=nativeDesignInput(),slot=input.prototypes[0].slots.find(s=>s.role===role)
+  slot.rect.h=.02
+  assert.throws(()=>mod.compileNativeDesignPackageV3(input),/一行文字/)
+ }
+})

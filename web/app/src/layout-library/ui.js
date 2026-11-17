@@ -1,3 +1,4 @@
+import {reuseGuideHtml} from './reuse-guide-ui.js'
 import {openReferenceReview,referenceProfileHtml} from './review-ui.js'
 import {mountNativePreview} from './preview-ui.js'
 import {mountLayoutConversation} from './conversation-ui.js'
@@ -134,6 +135,7 @@ export function mountLayoutLibrary({request,notify}){
    <div class="ll-preview" data-preview-box></div>
    <div class="ll-result-actions"><button data-save class="ll-primary">${selected&&own()?'保存修改':'保存版式'}</button>${selected?'<button data-validate>检查版式</button><button data-export>导出</button>':''}${selected&&pkg.designProfile&&selected.ownerId===identity?.id?'<button data-reference-review class="ll-primary">对照审阅</button>':''}${picker?'<button data-use-layout class="ll-primary">选用此版式</button>':''}</div>
    ${pkg.designProfile?`<details class="ll-profile"><summary>参考分析 · ${pkg.designProfile.archetypes.length} 种页面类型${selected?.referenceReview?.status==='confirmed'?' · 已确认':' · 待对照'}</summary>${referenceProfileHtml(pkg.designProfile)}</details>`:''}
+   ${reuseGuideHtml(pkg)}
    <details class="ll-settings"><summary>手动调整</summary><form data-editor class="ll-form">${[['background','背景'],['ink','正文'],['accent','标题'],['muted','注释']].map(([k,l])=>`<label>${l}<input type="color" name="${k}" value="${pkg.theme[k]}"></label>`).join('')}
    <label>字体<select name="fontFamily"><option value="sans" ${pkg.theme.fontFamily==='sans'?'selected':''}>黑体</option><option value="serif" ${pkg.theme.fontFamily==='serif'?'selected':''}>宋体</option></select></label>${[['titleSize','标题字号',32,90],['bodySize','正文字号',22,44],['captionSize','注释字号',16,30]].map(([k,l,min,max])=>`<label>${l}<input name="${k}" type="number" min="${min}" max="${max}" value="${pkg.theme[k]}"></label>`).join('')}
    <label>使用依据<select name="basis">${[['original','原创'],['licensed','取得许可'],['permission','明确授权'],['unknown','待确认']].map(([k,l])=>`<option value="${k}" ${pkg.rights.basis===k?'selected':''}>${l}</option>`).join('')}</select></label><label><span>共享授权</span><span><input type="checkbox" name="shareAllowed" ${pkg.rights.shareAllowed?'checked':''}>允许共享</span></label><label class="wide">授权说明<input name="rightsNote" value="${esc(pkg.rights.note)}"></label><details class="wide"><summary>内容位置与原生 JSON</summary><textarea data-json rows="8">${esc(JSON.stringify(pkg,null,2))}</textarea></details></form></details>

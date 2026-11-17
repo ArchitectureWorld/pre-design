@@ -31,6 +31,13 @@ export function validateNativeDesignPackage(p,context={}){
    }
    if(unmatched.length)throw invalid('结构迁移不能增加设计规范未声明的内容区域。')
   }
+  // Necessary lower bound only; real browser trial remains the publication gate.
+  for(const slot of layout.slots.filter(s=>['title','claim','body','source'].includes(s.role))){
+   const style=slot.style??{},fontSize=style.fontSize??(slot.role==='title'?p.theme.titleSize:slot.role==='source'?p.theme.captionSize:p.theme.bodySize)
+   const lineHeight=slot.role==='title'?1.2:p.theme.lineHeight
+   const inset=2*((style.padding??0)+(style.borderWidth??0))
+   if(slot.rect.h*p.canvas.height-inset+0.01<fontSize*lineHeight)throw invalid('文字槽位高度不足以容纳一行文字，请调整设计区域或可读字号。')
+  }
   const fit=layout.contentFitRules
   if(fit.maxImages>a.capacity.images||fit.maxBodyPoints>a.capacity.bodyPoints||fit.maxTableRows>a.capacity.tableRows)throw invalid('原型容量超过设计规范。')
   for(const [role,capacity] of [['image',fit.maxImages],['body',fit.maxBodyPoints]]){
