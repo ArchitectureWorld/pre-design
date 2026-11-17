@@ -38,3 +38,9 @@ test('native stage cancellation retains terminal receipt and never runs further 
  await assert.rejects(runReferenceWorkflow({jobId:'cancel-native',...native(),signal:controller.signal,runModel:async input=>{const r=await normal(input);if(input.stage==='design-spec')controller.abort();return r}}),e=>{assert.equal(e.execution.outcome,'aborted');assert.equal(e.execution.failedStage,'design-spec');return true})
  assert(!calls.includes('prototype-1'))
 })
+test('shared browser provider fixture handles every native UI stage instead of falling back to V2 compile',async()=>{
+ const {referenceStageFixture}=await import('./fixtures/reference-workflow.mjs'),calls=[]
+ const r=await runReferenceWorkflow({jobId:'shared-browser-fixture',...native(),runModel:async input=>{calls.push(input.stage);return referenceStageFixture(input)}})
+ assert.equal(r.response.package.schemaVersion,'pre-design.layout-package.v3')
+ assert.deepEqual(calls.slice(-3),['profile','design-spec','prototype-1'])
+})
