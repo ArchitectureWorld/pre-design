@@ -63,8 +63,8 @@
 
 | 原则要求 | 当前代码事实 | 裁决 |
 |---|---|---|
-| 完整上游 PPTX importer | 仍由 `reference-pptx.py` 自行解析 OOXML，并仅调用上游 loader/shape walker 等模块 | 与“完整复用 importer”冲突；必须改由上游 `pptx_template_import.py` 作为实际导入器 |
-| 上游 SVG 转换和原型产物 | 当前 V14 输入仍主要来自简化 JSON 事实和页面预览；尚无 Adapter 产出完整 Manifest/Native Structure/Layered+Flat SVG/Authoring Summary | 未完成 |
+| 完整上游 PPTX importer | 已新增 `ppt-master-adapter.mjs`，并在 `extractPptxReference()` 中调用固定上游 `pptx_template_import.py --inheritance-mode both`；旧 `reference-pptx.py` 暂时仍作为兼容事实适配器二次运行 | 主解析已开始切换到上游，但重复解析尚未移除；完整产物工作区还未持久化到 Reference Bundle |
+| 上游 SVG 转换和原型产物 | Adapter 已生成并校验 Manifest/Native Structure/Inheritance/Authoring Summary/Conversion Report 及分层、平面 SVG 文件清单；文件仍在临时工作区，上传存储尚未持久化其字节 | 部分完成；必须将原生产物持久化并由 V14 实际消费，才算完成 |
 | Design Spec / Template Designer 阶段 | 当前工作流仍为 inventory → observe → profile → compile | 与新阶段要求不一致；需加入 design-spec、prototype、upstream-validate |
 | Native Design Package V3 | 当前 `contract.mjs` 仅有 V1/V2；V2 是声明式组合布局 | 未完成；V1/V2 只保留兼容，不再作为新资源最终上限 |
 | SVG-backed V11 | 当前 renderer 仍以 V1/V2 HTML 组合渲染为主 | 未完成；需让 V11 直接消费 SVG 原型及可编辑槽位 |
@@ -81,6 +81,6 @@
 ### 当前执行状态
 
 - 架构原则、冲突裁决、上游固定版本及 vendor 完整性：已提交。
-- 内部 Adapter、V14 Design Spec/Prototype 阶段、Native Compiler V3、SVG-backed V11、上游质量工具和部署交接：待实施。
+- 内部 Adapter 已新增并接入 PPTX 参考解析；完整 Reference Bundle 持久化、V14 Design Spec/Prototype 阶段、Native Compiler V3、SVG-backed V11、上游质量工具和部署交接：待实施。
 - 当前分支 CI 仅证明已有代码和 vendor 门禁通过，不代表以上待实施项目完成。
 
