@@ -57,7 +57,7 @@ async function inventory(root,signal){
  * This does not create a PPT Master project, user, task, or template library.
  */
 export async function runPptMasterImport({sourcePath,workspace,signal,timeoutMs=180000,python=process.env.PRE_LAYOUT_PYTHON_BINARY||'/usr/bin/python3'}={}){
- if(typeof sourcePath!=='string'||!resolve(sourcePath).endsWith('.pptx'))throw fail('PPT Master 仅接受已由 Pre-design 校验的 PPTX 文件。','PPT_MASTER_SOURCE_INVALID',415)
+ if(typeof sourcePath!=='string'||!resolve(sourcePath).toLowerCase().endsWith('.pptx'))throw fail('PPT Master 仅接受已由 Pre-design 校验的 PPTX 文件。','PPT_MASTER_SOURCE_INVALID',415)
  if(typeof workspace!=='string'||!resolve(workspace).startsWith(resolve(process.env.PRE_LAYOUT_PRIVATE_ROOT||'/tmp')+sep))throw fail('PPT Master 工作区必须位于 Pre-design 私有临时根目录。','PPT_MASTER_WORKSPACE_INVALID',400)
  const root=resolve(workspace),deadline=Date.now()+timeoutMs
  await mkdir(root,{recursive:true,mode:0o700})
@@ -76,9 +76,9 @@ export async function runPptMasterImport({sourcePath,workspace,signal,timeoutMs=
   ])
   const files=await inventory(root,signal),svg=files.files.filter(f=>f.path.endsWith('.svg'))
   const slides=manifest.slides??manifest.slideRecords??[]
-  if(!slides.length||!Array.isArray(inheritance.slides)||!inheritance.slides.length)throw fail('PPT Master 导入没有形成完整页面和继承清单。','PPT_MASTER_ARTIFACT_INVALID',422)
+  if(!slides.length||!inheritance||typeof inheritance!=='object'||!Object.keys(inheritance).length)throw fail('PPT Master 导入没有形成完整页面和继承清单。','PPT_MASTER_ARTIFACT_INVALID',422)
   if(!svg.some(f=>f.path.startsWith('svg/master_'))||!svg.some(f=>f.path.startsWith('svg/layout_'))||!svg.some(f=>f.path.startsWith('svg/slide_'))||!svg.some(f=>f.path.startsWith('svg-flat/slide_')))throw fail('PPT Master 缺少分层或平面 SVG 产物。','PPT_MASTER_ARTIFACT_INVALID',422)
   const sourceHash=manifest.sourceSha256??manifest.source_hash??manifest.source?.sha256??null
-  return {schemaVersion:'pre-design.ppt-master-import-receipt.v1',upstream:{repository:'https://github.com/hugohe3/ppt-master',revision:'3af3e8ef774c4d67ee57e1306d9256d08c9ee1bf',license:'MIT'},workspace:root,source:{name:manifest.sourceFile??manifest.source_file??null,sha256:sourceHash,pageCount:slides.length},manifest,nativeStructure,inheritance,authoringSummary,conversionReport,artifacts:files,svgCount:svg.length,receiptHash:hash(Buffer.from(JSON.stringify(files)))}
+  return {schemaVersion:'pre-design.ppt-master-import-receipt.v1',upstream:{repository:'https://github.com/hugohe3/ppt-master',revision:'3af3e8ef774c4d67ee57e1306d9256d08c9ee1bf',license:'MIT'},workspace:root,source:{name:manifest.source?.name??manifest.sourceFile??manifest.source_file??null,sha256:sourceHash,pageCount:slides.length},manifest,nativeStructure,inheritance,authoringSummary,conversionReport,artifacts:files,svgCount:svg.length,receiptHash:hash(Buffer.from(JSON.stringify(files)))}
  }catch(error){await rm(root,{recursive:true,force:true});throw error}
 }
