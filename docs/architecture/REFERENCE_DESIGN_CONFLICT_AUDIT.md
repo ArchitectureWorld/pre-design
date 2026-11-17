@@ -44,3 +44,43 @@
 6. 完成浏览器、PostgreSQL、DSH 和 CI 验收后再交给本地 Agent 部署。
 
 若上游工具缺少目标机依赖，明确报错并保持现有 V1/V2 工作流；不得静默回退成简化解析器并把结果标为“参考设计已理解”。
+
+
+## 5. 2026-11-17 当前分支复核（基线 ef41eb6a）
+
+本次按用户要求在既有 `codex/web-v210` 上复核，不创建新分支。
+
+### 已落库且与新原则一致
+
+- `docs/architecture/REFERENCE_DESIGN_INTEGRATION.md` 已成为架构权威文件。
+- `AGENTS.md` 已明确指向该文件。
+- V2 规格、V2 计划、旧 Claude 评审入口均已加历史/取代声明。
+- PPT Master 固定版本 MIT 上游 Create Template 依赖闭包已 vendor；`UPSTREAM.json` 声明 215 个必要文件及逐文件 Git Blob SHA。
+- 上游 LICENSE、SPONSORS、SPONSORS_CN、SKILL、Attribution Guard 均在 vendor 内。
+- 许可证边界明确排除 PyMuPDF/AGPL，PDF 继续走平台 Poppler。
+
+### 尚未完成、不能误标为已融合
+
+| 原则要求 | 当前代码事实 | 裁决 |
+|---|---|---|
+| 完整上游 PPTX importer | 仍由 `reference-pptx.py` 自行解析 OOXML，并仅调用上游 loader/shape walker 等模块 | 与“完整复用 importer”冲突；必须改由上游 `pptx_template_import.py` 作为实际导入器 |
+| 上游 SVG 转换和原型产物 | 当前 V14 输入仍主要来自简化 JSON 事实和页面预览；尚无 Adapter 产出完整 Manifest/Native Structure/Layered+Flat SVG/Authoring Summary | 未完成 |
+| Design Spec / Template Designer 阶段 | 当前工作流仍为 inventory → observe → profile → compile | 与新阶段要求不一致；需加入 design-spec、prototype、upstream-validate |
+| Native Design Package V3 | 当前 `contract.mjs` 仅有 V1/V2；V2 是声明式组合布局 | 未完成；V1/V2 只保留兼容，不再作为新资源最终上限 |
+| SVG-backed V11 | 当前 renderer 仍以 V1/V2 HTML 组合渲染为主 | 未完成；需让 V11 直接消费 SVG 原型及可编辑槽位 |
+| 上游质量检查/导出工具 | 尚无 Pre-design Adapter 调用上游 SVG Quality Checker 和 Template Preview PPTX 的集成 | 未完成；不得声明可编辑 PPTX 输出已支持 |
+
+### 其他冲突与边界
+
+1. 现有 `reference-pptx.py` 中的简化解析逻辑不得继续作为“完整上游解析”的替代。完成 Adapter 后，它只能保留为兼容/安全预检入口，或被移除。
+2. V2 的 `designProfile` 和五类/组合布局不能被新任务继续当作 V3 的替代；旧资源必须只读兼容。
+3. PPT Master 的上游 SKILL/工作流只能作为 V14 内部方法来源，不得放入 DSH 自动发现目录。
+4. 上游 PDF 转换若引入 PyMuPDF 将违反许可证边界；继续使用平台 Poppler。
+5. 真实供应商模型调用与视觉迁移质量仍需目标环境验收；合成响应和 CI 不能替代。
+
+### 当前执行状态
+
+- 架构原则、冲突裁决、上游固定版本及 vendor 完整性：已提交。
+- 内部 Adapter、V14 Design Spec/Prototype 阶段、Native Compiler V3、SVG-backed V11、上游质量工具和部署交接：待实施。
+- 当前分支 CI 仅证明已有代码和 vendor 门禁通过，不代表以上待实施项目完成。
+
