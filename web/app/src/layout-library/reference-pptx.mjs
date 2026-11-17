@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import sharp from 'sharp'
+import {runPptMasterImport} from './ppt-master-adapter.mjs'
 import { PPTX_PARSE_TIMEOUT_MS } from './reference-limits.mjs'
 
 const adapter = fileURLToPath(new URL('./reference-pptx.py', import.meta.url))
@@ -70,6 +71,10 @@ export async function extractPptxReference(bytes, { signal } = {}) {
     await writeFile(input, bytes, { mode: 0o600, flag: 'wx', signal })
     let parsed
     try {
+      // The pinned upstream importer is the canonical PPTX design parser.
+      // The legacy bounded reader remains only as a compatibility facts adapter
+      // until Reference Bundle V3 persists the full native artifact workspace.
+      const upstream = await runPptMasterImport({sourcePath:input,workspace:join(directory,'ppt-master-import'),signal,timeoutMs:PPTX_PARSE_TIMEOUT_MS})
       const raw = await runTool(process.env.PRE_LAYOUT_PYTHON_BINARY || '/usr/bin/python3', [adapter, input, preview], { signal, deadline, label: 'PPTX 结构解析器' })
       parsed = JSON.parse(raw.toString('utf8'))
     } catch (error) {
@@ -123,6 +128,21 @@ export async function extractPptxReference(bytes, { signal } = {}) {
     }
     signal?.throwIfAborted()
     const limitations = parsed.structure.warnings.map(warning => warning.message)
+    parsed.structure.pptMaster = {
+      revision: upstream.upstream.revision,
+      source: upstream.source,
+      slideSize: upstream.manifest.slideSize,
+      theme: upstream.manifest.theme,
+      masters: upstream.manifest.masters,
+      layouts: upstream.manifest.layouts,
+      slides: upstream.manifest.slides,
+      nativeStructure: upstream.nativeStructure,
+      inheritance: upstream.inheritance,
+      authoringSummary: upstream.authoringSummary,
+      conversionReport: upstream.conversionReport,
+      artifactInventory: upstream.artifacts,
+      receiptHash: upstream.receiptHash,
+    }
     const sampled = parsed.pageCount > images.length
     if (sampled) limitations.unshift(`PPTX 共 ${parsed.pageCount} 页，已读取全篇页序与有界原生结构；从全篇均匀抽样 ${images.length} 页生成预览，其余页未作视觉读取。`)
     return {
