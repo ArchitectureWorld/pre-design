@@ -97,20 +97,38 @@ function paddedPdf(source, length) {
   return output
 }
 
-async function waitForPdfChild(directory, tool) {
+async function waitForPdfChild(directory, tool, {read = readFile} = {}) {
   const deadline = performance.now() + 5000
   while (performance.now() < deadline) {
-    const children = (await readFile(`/proc/${process.pid}/task/${process.pid}/children`, 'utf8')).trim().split(/\s+/).filter(Boolean)
+    const children = (await read(`/proc/${process.pid}/task/${process.pid}/children`, 'utf8')).trim().split(/\s+/).filter(Boolean)
     for (const child of children) {
       try {
-        const command = await readFile(`/proc/${child}/cmdline`, 'utf8')
+        const command = await read(`/proc/${child}/cmdline`, 'utf8')
         if (command.startsWith(`/usr/bin/${tool}\0`) && command.includes(directory)) return Number(child)
-      } catch (error) { if (error.code !== 'ENOENT') throw error }
+      } catch (error) { if (!['ENOENT', 'ESRCH'].includes(error.code)) throw error }
     }
     await delay(5)
   }
   throw new Error(`未观察到本测试启动的 ${tool} 子进程`)
 }
+
+test('PDF child observation tolerates ESRCH and ENOENT races but never hides permission failures', async () => {
+  for (const code of ['ESRCH', 'ENOENT']) {
+    const read = async path => {
+      if (path.endsWith('/children')) return '101 102'
+      if (path === '/proc/101/cmdline') throw Object.assign(new Error('child exited'), {code})
+      return '/usr/bin/pdftoppm\0/test-directory\0'
+    }
+    assert.equal(await waitForPdfChild('/test-directory', 'pdftoppm', {read}), 102)
+  }
+  for (const code of ['EACCES', 'EIO']) {
+    const read = async path => {
+      if (path.endsWith('/children')) return '101'
+      throw Object.assign(new Error('must not suppress'), {code})
+    }
+    await assert.rejects(waitForPdfChild('/test-directory', 'pdftoppm', {read}), error => error.code === code)
+  }
+})
 
 test('UTF-8、UTF-16 与 GB18030 文本均保留中文内容', async () => {
   const text = '版式参考\n标题与正文'
