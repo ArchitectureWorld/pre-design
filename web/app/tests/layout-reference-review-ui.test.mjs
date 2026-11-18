@@ -107,8 +107,11 @@ test('平台风格重设计对照源资源合成样例，不冒充原PDF或文�
  assert.match(document.querySelector('[data-review-source] .ll-preview-host').shadowRoot.textContent,/源版式样例/)
  assert.match(document.querySelector('[data-review-prototype-title]').textContent,/平台重新设计.*合成/)
  assert.match(document.querySelector('[data-review-purpose]').textContent,/不是.*原.*恢复/)
+ const sourceBox=document.querySelector('[data-review-source]');assert(sourceBox.classList.contains('ll-source-native'));assert.equal(sourceBox.style.aspectRatio,'1200 / 1000')
  const oldSource=document.querySelector('[data-review-source]').firstElementChild
  const select=document.querySelector('[data-review-layout]');select.value='old';select.dispatchEvent(new dom.window.Event('change'));await settle(()=>document.querySelector('[data-source-title]').textContent.includes('第 15 页'))
  assert.equal(oldSource.isConnected,false);assert.equal(document.querySelector('[data-review-source] img').alt,'原参考第 15 页');assert.match(document.querySelector('[data-review-prototype-title]').textContent,/迁移试排/)
+ assert.equal(sourceBox.classList.contains('ll-source-native'),false);assert.equal(sourceBox.style.aspectRatio,'')
+ select.value='mixed';select.dispatchEvent(new dom.window.Event('change'));await settle(()=>sourceBox.classList.contains('ll-source-native'));assert.equal(sourceBox.style.aspectRatio,'1200 / 1000');assert.equal(sourceBox.querySelector('img'),null)
  ui.dispose();assert.equal(document.querySelector('dialog'),null)
 })

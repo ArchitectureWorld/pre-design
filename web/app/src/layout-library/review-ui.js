@@ -32,7 +32,7 @@ export function openReferenceReview({document=globalThis.document,request,resour
  function dispose(){if(disposed)return;disposed=true;generation++;controller.abort();preview?.dispose();sourcePreview?.dispose();dialog.close();dialog.remove()}
  function controls(){if(disposed)return;find('[data-review-confirm]').disabled=busy||validation?.status!=='passed'||seen.size!==resource.package.layouts.length||!find('[data-review-accepted]').checked;find('[data-review-count]').textContent=seen.size+' / '+resource.package.layouts.length+' 已查看'}
  async function load(){
-  const token=++generation,layoutId=find('[data-review-layout]').value;find('[data-review-table-status]').hidden=!resource.package.layouts.find(l=>l.id===layoutId)?.slots?.some(s=>s.role==='table');find('[data-review-native-evidence]').hidden=true;sourcePreview?.dispose();sourcePreview=null;find('[data-review-source]').replaceChildren();find('[data-review-emphasis]').replaceChildren();preview?.dispose();preview=null;busy=true;controls();status('正在读取原页与试排…')
+  const token=++generation,layoutId=find('[data-review-layout]').value;find('[data-review-table-status]').hidden=!resource.package.layouts.find(l=>l.id===layoutId)?.slots?.some(s=>s.role==='table');find('[data-review-native-evidence]').hidden=true;sourcePreview?.dispose();sourcePreview=null;find('[data-review-source]').classList.remove('ll-source-native');find('[data-review-source]').style.aspectRatio='';find('[data-review-source]').replaceChildren();find('[data-review-emphasis]').replaceChildren();preview?.dispose();preview=null;busy=true;controls();status('正在读取原页与试排…')
   try{
    const value=await request(base+'/compare',{method:'POST',body:{layoutId,...(selectedSource?{source:selectedSource}:{})},signal:controller.signal})
    if(disposed||token!==generation)return
@@ -40,7 +40,7 @@ export function openReferenceReview({document=globalThis.document,request,resour
    const style=!!value.sourcePreviewHtml&&value.sourceIdentity
    find('[data-review-prototype-title]').textContent=style?'平台重新设计 · 合成内容':'迁移试排 · 合成内容'
    find('[data-review-purpose]').textContent=style?'左侧为冻结源资源的合成内容样例，右侧为平台重新设计；不是原 PDF 分析恢复或保真复刻。选用后仍以项目实际内容检查容量与素材。':'本页用于核对设计迁移。选用后会用项目实际内容再次检查容量与素材。'
-   if(style){sourcePreview=mountNativePreview(source,value.sourcePreviewHtml);find('[data-source-title]').textContent=value.sourceIdentity.name+' · 源资源 V'+value.sourceIdentity.version+' · 合成内容样例'}
+   if(style){source.classList.add('ll-source-native');sourcePreview=mountNativePreview(source,value.sourcePreviewHtml);find('[data-source-title]').textContent=value.sourceIdentity.name+' · 源资源 V'+value.sourceIdentity.version+' · 合成内容样例'}
    else if(value.source){const image=document.createElement('img');image.src=value.source.dataUrl;image.alt='原参考第 '+value.source.page+' 页';source.append(image);find('[data-review-native-evidence]').textContent=placementEvidenceText(value.source.nativeImagePlacements,value.source.page);find('[data-review-native-evidence]').hidden=false;find('[data-source-title]').textContent=value.source.name+' · 第 '+value.source.page+' 页'}
    else{source.textContent='此页面类型来自文字设计要求，没有可对照的原页图像。';find('[data-source-title]').textContent='文字要求与设计规则'}
    const candidates=find('[data-review-emphasis]');candidates.innerHTML=style?'':emphasisCandidateReviewHtml(resource.package,layoutId);for(const button of candidates.querySelectorAll('[data-emphasis-source-page]'))button.onclick=()=>{selectedSource={fileSha256:button.dataset.emphasisSourceSha,pageNumber:Number(button.dataset.emphasisSourcePage)};void load()}

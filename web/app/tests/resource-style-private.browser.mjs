@@ -53,6 +53,9 @@ try{
  assert(!item.figure&&!item.figures?.length,'This private scenario must use the real imageless page')
  await f.db.query('UPDATE workflow_drafts SET document=$2 WHERE id=$1',[row.id,row.document])
  const pageId='visual-page-'+item.id,previewBody={draftId:row.id,pageId,scope:'local',resource:{resourceId:derived.id,version:derived.version},overrides:{layoutId:'style-adaptation-2'}}
+ const originalPreview=await f.app.inject({method:'POST',url:'/api'+f.base+'/layout-preview',headers:{authorization:'Bearer '+f.token},payload:{...previewBody,resource:{resourceId:created.id,version:1},overrides:{layoutId:pkg.layouts[0].id}}})
+ assert.equal(originalPreview.statusCode,409);assert.match(originalPreview.body,/局部文字必须完整且不重复地绑定到对应组件/)
+ console.log('ORIGINAL_COMPONENT_PREVIEW_REJECTED',JSON.stringify({status:originalPreview.statusCode,layoutId:pkg.layouts[0].id,textSlots:pkg.layouts[0].slots.filter(s=>s.role==='text').length,textBlocks:item.textBlocks?.length??0,paragraphs:item.paragraphs.length,points:item.points.length,images:item.figures?.length??(item.figure?1:0)}))
  const preview=await f.request('POST',f.base+'/layout-preview',previewBody)
  browser=await chromium.launch({executablePath:resolveBrowserExecutable(),headless:true,chromiumSandbox:process.env.PRE_LAYOUT_TEST_NO_SANDBOX!=='1'})
  const page=await browser.newPage({viewport:{width:1600,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message))
@@ -107,12 +110,27 @@ try{
  await page.screenshot({path:resolve(out,'actual-ui-derived.png'),fullPage:true})
  const uiSaved=await f.request('GET','/layout-library/'+uiResource.id+'/3');assert.equal(uiSaved.validation,null);assert.equal(uiSaved.referenceReview,null);assert.equal(uiSaved.published,false);assert.deepEqual(await f.request('GET',f.base+'/layout-bindings'),bindingBefore)
  assert.equal(await page.locator('[data-resource-name]').inputValue(),'UI metadata rename')
- const uiBase='/layout-library/'+uiResource.id+'/3',uiValidation=await f.request('POST',uiBase+'/validate',{});assert.equal(uiValidation.status,'passed')
- const uiComparisons=[];for(const layout of uiSaved.package.layouts){const c=await f.request('POST',uiBase+'/compare',{layoutId:layout.id});if(layout.id.startsWith('style-adaptation-')){assert.equal(c.sourceIdentity.sourceKind,'resource-style');assert.equal(c.sourceIdentity.version,1);assert.equal(c.sourceIdentity.name,pkg.name);assert.equal(c.sourceIdentity.hash,uiResource.hash)}else assert(c.source);uiComparisons.push(c.receipt.id)}
- await f.request('POST',uiBase+'/reference-review',{requestId:randomUUID(),packageHash:uiSaved.hash,comparisonIds:uiComparisons,reviewed:true})
- await f.request('POST',uiBase+'/publish',{requestId:randomUUID(),visibility:'private',reviewed:true})
+ const uiBase='/layout-library/'+uiResource.id+'/3'
  if(await page.locator('.ll-large-preview').count())await page.getByRole('button',{name:'关闭放大预览',exact:true}).click()
- await page.locator('[data-history]').selectOption('3');await page.locator('[data-layout-card="style-adaptation-2"] [data-native-page]').waitFor();await page.locator('[data-layout-card="style-adaptation-2"] [data-layout-select]').click()
+ await page.locator('[data-validate]').click();await page.waitForFunction(()=>document.querySelector('[data-ll-status]')?.textContent==='版式检查通过。')
+ await page.locator('[data-reference-review]').click()
+ const uiComparisons=[]
+ for(let index=0;index<uiSaved.package.layouts.length;index++){
+  const layout=uiSaved.package.layouts[index]
+  if(index>0)await page.locator('[data-review-layout]').selectOption(layout.id)
+  await page.waitForFunction(n=>document.querySelector('[data-review-count]')?.textContent.startsWith(n+' /')&&document.querySelector('[data-review-status]')?.textContent==='页面检查通过，请逐类核对参考。',index+1)
+  if(layout.id.startsWith('style-adaptation-')){assert.match(await page.locator('[data-source-title]').innerText(),/源资源 V1 · 合成内容样例/);assert((await page.locator('[data-source-title]').innerText()).startsWith(pkg.name));assert.match(await page.locator('[data-review-prototype-title]').innerText(),/平台重新设计/)}else assert.equal(await page.locator('[data-review-source] img').count(),1)
+  if(layout.id.startsWith('style-adaptation-')){
+   const geometry=await page.locator('[data-review-source]').evaluate(e=>{const b=e.getBoundingClientRect(),h=e.querySelector('.ll-preview-host').getBoundingClientRect(),t=document.querySelector('[data-source-title]').getBoundingClientRect();return {inside:h.left>=b.left-2&&h.right<=b.right+2&&h.top>=b.top-2&&h.bottom<=b.bottom+2,belowTitle:h.top>=t.bottom,position:getComputedStyle(e).position}});assert.equal(geometry.inside,true);assert.equal(geometry.belowTitle,true);assert.equal(geometry.position,'relative')
+  }
+  if(layout.id==='style-adaptation-2')await page.screenshot({path:resolve(out,'ui-source-v1-comparison.png'),fullPage:true})
+  uiComparisons.push(layout.id)
+ }
+ await page.locator('[data-review-layout]').selectOption(uiSaved.package.layouts[0].id);await page.locator('[data-review-source] img').waitFor();assert.equal(await page.locator('[data-review-source]').evaluate(e=>e.style.aspectRatio),'');assert.equal(await page.locator('[data-review-source]').evaluate(e=>e.classList.contains('ll-source-native')),false)
+ await page.locator('[data-review-accepted]').check();await page.locator('[data-review-confirm]').click();await page.locator('[data-review-layout]').waitFor({state:'detached'})
+ await page.locator('.ll-publish > summary').click();await page.locator('[data-visibility]').selectOption('private');await page.locator('[data-reviewed]').check();await page.locator('[data-publish]').click();await page.waitForFunction(()=>document.querySelector('[data-ll-status]')?.textContent==='已发布此版本。')
+ const uiApproved=await f.request('GET',uiBase);assert.equal(uiApproved.published,true);assert.equal(uiApproved.referenceReview.status,'confirmed')
+ await page.locator('[data-history]').selectOption('3');await page.screenshot({path:resolve(out,'ui-after-publish-before-scroll.png'),fullPage:true});console.log('AFTER_PUBLISH_CARD',await page.locator('[data-layout-card="style-adaptation-2"]').evaluate(e=>({busy:e.getAttribute('aria-busy'),top:e.getBoundingClientRect().top,height:innerHeight,rendered:!!e.querySelector('[data-native-page]')})));await page.locator('[data-layout-card="style-adaptation-2"]').scrollIntoViewIfNeeded();await page.locator('[data-layout-card="style-adaptation-2"] [data-native-page]').waitFor();await page.locator('[data-layout-card="style-adaptation-2"] [data-layout-select]').click()
  const uiPreview=await f.request('POST',f.base+'/layout-preview',{...previewBody,resource:{resourceId:uiResource.id,version:3}})
  const uiCheck=await browser.newPage();await uiCheck.setContent(uiPreview.html);await uiCheck.evaluate(async()=>{await document.fonts.ready;await Promise.all([...document.images].map(i=>i.decode()));await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))})
  const uiOuter=await uiCheck.locator('[data-native-page]').evaluate(e=>e.outerHTML);assert.equal(uiOuter,previewOuter,'metadata names cannot change rendered content or geometry')
@@ -124,6 +142,6 @@ try{
  const uiFinal=uiCheck.locator('[data-native-page="'+pageId+'"]');assert.equal(await uiFinal.evaluate(e=>e.outerHTML),uiOuter);for(const text of [item.title,...item.paragraphs,...item.points])assert((await uiFinal.innerText()).includes(text))
  await uiFinal.screenshot({path:resolve(out,'ui-renamed-final.png')});await uiCheck.close()
  assert.deepEqual(errors,[]);assert.equal(f.modelCalls.length,0)
- await writeFile(resolve(out,'receipt.json'),JSON.stringify({passed:true,privateActualPage:true,completeOriginalPackage:true,uiButtonVerified:true,metadataRevisions:2,uiMetadataRename:true,uiRenameReapprovedAndApplied:true,uiRenamedPreviewMatchesFinal:true,unacknowledgedNoRequest:true,uiActualContent:true,uiNoAutomaticBinding:true,realPostgres:true,realBrowser:true,derivedSameResource:true,idempotentConcurrent:true,negativeNoWrites:true,metadataPreserved:true,oldVersionPreserved:true,noReviewInheritance:true,normalValidationReviewPublish:true,previewMatchesFinal:true,remoteModelCalls:0,productionWrites:0,slots:slots.map(({text,...s})=>s)},null,2))
+ await writeFile(resolve(out,'receipt.json'),JSON.stringify({passed:true,privateActualPage:true,completeOriginalPackage:true,uiButtonVerified:true,uiFullReviewPublish:true,uiSourcePreviewContained:true,uiPdfSwitchRestored:true,uiSourceVersion:1,uiComparedLayouts:uiComparisons,metadataRevisions:2,uiMetadataRename:true,uiRenameReapprovedAndApplied:true,uiRenamedPreviewMatchesFinal:true,unacknowledgedNoRequest:true,uiActualContent:true,uiNoAutomaticBinding:true,realPostgres:true,realBrowser:true,derivedSameResource:true,idempotentConcurrent:true,negativeNoWrites:true,metadataPreserved:true,oldVersionPreserved:true,noReviewInheritance:true,normalValidationReviewPublish:true,previewMatchesFinal:true,remoteModelCalls:0,productionWrites:0,slots:slots.map(({text,...s})=>s)},null,2))
  console.log('private actual-page style adaptation PG/Chrome PASS')
 }finally{await browser?.close();await f.close()}

@@ -89,3 +89,6 @@
 .ll-fit-comparison{display:grid;grid-template-columns:1fr 1fr;gap:18px}.ll-fit-comparison section{min-width:0}.ll-fit-canvas{position:relative;overflow:hidden;border:1px solid #cbd5e1;background:#eef2f6}
 .ll-content-adaptation .ll-fit-confirm{flex-direction:row;align-items:flex-start;gap:10px}.ll-content-adaptation [data-fit-status]{min-height:1.5em;color:#334e79}.ll-content-adaptation li{margin:8px 0;overflow-wrap:anywhere}
 @media(max-width:800px){.ll-fit-comparison{grid-template-columns:1fr}.ll-content-adaptation{padding:16px}.ll-content-adaptation header{align-items:flex-start;flex-direction:column}}
+
+/* Native source previews require their own containing block; PDF image flow is unchanged. */
+.ll-reference-image.ll-source-native{position:relative;padding:0;overflow:hidden}
