@@ -23,12 +23,15 @@ try{
  await page.locator('[data-chat-file]').setInputFiles({name:'绿色参考.md',mimeType:'text/markdown',buffer:Buffer.from('白色背景，墨绿标题，充足留白，文字清晰。')})
  await page.locator('[data-upload-row][data-state=ready]').waitFor();assert.equal(f.modelCalls.length,0);await page.locator('[data-layout-send]').click();checks++
  await wait(()=>document.querySelector('[data-chat-messages]')?.textContent.includes('已生成墨绿色版式'))
- await page.locator('.ll-preview-host [data-layout-slot=title]').waitFor()
+ await page.locator('[data-layout-open=points]').click()
+ const preview=page.getByRole('dialog',{name:'放大预览 清晰要点',exact:true})
+ await preview.locator('[data-layout-slot=title]').waitFor()
  assert.equal(await page.locator('[data-layout-chat] textarea').inputValue(),'');checks++
  assert.equal(await page.locator('[data-chat-files] [data-upload-row]').count(),0);assert.equal(await page.locator('.ll-message.user [data-download-reference]').count(),1);checks++
- assert.equal(await page.locator('.ll-preview-host [data-native-page]').evaluate(el=>el.style.getPropertyValue('--ln-accent')),'#235740');checks++
+ assert.equal(await preview.locator('[data-native-page]').evaluate(el=>el.style.getPropertyValue('--ln-accent')),'#235740');checks++
  const firstConversation=(await f.request('GET','/layout-library/conversations')).conversations[0]
- await page.locator('.ll-preview-host [data-layout-slot=title]').click();assert.match(await page.locator('[data-chat-selection]').innerText(),/标题/);checks++
+ await preview.locator('[data-layout-slot=title]').click();assert.match(await page.locator('[data-chat-selection]').innerText(),/标题/);checks++
+ await preview.getByRole('button',{name:'关闭放大预览',exact:true}).click();await preview.waitFor({state:'detached'})
  await page.locator('[data-layout-message]').fill('标题改成黑色。');await page.locator('[data-layout-send]').click()
  await wait(()=>document.querySelector('[data-chat-messages]')?.textContent.includes('标题已改为黑色'))
  let conversation=await f.request('GET','/layout-library/conversations/'+firstConversation.id)
@@ -37,7 +40,7 @@ try{
  await page.locator('[data-layout-message]').fill('现在用了什么颜色？');await page.locator('[data-layout-send]').click();await wait(()=>document.querySelector('[data-chat-messages]')?.textContent.includes('当前标题采用蓝灰色'))
  conversation=await f.request('GET','/layout-library/conversations/'+firstConversation.id);assert.equal(conversation.resource.version,3);checks++
  await page.locator('[data-close]').click();await page.reload();await page.locator('[data-layout-library-open]').click();await page.locator('[data-resource-card="'+firstConversation.resourceId+'"]').click()
- await page.locator('.ll-preview-host').waitFor();await wait(()=>document.querySelectorAll('[data-layout-turn]').length===3);assert.equal(await page.locator('[data-layout-turn]').count(),3);checks++
+ await page.locator('[data-layout-card=points] .ll-preview-host').waitFor();await wait(()=>document.querySelectorAll('[data-layout-turn]').length===3);assert.equal(await page.locator('[data-layout-turn]').count(),3);checks++
  const calls=f.modelCalls.length,imported=createPackage('右侧导入的原生版式')
  await page.locator('[data-chat-file]').setInputFiles({name:'参考版式.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(imported))})
  await wait(()=>document.querySelector('[data-resource-name]')?.value==='右侧导入的原生版式')
