@@ -122,8 +122,10 @@ export function mountLayoutConversation({container,request,notify,getContext,get
   let componentOptions={}
   if(!currentId&&find('[data-reference-components]').checked){
    const raw=find('[data-component-pages]').value.trim(),parts=raw?raw.split(/[,，\s]+/):[],pages=parts.map(Number)
-   if(parts.some(p=>!/^\d+$/.test(p))||pages.length>6||new Set(pages).size!==pages.length||pages.some(p=>p<1||p>300)){notify('请填写1至6个不重复的有效页码，用逗号分隔。');return}
+   if(parts.some(p=>!/^\d+$/.test(p))||pages.length>6||new Set(pages).size!==pages.length||pages.some(p=>!Number.isSafeInteger(p)||p<1)){notify('请填写1至6个不重复的有效页码，用逗号分隔。');return}
    if(pendingFiles.length!==1){notify('逐组件试用每批请选择一个参考文档。');return}
+   const sourcePages=pendingFiles[0].pageCount??(pendingFiles[0].kind==='image'||/^image\/(?:png|jpeg|webp)$/.test(pendingFiles[0].mimeType??'')?1:0)
+   if(!Number.isSafeInteger(sourcePages)||sourcePages<1||pages.some(p=>p>sourcePages)){notify('所选页码超过参考文档的实际范围。');return}
    if(!pages.length&&(pendingFiles[0].pageCount??1)>6){notify('该文档超过6页，请明确填写本批页码。');return}
    componentOptions={referenceExtraction:'components',...(find('[data-reference-semantics]').checked?{referenceVisualSemantics:true}:{}),...(pages.length?{componentPages:pages}:{})}
   }

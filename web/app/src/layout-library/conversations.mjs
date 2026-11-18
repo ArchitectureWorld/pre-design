@@ -42,7 +42,6 @@ export function createLayoutConversations(db,library,uploads){
   const referencePipeline=input.referencePipeline??history.at(-1)?.payload.referencePipeline??(basePackage.schemaVersion==='pre-design.layout-package.v3'?'native-v3':'legacy-v2')
   if(referencePipeline!=='native-v3'&&referenceFiles.reduce((n,f)=>n+(f.imageCount??0),0)>MAX_REFERENCE_IMAGES)throw fail('本轮参考超过'+MAX_REFERENCE_IMAGES+'张页面图像，请分批分析。',413)
   if(referenceFiles.reduce((n,f)=>n+(f.text?.length??0),0)>MAX_REFERENCE_TEXT)throw fail('本轮参考文字过多，请分批分析。',413)
-  if(referencePipeline==='native-v3'&&referenceFiles.reduce((n,f)=>n+(f.pageCount??f.imageCount??0),0)>300)throw fail('本轮完整参考超过300页，请拆分文档任务。',413)
   if(referencePipeline!=='native-v3')await uploads?.validateImageBudget(actor,referenceFiles,c)
   const isDocument=file=>file.hasImages||['pdf','pptx','image','docx'].includes(file.kind)
   const referenceIntent=input.referenceIntent??basePackage.designProfile?.intent??history.at(-1)?.payload.referenceIntent??'style'

@@ -1,3 +1,4 @@
+import {groupedSynthesisInput} from './reference-design-summary.mjs'
 import {validateVisualSemantics,visualSemanticsSchema} from './reference-component-semantics.mjs'
 import {componentObservationContract,validateComponentObservation} from './reference-components.mjs'
 import {componentAdaptationContract,componentAdaptationContractFor,validateComponentProfile,componentProfileJsonSchema,validateComponentProfileFormat} from './component-upload-workflow.mjs'
@@ -125,7 +126,7 @@ function validateObservation(raw,pages,batchNumber){
 function synthesisInput(inventory,observations,payload){
  const files=inventory.files.map(({id,...f})=>({...f,pages:f.pages.map(({text,...page})=>page)}))
  const input={intent:payload.referenceIntent??'style',request:payload.text,name:payload.name,inventory:{files,coverage:inventory.coverage},observations}
- if(JSON.stringify(input).length>MAX_SYNTHESIS_CHARACTERS)throw fail('参考提取事实过多，请减少参考页后再分析。',413,'REFERENCE_SYNTHESIS_LIMIT')
+ if(JSON.stringify(input).length>MAX_SYNTHESIS_CHARACTERS)throw fail('设计事实超过单次综合容量，尚未完成综合；已完成检查点保留，原样重试不能解除此容量限制。',413,'REFERENCE_SYNTHESIS_LIMIT')
  return input
 }
 function assertSourceSupported(profile,inventory){
@@ -304,7 +305,14 @@ export async function runReferenceWorkflow({jobId,payload,images=[],policy,signa
    const summary=await summarizeDesignFacts({analysis,stage}),originalPages=designFactPages(analysis.inventory,analysis.observations)
    for(const limit of [8,4,2,1]){
     const pages=materializeDesignSummary(originalPages,summary.selections,limit),compact=compactSynthesis(analysis.inventory,analysis.observations,pages)
-    try{profileInput=synthesisInput(compact.inventory,compact.observations,{...payload,referenceIntent:analysis.intent});profileContext=compact;summary.pages=pages;summary.selectedFactsPerPage=limit;break}catch(e){if(e.code!=='REFERENCE_SYNTHESIS_LIMIT'||limit===1)throw e}
+    try{profileInput=synthesisInput(compact.inventory,compact.observations,{...payload,referenceIntent:analysis.intent});profileContext=compact;summary.pages=pages;summary.selectedFactsPerPage=limit;break}catch(e){
+     if(e.code!=='REFERENCE_SYNTHESIS_LIMIT')throw e
+     if(limit===1){
+      const grouped=groupedSynthesisInput(compact.inventory,compact.observations,{...payload,referenceIntent:analysis.intent})
+      if(JSON.stringify(grouped).length>MAX_SYNTHESIS_CHARACTERS)throw e
+      profileInput=grouped;profileContext=compact;summary.pages=pages;summary.selectedFactsPerPage=limit;summary.synthesisEncoding='grouped-design-facts-v1'
+     }
+    }
    }
   }
   if(payload.referenceComponentVersion===3)profileInput={...profileInput,componentObservations:analysis.componentObservations,profileJsonSchema:componentProfileJsonSchema()}

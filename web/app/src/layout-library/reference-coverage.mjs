@@ -4,8 +4,9 @@ const invalid=()=>Object.assign(Error('全文设计综合必须覆盖每个已�
 export const coverageContract='仅输出 {"pages":[{"fileSha256":"原文件SHA256","pageNumber":原页码,"archetypeId":"已验证Profile原型ID","factIds":["该原页实际观察事实ID"]}]}。恰好覆盖所有输入原页，每页一次，不能遗漏、重复或新增。将每页映射至能够承载其设计特征的已验证页面原型，引用1至8项该页真实观察事实。若现有原型无法承载，不得冒称覆盖；不输出原文、文件名、图片或任意其他字段。'
 export function coverageInput(profile,observations){return {archetypes:profile.archetypes,pages:observations.flatMap(batch=>batch.pages)}}
 export function validateCoverageMap(raw,profile,observations){
- const result=z.object({pages:z.array(z.object({fileSha256:z.string().regex(/^[a-f0-9]{64}$/),pageNumber:z.number().int().positive(),archetypeId:z.string(),factIds:z.array(z.string()).min(1).max(8)}).strict()).max(300)}).strict().parse(raw)
  const expected=new Map(observations.flatMap(batch=>batch.pages).map(page=>[sourceKey(page.fileSha256,page.pageNumber),page])),seen=new Set(),archetypes=new Set(profile.archetypes.map(a=>a.id))
+ if(!raw||typeof raw!=='object'||!Array.isArray(raw.pages)||raw.pages.length!==expected.size)throw invalid()
+ const result=z.object({pages:z.array(z.object({fileSha256:z.string().regex(/^[a-f0-9]{64}$/),pageNumber:z.number().int().positive(),archetypeId:z.string(),factIds:z.array(z.string()).min(1).max(8)}).strict()).length(expected.size)}).strict().parse(raw)
  for(const page of result.pages){
   const key=sourceKey(page.fileSha256,page.pageNumber),original=expected.get(key),facts=new Set(original?.facts.map(f=>f.id))
   if(!original||seen.has(key)||!archetypes.has(page.archetypeId)||new Set(page.factIds).size!==page.factIds.length||page.factIds.some(id=>!facts.has(id)))throw invalid()

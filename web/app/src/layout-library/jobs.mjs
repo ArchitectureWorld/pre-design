@@ -97,7 +97,7 @@ export function createLayoutJobs({db,platform,workers,library,uploads,serial,con
    if(job.payload.referenceImagePlacementVersion!==undefined)await db.query("UPDATE jobs SET payload=$2 WHERE id=$1 AND status='running'",[job.id,job.payload])
    const stageCheckpoints=lazy?(await (checkpointStores??=createReferenceCheckpointStore(db)))(actor):undefined
    let newStageCalls=0
-   const runModel=async input=>{if(++newStageCalls>60)throw fail('本轮已达到60次阶段调用上限，已保存完成检查点。',429,'REFERENCE_STAGE_BUDGET');return workers.runLayoutReference({...input,signal:AbortSignal.any([signal,AbortSignal.timeout(180000)])})}
+   const runModel=async input=>{if(++newStageCalls>60)throw fail('本轮已达到60次阶段调用上限，已保存完成检查点，可重试继续；仅复用来源、策略与契约仍匹配且验证通过的阶段。',429,'REFERENCE_STAGE_BUDGET');return workers.runLayoutReference({...input,signal:AbortSignal.any([signal,AbortSignal.timeout(180000)])})}
    const example=conversation?{reply:'用一句话说明变化。',package:job.payload.basePackage?.designProfile?job.payload.basePackage:createPackage(job.payload.name)}:createPackage(job.payload.name)
    const referenceContext=job.payload.basePackage?.designProfile?(job.payload.referenceFiles??[]).map(file=>({...referenceFileSummary(file),...(file.kind==='text'||!file.id?{text:file.text}: {})})):job.payload.referenceFiles
    const prompt=skill+'\n\n最终输出形状示例（仅一个JSON对象）：\n'+JSON.stringify(example)+

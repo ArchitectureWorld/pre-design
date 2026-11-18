@@ -39,3 +39,22 @@ export async function summarizeDesignFacts({analysis,stage}){
  analysis.designSummary={schemaVersion:'pre-design.private-design-summary.v1',selectionMethod:'model-ranked-original-fact-ids',originalPageCount:pages.length,selections,pages:materializeDesignSummary(pages,selections)}
  return analysis.designSummary
 }
+
+// Encoding only: selected facts retain exact values, provenance and per-page IDs.
+// Full original observations remain in analysis; no business text is synthesized.
+export function groupedSynthesisInput(inventory,observations,payload){
+ const observed=new Map(observations.flatMap(b=>b.pages).map(p=>[key(p),p]))
+ const values=facts=>facts.map(({id,...fact})=>fact)
+ const files=inventory.files.map(file=>{
+  const groups=new Map()
+  for(const page of file.pages){
+   const observation=observed.get(file.sha256+':'+page.pageNumber),extracted=page.extractedFacts,seen=observation?.facts??[]
+   const design={hasImage:page.hasImage,pageType:observation?.pageType??null,structure:observation?.structure??null,density:observation?.density??null,extractedFacts:values(extracted),observedFacts:values(seen)}
+   const groupKey=JSON.stringify(design)
+   if(!groups.has(groupKey))groups.set(groupKey,{...design,pages:[]})
+   groups.get(groupKey).pages.push({pageNumber:page.pageNumber,extractedFactIds:extracted.map(f=>f.id),observedFactIds:seen.map(f=>f.id)})
+  }
+  return {sha256:file.sha256,name:file.name,kind:file.kind,pageCount:file.pageCount,extractedFacts:file.extractedFacts,limitations:file.limitations,groups:[...groups.values()]}
+ })
+ return {intent:payload.referenceIntent??'style',request:payload.text,name:payload.name,synthesisEncoding:'grouped-design-facts-v1',encodingNotes:'每个files组共享同一来源SHA256；groups只合并完全相同的已选设计事实值与结构。每个pages条目保留原页码，extractedFactIds/observedFactIds分别按位置对应组的extractedFacts/observedFacts。证据必须使用该原页原factID及原provenance；不可将事实跨页归属。全部原始观察另行私有保留，此输入是已选设计事实编码，不声称原文无损。',inventory:{files,coverage:inventory.coverage}}
+}
