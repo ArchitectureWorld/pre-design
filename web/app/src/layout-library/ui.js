@@ -126,7 +126,7 @@ export function mountLayoutLibrary({request,notify}){
   if(!dialog)return
   const form=dialog.querySelector('[data-editor]');if(form)for(const el of form.elements)el.disabled=modelBusy||sparseBusy||!own()
   const name=dialog.querySelector('[data-resource-name]');if(name)name.disabled=modelBusy||sparseBusy||!own()
-  for(const button of dialog.querySelectorAll('[data-save],[data-validate],[data-publish],[data-use-layout],[data-reference-review],[data-content-adapt],[data-derive-sparse]'))button.disabled=modelBusy||sparseBusy
+  for(const button of dialog.querySelectorAll('[data-save],[data-validate],[data-publish],[data-use-layout],[data-reference-review],[data-content-adapt],[data-derive-sparse],[data-derive-style],[data-style-ack]'))button.disabled=modelBusy||sparseBusy
   const use=dialog.querySelector('[data-use-layout]');if(use&&previewContext)use.disabled=modelBusy||sparseBusy||previewFit.get(previewLayout)!=='passed'
   const map=dialog.querySelector('[data-configure-mapping]');if(map){map.hidden=!working?.layouts?.find(l=>l.id===previewLayout)?.slots?.some(s=>s.role==='text');map.disabled=modelBusy||sparseBusy||!selected}
  }
@@ -141,6 +141,7 @@ export function mountLayoutLibrary({request,notify}){
    <p data-preview-mode role="status"></p><div data-preview-box aria-label="全部版式缩略图"></div>
    <div class="ll-result-actions"><button data-save class="ll-primary">${selected&&own()?'保存修改':'保存版式'}</button>${selected?'<button data-validate>检查版式</button><button data-export>导出</button>':''}${selected&&pkg.designProfile&&selected.ownerId===identity?.id?'<button data-reference-review class="ll-primary">对照审阅</button>':''}${selected&&selected.ownerId===identity?.id?'<button data-content-adapt>内容适配预览</button>':''}${mappingPicker&&previewContext?'<button data-configure-mapping>配置原文映射</button>':''}${picker?'<button data-use-layout class="ll-primary">选用此版式</button>':''}</div>
    ${selected?.ownerId===identity?.id&&pkg.schemaVersion==='pre-design.layout-package.v3'?`<div class="ll-result-actions"><select data-sparse-source aria-label="少内容变体参考页">${sparseSources.length!==1?'<option value="">选择参考页</option>':''}${sparseSources.map((p,i)=>`<option value="${i}">第 ${p.pageNumber} 页 · ${p.fileSha256.slice(0,6)}</option>`).join('')}</select><button data-derive-sparse>添加少内容无图变体</button><small>适用于有可信分析的并列卡片；新增草稿，不发布或修改项目。</small></div>`:''}
+   ${selected?.ownerId===identity?.id&&pkg.schemaVersion==='pre-design.layout-package.v3'?`<div class="ll-result-actions"><label><input type="checkbox" data-style-ack>我理解这是基于当前资源风格的平台重新设计，不是原 PDF 分析恢复。</label><button data-derive-style>基于当前风格创建内容适配版</button><small>新增少内容无图草稿；保留原版与授权，不自动发布或修改项目。</small></div>`:''}
    <div data-layout-annotations></div>
    ${pkg.designProfile?`<details class="ll-profile"><summary>参考分析 · ${pkg.designProfile.archetypes.length} 种页面类型${selected?.referenceReview?.status==='confirmed'?' · 已确认':' · 待对照'}</summary>${referenceProfileHtml(pkg.designProfile)}</details>`:''}
    ${reuseGuideHtml(pkg)}
@@ -173,6 +174,25 @@ export function mountLayoutLibrary({request,notify}){
    sparseBusy=true;updateControls();msg('正在添加无图变体，不调用模型…')
    try{
     const result=await post('/layout-library/'+base.id+'/'+base.version+'/derive-sparse-cards',{expectedHash:base.hash,strategyVersion:1,source})
+    if(!current())return
+    if(result.id!==base.id||result.version!==base.version+1)throw Error('生成结果版本不匹配，请刷新后查看。')
+    const resource=await request('/layout-library/'+result.id+'/'+result.version)
+    if(!current())return
+    if(resource.id!==result.id||resource.version!==result.version||resource.hash!==result.hash)throw Error('生成结果身份不匹配，请刷新后查看。')
+    const oldIds=new Set(base.package.layouts.map(l=>l.id))
+    selected=resource;working=structuredClone(resource.package);previewLayout=working.layouts.find(l=>!oldIds.has(l.id))?.id??'';layoutChosen=true;historyViewing=false
+    const savedCurrent=()=>token===generation&&epoch===viewEpoch&&dialog&&selected?.id===result.id&&selected?.version===result.version
+    renderResult();await preview();if(!savedCurrent())return;await reload();if(savedCurrent())msg('已保存为 V'+result.version+'，原版本保留，未发布；请对照审阅后选用。')
+   }catch(error){if(current())throw error}finally{if(token===generation){sparseBusy=false;updateControls()}}
+  }))
+  panel.querySelector('[data-derive-style]')?.addEventListener('click',()=>void run(async()=>{
+   readForm();if(!equal(working,selected.package))throw Error('请先保存修改，再添加变体。')
+   if(selected.version!==selected.latestVersion||selected.retired)throw Error('请切换到未归档的最新版本。')
+   if(!panel.querySelector('[data-style-ack]').checked)throw Error('请先确认这是基于当前风格的重新设计，不是原 PDF 分析恢复。')
+   const token=generation,epoch=viewEpoch,base=structuredClone(selected),current=()=>token===generation&&epoch===viewEpoch&&dialog&&selected?.id===base.id&&selected?.version===base.version
+   sparseBusy=true;updateControls();msg('正在创建平台风格适配版，不调用模型…')
+   try{
+    const result=await post('/layout-library/'+base.id+'/'+base.version+'/derive-style-adaptation',{expectedHash:base.hash,strategyVersion:1,styleAcknowledged:true})
     if(!current())return
     if(result.id!==base.id||result.version!==base.version+1)throw Error('生成结果版本不匹配，请刷新后查看。')
     const resource=await request('/layout-library/'+result.id+'/'+result.version)

@@ -95,3 +95,20 @@ test('原生证据标明真实页且切换中清除旧来源，未采集不伪�
  resolveNext({receipt:{id:'next'},source:{name:'old.pdf',page:15,dataUrl:'data:image/png;base64,AA=='},html:'<main data-canvas-width="800" data-canvas-height="600"><article>sample</article></main>'})
  await settle(()=>!evidence.hidden);assert.match(evidence.textContent,/未采集/);assert.doesNotMatch(evidence.textContent,/3 次|0 次/)
 })
+
+test('平台风格重设计对照源资源合成样例，不冒充原PDF或文字来源，切换释放双预览',async t=>{
+ const dom=new JSDOM('<body></body>'),document=dom.window.document
+ document.defaultView.HTMLDialogElement.prototype.showModal=function(){this.open=true};document.defaultView.HTMLDialogElement.prototype.close=function(){this.open=false}
+ const pkg=compositionPackage();pkg.layouts.push({...pkg.layouts[0],id:'old',label:'原版'})
+ const sample=text=>`<main class="native-deck" data-canvas-width="1200" data-canvas-height="1000"><article>${text}</article></main>`
+ const ui=openReferenceReview({document,resource:{id:'x',version:2,package:pkg,validation:{status:'passed'}},request:async(_p,o)=>o.body.layoutId==='mixed'?{receipt:{id:'style'},source:null,sourceIdentity:{resourceId:'x',version:1,hash:'a'.repeat(64),layoutId:'old',name:'源资源'},sourcePreviewHtml:sample('源版式样例'),html:sample('重新设计样例')}:{receipt:{id:'old'},source:{name:'原PDF',page:15,dataUrl:'data:image/png;base64,AA=='},html:sample('原版样例')}})
+ t.after(()=>{ui.dispose();dom.window.close()});await ui.ready
+ assert.match(document.querySelector('[data-source-title]').textContent,/源资源.*V1.*合成/)
+ assert.match(document.querySelector('[data-review-source] .ll-preview-host').shadowRoot.textContent,/源版式样例/)
+ assert.match(document.querySelector('[data-review-prototype-title]').textContent,/平台重新设计.*合成/)
+ assert.match(document.querySelector('[data-review-purpose]').textContent,/不是.*原.*恢复/)
+ const oldSource=document.querySelector('[data-review-source]').firstElementChild
+ const select=document.querySelector('[data-review-layout]');select.value='old';select.dispatchEvent(new dom.window.Event('change'));await settle(()=>document.querySelector('[data-source-title]').textContent.includes('第 15 页'))
+ assert.equal(oldSource.isConnected,false);assert.equal(document.querySelector('[data-review-source] img').alt,'原参考第 15 页');assert.match(document.querySelector('[data-review-prototype-title]').textContent,/迁移试排/)
+ ui.dispose();assert.equal(document.querySelector('dialog'),null)
+})

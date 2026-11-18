@@ -37,5 +37,5 @@ export async function fullLayoutFixture({uploadDelayMs=0,modelDelayMs=250,refere
  await confirmedOutlineFixture(env.db,project.id);const outline=draft(file.id);outline.questions=[]
  await env.db.query('UPDATE outline_versions SET draft=$2,flow=$3 WHERE project_id=$1',[project.id,outline,JSON.stringify(['01'])])
  await post('/workflow/draft',{outlineVersion:1});await app.waitForJobs()
- return {app,db:env.db,url,token,project,base,post,request,modelCalls,state:()=>request('GET',base+'/state'),async close(){await app.close();await env.close();await rm(root,{recursive:true,force:true})}}
+ return {root,app,db:env.db,url,token,project,base,post,request,modelCalls,state:()=>request('GET',base+'/state'),async close(){await app.close();await env.close();await rm(root,{recursive:true,force:true})}}
 }

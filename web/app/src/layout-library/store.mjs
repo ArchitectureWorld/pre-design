@@ -1,3 +1,7 @@
+import {validateResourceStyleOrigin} from './resource-style-origin.mjs'
+import {samplePages} from './validation.mjs'
+import {renderNativeDocument} from './render.mjs'
+import {deriveStylePackage,styleAdaptationRequestSchema} from './resource-style-adaptation.mjs'
 import {deriveSparsePackage,sparseDerivationRequestSchema} from './sparse-derivation.mjs'
 import {randomUUID} from 'node:crypto'
 import {contentMappingSchema,projectContentMapping} from './content-mapping.mjs'
@@ -19,7 +23,7 @@ export async function createLayoutLibrary(db){
  CREATE TABLE IF NOT EXISTS layout_binding_versions(project_id uuid NOT NULL,revision integer NOT NULL,draft_id uuid NOT NULL,document jsonb NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(project_id,revision));
  CREATE TABLE IF NOT EXISTS layout_library_deletions(target_kind text NOT NULL,target_id uuid NOT NULL,delete_token uuid NOT NULL,deleted_by text NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(target_kind,target_id));`)
  const query=async(sql,args=[],c=db)=>(await c.query(sql,args)).rows
- const reviews=await createReferenceReviews(db,get)
+ const reviews=await createReferenceReviews(db,get,{resolveStyleSource})
  async function isRemoved(kind,id,c=db){const [r]=await query('SELECT delete_token FROM layout_library_deletions WHERE target_kind=$1 AND target_id=$2',[kind,id],c);return r?.delete_token??null}
  async function activeResource(id,c=db){if(await isRemoved('resource',id,c))throw fail('此版式已删除，请先撤销删除。',409)}
  async function resource(id,c=db){const [r]=await query("SELECT r.*,d.target_id AS deleted_id FROM layout_library_resources r LEFT JOIN layout_library_deletions d ON d.target_kind='resource' AND d.target_id=r.id WHERE r.id=$1",[id],c);if(!r)throw fail('版式资源不存在。',404);return r}
@@ -99,6 +103,42 @@ export async function createLayoutLibrary(db){
    const matches=jobs.filter(j=>j.result?.id===r.id&&j.result.version===r.version&&j.result.hash===v.hash)
    if(matches.length!==1)throw fail('缺少唯一且与当前版本完全匹配的已完成参考任务。',409)
    const derived=deriveSparsePackage({actor,resource:{...r,...v},job:matches[0],request:b})
+   const version=r.version+1,hash=packageDigest(derived.package)
+   await c.query('INSERT INTO layout_library_versions(resource_id,version,document,hash) VALUES($1,$2,$3,$4)',[r.id,version,derived.package,hash])
+   await c.query('UPDATE layout_library_resources SET version=$2,share_requested=false WHERE id=$1',[r.id,version])
+   return {id:r.id,version,hash,derived:true,receipt:derived.receipt}
+  })
+  return {id:result.id,version:result.version,hash:result.hash,derived:true}
+ }
+ async function resolveStyleSource(actor,{id,version,layoutId},c=db){
+  const current=await get(actor,id,version,c)
+  if(current.ownerId!==actor.id)throw fail('请由资源拥有者审阅风格来源。',403)
+  const rows=await query('SELECT result FROM layout_library_mutations WHERE actor_id=$1',[actor.id],c)
+  const matches=rows.map(r=>typeof r.result==='string'?JSON.parse(r.result):r.result).filter(r=>r.id===id&&r.version===version&&r.receipt?.sourceKind==='resource-style'&&r.receipt.derivedLayoutIds?.includes(layoutId))
+  if(!matches.length){
+   const declared=layoutId.startsWith('style-adaptation-')&&current.package.designProfile?.evidence?.some(e=>e.id==='resource-style-derived-v1')
+   if(declared)throw fail('当前版本缺少精确匹配的风格重新设计来源收执，不能重新审阅。历史版本与既有成果保留；普通修改后的来源迁移尚不支持。',409)
+   return null
+  }
+  if(matches.length!==1)throw fail('风格来源收执不唯一。',409)
+  const result=matches[0],sourceResource=await get(actor,result.receipt.sourceResourceId,result.receipt.sourceVersion,c)
+  const origin=validateResourceStyleOrigin({actorId:actor.id,resource:current,sourceResource,result,layoutId})
+  if(!origin)return null
+  const page=samplePages(sourceResource.package).find(p=>p.id.endsWith('typical'))
+  if(!page)throw fail('源资源没有可用合成试排。',409)
+  return {...origin,name:sourceResource.package.name,layoutId:page.nativeLayout.layout.id,html:renderNativeDocument([page],{title:'源资源风格 · 合成样例（非原件）'})}
+ }
+ async function deriveStyle(actor,body){
+  const b=styleAdaptationRequestSchema.parse(body)
+  const result=await mutation(actor,b.requestId,{...b,op:'derive-style'},async c=>{
+   const [r]=await query('SELECT * FROM layout_library_resources WHERE id=$1 FOR UPDATE',[b.id],c)
+   if(!r||r.owner_id!==actor.id)throw fail('版式资源不存在。',404)
+   await activeResource(r.id,c)
+   if(r.retired)throw fail('版式已停用。',409)
+   if(r.version!==b.version)throw fail('版式已有新版本，请刷新后重试。',409)
+   const [v]=await query('SELECT * FROM layout_library_versions WHERE resource_id=$1 AND version=$2',[r.id,r.version],c)
+   if(v.hash!==b.expectedHash)throw fail('版式内容已有变化，请重新预览。',409)
+   const derived=deriveStylePackage({actor,resource:{...r,...v},request:b})
    const version=r.version+1,hash=packageDigest(derived.package)
    await c.query('INSERT INTO layout_library_versions(resource_id,version,document,hash) VALUES($1,$2,$3,$4)',[r.id,version,derived.package,hash])
    await c.query('UPDATE layout_library_resources SET version=$2,share_requested=false WHERE id=$1',[r.id,version])
@@ -263,5 +303,5 @@ export async function createLayoutLibrary(db){
    return reviews.confirm(actor,body,c)
   })
  }
- return {referenceComparison:reviews.comparison,confirmReferenceReview,previewRef:(actor,ref)=>freezeRef(actor,ref,undefined,{preview:true}),sourceFile,list,get,create,revise,deriveSparse,saveValidation,publish,retire,requestShare,bindings,bindingMutationResult,saveBindings,carryBindings,compilePages,freezeRef,exportReusable,isRemoved,remove:(actor,b)=>changeDeletion(actor,b),restore:(actor,b)=>changeDeletion(actor,b,true)}
+ return {referenceComparison:reviews.comparison,confirmReferenceReview,previewRef:(actor,ref)=>freezeRef(actor,ref,undefined,{preview:true}),sourceFile,list,get,create,revise,deriveSparse,deriveStyle,resolveStyleSource,saveValidation,publish,retire,requestShare,bindings,bindingMutationResult,saveBindings,carryBindings,compilePages,freezeRef,exportReusable,isRemoved,remove:(actor,b)=>changeDeletion(actor,b),restore:(actor,b)=>changeDeletion(actor,b,true)}
 }

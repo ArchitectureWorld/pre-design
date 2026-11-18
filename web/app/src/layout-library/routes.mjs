@@ -94,6 +94,10 @@ export function registerLayoutRoutes({app,library,annotations,uploads,project,wo
  app.post('/api/layout-library/:resourceId/revisions',async req=>{
   const b=mutation.extend({expectedVersion:version,package:z.unknown()}).parse(req.body);return library.revise(req.user,{...b,id:id.parse(req.params.resourceId)})
  })
+ app.post('/api/layout-library/:resourceId/:version/derive-style-adaptation',async req=>{
+  const b=mutation.extend({expectedHash:z.string().regex(/^[a-f0-9]{64}$/),strategyVersion:z.literal(1),styleAcknowledged:z.literal(true)}).strict().parse(req.body)
+  return library.deriveStyle(req.user,{...b,id:id.parse(req.params.resourceId),version:version.parse(Number(req.params.version))})
+ })
  app.post('/api/layout-library/:resourceId/:version/derive-sparse-cards',async req=>{
   const source=z.object({fileSha256:z.string().regex(/^[a-f0-9]{64}$/),pageNumber:z.number().int().positive().max(300)}).strict()
   const b=mutation.extend({expectedHash:z.string().regex(/^[a-f0-9]{64}$/),strategyVersion:z.literal(1),source:source.optional()}).strict().parse(req.body)
@@ -108,7 +112,9 @@ export function registerLayoutRoutes({app,library,annotations,uploads,project,wo
   const b=z.object({layoutId:z.string().min(1).max(48),source:z.object({fileSha256:z.string().regex(/^[a-f0-9]{64}$/),pageNumber:z.number().int().positive()}).strict().optional()}).strict().parse(req.body)
   const resourceId=id.parse(req.params.resourceId),v=version.parse(Number(req.params.version)),x=await library.get(req.user,resourceId,v)
   if(x.ownerId!==req.user.id)throw fail('请由资源拥有者对照自己的参考原页。',403)
-  const references=referencePagesForLayout(x.package,b.layoutId)
+  const styleSource=await library.resolveStyleSource?.(req.user,{id:resourceId,version:v,layoutId:b.layoutId})
+  if(styleSource&&b.source)throw fail('平台风格重设计不接受原页来源替换。',409)
+  const references=styleSource?[]:referencePagesForLayout(x.package,b.layoutId)
   if(b.source&&!references.some(p=>p.fileSha256===b.source.fileSha256&&p.pageNumber===b.source.pageNumber))throw fail('所选原页不是当前版式的证据来源。',409)
   let source=null
   for(const reference of b.source?[b.source]:references){
@@ -122,7 +128,7 @@ export function registerLayoutRoutes({app,library,annotations,uploads,project,wo
   const nativeImagePlacements=source&&uploads?.placementEvidence?await uploads.placementEvidence(req.user,source.fileId,source.sourceSha256,source.page):undefined
   const receipt=await library.referenceComparison(req.user,{id:resourceId,version:v,layoutId:b.layoutId,source,html})
   reply.header('Cache-Control','private, no-store')
-  return {receipt,html,profile:x.package.designProfile,references,fixture:true,source:source?{name:source.name,page:source.page,sha256:source.sha256,...(nativeImagePlacements?{nativeImagePlacements}:{}),dataUrl:'data:'+source.mimeType+';base64,'+source.data.toString('base64')}:null}
+  return {receipt,html,...(styleSource?{sourcePreviewHtml:styleSource.html,sourceIdentity:Object.fromEntries(Object.entries(styleSource).filter(([k])=>k!=='html'))}:{}),profile:x.package.designProfile,references,fixture:true,source:source?{name:source.name,page:source.page,sha256:source.sha256,...(nativeImagePlacements?{nativeImagePlacements}:{}),dataUrl:'data:'+source.mimeType+';base64,'+source.data.toString('base64')}:null}
  })
  app.post('/api/layout-library/:resourceId/:version/reference-review',async req=>{
   const b=mutation.extend({packageHash:z.string().regex(/^[a-f0-9]{64}$/),comparisonIds:z.array(id).min(1).max(100),reviewed:z.literal(true)}).strict().parse(req.body)

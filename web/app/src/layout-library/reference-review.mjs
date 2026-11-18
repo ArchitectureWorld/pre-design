@@ -40,7 +40,7 @@ export function assertReferenceReviewed(resource){
 }
 
 /** Original bytes never enter these receipts. Original access is separately owner-scoped. */
-export async function createReferenceReviews(db,getResource){
+export async function createReferenceReviews(db,getResource,{resolveStyleSource=async()=>null}={}){
  await db.query(`CREATE TABLE IF NOT EXISTS layout_reference_comparisons(
  id uuid PRIMARY KEY,resource_id uuid NOT NULL,version integer NOT NULL,owner_id text NOT NULL,
  package_hash text NOT NULL,validation_hash text,layout_id text NOT NULL,document jsonb NOT NULL,created_at timestamptz NOT NULL DEFAULT now());
@@ -60,11 +60,14 @@ export async function createReferenceReviews(db,getResource){
   return resource
  }
  async function comparison(actor,{id,version,layoutId,source,html}){
-  const resource=await current(actor,id,version),references=referencePagesForLayout(resource.package,layoutId)
+  const resource=await current(actor,id,version),style=await resolveStyleSource(actor,{id,version,layoutId})
+  const references=style?[]:referencePagesForLayout(resource.package,layoutId)
+  if(style&&source)throw fail('平台风格重新设计须对照源资源样例，不能标成原页图像。',409)
   if(references.length&&!references.some(p=>p.fileSha256===source?.sourceSha256&&p.pageNumber===source?.page))throw fail('对照原页与本版式的证据不一致。',409)
   if(!references.length&&source)throw fail('此版式没有对应的图像来源证据。',409)
   const receipt={id:randomUUID(),packageHash:resource.hash,validationHash:resource.validation?packageDigest(resource.validation):null,layoutId,
    prototypeHash:packageDigest(html),fixture:true,source:source?{sha256:source.sourceSha256,page:source.page,imageHash:source.sha256}:null,
+   ...(style?{sourceKind:'resource-style',sourceIdentity:{resourceId:style.resourceId,version:style.version,hash:style.hash,layoutId:style.layoutId,strategyVersion:style.strategyVersion},sourcePrototypeHash:packageDigest(style.html)}:{}),
    createdAt:new Date().toISOString()}
   await db.query('INSERT INTO layout_reference_comparisons(id,resource_id,version,owner_id,package_hash,validation_hash,layout_id,document) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',
    [receipt.id,id,version,actor.id,resource.hash,receipt.validationHash,layoutId,receipt])

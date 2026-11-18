@@ -40,13 +40,20 @@ export function appendSparseCardVariants(input,raw,allowedSources){
  const evidenceId='sparse-card-derived-v1'
  if(p.evidence.some(e=>e.id===evidenceId)||p.archetypes.some(a=>a.id.startsWith('sparse-card-')))invalid('已包含派生卡片；不能重复追加。')
  p.evidence.push({id:evidenceId,provenance:'inferred',dependsOn:proof})
- const evidenceIds=[evidenceId],{width,height}=p.designSystem.canvas,{accent}=p.designSystem.colors
- const left=family.groups[0].rect.x,right=family.groups.at(-1).rect.x+family.groups.at(-1).rect.w
+ appendPlatformContentLayouts(result,{evidenceIds:[evidenceId],left:family.groups[0].rect.x,right:family.groups.at(-1).rect.x+family.groups.at(-1).rect.w,maxCount:family.groups.length})
+ result.sparseCardDerivation={strategy:family.derivation,source:structuredClone(family.source),observationSha256:createHash('sha256').update(JSON.stringify(validateComponentObservation(raw,allowedSources))).digest('hex'),groups:structuredClone(family.groups),outputSha256:createHash('sha256').update(JSON.stringify({designSpec:spec,prototypes:result.prototypes})).digest('hex'),visualAcceptance:'pending'}
+ return result
+}
+
+/** Shared geometry only; caller supplies independently validated provenance. */
+export function appendPlatformContentLayouts(result,{evidenceIds,left,right,maxCount,prefix}){
+ const spec=result.designSpec,p=spec.profile
+ const {width,height}=p.designSystem.canvas,{accent}=p.designSystem.colors
  const span=right-left,gap=Math.min(.025,span/20)
  const xmlRect=(r,fill)=>`<rect x="${r.x*width}" y="${r.y*height}" width="${r.w*width}" height="${r.h*height}" fill="${fill}"/>`
- for(let count=0;count<=family.groups.length;count++){
+ for(let count=0;count<=maxCount;count++){
   const nodeIndex=1+Math.max(0,...spec.masterLayoutGraph.map(n=>Number(n.id.split('-').at(-1)))),componentIndex=1+Math.max(0,...spec.components.map(n=>Number(n.id.split('-').at(-1))))
-  const id=count?`sparse-card-${count}`:'sparse-text-0',cardWidth=count?(span-gap*(count-1))/count:span
+  const id=prefix?`${prefix}-${count}`:count?`sparse-card-${count}`:'sparse-text-0',cardWidth=count?(span-gap*(count-1))/count:span
   const slots=[{id:'title',role:'title',rect:{x:left,y:.06,w:span,h:.20},style:{fontSize:72,fontWeight:700,lineHeight:1.2}},{id:'intro',role:'claim',rect:{x:left,y:count?.28:.34,w:span,h:count?.12:.42},style:{fontSize:count?32:40,lineHeight:1.35}},
    ...Array.from({length:count},(_,i)=>({id:`point-${i+1}`,role:'body',index:i,rect:{x:left+i*(cardWidth+gap)+.012,y:.47,w:cardWidth-.024,h:.30},style:{padding:16,verticalAlign:'top',fontSize:36}})),
    {id:'source',role:'source',rect:{x:left,y:.91,w:span,h:.05}}]
@@ -54,9 +61,8 @@ export function appendSparseCardVariants(input,raw,allowedSources){
   spec.masterLayoutGraph.push({id:`master-${nodeIndex}`,kind:'master',parentId:null,evidenceIds:[...evidenceIds]},{id:`layout-${nodeIndex}`,kind:'layout',parentId:`master-${nodeIndex}`,archetypeId:id,evidenceIds:[...evidenceIds]})
   for(const [i,role] of (count?['title','claim','body','source']:['title','claim','source']).entries())spec.components.push({id:`component-${componentIndex+i}`,kind:'content-slot',role,evidenceIds:[...evidenceIds]})
   const decorations=Array.from({length:count},(_,i)=>xmlRect({x:left+i*(cardWidth+gap),y:.44,w:cardWidth,h:.008},accent)).join('')
-  result.prototypes.push({id,archetypeId:id,label:count?`无图简要 · ${count}项要点（平台派生）`:'无图 · 纯段落（平台派生）',slots,prototypeSvg:`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${decorations}</svg>`,contentFitRules:{overflow:'reject',maxTextBlocks:0,maxTextCharacters:0,maxTitleCharacters:40,maxClaimCharacters:count?90:180,maxBodyPoints:count,maxBodyCharacters:count*60,maxImages:0,maxTableRows:0,maxTableColumns:0}})
+  result.prototypes.push({id,archetypeId:id,label:prefix?`平台风格重设计 · ${count}项要点`:count?`无图简要 · ${count}项要点（平台派生）`:'无图 · 纯段落（平台派生）',slots,prototypeSvg:`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${decorations}</svg>`,contentFitRules:{overflow:'reject',maxTextBlocks:0,maxTextCharacters:0,maxTitleCharacters:40,maxClaimCharacters:count?90:180,maxBodyPoints:count,maxBodyCharacters:count*60,maxImages:0,maxTableRows:0,maxTableColumns:0}})
  }
  p.limitations.push({code:'readability-adjusted',evidenceIds:[...evidenceIds]})
- result.sparseCardDerivation={strategy:family.derivation,source:structuredClone(family.source),observationSha256:createHash('sha256').update(JSON.stringify(validateComponentObservation(raw,allowedSources))).digest('hex'),groups:structuredClone(family.groups),outputSha256:createHash('sha256').update(JSON.stringify({designSpec:spec,prototypes:result.prototypes})).digest('hex'),visualAcceptance:'pending'}
  return result
 }
