@@ -23,8 +23,20 @@ export async function buildContentStyleCompositionPlan({sourcePackage,layoutId,i
  if(!selected||packageDigest(selected)!==packageDigest(candidate))fail('候选、完整内容或来源设计规则已变化。')
  if(selected.flow.columns!==1)fail('当前实验编译器尚不支持分栏测量，未执行或伪报成功。')
  const sourceSlots=layout.slots.filter(s=>s.role==='source');if(sourceSlots.length>1)fail('页脚来源不唯一。')
- const footer=sourceSlots[0];if(item.evidenceIndexes?.length&&!footer)fail('当前内容引用需要已有页脚槽。')
- const {width,height}=pkg.canvas,frame=selected.frame,bottom=Math.min(frame.bottom,footer?.rect.y??1),gap=selected.flow.groupGap
+ let footer=sourceSlots[0],sourceFooter
+ const {width,height}=pkg.canvas,frame=selected.frame
+ if(selected.sourcePolicy==='existing-or-derived-project-source'){
+  sourceFooter={strategy:selected.sourcePolicy,version:policy.version,mode:footer?'existing':'not-required'}
+  if(footer)sourceFooter.sourceSlotHash=packageDigest(footer)
+  else if(item.evidenceIndexes?.length){
+   const fontSize=pkg.theme.captionSize,lineHeight=Math.max(1.5,pkg.theme.lineHeight),footerHeight=2*fontSize*lineHeight+4
+   if(footerHeight>=(frame.bottom-frame.y)*height)fail('项目来源页脚超过可用画布，未省略引用。')
+   footer={id:'project-source',role:'source',rect:{x:frame.x,y:frame.bottom-footerHeight/height,w:frame.w,h:footerHeight/height},style:{fontFamily:pkg.theme.fontFamily,fontSize,lineHeight,color:pkg.theme.muted,verticalAlign:'top'}}
+   sourceFooter={...sourceFooter,mode:'derived',provenance:'inferred',reason:'actual-project-citations',rect:{...footer.rect},fontSize,lineHeight,reservedLines:2,paddingAllowance:4,validation:'requires-full-page-source-text-and-glyph-check'}
+  }
+ }
+ if(item.evidenceIndexes?.length&&!footer)fail('当前内容引用需要已有页脚槽。')
+ const bottom=Math.min(frame.bottom,footer?.rect.y??1),gap=selected.flow.groupGap
  let y=frame.y*height;const slots=[],measurements=[],adjustments=[]
  for(const block of selected.blocks){
   const {role,index}=block.selector,text=role==='title'?item.title:role==='claim'?item.paragraphs[index]:item.points[index]
@@ -64,5 +76,5 @@ export async function buildContentStyleCompositionPlan({sourcePackage,layoutId,i
  const prototype={id,archetypeId:id,label:'实测编辑式构图 · 平台推导',slots,prototypeSvg:`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${decoration}</svg>`,contentFitRules:{overflow:'reject',maxTitleCharacters:count(item.title),maxClaimCharacters:item.paragraphs.reduce((n,s)=>n+count(s),0),maxBodyPoints:item.points.length,maxBodyCharacters:item.points.reduce((n,s)=>n+count(s),0),maxImages:0,maxTableRows:0,maxTableColumns:0,maxTextBlocks:0,maxTextCharacters:0}}
  const designSpec=structuredClone(pkg.designSpec);designSpec.profile.evidence.push(...delta.evidence);designSpec.profile.archetypes.push(delta.archetype);designSpec.masterLayoutGraph.push(...delta.masterLayoutGraph);designSpec.components.push(...delta.components)
  compileNativeDesignPackageV3({name:pkg.name,rights:pkg.rights,designSpec,prototypes:[...pkg.layouts.map(({kind,...l})=>l),prototype]})
- return freeze({prototype,delta,receipt:{version:policy.version,...(placement?{placement}:{}),sourcePackageHash,sourceLayoutHash:packageDigest(layout),sourceStyleHash:policy.sourceStyleHash,contentHash:policy.contentHash,inputContentHash,candidateHash:selected.candidateHash,outputHash:packageDigest({prototype,delta}),provenance:'inferred',derivations:structuredClone(selected.derivations),typographyAdjustments:adjustments,measurements,visualAcceptance:'pending',limitations:['仅单列候选；分栏未实施，单页超量须显式分页。','正文使用同 renderer 的 ul/li 测量与呈现，不声称已变成无列表符号模块。','未复制原装饰；分隔线为平台推导，页脚及整页仍需真实视觉验收。','测量回执未包含浏览器及字体文件环境指纹。']}})
+ return freeze({prototype,delta,receipt:{version:policy.version,...(placement?{placement}:{}),...(sourceFooter?{sourceFooter}:{}),sourcePackageHash,sourceLayoutHash:packageDigest(layout),sourceStyleHash:policy.sourceStyleHash,contentHash:policy.contentHash,inputContentHash,candidateHash:selected.candidateHash,outputHash:packageDigest({prototype,delta}),provenance:'inferred',derivations:structuredClone(selected.derivations),typographyAdjustments:adjustments,measurements,visualAcceptance:'pending',limitations:['仅单列候选；分栏未实施，单页超量须显式分页。',selected.typography.body.bodyPresentationVersion===1?'正文首个短全角冒号标签强调仅为平台规则，非原稿语义识别；原文完整保留。':'正文使用同 renderer 的 ul/li 测量与呈现，不声称已变成无列表符号模块。','未复制原装饰；分隔线为平台推导，页脚及整页仍需真实视觉验收。','测量回执未包含浏览器及字体文件环境指纹。']}})
 }

@@ -3,6 +3,7 @@ import {referenceProfileSchema} from './reference-profile.mjs'
 import {packageDigest} from './contract.mjs'
 export const CONTENT_STYLE_COMPOSITION_VERSION='content-style-composition-v1'
 export const CONTENT_STYLE_COMPOSITION_VERSION_V2='content-style-composition-v2'
+export const CONTENT_STYLE_COMPOSITION_VERSION_V3='content-style-composition-v3'
 const fail=message=>{throw Object.assign(Error(message),{code:'CONTENT_STYLE_COMPOSITION_INVALID',statusCode:409})}
 const freeze=value=>{if(value&&typeof value==='object'){Object.values(value).forEach(freeze);Object.freeze(value)}return value}
 const text=z.string().min(1).max(10000)
@@ -12,8 +13,9 @@ const clamp=(n,lo,hi)=>Math.min(hi,Math.max(lo,n))
  * caller's project; selectors and hashes bind each unchanged block exactly once.
  * Real renderer measurement must choose a candidate and column partition. */
 export function proposeContentStyleCompositions({item,sourceStyle,styleAcknowledged,version=CONTENT_STYLE_COMPOSITION_VERSION}){
- if(![CONTENT_STYLE_COMPOSITION_VERSION,CONTENT_STYLE_COMPOSITION_VERSION_V2].includes(version))fail('未知构图策略版本。')
- const v2=version===CONTENT_STYLE_COMPOSITION_VERSION_V2
+ if(![CONTENT_STYLE_COMPOSITION_VERSION,CONTENT_STYLE_COMPOSITION_VERSION_V2,CONTENT_STYLE_COMPOSITION_VERSION_V3].includes(version))fail('未知构图策略版本。')
+ const v3=version===CONTENT_STYLE_COMPOSITION_VERSION_V3
+ const v2=version===CONTENT_STYLE_COMPOSITION_VERSION_V2||v3
  if(styleAcknowledged!==true)fail('编辑式重设计需要显式授权。')
  for(const key of ['figure','figures','table','chart','diagram','timeline','textBlocks'])if(item?.[key]!=null&&(!Array.isArray(item[key])||item[key].length))fail('当前构图策略仅支持完整纯文字块。')
  const content=contentSchema.parse({title:item?.title,paragraphs:item?.paragraphs,points:item?.points})
@@ -41,6 +43,11 @@ export function proposeContentStyleCompositions({item,sourceStyle,styleAcknowled
   if(v2){
    c.policyVersion=version;c.selectionRole=mode==='compact-readable-flow'?'fallback-only':'primary';c.flow.placement='upper-balanced-group'
    c.derivations.push({property:'bodySizeCandidateBasis',source:t.bodySize,canvasHeight:canvas.height,canvasBaseline:canvas.height/30,derived:bodySize,provenance:'inferred',reason:mode==='compact-readable-flow'?'explicit-readable-fallback':'canvas-relative-readability'})
+  }
+  if(v3){
+   c.sourcePolicy='existing-or-derived-project-source'
+   c.typography.body.bodyPresentationVersion=1;c.typography.body.bodyPresentation='labeled-paragraph'
+   c.derivations.push({property:'bodyPresentation',source:'body-role',derived:'labeled-paragraph',provenance:'inferred',reason:'platform-short-fullwidth-colon-label-rule-not-source-semantics'})
   }
   c.candidateHash=packageDigest({version,contentHash,sourceStyleHash,candidate:c});candidates.push(c)
  }

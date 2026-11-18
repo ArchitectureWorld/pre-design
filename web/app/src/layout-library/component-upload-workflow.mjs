@@ -46,7 +46,7 @@ const rect=z.object({x:z.number().min(0).max(1),y:z.number().min(0).max(1),w:z.n
 const shortId=z.string().regex(/^[a-z][a-z0-9-]{0,47}$/)
 // Preserve existing model prompt/schema/checkpoint identity. Presentation v1 is
 // currently a manual opt-in; a future model observation version must enable it.
-const modelStyleSchema=compositionStyleSchema.omit({presentationVersion:true,textMarker:true,captionPolicy:true})
+const modelStyleSchema=compositionStyleSchema.omit({bodyPresentationVersion:true,bodyPresentation:true,presentationVersion:true,textMarker:true,captionPolicy:true})
 const schema=z.object({
  styles:z.record(shortId,modelStyleSchema),
  maxTextCharacters:z.number().int().min(0).max(50000),

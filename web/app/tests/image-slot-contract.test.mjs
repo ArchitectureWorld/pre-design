@@ -6,7 +6,10 @@ import {nativeLayoutSchema} from '../src/layout-library/native-design-v3.mjs'
 
 test('legacy-image-v1 preserves exact previous contracts',()=>{
  assert.deepEqual(prototypeSlotContract({roles:['title']},'legacy-image-v1'),{})
- assert.deepEqual(prototypeSlotContract({roles:['title','image']},'legacy-image-v1'),{contentSlotJsonSchema:z.toJSONSchema(nativeLayoutSchema.shape.slots.element)})
+ const previous=z.toJSONSchema(nativeLayoutSchema.shape.slots.element)
+ // Internal editorial fields are deliberately absent from the frozen model contract.
+ delete previous.properties.style.properties.bodyPresentationVersion;delete previous.properties.style.properties.bodyPresentation
+ assert.deepEqual(prototypeSlotContract({roles:['title','image']},'legacy-image-v1'),{contentSlotJsonSchema:previous})
 })
 test('role-bound-v2 declares only target roles and strict conditional slot constraints',()=>{
  const roles=['title','claim','body','image','table','chart','timeline','diagram','source']

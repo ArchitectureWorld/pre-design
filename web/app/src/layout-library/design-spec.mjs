@@ -8,7 +8,7 @@ const evidenceIds=z.array(id).min(1).max(128)
 export const designSpecSchema=z.object({
  schemaVersion:z.literal(DESIGN_SPEC_SCHEMA),scope:z.enum(['brand','style','layout','deck']),fidelity:z.enum(['standard','fidelity']),profile:referenceProfileSchema,
  masterLayoutGraph:z.array(z.object({id:graphId,kind:z.enum(['master','layout','slide']),parentId:graphId.nullable(),archetypeId:id.optional(),evidenceIds}).strict()).min(1).max(256),
- components:z.array(z.object({id:z.string().regex(/^component-[1-9][0-9]{0,5}$/),kind:z.enum(['decoration','content-slot']),role:z.enum(referenceRoles).optional(),style:compositionStyleSchema.optional(),evidenceIds}).strict()).max(128),
+ components:z.array(z.object({id:z.string().regex(/^component-[1-9][0-9]{0,5}$/),kind:z.enum(['decoration','content-slot']),role:z.enum(referenceRoles).optional(),style:compositionStyleSchema.omit({bodyPresentationVersion:true,bodyPresentation:true}).optional(),evidenceIds}).strict()).max(128),
 }).strict()
 const invalid=message=>Object.assign(new Error(message),{statusCode:409,code:'DESIGN_SPEC_INVALID'})
 export function validateDesignSpec(value,context={}){

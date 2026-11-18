@@ -3,6 +3,12 @@ import {renderStructuredTable} from './table-structure.mjs'
 // Browser-safe rendering of declarative V2 content. No resource text becomes markup or CSS.
 export const RENDERER_V2='pre-design-native-html-v2.0'
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
+// Explicit platform-derived presentation, never inferred source semantics.
+function editorialBody(value){
+ const text=String(value??''),at=text.indexOf('：'),label=at>0?text.slice(0,at):''
+ const clear=at>0&&Array.from(label).length<=16&&label.trim()===label&&!/[\s。！？；：:<>]/u.test(label)
+ return `<p data-presentation-origin="derived-editorial">${clear?`<strong>${esc(text.slice(0,at+1))}</strong>${esc(text.slice(at+1))}`:esc(text)}</p>`
+}
 const color=value=>/^#[0-9a-f]{6}$/i.test(value)?value:'#24364c'
 const number=(value,min,max,fallback=min)=>Number.isFinite(Number(value))?Math.min(max,Math.max(min,Number(value))):fallback
 const invalid=message=>Object.assign(new Error(message),{statusCode:409,code:'LAYOUT_INVALID'})
@@ -97,7 +103,7 @@ export function renderCompositionPage(page,spec){
   if(slot.role==='title')content=`<h2>${esc(item.title)}</h2>`
   if(slot.role==='text'){const b=item.textBlocks.find(b=>b.key===slot.binding);const value=renderTextBlock(b,s.emphasisColor??foreground);content=s.presentationVersion===1&&s.textMarker==='disc'?`<ul class="ln-text-list" data-presentation-origin="derived-style"><li data-text-block="${esc(b.key)}">${value}</li></ul>`:`<p data-text-block="${esc(b.key)}">${value}</p>`}
   if(slot.role==='claim')content=select(item.paragraphs,slot).map(text=>`<p>${esc(text)}</p>`).join('')
-  if(slot.role==='body')content=`<ul${s.columns?` style="columns:${number(s.columns,1,3)};column-gap:1.2em"`:''}>${select(item.points,slot).map(text=>`<li>${esc(text)}</li>`).join('')}</ul>`
+  if(slot.role==='body')content=s.bodyPresentationVersion===1&&s.bodyPresentation==='labeled-paragraph'?select(item.points,slot).map(editorialBody).join(''):`<ul${s.columns?` style="columns:${number(s.columns,1,3)};column-gap:1.2em"`:''}>${select(item.points,slot).map(text=>`<li>${esc(text)}</li>`).join('')}</ul>`
   if(slot.role==='image')content=imageContent(page,slot)
   if(slot.role==='table')content=item.table?tableContent(item.table,{className:[s.tableDensity==='compact'?'ln-table-compact':'',s.tableGrid?'ln-table-grid':''].filter(Boolean).join(' '),columnWidths:s.tableColumnWidths}):'<div class="ln-missing">缺少表格内容</div>'
   if(slot.role==='chart')content=item.chart?chartContent(item.chart):'<div class="ln-missing">缺少图表内容</div>'

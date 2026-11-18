@@ -11,6 +11,7 @@ const color=z.string().regex(/^#[0-9a-fA-F]{6}$/)
 export const compositionCanvasSchema=z.object({width:z.number().finite().min(240).max(7680),height:z.number().finite().min(240).max(7680)}).strict().refine(c=>c.width/c.height>=.2&&c.width/c.height<=5,'画布比例须在 1:5 至 5:1 之间。')
 const rect=z.object({x:z.number().min(0).max(1),y:z.number().min(0).max(1),w:z.number().positive().max(1),h:z.number().positive().max(1)}).strict()
 export const compositionStyleSchema=z.object({
+ bodyPresentationVersion:z.literal(1).optional(),bodyPresentation:z.literal('labeled-paragraph').optional(),
  presentationVersion:z.literal(1).optional(),textMarker:z.literal('disc').optional(),captionPolicy:z.literal('when-present').optional(),
  tableDensity:z.enum(['normal','compact']).optional(),tableGrid:z.boolean().optional(),tableColumnWidths:z.array(z.number().finite().positive().max(1000)).min(2).max(8).optional(),
  fontFamily:z.enum(['sans','serif','calligraphic-fallback']).optional(),letterSpacing:z.number().min(-4).max(48).optional(),lineHeight:z.number().min(1).max(2).optional(),fontSize:z.number().min(16).max(320).optional(),fontWeight:z.union([z.literal(400),z.literal(500),z.literal(600),z.literal(700)]).optional(),
@@ -30,6 +31,7 @@ const compositionSlotSchema=z.object({
  if(slot.role!=='table'&&['tableDensity','tableGrid','tableColumnWidths'].some(k=>slot.style?.[k]!==undefined))ctx.addIssue({code:'custom',message:'表格样式只适用于表格槽位。'})
  if((slot.style?.textMarker||slot.style?.captionPolicy)&&slot.style.presentationVersion!==1)ctx.addIssue({code:'custom',message:'内容呈现策略须显式声明版本1。'})
  if(slot.style?.textMarker&&(slot.role!=='text'||slot.purpose!=='body'))ctx.addIssue({code:'custom',message:'圆点列表仅适用于独立正文文字槽。'})
+ if(slot.style?.bodyPresentationVersion!==undefined||slot.style?.bodyPresentation!==undefined){if(slot.role!=='body'||slot.style.bodyPresentationVersion!==1||slot.style.bodyPresentation!=='labeled-paragraph'||slot.style.columns!==undefined)ctx.addIssue({code:'custom',message:'编辑式正文须成对声明版本和呈现，仅支持独立正文槽且不能叠加分栏。'})}
  if(slot.style?.captionPolicy&&slot.role!=='image')ctx.addIssue({code:'custom',message:'图注策略仅适用于图片槽。'})
  if(slot.style?.fit&&slot.role!=='image')ctx.addIssue({code:'custom',message:'fit 只适用于图片槽位。'})
  if(slot.style?.columns&&!['body','image'].includes(slot.role))ctx.addIssue({code:'custom',message:'columns 只适用于正文或图片槽位。'})

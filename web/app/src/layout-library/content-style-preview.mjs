@@ -67,7 +67,7 @@ export function createContentStylePreviews({library,workflows,createMeasurer=cre
   try{
    const initial=await wait(snapshot(actor,p,b,refreshProject));stop();const pkg=validatePackage(initial.resource.package)
    if(!pkg.layouts.some(l=>l.id===b.layoutId))invalid('源版式不存在。')
-   const policy=proposeContentStyleCompositions({item:initial.page.item,sourceStyle:pkg.designSpec?.profile.designSystem,styleAcknowledged:true,version:'content-style-composition-v2'})
+   const policy=proposeContentStyleCompositions({item:initial.page.item,sourceStyle:pkg.designSpec?.profile.designSystem,styleAcknowledged:true,version:'content-style-composition-v3'})
    const opening=createMeasurer({signal:controller.signal});opening.then(m=>{if(controller.signal.aborted)void m.close().catch(()=>{})},()=>{});measurer=await wait(opening);stop()
    for(const candidate of policy.candidates){
     stop();let plan
@@ -81,7 +81,7 @@ export function createContentStylePreviews({library,workflows,createMeasurer=cre
     if(qa?.pages!==1||qa.contentVerified!==true||!Array.isArray(qa.issues))invalid('整页原文与来源检查未通过。')
     if(qa.issues.length){if(qa.issues.every(i=>['overflow','bounds','glyph-bounds','overlap'].includes(i.code)))continue;invalid('整页检查未通过，未返回试排。')}
     const final=await wait(snapshot(actor,p,b,refreshProject));stop();if(final.identity!==initial.identity)invalid('试排期间稿件、资源或绑定已变化，请重新试排。')
-    return{html,experimental:true,visualAcceptance:'pending',projectId:p.id,draftId:b.draftId,pageId:b.pageId,resourceId:b.resourceId,version:b.version,sourceHash:b.expectedHash,sourceLayoutId:b.layoutId,bindingRevision:initial.config.revision,policyVersion:policy.version,fallback:candidate.selectionRole==='fallback-only',typography:{title:{fontSize:candidate.typography.title.fontSize},claim:{fontSize:candidate.typography.claim.fontSize},body:{fontSize:candidate.typography.body.fontSize}},limitations:['实验试排未保存、未发布、未改变版式绑定；不代表最终成果采用此设计。',...(initial.config.manual?.[b.pageId]||initial.protectedLayout?['本页已有手动或保护版式，保持未修改。']:[])]}
+    return{html,experimental:true,visualAcceptance:'pending',projectId:p.id,draftId:b.draftId,pageId:b.pageId,resourceId:b.resourceId,version:b.version,sourceHash:b.expectedHash,sourceLayoutId:b.layoutId,bindingRevision:initial.config.revision,policyVersion:policy.version,fallback:candidate.selectionRole==='fallback-only',typography:{title:{fontSize:candidate.typography.title.fontSize},claim:{fontSize:candidate.typography.claim.fontSize},body:{fontSize:candidate.typography.body.fontSize}},limitations:['实验试排未保存、未发布、未改变版式绑定；不代表最终成果采用此设计。',...(plan.receipt.sourceFooter?.mode==='derived'?['当前页脚按项目引用推导，非原参考页脚还原。']:[]),...(initial.config.manual?.[b.pageId]||initial.protectedLayout?['本页已有手动或保护版式，保持未修改。']:[])]}
    }
    invalid('所有实测候选未通过完整单页检查；未截断正文或返回示例，请明确调整分页。')
   }finally{clearTimeout(timer);controller.signal.removeEventListener('abort',onAbort);signal?.removeEventListener('abort',abort);try{await measurer?.close()}finally{active.delete(actor.id)}}

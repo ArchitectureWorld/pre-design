@@ -20,6 +20,9 @@ const invalidContract=()=>fail('原型槽位契约版本或原型映射无效。
 export function prototypeSlotContract(archetype,version='role-bound-v2'){
  if(!prototypeVersions.includes(version))throw invalidContract()
  const schema=z.toJSONSchema(nativeLayoutSchema.shape.slots.element)
+ // Freeze existing model contracts: editorial presentation is internal opt-in only.
+ delete schema.properties.style.properties.bodyPresentationVersion
+ delete schema.properties.style.properties.bodyPresentation
  if(version==='legacy-image-v1')return archetype.roles.includes('image')?{contentSlotJsonSchema:schema}:{}
  const oneOf=archetype.roles.map(role=>{
   if(!schema.properties.role.enum.includes(role))throw invalidContract()
@@ -144,6 +147,7 @@ export async function runNativeReferenceStages({analysis,payload,stage,localStag
   const prototypeInput={...base(),sourceSvg,...contract,...([1,2,3].includes(payload.referenceComponentVersion)?{nativeImageCandidates:prototypePdfImageCandidates(payload.referenceFiles??[],selectedPages)}:{})}
   const prototypes=await stage('prototype-'+(index+1),bounded(prototypeInput),pageImages,raw=>{
    const {prototypes}=z.object({prototypes:z.array(nativeLayoutSchema.omit({kind:true,projectSourceFooter:true})).min(1).max(24)}).strict().parse(raw)
+   if(prototypes.some(p=>p.slots.some(s=>s.style?.bodyPresentation!==undefined||s.style?.bodyPresentationVersion!==undefined)))throw fail('当前模型契约不允许编辑式正文呈现策略。',409,'NATIVE_DESIGN_INVALID')
    if(prototypes.some(p=>p.archetypeId!==archetype.id))throw fail('原型阶段返回了本轮未指定的页面原型。',409,'NATIVE_DESIGN_INVALID')
    if(prototypes.some(p=>p.slots.some(slot=>!archetype.roles.includes(slot.role))))throw fail('原型槽位包含目标原型未授权的角色。',409,'NATIVE_DESIGN_INVALID')
    return prototypes.map(p=>({...p,prototypeSvg:sanitizePrototypeSvg(p.prototypeSvg,{canvas:analysis.profile.designSystem.canvas})}))
