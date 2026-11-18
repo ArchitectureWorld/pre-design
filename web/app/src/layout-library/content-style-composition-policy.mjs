@@ -4,6 +4,7 @@ import {packageDigest} from './contract.mjs'
 export const CONTENT_STYLE_COMPOSITION_VERSION='content-style-composition-v1'
 export const CONTENT_STYLE_COMPOSITION_VERSION_V2='content-style-composition-v2'
 export const CONTENT_STYLE_COMPOSITION_VERSION_V3='content-style-composition-v3'
+export const CONTENT_STYLE_COMPOSITION_VERSION_V4='content-style-composition-v4'
 const fail=message=>{throw Object.assign(Error(message),{code:'CONTENT_STYLE_COMPOSITION_INVALID',statusCode:409})}
 const freeze=value=>{if(value&&typeof value==='object'){Object.values(value).forEach(freeze);Object.freeze(value)}return value}
 const text=z.string().min(1).max(10000)
@@ -13,8 +14,9 @@ const clamp=(n,lo,hi)=>Math.min(hi,Math.max(lo,n))
  * caller's project; selectors and hashes bind each unchanged block exactly once.
  * Real renderer measurement must choose a candidate and column partition. */
 export function proposeContentStyleCompositions({item,sourceStyle,styleAcknowledged,version=CONTENT_STYLE_COMPOSITION_VERSION}){
- if(![CONTENT_STYLE_COMPOSITION_VERSION,CONTENT_STYLE_COMPOSITION_VERSION_V2,CONTENT_STYLE_COMPOSITION_VERSION_V3].includes(version))fail('未知构图策略版本。')
- const v3=version===CONTENT_STYLE_COMPOSITION_VERSION_V3
+ if(![CONTENT_STYLE_COMPOSITION_VERSION,CONTENT_STYLE_COMPOSITION_VERSION_V2,CONTENT_STYLE_COMPOSITION_VERSION_V3,CONTENT_STYLE_COMPOSITION_VERSION_V4].includes(version))fail('未知构图策略版本。')
+ const v4=version===CONTENT_STYLE_COMPOSITION_VERSION_V4
+ const v3=version===CONTENT_STYLE_COMPOSITION_VERSION_V3||v4
  const v2=version===CONTENT_STYLE_COMPOSITION_VERSION_V2||v3
  if(styleAcknowledged!==true)fail('编辑式重设计需要显式授权。')
  for(const key of ['figure','figures','table','chart','diagram','timeline','textBlocks'])if(item?.[key]!=null&&(!Array.isArray(item[key])||item[key].length))fail('当前构图策略仅支持完整纯文字块。')
@@ -49,12 +51,20 @@ export function proposeContentStyleCompositions({item,sourceStyle,styleAcknowled
    c.typography.body.bodyPresentationVersion=1;c.typography.body.bodyPresentation='labeled-paragraph'
    c.derivations.push({property:'bodyPresentation',source:'body-role',derived:'labeled-paragraph',provenance:'inferred',reason:'platform-short-fullwidth-colon-label-rule-not-source-semantics'})
   }
+  if(v4){
+   const readingWidth=Math.min(span*canvas.width,32*bodySize),columnWidth=(span*canvas.width-gutter*canvas.width)/2
+   c.sourceFrame={...c.frame};c.titleFrame={x:columns===1?margin+(span-readingWidth/canvas.width)/2:margin,w:readingWidth/canvas.width}
+   if(columns===1){c.frame.x=c.titleFrame.x;c.frame.w=c.titleFrame.w}
+   c.flow.placement='measured-upper-third';c.flow.columnWidth=columns===2?columnWidth:null
+   c.selectionRole=columns===1?'primary':'capacity-alternative'
+   c.derivations.push({property:'readingWidth',source:span*canvas.width,derived:columns===1?readingWidth:columnWidth,provenance:'inferred',reason:columns===1?'32em-readable-region':'measured-contiguous-column-partition',minColumnEm:18})
+  }
   c.candidateHash=packageDigest({version,contentHash,sourceStyleHash,candidate:c});candidates.push(c)
  }
  candidate('editorial-flow',body,1)
  // Landscape enables exploration, never proves two columns will fit. Keep all
  // contiguous partitions for measured balancing; no guessed line/word counts.
- if(!v2&&count>=2&&canvas.width>=canvas.height&&span>gutter)candidate('editorial-columns',body,2)
- if((v2||count>=3)&&body>22)candidate('compact-readable-flow',22,1)
+ if((!v2&&count>=2&&canvas.width>=canvas.height&&span>gutter)||(v4&&count>=2&&(span*canvas.width-gutter*canvas.width)/2>=18*body))candidate('editorial-columns',body,2)
+ if(!v4&&(v2||count>=3)&&body>22)candidate('compact-readable-flow',22,1)
  return freeze({version,contentHash,sourceStyleHash,candidates,overflowPolicy:{action:'explicit-pagination-required',when:'all-measured-candidates-rejected',splitInsideBlock:false,allowedBreaks:blocks.slice(1,-1).map(b=>b.id),requiresProjectConfirmation:true,automaticPagination:false,oversizedSingleBlock:'reject-no-truncation'},limitations:['构图候选不是排版或审美验收结果；必须真实浏览器测量与同内容视觉比较。','不重写标题或正文，不生成小标题、图片或事实，不自动跨页。']})
 }
