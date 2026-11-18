@@ -1,7 +1,7 @@
 import{chromium}from'playwright-core'
 import{mkdir,readFile}from'node:fs/promises'
 import{resolve}from'node:path'
-import{randomBytes}from'node:crypto'
+import{randomBytes,createHash}from'node:crypto'
 import assert from'node:assert/strict'
 import sharp from'sharp'
 import JSZip from'jszip'
@@ -42,14 +42,19 @@ try{
  assert.equal(await page.locator('[data-model-progress]').getAttribute('value'),null);checks++
  await wait(()=>document.querySelector('[data-chat-messages]')?.textContent.includes('已生成原生 SVG 设计候选'))
  const observations=f.modelCalls.filter(call=>call.stage?.startsWith('observe-')),completedModelCalls=f.modelCalls.length
- assert.equal(completedModelCalls,9);assert.equal(observations.length,6);assert(observations.every(call=>call.modelRole==='vision'&&call.images.length<=6))
- assert.equal(observations.flatMap(call=>call.images).length,32,'相同字节的JPG/JPEG只观察一次，原件与上传清单分别保留')
- assert.deepEqual(f.modelCalls.slice(-3).map(call=>call.stage),['profile','design-spec','prototype-1']);assert(f.modelCalls.slice(-3,-1).every(call=>call.modelRole==='parent'&&call.images.length===0));assert.equal(f.modelCalls.at(-1).modelRole,'vision');assert(f.modelCalls.at(-1).images.length>0&&f.modelCalls.at(-1).images.length<=6)
+ assert.equal(completedModelCalls,11);assert.equal(observations.length,6);assert(observations.every(call=>call.modelRole==='vision'&&call.images.length<=6))
+ const modelImages=observations.flatMap(call=>call.images),sha=bytes=>createHash('sha256').update(bytes).digest('hex'),pdfSha=sha(originalPdf)
+ assert.deepEqual(modelImages.filter(image=>image.sourceSha256===pdfSha).map(image=>image.page),Array.from({length:31},(_,i)=>i+1),'PDF原件哈希对应每一原页且仅观察一次')
+ assert.deepEqual([...new Set(modelImages.map(image=>image.sourceSha256))].sort(),[pdfSha,sha(jpeg),sha(png)].sort(),'仅三个唯一视觉原件；DOCX只提供文字，JPG/JPEG去重')
+ assert.equal(new Set(modelImages.map(image=>image.sourceSha256+':'+image.page)).size,33,'观察身份为原件哈希和原页，不得重复或替换')
+ assert.equal(modelImages.length,33,'相同字节的JPG/JPEG只观察一次，原件与上传清单分别保留')
+ assert.deepEqual(f.modelCalls.slice(6).map(call=>call.stage),['profile','coverage-map-1','coverage-map-2','design-spec','prototype-1']);assert(f.modelCalls.slice(6,-1).every(call=>call.modelRole==='parent'&&call.images.length===0));assert.equal(f.modelCalls.at(-1).modelRole,'vision');assert(f.modelCalls.at(-1).images.length>0&&f.modelCalls.at(-1).images.length<=6)
  assert.match(f.modelCalls.find(call=>call.stage==='profile').prompt,/版式文档参考/);checks++
  const entries=(await f.request('GET','/layout-library/conversations')).conversations,conversation=await f.request('GET','/layout-library/conversations/'+entries[0].id)
- assert.equal(conversation.referenceFiles.length,5);const pdfFile=conversation.referenceFiles.find(file=>file.kind==='pdf');assert.equal(pdfFile.pageCount,31);assert.deepEqual(pdfFile.readPages,Array.from({length:30},(_,i)=>i+1));checks++
- assert.equal(conversation.turns.at(-1).result.analysis.inventory.coverage.visualPages,33);assert.equal(conversation.resource.package.schemaVersion,'pre-design.layout-package.v3')
- assert.match(await page.locator('[data-chat-messages]').innerText(),/30\/31页已读取/);assert.equal(await page.locator('[data-chat-files] [data-upload-row]').count(),0);assert.equal(await page.locator('.ll-message.user [data-download-reference]').count(),5);assert(conversation.resource.package.source.limitations.some(note=>note.includes('后 1 页未读取')));checks++
+ assert.equal(conversation.referenceFiles.length,5);const pdfFile=conversation.referenceFiles.find(file=>file.kind==='pdf');assert.equal(pdfFile.pageCount,31);assert.equal(pdfFile.sha256,pdfSha);assert.deepEqual(pdfFile.readPages,Array.from({length:31},(_,i)=>i+1));checks++
+ const analysis=conversation.turns.at(-1).result.analysis;assert.equal(analysis.coverage.complete,true);assert.equal(analysis.coverage.totalPages,33);assert.equal(analysis.coverage.extractedPages,33);assert.equal(analysis.inventory.coverage.unreadPages,0);assert.equal(analysis.coverage.observedPages,33);assert.equal(analysis.coverage.synthesizedPages,33);assert(!analysis.profile.limitations.some(item=>item.code==='partial-coverage'));
+ assert.equal(analysis.inventory.coverage.visualPages,34);assert.equal(conversation.resource.package.schemaVersion,'pre-design.layout-package.v3')
+ assert.match(await page.locator('[data-chat-messages]').innerText(),/已综合 33 页/);assert.equal(await page.locator('[data-chat-files] [data-upload-row]').count(),0);assert.equal(await page.locator('.ll-message.user [data-download-reference]').count(),5);assert(conversation.resource.package.source.limitations.some(note=>note.includes('分页提取历史说明')&&note.includes('readPages为准')));checks++
  // Wait for the actual shadow preview, its fonts/images, and two paint frames.
  await wait(()=>!!document.querySelector('.ll-preview-host')?.shadowRoot?.querySelector('[data-native-page]'))
  await page.evaluate(async()=>{await document.fonts.ready;const root=document.querySelector('.ll-preview-host').shadowRoot;await Promise.all([...root.querySelectorAll('img')].map(image=>image.decode()));await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))})
