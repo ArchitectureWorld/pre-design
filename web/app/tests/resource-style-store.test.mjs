@@ -25,13 +25,13 @@ test('atomic same-resource derive: idempotent replay, stale conflict, no review 
  await assert.rejects(()=>lib.deriveStyle({id:'admin',role:'admin'},{...b,requestId:'other'}),/不存在/)
 })
 
-test('ordinary revision of style-derived draft cannot silently fall back to original PDF review',async t=>{
+test('metadata revision of style-derived draft retains exact private source without PDF fallback',async t=>{
  const env=await createTestDb();t.after(env.close)
  const wrap=c=>({query:async(...a)=>{const r=await c.query(...a);for(const row of r.rows??[])for(const k of ['document','validation'])if(typeof row[k]==='string')row[k]=JSON.parse(row[k]);return r},release:()=>c.release?.()})
  const db={...wrap(env.db),connect:async()=>wrap(await env.db.connect())},lib=await createLayoutLibrary(db),f=fixture()
  const base=await lib.create(f.actor,{requestId:'base',package:f.resource.document}),next=await lib.deriveStyle(f.actor,{...f.request,id:base.id,styleAcknowledged:true}),saved=await lib.get(f.actor,next.id,next.version)
  const revised=await lib.revise(f.actor,{id:next.id,expectedVersion:2,requestId:'rename',package:{...saved.package,name:'改名后的适配版'}})
- await assert.rejects(()=>lib.resolveStyleSource(f.actor,{id:next.id,version:revised.version,layoutId:'style-adaptation-2'}),/缺少.*来源收执/)
+ assert.equal((await lib.resolveStyleSource(f.actor,{id:next.id,version:revised.version,layoutId:'style-adaptation-2'})).version,1)
  assert.equal(await lib.resolveStyleSource(f.actor,{id:next.id,version:revised.version,layoutId:f.resource.document.layouts[0].id}),null)
  assert.equal((await lib.resolveStyleSource(f.actor,{id:next.id,version:2,layoutId:'style-adaptation-2'})).version,1)
 })

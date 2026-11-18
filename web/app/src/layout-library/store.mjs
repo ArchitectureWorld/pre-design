@@ -75,19 +75,36 @@ export async function createLayoutLibrary(db){
  async function sourceFile(actor,id){const x=await get(actor,id);if(x.ownerId!==actor.id&&actor.role!=='admin')throw fail('参考原件不存在。',404);const [source]=await query('SELECT filename,sha256,body_base64 FROM layout_library_sources WHERE resource_id=$1',[id]);if(!source)throw fail('该资源没有保留的外部参考原件。',404);return source}
  async function revise(actor,b,connection){
   const p=validatePackage(b.package)
-  return mutation(actor,b.requestId,{...b,package:p,op:'revise'},async c=>{
+  const result=await mutation(actor,b.requestId,{...b,package:p,op:'revise'},async c=>{
    const [r]=await query('SELECT * FROM layout_library_resources WHERE id=$1 FOR UPDATE',[b.id],c)
    if(!r||!own(r,actor))throw fail('版式资源不存在。',404)
    await activeResource(b.id,c)
    if(r.version!==b.expectedVersion)throw fail('版式已有新版本，请刷新后编辑。',409)
    const version=r.version+1,hash=packageDigest(p)
-   const [old]=await query('SELECT hash FROM layout_library_versions WHERE resource_id=$1 AND version=$2',[r.id,r.version],c)
+   const [old]=await query('SELECT hash,document FROM layout_library_versions WHERE resource_id=$1 AND version=$2',[r.id,r.version],c)
    if(b.requireActive&&r.retired)throw fail('版式已停用，请重新预览。',409)
    if(b.expectedHash&&b.expectedHash!==old.hash)throw fail('版式内容已有变化，请重新预览。',409)
+   let receipt
+   const history=(await query('SELECT result FROM layout_library_mutations WHERE actor_id=$1',[r.owner_id],c)).map(row=>typeof row.result==='string'?JSON.parse(row.result):row.result).filter(m=>m.id===r.id&&m.receipt?.sourceKind==='resource-style')
+   const basePackage=typeof old.document==='string'?JSON.parse(old.document):old.document
+   const declaresStyle=basePackage.designProfile?.evidence?.some(e=>e.id==='resource-style-derived-v1')
+   if(history.length||declaresStyle){
+    if(actor.id!==r.owner_id)throw fail('仅资源拥有者可修订风格适配版。',403)
+    const matches=history.filter(m=>m.version===r.version)
+    if(matches.length!==1)throw fail('当前版本缺少唯一精确风格来源收执；未保存修改。',409)
+    const previous=matches[0],sourceResource=await get(actor,previous.receipt.sourceResourceId,previous.receipt.sourceVersion,c)
+    const resource={id:r.id,version:r.version,hash:old.hash,ownerId:r.owner_id,package:basePackage}
+    if(!Array.isArray(previous.receipt.derivedLayoutIds)||!previous.receipt.derivedLayoutIds.length)throw fail('风格来源收执不完整。',409)
+    for(const layoutId of previous.receipt.derivedLayoutIds)validateResourceStyleOrigin({actorId:actor.id,resource,sourceResource,result:previous,layoutId})
+    const design=packageValue=>Object.fromEntries(Object.entries(packageValue).filter(([key])=>!['name','description','tags'].includes(key)))
+    if(packageDigest(design(p))!==packageDigest(design(basePackage)))throw fail('风格适配版目前仅支持修改名称、说明和标签；设计、版式及权限修改未保存。',409)
+    receipt={...structuredClone(previous.receipt),requestId:b.requestId,outputPackageHash:hash,revisionOf:{version:r.version,hash:old.hash},visualAcceptance:'pending'}
+   }
    if(old.hash===hash)return {id:r.id,version:r.version,hash,unchanged:true}
    await c.query('INSERT INTO layout_library_versions(resource_id,version,document,hash) VALUES($1,$2,$3,$4)',[r.id,version,p,hash])
-   await c.query('UPDATE layout_library_resources SET version=$2,share_requested=false WHERE id=$1',[r.id,version]);return {id:r.id,version,hash}
+   await c.query('UPDATE layout_library_resources SET version=$2,share_requested=false WHERE id=$1',[r.id,version]);return {id:r.id,version,hash,...(receipt?{receipt}:{})}
   },connection)
+  const {receipt,...publicResult}=result;return publicResult
  }
  async function deriveSparse(actor,body){
   const b=sparseDerivationRequestSchema.parse(body)

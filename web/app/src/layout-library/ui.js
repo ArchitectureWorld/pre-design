@@ -122,9 +122,11 @@ export function mountLayoutLibrary({request,notify}){
   for(const key of ['titleSize','bodySize','captionSize'])working.theme[key]=Number(form.elements[key].value)
   Object.assign(working.rights,{basis:form.elements.basis.value,shareAllowed:form.elements.shareAllowed.checked,note:form.elements.rightsNote.value})
  }
+ // Conservative UX hint only; the server derives edit authority from private receipts.
+ const styleMetadataOnly=()=>working?.schemaVersion==='pre-design.layout-package.v3'&&working.designProfile?.evidence?.some(e=>e.id==='resource-style-derived-v1')&&working.layouts?.some(l=>l.id.startsWith('style-adaptation-'))
  function updateControls(){
   if(!dialog)return
-  const form=dialog.querySelector('[data-editor]');if(form)for(const el of form.elements)el.disabled=modelBusy||sparseBusy||!own()
+  const form=dialog.querySelector('[data-editor]');if(form)for(const el of form.elements)el.disabled=modelBusy||sparseBusy||!own()||styleMetadataOnly()
   const name=dialog.querySelector('[data-resource-name]');if(name)name.disabled=modelBusy||sparseBusy||!own()
   for(const button of dialog.querySelectorAll('[data-save],[data-validate],[data-publish],[data-use-layout],[data-reference-review],[data-content-adapt],[data-derive-sparse],[data-derive-style],[data-style-ack]'))button.disabled=modelBusy||sparseBusy
   const use=dialog.querySelector('[data-use-layout]');if(use&&previewContext)use.disabled=modelBusy||sparseBusy||previewFit.get(previewLayout)!=='passed'
@@ -145,6 +147,7 @@ export function mountLayoutLibrary({request,notify}){
    <div data-layout-annotations></div>
    ${pkg.designProfile?`<details class="ll-profile"><summary>参考分析 · ${pkg.designProfile.archetypes.length} 种页面类型${selected?.referenceReview?.status==='confirmed'?' · 已确认':' · 待对照'}</summary>${referenceProfileHtml(pkg.designProfile)}</details>`:''}
    ${reuseGuideHtml(pkg)}
+   ${styleMetadataOnly()?'<p class="ll-hint" data-style-edit-limit>此风格适配版当前仅支持改名；颜色和结构调整暂未开放，原版本保持不变。</p>':''}
    <details class="ll-settings"><summary>手动调整</summary><form data-editor class="ll-form">${[['background','背景'],['ink','正文'],['accent','标题'],['muted','注释']].map(([k,l])=>`<label>${l}<input type="color" name="${k}" value="${pkg.theme[k]}"></label>`).join('')}
    <label>字体<select name="fontFamily"><option value="sans" ${pkg.theme.fontFamily==='sans'?'selected':''}>黑体</option><option value="serif" ${pkg.theme.fontFamily==='serif'?'selected':''}>宋体</option></select></label>${[['titleSize','标题字号',32,90],['bodySize','正文字号',22,44],['captionSize','注释字号',16,30]].map(([k,l,min,max])=>`<label>${l}<input name="${k}" type="number" min="${min}" max="${max}" value="${pkg.theme[k]}"></label>`).join('')}
    <label>使用依据<select name="basis">${[['original','原创'],['licensed','取得许可'],['permission','明确授权'],['unknown','待确认']].map(([k,l])=>`<option value="${k}" ${pkg.rights.basis===k?'selected':''}>${l}</option>`).join('')}</select></label><label><span>共享授权</span><span><input type="checkbox" name="shareAllowed" ${pkg.rights.shareAllowed?'checked':''}>允许共享</span></label><label class="wide">授权说明<input name="rightsNote" value="${esc(pkg.rights.note)}"></label><details class="wide"><summary>内容位置与原生 JSON</summary><textarea data-json rows="8">${esc(JSON.stringify(pkg,null,2))}</textarea></details></form></details>
