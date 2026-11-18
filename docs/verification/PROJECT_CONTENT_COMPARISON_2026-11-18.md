@@ -25,3 +25,16 @@
 - 容量preflight已有错误含英文 CONTENT_FIT code，拒绝准确，中文可读性改善为后续minor。
 - 临时PG测试出现同client并发query弃用warning，未导致失败；保留日志，不据此声称无warning。
 - 该增量改善直观比较与安全选用，不宣称全部参考提取、共享库授权、全部skills/文件格式已完成。来源受限素材的共享范围不变。
+
+## 完整CI与部署终态
+
+以上‘尚待完成’为当时检查点，后续已完成：
+- 远端bb2a1d0cb17930bb54d78154674fb5bb1521129c与云端0a508fe tree精确一致：d08717c220de650840830c171d53fe0f3f375d02。
+- Verify44240733253/integration134587711837及Native44240733185全部SUCCESS；core377/377、legacy54/54、全Web1072/1072（0fail/0skip），含实际PG/Chrome新比较/映射/导出、UI24/upload17/reference-review9。
+- Artifact14399706291，ZIP SHA9aa1c9ed0b77929e37e6188d7ce29c6c480615cec803749fca8a698d705bd01d。总收执sourceCommit准确，11项哈希核验通过；projectContent收执fc8dab558546ddb73b7e54266870ef50ae00808e48207d0af97c64a49aa257a6。最终CI比较截图批注浮层已关闭，已逐张人工检查。
+- CSADI ChatGPT维护完毕后重新核查并部署：正式c793c46e5ad2b134ac00cb9278e740aaae043a40，双父1ef2cd2+bb2a1d0，exacttree同上。原4320服务active，git clean；完整备份native-v3-1ef2cd2-to-c793c46-i1g0bxos，证据project-preview-deploy-7finw1_g。
+- 新helper及4相关served模块HTTP200且build哈希一致；配置/模型policy及项目、原稿、素材、参考、资源逐记录哈希前后不变。
+- 真实入口Chrome：恢复已有项目（9个单页入口）→本页版式→版式库→现有第15页候选→双击。当前页模式正确，现有内容缺原文映射时明确拒绝，未替换示例；独立打开版式库的示例正常。0JS/模块错误，仅只读preview请求，无保存/新候选/模型。
+- 限制：本轮没有替用户提交真实业务页的原文映射，因此未验证真实业务页成功套版。成功映射与实际生成/HTML导出一致证据来自已核验的合成PG/Chrome测试，不混淆两者。
+
+用户路径：项目单页下方的版式按钮→版式库→比较缩略图/双击；文字槽缺映射时点‘配置原文映射’，明确逐项选原文并保存后再比较选用。预览不等于保存，也不等于全套页面适用。

@@ -1,3 +1,4 @@
+import {deriveSparsePackage,sparseDerivationRequestSchema} from './sparse-derivation.mjs'
 import {randomUUID} from 'node:crypto'
 import {contentMappingSchema,projectContentMapping} from './content-mapping.mjs'
 import {validatePackage,packageDigest,RENDERER,fail,patchSchema,resolvePage,exportReusable} from './contract.mjs'
@@ -83,6 +84,27 @@ export async function createLayoutLibrary(db){
    await c.query('INSERT INTO layout_library_versions(resource_id,version,document,hash) VALUES($1,$2,$3,$4)',[r.id,version,p,hash])
    await c.query('UPDATE layout_library_resources SET version=$2,share_requested=false WHERE id=$1',[r.id,version]);return {id:r.id,version,hash}
   },connection)
+ }
+ async function deriveSparse(actor,body){
+  const b=sparseDerivationRequestSchema.parse(body)
+  const result=await mutation(actor,b.requestId,{...b,op:'derive-sparse'},async c=>{
+   const [r]=await query('SELECT * FROM layout_library_resources WHERE id=$1 FOR UPDATE',[b.id],c)
+   if(!r||r.owner_id!==actor.id)throw fail('版式资源不存在。',404)
+   await activeResource(r.id,c)
+   if(r.retired)throw fail('版式已停用。',409)
+   if(r.version!==b.version)throw fail('版式已有新版本，请刷新后重试。',409)
+   const [v]=await query('SELECT * FROM layout_library_versions WHERE resource_id=$1 AND version=$2',[r.id,r.version],c)
+   if(v.hash!==b.expectedHash)throw fail('版式内容已有变化，请重新预览。',409)
+   const jobs=await query("SELECT id,owner_id,kind,status,result FROM jobs WHERE owner_id=$1 AND kind='layout-reference' AND status='completed'",[actor.id],c)
+   const matches=jobs.filter(j=>j.result?.id===r.id&&j.result.version===r.version&&j.result.hash===v.hash)
+   if(matches.length!==1)throw fail('缺少唯一且与当前版本完全匹配的已完成参考任务。',409)
+   const derived=deriveSparsePackage({actor,resource:{...r,...v},job:matches[0],request:b})
+   const version=r.version+1,hash=packageDigest(derived.package)
+   await c.query('INSERT INTO layout_library_versions(resource_id,version,document,hash) VALUES($1,$2,$3,$4)',[r.id,version,derived.package,hash])
+   await c.query('UPDATE layout_library_resources SET version=$2,share_requested=false WHERE id=$1',[r.id,version])
+   return {id:r.id,version,hash,derived:true,receipt:derived.receipt}
+  })
+  return {id:result.id,version:result.version,hash:result.hash,derived:true}
  }
  async function saveValidation(actor,id,version,result){
   const x=await get(actor,id,version)
@@ -241,5 +263,5 @@ export async function createLayoutLibrary(db){
    return reviews.confirm(actor,body,c)
   })
  }
- return {referenceComparison:reviews.comparison,confirmReferenceReview,previewRef:(actor,ref)=>freezeRef(actor,ref,undefined,{preview:true}),sourceFile,list,get,create,revise,saveValidation,publish,retire,requestShare,bindings,bindingMutationResult,saveBindings,carryBindings,compilePages,freezeRef,exportReusable,isRemoved,remove:(actor,b)=>changeDeletion(actor,b),restore:(actor,b)=>changeDeletion(actor,b,true)}
+ return {referenceComparison:reviews.comparison,confirmReferenceReview,previewRef:(actor,ref)=>freezeRef(actor,ref,undefined,{preview:true}),sourceFile,list,get,create,revise,deriveSparse,saveValidation,publish,retire,requestShare,bindings,bindingMutationResult,saveBindings,carryBindings,compilePages,freezeRef,exportReusable,isRemoved,remove:(actor,b)=>changeDeletion(actor,b),restore:(actor,b)=>changeDeletion(actor,b,true)}
 }

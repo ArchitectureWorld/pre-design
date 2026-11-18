@@ -94,6 +94,11 @@ export function registerLayoutRoutes({app,library,annotations,uploads,project,wo
  app.post('/api/layout-library/:resourceId/revisions',async req=>{
   const b=mutation.extend({expectedVersion:version,package:z.unknown()}).parse(req.body);return library.revise(req.user,{...b,id:id.parse(req.params.resourceId)})
  })
+ app.post('/api/layout-library/:resourceId/:version/derive-sparse-cards',async req=>{
+  const source=z.object({fileSha256:z.string().regex(/^[a-f0-9]{64}$/),pageNumber:z.number().int().positive().max(300)}).strict()
+  const b=mutation.extend({expectedHash:z.string().regex(/^[a-f0-9]{64}$/),strategyVersion:z.literal(1),source:source.optional()}).strict().parse(req.body)
+  return library.deriveSparse(req.user,{...b,id:id.parse(req.params.resourceId),version:version.parse(Number(req.params.version))})
+ })
  app.post('/api/layout-library/:resourceId/:version/validate',async req=>{
   z.object({}).strict().parse(req.body??{});const r=id.parse(req.params.resourceId),v=version.parse(Number(req.params.version)),x=await library.get(req.user,r,v)
   if(x.ownerId!==req.user.id&&req.user.role!=='admin')throw fail('只允许检查自己的资源。',403)

@@ -17,11 +17,11 @@ const equal=(a,b)=>JSON.stringify(ordered(a))===JSON.stringify(ordered(b))
 export function mountLayoutLibrary({request,notify}){
  const entry=document.createElement('button');entry.type='button';entry.className='ll-entry';entry.textContent='版式库';entry.dataset.layoutLibraryOpen=''
  document.querySelector('.top-right')?.prepend(entry)
- let dialog,identity,resources=[],conversations=[],selected=null,working=null,chat,previewHandle,largePreview,annotationsHandle,previewLayout='',layoutChosen=false,picker=null,generation=0,previewGeneration=0,previewTimer,busy=false,modelBusy=false,historyViewing=false,reviewHandle,viewEpoch=0,lastDeletion=null,activityLabel='正在生成版式…'
+ let dialog,identity,resources=[],conversations=[],selected=null,working=null,chat,previewHandle,largePreview,annotationsHandle,previewLayout='',layoutChosen=false,picker=null,generation=0,previewGeneration=0,previewTimer,busy=false,modelBusy=false,sparseBusy=false,historyViewing=false,reviewHandle,viewEpoch=0,lastDeletion=null,activityLabel='正在生成版式…'
  const pending=new Map(),adaptationDrafts=new Map(),previewFit=new Map();let adaptationHandle,previewContext=null,isPreviewCurrent=null,mappingPicker=null,mappingController=null
  const msg=text=>{const el=dialog?.querySelector('[data-ll-status]');if(el)el.textContent=text}
  const own=()=>!selected||selected.ownerId===identity?.id||identity?.role==='admin'
- function close(){mappingController?.abort();mappingController=null;adaptationHandle?.dispose();adaptationHandle=null;annotationsHandle?.dispose();annotationsHandle=null;largePreview?.dispose();largePreview=null;reviewHandle?.dispose();reviewHandle=null;generation++;viewEpoch++;clearTimeout(previewTimer);previewHandle?.dispose();chat?.dispose();dialog?.close();dialog?.remove();dialog=null;chat=null;pending.clear();previewFit.clear();picker=null;previewContext=null;isPreviewCurrent=null;mappingPicker=null}
+ function close(){sparseBusy=false;mappingController?.abort();mappingController=null;adaptationHandle?.dispose();adaptationHandle=null;annotationsHandle?.dispose();annotationsHandle=null;largePreview?.dispose();largePreview=null;reviewHandle?.dispose();reviewHandle=null;generation++;viewEpoch++;clearTimeout(previewTimer);previewHandle?.dispose();chat?.dispose();dialog?.close();dialog?.remove();dialog=null;chat=null;pending.clear();previewFit.clear();picker=null;previewContext=null;isPreviewCurrent=null;mappingPicker=null}
  async function run(action){if(busy)return;busy=true;try{await action()}catch(error){msg(error.message);notify(error.message)}finally{busy=false}}
  async function post(path,body={},options={}){
   const key=JSON.stringify([path,body]);let requestId=pending.get(key);if(!requestId){requestId=rid();pending.set(key,requestId)}
@@ -124,22 +124,23 @@ export function mountLayoutLibrary({request,notify}){
  }
  function updateControls(){
   if(!dialog)return
-  const form=dialog.querySelector('[data-editor]');if(form)for(const el of form.elements)el.disabled=modelBusy||!own()
-  const name=dialog.querySelector('[data-resource-name]');if(name)name.disabled=modelBusy||!own()
-  for(const button of dialog.querySelectorAll('[data-save],[data-validate],[data-publish],[data-use-layout],[data-reference-review],[data-content-adapt]'))button.disabled=modelBusy
-  const use=dialog.querySelector('[data-use-layout]');if(use&&previewContext)use.disabled=modelBusy||previewFit.get(previewLayout)!=='passed'
-  const map=dialog.querySelector('[data-configure-mapping]');if(map){map.hidden=!working?.layouts?.find(l=>l.id===previewLayout)?.slots?.some(s=>s.role==='text');map.disabled=modelBusy||!selected}
+  const form=dialog.querySelector('[data-editor]');if(form)for(const el of form.elements)el.disabled=modelBusy||sparseBusy||!own()
+  const name=dialog.querySelector('[data-resource-name]');if(name)name.disabled=modelBusy||sparseBusy||!own()
+  for(const button of dialog.querySelectorAll('[data-save],[data-validate],[data-publish],[data-use-layout],[data-reference-review],[data-content-adapt],[data-derive-sparse]'))button.disabled=modelBusy||sparseBusy
+  const use=dialog.querySelector('[data-use-layout]');if(use&&previewContext)use.disabled=modelBusy||sparseBusy||previewFit.get(previewLayout)!=='passed'
+  const map=dialog.querySelector('[data-configure-mapping]');if(map){map.hidden=!working?.layouts?.find(l=>l.id===previewLayout)?.slots?.some(s=>s.role==='text');map.disabled=modelBusy||sparseBusy||!selected}
  }
  function renderResult(){
   if(!dialog)return
   adaptationHandle?.dispose();adaptationHandle=null;annotationsHandle?.dispose();annotationsHandle=null;previewGeneration++;largePreview?.dispose();largePreview=null;previewHandle?.dispose();previewHandle=null
   const panel=dialog.querySelector('[data-layout-results]')
   if(!working){panel.innerHTML=`<div class="ll-result-empty"><strong>${modelBusy?activityLabel:'版式预览'}</strong><button data-manual ${modelBusy?'disabled':''}>手动创建</button></div>`;panel.querySelector('[data-manual]').onclick=()=>void run(async()=>{working=(await request('/layout-library/starter')).package;working.name='我的自定义版式';selected=null;renderResult();await preview()});return}
-  const pkg=working;previewLayout=pkg.layouts.some(l=>l.id===previewLayout)?previewLayout:pkg.layouts[0].id
+  const pkg=working,sparseSources=[...new Map((pkg.designProfile?.evidence??[]).filter(e=>e.provenance==='observed'&&e.fileSha256&&e.pageNumber).map(e=>[e.fileSha256+':'+e.pageNumber,{fileSha256:e.fileSha256,pageNumber:e.pageNumber}])).values()];previewLayout=pkg.layouts.some(l=>l.id===previewLayout)?previewLayout:pkg.layouts[0].id
   panel.innerHTML=`<div class="ll-result-heading"><input data-resource-name aria-label="版式名称" value="${esc(pkg.name)}" maxlength="100"><span>${selected?'V'+selected.version+' · '+stateName(selected):'新建版式'}</span>${selected&&own()?`<select data-history aria-label="历史版本">${Array.from({length:selected.latestVersion},(_,i)=>`<option value="${i+1}" ${selected.version===i+1?'selected':''}>V${i+1}</option>`).join('')}</select>`:''}</div>
    <div class="ll-preview-controls"><select data-layout aria-label="预览布局">${pkg.layouts.map(l=>`<option value="${l.id}" ${l.id===previewLayout?'selected':''}>${esc(l.label)}</option>`).join('')}</select><button data-preview>更新预览</button></div>
    <p data-preview-mode role="status"></p><div data-preview-box aria-label="全部版式缩略图"></div>
    <div class="ll-result-actions"><button data-save class="ll-primary">${selected&&own()?'保存修改':'保存版式'}</button>${selected?'<button data-validate>检查版式</button><button data-export>导出</button>':''}${selected&&pkg.designProfile&&selected.ownerId===identity?.id?'<button data-reference-review class="ll-primary">对照审阅</button>':''}${selected&&selected.ownerId===identity?.id?'<button data-content-adapt>内容适配预览</button>':''}${mappingPicker&&previewContext?'<button data-configure-mapping>配置原文映射</button>':''}${picker?'<button data-use-layout class="ll-primary">选用此版式</button>':''}</div>
+   ${selected?.ownerId===identity?.id&&pkg.schemaVersion==='pre-design.layout-package.v3'?`<div class="ll-result-actions"><select data-sparse-source aria-label="少内容变体参考页">${sparseSources.length!==1?'<option value="">选择参考页</option>':''}${sparseSources.map((p,i)=>`<option value="${i}">第 ${p.pageNumber} 页 · ${p.fileSha256.slice(0,6)}</option>`).join('')}</select><button data-derive-sparse>添加少内容无图变体</button><small>适用于有可信分析的并列卡片；新增草稿，不发布或修改项目。</small></div>`:''}
    <div data-layout-annotations></div>
    ${pkg.designProfile?`<details class="ll-profile"><summary>参考分析 · ${pkg.designProfile.archetypes.length} 种页面类型${selected?.referenceReview?.status==='confirmed'?' · 已确认':' · 待对照'}</summary>${referenceProfileHtml(pkg.designProfile)}</details>`:''}
    ${reuseGuideHtml(pkg)}
@@ -162,6 +163,26 @@ export function mountLayoutLibrary({request,notify}){
    readForm();if(!equal(working,selected.package))throw Error('请先保存修改，再检查当前版本。')
    msg('正在检查页面…');const result=await request('/layout-library/'+selected.id+'/'+selected.version+'/validate',{method:'POST',body:{}})
    selected=await request('/layout-library/'+selected.id+'/'+selected.version);renderResult();await preview();await reload();msg(result.status==='passed'?'版式检查通过。':'页面检查未通过。')
+  }))
+  panel.querySelector('[data-derive-sparse]')?.addEventListener('click',()=>void run(async()=>{
+   readForm();if(!equal(working,selected.package))throw Error('请先保存修改，再添加变体。')
+   if(selected.version!==selected.latestVersion||selected.retired)throw Error('请切换到未归档的最新版本。')
+   const choice=panel.querySelector('[data-sparse-source]').value,source=choice===''?null:sparseSources[Number(choice)]
+   if(!source)throw Error('请选择有可信图像分析的参考页；没有分析记录时不能自动生成。')
+   const token=generation,epoch=viewEpoch,base=structuredClone(selected),current=()=>token===generation&&epoch===viewEpoch&&dialog&&selected?.id===base.id&&selected?.version===base.version
+   sparseBusy=true;updateControls();msg('正在添加无图变体，不调用模型…')
+   try{
+    const result=await post('/layout-library/'+base.id+'/'+base.version+'/derive-sparse-cards',{expectedHash:base.hash,strategyVersion:1,source})
+    if(!current())return
+    if(result.id!==base.id||result.version!==base.version+1)throw Error('生成结果版本不匹配，请刷新后查看。')
+    const resource=await request('/layout-library/'+result.id+'/'+result.version)
+    if(!current())return
+    if(resource.id!==result.id||resource.version!==result.version||resource.hash!==result.hash)throw Error('生成结果身份不匹配，请刷新后查看。')
+    const oldIds=new Set(base.package.layouts.map(l=>l.id))
+    selected=resource;working=structuredClone(resource.package);previewLayout=working.layouts.find(l=>!oldIds.has(l.id))?.id??'';layoutChosen=true;historyViewing=false
+    const savedCurrent=()=>token===generation&&epoch===viewEpoch&&dialog&&selected?.id===result.id&&selected?.version===result.version
+    renderResult();await preview();if(!savedCurrent())return;await reload();if(savedCurrent())msg('已保存为 V'+result.version+'，原版本保留，未发布；请对照审阅后选用。')
+   }catch(error){if(current())throw error}finally{if(token===generation){sparseBusy=false;updateControls()}}
   }))
   panel.querySelector('[data-content-adapt]')?.addEventListener('click',()=>void run(async()=>{
    readForm();if(!equal(working,selected.package))throw Error('请先保存修改，再进行内容适配。')
