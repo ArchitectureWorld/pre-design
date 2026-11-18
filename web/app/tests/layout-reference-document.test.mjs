@@ -471,3 +471,18 @@ test('PDF 续读拒绝非法与越界起始页，成功/失败/预先取消均�
   assert.deepEqual(await readdir(root),[])
  }finally{if(previous===undefined)delete process.env.TMPDIR;else process.env.TMPDIR=previous;await rm(root,{recursive:true,force:true})}
 })
+
+test('PDF 原生图像清单绑定原件与原页，扫描图不冒称装饰或原生文字',async()=>{
+ const image=await sharp({create:{width:64,height:32,channels:3,background:'#3454a0'}}).jpeg().toBuffer()
+ const bytes=pdf([{text:'native text'},{image}]),result=await parse(bytes,'inventory.pdf')
+ const {createHash}=await import('node:crypto')
+ assert.equal(result.pages[0].nativeImageInventory.status,'available')
+ assert.deepEqual(result.pages[0].nativeImageInventory.objects,[])
+ const inventory=result.pages[1].nativeImageInventory
+ assert.equal(inventory.sourceSha256,createHash('sha256').update(bytes).digest('hex'))
+ assert.equal(inventory.objects.length,1)
+ assert.equal(inventory.objects[0].page,2)
+ assert.equal(inventory.objects[0].classification,'unknown')
+ assert.equal(inventory.objects[0].shareAllowed,false)
+ assert(!('dataUrl' in inventory.objects[0]))
+})

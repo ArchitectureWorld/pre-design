@@ -1,4 +1,4 @@
-import {nativeTableSchema,nativeFigureSchema,nativeFiguresSchema,nativeChartSchema,nativeTimelineSchema,nativeDiagramSchema} from './layout-library/contract.mjs'
+import {nativeTextBlocksSchema,nativeTableSchema,nativeFigureSchema,nativeFiguresSchema,nativeChartSchema,nativeTimelineSchema,nativeDiagramSchema} from './layout-library/contract.mjs'
 import {createHash} from 'node:crypto'
 import {readFileSync} from 'node:fs'
 import {z} from 'zod'
@@ -53,9 +53,9 @@ const legacyBlockSchema=z.object({
 const itemSchema=z.object({
  id:itemIdSchema.optional(),title:textSchema(100).refine(title=>!/[\r\n\u2028\u2029]/u.test(title)),paragraphs:z.array(textSchema(2000)).max(3),
  points:z.array(textSchema(500)).max(8),evidenceIndexes:evidenceSchema,
- table:nativeTableSchema.optional(),figure:nativeFigureSchema.optional(),figures:nativeFiguresSchema.optional(),chart:nativeChartSchema.optional(),timeline:nativeTimelineSchema.optional(),diagram:nativeDiagramSchema.optional(),
+ textBlocks:nativeTextBlocksSchema.optional(),table:nativeTableSchema.optional(),figure:nativeFigureSchema.optional(),figures:nativeFiguresSchema.optional(),chart:nativeChartSchema.optional(),timeline:nativeTimelineSchema.optional(),diagram:nativeDiagramSchema.optional(),
  presentation:z.object({layout:z.enum(['points','columns','focus','image-left','table','composition']),note:textSchema(320),archetypeId:z.string().regex(/^[a-z][a-z0-9-]{0,47}$/).optional()}).strict().optional(),
-}).strict().refine(item=>!(item.figure&&item.figures),'figure 和 figures 不能同时声明。').refine(item=>item.paragraphs.length||item.points.length||item.table||item.figure||item.figures||item.chart||item.timeline||item.diagram||item.presentation?.layout==='composition')
+}).strict().refine(item=>!(item.figure&&item.figures),'figure 和 figures 不能同时声明。').refine(item=>item.paragraphs.length||item.points.length||item.textBlocks?.length||item.table||item.figure||item.figures||item.chart||item.timeline||item.diagram||item.presentation?.layout==='composition')
 const structuredBlockSchema=z.object({
  id:blockIdSchema,heading:textSchema(120).optional(),items:z.array(itemSchema).min(1).max(8),internalNotes:z.array(textSchema(180)).max(5),
  sectionText:textSchema(2200).optional(),sectionEvidenceIndexes:evidenceSchema.optional(),

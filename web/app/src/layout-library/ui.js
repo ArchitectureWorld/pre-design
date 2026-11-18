@@ -1,6 +1,8 @@
+import {openContentAdaptation} from './content-adaptation-ui.js'
+import {mountLayoutAnnotations} from './annotations-ui.js'
+import {mountLayoutMatrix,openLayoutPreview} from './matrix-ui.js'
 import {reuseGuideHtml} from './reuse-guide-ui.js'
 import {openReferenceReview,referenceProfileHtml} from './review-ui.js'
-import {mountNativePreview} from './preview-ui.js'
 import {mountLayoutConversation} from './conversation-ui.js'
 import {readReferenceBase64} from './upload-request.js'
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
@@ -13,11 +15,11 @@ const equal=(a,b)=>JSON.stringify(ordered(a))===JSON.stringify(ordered(b))
 export function mountLayoutLibrary({request,notify}){
  const entry=document.createElement('button');entry.type='button';entry.className='ll-entry';entry.textContent='版式库';entry.dataset.layoutLibraryOpen=''
  document.querySelector('.top-right')?.prepend(entry)
- let dialog,identity,resources=[],conversations=[],selected=null,working=null,chat,previewHandle,previewLayout='',layoutChosen=false,picker=null,generation=0,previewGeneration=0,previewTimer,busy=false,modelBusy=false,historyViewing=false,reviewHandle,viewEpoch=0,lastDeletion=null,activityLabel='正在生成版式…'
- const pending=new Map()
+ let dialog,identity,resources=[],conversations=[],selected=null,working=null,chat,previewHandle,largePreview,annotationsHandle,previewLayout='',layoutChosen=false,picker=null,generation=0,previewGeneration=0,previewTimer,busy=false,modelBusy=false,historyViewing=false,reviewHandle,viewEpoch=0,lastDeletion=null,activityLabel='正在生成版式…'
+ const pending=new Map(),adaptationDrafts=new Map();let adaptationHandle
  const msg=text=>{const el=dialog?.querySelector('[data-ll-status]');if(el)el.textContent=text}
  const own=()=>!selected||selected.ownerId===identity?.id||identity?.role==='admin'
- function close(){reviewHandle?.dispose();reviewHandle=null;generation++;viewEpoch++;clearTimeout(previewTimer);previewHandle?.dispose();chat?.dispose();dialog?.close();dialog?.remove();dialog=null;chat=null;pending.clear();picker=null}
+ function close(){adaptationHandle?.dispose();adaptationHandle=null;annotationsHandle?.dispose();annotationsHandle=null;largePreview?.dispose();largePreview=null;reviewHandle?.dispose();reviewHandle=null;generation++;viewEpoch++;clearTimeout(previewTimer);previewHandle?.dispose();chat?.dispose();dialog?.close();dialog?.remove();dialog=null;chat=null;pending.clear();picker=null}
  async function run(action){if(busy)return;busy=true;try{await action()}catch(error){msg(error.message);notify(error.message)}finally{busy=false}}
  async function post(path,body={},options={}){
   const key=JSON.stringify([path,body]);let requestId=pending.get(key);if(!requestId){requestId=rid();pending.set(key,requestId)}
@@ -100,7 +102,7 @@ export function mountLayoutLibrary({request,notify}){
   await chat.select(id);renderList()
  }
  async function selectResource(id,version,{syncChat=true}={}){
-  viewEpoch++;hideNavigation()
+  viewEpoch++;largePreview?.dispose();largePreview=null;previewHandle?.dispose();hideNavigation()
   if(syncChat)await chat.select(null)
   const token=generation,resource=await request('/layout-library/'+id+'/'+version)
   if(token!==generation||!dialog)return
@@ -122,18 +124,19 @@ export function mountLayoutLibrary({request,notify}){
   if(!dialog)return
   const form=dialog.querySelector('[data-editor]');if(form)for(const el of form.elements)el.disabled=modelBusy||!own()
   const name=dialog.querySelector('[data-resource-name]');if(name)name.disabled=modelBusy||!own()
-  for(const button of dialog.querySelectorAll('[data-save],[data-validate],[data-publish],[data-use-layout],[data-reference-review]'))button.disabled=modelBusy
+  for(const button of dialog.querySelectorAll('[data-save],[data-validate],[data-publish],[data-use-layout],[data-reference-review],[data-content-adapt]'))button.disabled=modelBusy
  }
  function renderResult(){
   if(!dialog)return
-  previewHandle?.dispose();previewHandle=null
+  adaptationHandle?.dispose();adaptationHandle=null;annotationsHandle?.dispose();annotationsHandle=null;previewGeneration++;largePreview?.dispose();largePreview=null;previewHandle?.dispose();previewHandle=null
   const panel=dialog.querySelector('[data-layout-results]')
   if(!working){panel.innerHTML=`<div class="ll-result-empty"><strong>${modelBusy?activityLabel:'版式预览'}</strong><button data-manual ${modelBusy?'disabled':''}>手动创建</button></div>`;panel.querySelector('[data-manual]').onclick=()=>void run(async()=>{working=(await request('/layout-library/starter')).package;working.name='我的自定义版式';selected=null;renderResult();await preview()});return}
   const pkg=working;previewLayout=pkg.layouts.some(l=>l.id===previewLayout)?previewLayout:pkg.layouts[0].id
   panel.innerHTML=`<div class="ll-result-heading"><input data-resource-name aria-label="版式名称" value="${esc(pkg.name)}" maxlength="100"><span>${selected?'V'+selected.version+' · '+stateName(selected):'新建版式'}</span>${selected&&own()?`<select data-history aria-label="历史版本">${Array.from({length:selected.latestVersion},(_,i)=>`<option value="${i+1}" ${selected.version===i+1?'selected':''}>V${i+1}</option>`).join('')}</select>`:''}</div>
    <div class="ll-preview-controls"><select data-layout aria-label="预览布局">${pkg.layouts.map(l=>`<option value="${l.id}" ${l.id===previewLayout?'selected':''}>${esc(l.label)}</option>`).join('')}</select><button data-preview>更新预览</button></div>
-   <div class="ll-preview" data-preview-box></div>
-   <div class="ll-result-actions"><button data-save class="ll-primary">${selected&&own()?'保存修改':'保存版式'}</button>${selected?'<button data-validate>检查版式</button><button data-export>导出</button>':''}${selected&&pkg.designProfile&&selected.ownerId===identity?.id?'<button data-reference-review class="ll-primary">对照审阅</button>':''}${picker?'<button data-use-layout class="ll-primary">选用此版式</button>':''}</div>
+   <div data-preview-box aria-label="全部版式缩略图"></div>
+   <div class="ll-result-actions"><button data-save class="ll-primary">${selected&&own()?'保存修改':'保存版式'}</button>${selected?'<button data-validate>检查版式</button><button data-export>导出</button>':''}${selected&&pkg.designProfile&&selected.ownerId===identity?.id?'<button data-reference-review class="ll-primary">对照审阅</button>':''}${selected&&selected.ownerId===identity?.id?'<button data-content-adapt>内容适配预览</button>':''}${picker?'<button data-use-layout class="ll-primary">选用此版式</button>':''}</div>
+   <div data-layout-annotations></div>
    ${pkg.designProfile?`<details class="ll-profile"><summary>参考分析 · ${pkg.designProfile.archetypes.length} 种页面类型${selected?.referenceReview?.status==='confirmed'?' · 已确认':' · 待对照'}</summary>${referenceProfileHtml(pkg.designProfile)}</details>`:''}
    ${reuseGuideHtml(pkg)}
    <details class="ll-settings"><summary>手动调整</summary><form data-editor class="ll-form">${[['background','背景'],['ink','正文'],['accent','标题'],['muted','注释']].map(([k,l])=>`<label>${l}<input type="color" name="${k}" value="${pkg.theme[k]}"></label>`).join('')}
@@ -155,6 +158,18 @@ export function mountLayoutLibrary({request,notify}){
    msg('正在检查页面…');const result=await request('/layout-library/'+selected.id+'/'+selected.version+'/validate',{method:'POST',body:{}})
    selected=await request('/layout-library/'+selected.id+'/'+selected.version);renderResult();await preview();await reload();msg(result.status==='passed'?'版式检查通过。':'页面检查未通过。')
   }))
+  panel.querySelector('[data-content-adapt]')?.addEventListener('click',()=>void run(async()=>{
+   readForm();if(!equal(working,selected.package))throw Error('请先保存修改，再进行内容适配。')
+   if(selected.version!==selected.latestVersion||selected.retired)throw Error('请切换到未归档的最新版本后试排。')
+   const layout=working.layouts.find(l=>l.id===previewLayout)
+   if(layout?.contentAdaptationPolicy?.version!==1||layout.contentAdaptationPolicy.activation!=='explicit-preview-only'||!layout.contentAdaptationPolicy.entries?.length)throw Error('此版式暂不支持内容适配，尚未提供可核对的调整边界。原版式保持不变。')
+   const token=generation,key=JSON.stringify([selected.id,selected.version,layout.id])
+   adaptationHandle?.dispose()
+   adaptationHandle=openContentAdaptation({document,resource:structuredClone(selected),layout:structuredClone(layout),request,initialDraft:adaptationDrafts.get(key),onDraft:draft=>adaptationDrafts.set(key,structuredClone(draft)),onSaved:async result=>{
+    if(token!==generation||!dialog)return
+    await selectResource(result.id,result.version,{syncChat:false});await reload();msg('内容适配已保存为 V'+result.version+'，原版本保留，尚未发布。')
+   }})
+  }))
   panel.querySelector('[data-reference-review]')?.addEventListener('click',()=>void run(async()=>{
    readForm();if(!equal(working,selected.package))throw Error('请先保存修改，再对照当前版本。')
    const token=generation,id=selected.id,version=selected.version
@@ -174,6 +189,8 @@ export function mountLayoutLibrary({request,notify}){
   }))
   panel.querySelector('[data-share]')?.addEventListener('click',()=>void run(async()=>{await post('/layout-library/'+selected.id+'/'+selected.version+'/request-share');await reload();msg('共享申请已提交。')}))
   panel.querySelector('[data-retire]')?.addEventListener('click',()=>void run(async()=>{await post('/layout-library/'+selected.id+'/retire',{expectedVersion:selected.latestVersion});selected=await request('/layout-library/'+selected.id+'/'+selected.version);renderResult();await preview();await reload();msg('已归档。')}))
+  if(selected?.hash&&own())annotationsHandle=mountLayoutAnnotations({container:panel.querySelector('[data-layout-annotations]'),resource:structuredClone(selected),request,notify,layoutId:()=>previewLayout,canEdit:()=>{readForm();return !!selected&&selected.version===selected.latestVersion&&equal(working,selected.package)},onSubmitted:async result=>{if(result.conversationId)await chat.select(result.conversationId)}})
+  else panel.querySelector('[data-layout-annotations]').textContent='保存为自己的版式后，可以添加批注并批量提交。'
   updateControls()
  }
  function readWorking(){readForm();return working}
@@ -185,10 +202,13 @@ export function mountLayoutLibrary({request,notify}){
  async function preview(read=false){
   if(!dialog||!working)return
   if(read)readForm()
-  const token=generation,revision=++previewGeneration,box=dialog.querySelector('[data-preview-box]')
-  const result=await request('/layout-library/preview',{method:'POST',body:{package:working,layoutId:previewLayout}})
-  if(token!==generation||revision!==previewGeneration||!box.isConnected)return
-  previewHandle?.dispose();previewHandle=mountNativePreview(box,result.html,{onSelect:selection=>chat.focusSelection(selection)})
+  const box=dialog.querySelector('[data-preview-box]'),pkg=structuredClone(working)
+  previewGeneration++;largePreview?.dispose();largePreview=null;previewHandle?.dispose()
+  const renderPreview=(layoutId,{signal}={})=>request('/layout-library/preview',{method:'POST',body:{package:pkg,layoutId},signal})
+  const select=id=>{previewLayout=id;layoutChosen=true;const selector=dialog?.querySelector('[data-layout]');if(selector)selector.value=id}
+  previewHandle=mountLayoutMatrix(box,{layouts:pkg.layouts,selectedId:previewLayout,renderPreview,onSelect:select,onOpen:(id,returnFocus)=>{
+   previewHandle.select(id);largePreview?.dispose();largePreview=openLayoutPreview({document,layout:pkg.layouts.find(l=>l.id===id),renderPreview,returnFocus,onSelect:selection=>{chat?.focusSelection(selection);annotationsHandle?.offer(selection,document.querySelector('.ll-large-preview'))}})
+  }})
  }
  async function importFile(file,options={}){
   const epoch=viewEpoch
@@ -203,7 +223,7 @@ export function mountLayoutLibrary({request,notify}){
   if(options.signal?.aborted)throw new DOMException('操作已取消','AbortError')
   if(!dialog||epoch!==viewEpoch)return result
   selected=resource;working=structuredClone(selected.package);previewLayout=layoutId;historyViewing=false;previewGeneration++;renderResult()
-  previewHandle=mountNativePreview(dialog.querySelector('[data-preview-box]'),rendered.html,{onSelect:selection=>chat.focusSelection(selection)})
+  await preview()
   void reload().catch(error=>msg(error.message));return result
  }
  function download(file){const url=URL.createObjectURL(file.blob),a=document.createElement('a');a.href=url;a.download=file.filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}

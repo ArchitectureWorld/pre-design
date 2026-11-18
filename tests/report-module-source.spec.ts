@@ -84,7 +84,7 @@ beforeAll(async () => {
         actual: { provider: 'fixture', model: 'web' }, selected: { provider: 'fixture', model: 'web' }, configurationRevision: 1, startedAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
       webEvents.set(childId, [ { type: 'user/message', data: { source: { kind: 'user' }, content: [{ type: 'text', text: `网络查询任务：${query}` }] } },
         { type: 'tool/call', data: { callId: id, name: 'web_search' } },
-        { type: 'tool/result', data: { message: { content: [{ type: 'tool-result', toolCallId: id, content: [{ type: 'text', text: 'No results' }] }] } } } ])
+        { type: 'tool/result', data: { message: { content: [{ type: 'tool-result', toolCallId: id, isError: false, content: [{ type: 'text', text: 'No results' }] }] } } } ])
       return { executionId: id, childId, summary: '[]', retrievals: [{ tool: 'web_search', callId: id, text: 'No results' }], verifiedEvidence: false, guidance: 'test fixture' }
     } } })
   const taskBrief = 'Synthetic research request, not a construction approval.\n' + JSON.stringify({ sessionId: 'parent-session', seq: 1, time: '2026-09-27T00:00:00Z', text: '少潭河生态游憩条件式策划。' })
@@ -289,6 +289,25 @@ describe('verified research selection for report consumption', { timeout: 20_000
     const m = await api(), selection = await m.beginReportResearchSelection(binding(), request, { parentId: 'parent-session' })
     await expect(m.acceptReportResearchSelection(binding(), selection, summary, { ...native, executions: async () => executions.map(row => row.classId === 'web' ? { ...row, task: 'unrelated cover illustration' } : row) })).rejects.toThrow('REPORT_MODULE_WEB_NATIVE_UNVERIFIED')
     await expect(m.acceptReportResearchSelection(binding(), selection, summary, { ...native, readEvents: async () => [] })).rejects.toThrow('REPORT_MODULE_WEB_NATIVE_UNVERIFIED')
+  })
+  it('rejects absent or failed native web success flags even when receipt text matches', async () => {
+    const m = await api(), selection = await m.beginReportResearchSelection(binding(), request, { parentId: 'parent-session' })
+    for (const flag of [undefined, true]) {
+      const readEvents = async (id: string) => {
+        const events = structuredClone(await native.readEvents(id))
+        if (executions.some(row => row.childId === id && row.classId === 'web')) {
+          for (const event of events) if (event.type === 'tool/result') {
+            const data = event.data as { message: { content: { isError?: boolean }[] } }
+            for (const block of data.message.content) {
+              if (flag === undefined) delete block.isError
+              else block.isError = flag
+            }
+          }
+        }
+        return events
+      }
+      await expect(m.acceptReportResearchSelection(binding(), selection, summary, { ...native, readEvents })).rejects.toThrow('REPORT_MODULE_WEB_NATIVE_UNVERIFIED')
+    }
   })
   it('expires every previous success when a new full run starts and rejects a late old completion', async () => {
     const m = await api(), first = await m.beginReportResearchSelection(binding(), request, { parentId: 'parent-session' })

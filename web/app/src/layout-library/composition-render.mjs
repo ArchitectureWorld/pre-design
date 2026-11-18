@@ -1,3 +1,5 @@
+import {validateTextBlocks,renderTextBlock} from './text-blocks.mjs'
+import {renderStructuredTable} from './table-structure.mjs'
 // Browser-safe rendering of declarative V2 content. No resource text becomes markup or CSS.
 export const RENDERER_V2='pre-design-native-html-v2.0'
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
@@ -11,7 +13,8 @@ export function nativeFigures(item){
 const roleNames={title:'标题',claim:'段落',body:'正文',image:'图片',table:'表格',chart:'图表',timeline:'时间轴',diagram:'关系图',source:'来源'}
 // Shared by selection and rendering: a stale layout cannot silently lose later edits.
 export function assertCompositionCoverage(layout,item){
- const figures=nativeFigures(item)
+ const figures=nativeFigures(item),blocks=validateTextBlocks(item.textBlocks??[]),textSlots=layout.slots.filter(s=>s.role==='text')
+ if(blocks.some(b=>textSlots.filter(s=>s.binding===b.key).length!==1)||textSlots.some(s=>!blocks.some(b=>b.key===s.binding)))throw invalid('局部文字必须完整且不重复地绑定到对应组件。')
  if(layout.kind!=='composition'&&figures.length>1)throw invalid('当前版式不能覆盖多张图片，请选择 V2 组合版式。')
  const counts={title:item.title?.length?1:0,claim:item.paragraphs.length,body:item.points.length,image:figures.length,table:item.table?1:0,chart:item.chart?1:0,timeline:item.timeline?1:0,diagram:item.diagram?1:0,source:item.evidenceIndexes?.length?1:0}
  for(const [role,count]of Object.entries(counts)){
@@ -21,7 +24,10 @@ export function assertCompositionCoverage(layout,item){
    if(!count)throw invalid(`组合版式的${roleNames[role]}槽位没有对应内容。`)
    const start=slot.index??slot.range?.start??0,end=slot.index!==undefined?slot.index+1:slot.range?.end??count
    if(start>=count||end>count)throw invalid(`组合版式的${roleNames[role]}选择越界。`)
-   for(let i=start;i<end;i++)seen[i]++
+   for(let i=start;i<end;i++){
+    if(role==='image'&&!figures[i].caption?.trim()&&!(slot.style?.presentationVersion===1&&slot.style.captionPolicy==='when-present'&&figures[i].caption===''&&figures[i].captionStatus==='absent'&&typeof figures[i].description==='string'&&figures[i].description.trim()))throw invalid('无图注图片须显式声明、保留描述并使用新版图注策略。')
+    seen[i]++
+   }
   }
   if(seen.some(n=>n===0))throw invalid(`组合版式未完整覆盖${roleNames[role]}，不能遗漏页面内容。`)
   if(seen.some(n=>n>1))throw invalid(`组合版式重复覆盖${roleNames[role]}，请明确分配各槽位。`)
@@ -31,7 +37,10 @@ export function assertCompositionCoverage(layout,item){
 const select=(values,slot)=>values.slice(slot.index??slot.range?.start??0,slot.index!==undefined?slot.index+1:slot.range?.end??values.length)
 const dataImage=value=>/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value??'')
 export const COMPOSITION_CSS=`
-.ln-composition .ln-slot{display:flex;flex-direction:column}.ln-composition .ln-slot-content{flex:0 0 auto;min-width:0}.ln-composition .ln-title h2{color:inherit}.ln-composition .ln-claim p+p{margin-top:.35em}.ln-composition .ln-body li:last-child{padding-bottom:0}.ln-composition .ln-source .ln-slot-content{display:flex;justify-content:space-between;gap:1em}.ln-composition .ln-source{border:0;padding-top:0}.ln-composition .ln-image .ln-slot-content{height:100%}.ln-figure-grid{display:grid;grid-auto-rows:minmax(0,1fr);gap:.6em;height:100%;min-height:0}.ln-figure-grid figure{display:flex;flex-direction:column;margin:0;min-width:0;min-height:0;gap:.3em}.ln-figure-grid img{display:block;flex:1 1 auto;min-height:20%;height:0;width:100%;object-fit:contain}.ln-figure-grid figcaption{flex:0 0 auto;font-size:.75em;line-height:1.3;color:var(--ln-muted)}
+.ln-table table.ln-table-compact{line-height:1.1}.ln-table table.ln-table-compact th,.ln-table table.ln-table-compact td{padding:.12em .15em}.ln-table table.ln-table-grid th,.ln-table table.ln-table-grid td{border:1px solid var(--ln-ink)}
+
+.ln-composition .ln-text-list{list-style:disc inside;margin:0;padding:0}.ln-composition .ln-text-list li{white-space:pre-wrap}
+.ln-composition .ln-text p{white-space:pre-wrap}.ln-composition .ln-slot{display:flex;flex-direction:column}.ln-composition .ln-slot-content{flex:0 0 auto;min-width:0}.ln-composition .ln-title h2{color:inherit;line-height:inherit}.ln-composition .ln-claim p+p{margin-top:.35em}.ln-composition .ln-body li:last-child{padding-bottom:0}.ln-composition .ln-source .ln-slot-content{display:flex;justify-content:space-between;gap:1em}.ln-composition .ln-source{border:0;padding-top:0}.ln-composition .ln-image .ln-slot-content{height:100%}.ln-figure-grid{display:grid;grid-auto-rows:minmax(0,1fr);gap:.6em;height:100%;min-height:0}.ln-figure-grid figure{display:flex;flex-direction:column;margin:0;min-width:0;min-height:0;gap:.3em}.ln-figure-grid img{display:block;flex:1 1 auto;min-height:20%;height:0;width:100%;object-fit:contain}.ln-figure-grid figcaption{flex:0 0 auto;font-size:.75em;line-height:1.3;color:var(--ln-muted)}
 .ln-chart-content h3,.ln-timeline-content h3,.ln-diagram-content h3{font-size:1em;margin:0 0 .4em}.ln-chart-content{font-size:1em}.ln-chart-unit{font-size:.85em;color:var(--ln-muted)}.ln-chart-data{border-collapse:collapse;width:100%;table-layout:fixed;font-size:.85em}.ln-chart-data th,.ln-chart-data td{text-align:left;vertical-align:top;overflow-wrap:anywhere;padding:.25em .35em;border-bottom:1px solid var(--ln-muted)}.ln-chart-data th{font-weight:600}.ln-chart-track{position:relative;height:.65em;background:color-mix(in srgb,var(--ln-muted) 12%,transparent);margin:.25em 0}.ln-chart-zero{position:absolute;top:-.1em;bottom:-.1em;border-left:1px solid var(--ln-ink)}.ln-chart-bar{position:absolute;top:0;height:100%;background:var(--ln-accent)}.ln-chart-line{display:block;width:100%;height:7em;overflow:visible}.ln-chart-line path,.ln-chart-line circle{stroke:var(--ln-accent)}.ln-chart-line circle{fill:var(--ln-bg)}
 .ln-timeline-content{font-size:.85em}.ln-timeline-content ol{list-style:none;margin:0;padding:0 0 0 .8em}.ln-timeline-content li{position:relative;padding:0 0 .65em .8em;border-left:2px solid var(--ln-accent)}.ln-timeline-content li:before{content:'';position:absolute;left:-.24em;top:.35em;width:.4em;height:.4em;border-radius:50%;background:var(--ln-accent)}.ln-timeline-content li:last-child{padding-bottom:0}.ln-timeline-content p{margin-top:.15em;font-size:.9em}
 .ln-composition .ln-diagram .ln-slot-content{height:100%}.ln-diagram-content{height:100%;display:flex;flex-direction:column;font-size:1em}.ln-diagram-canvas{position:relative;flex:1;min-height:4em}.ln-diagram-canvas svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;color:var(--ln-accent)}.ln-diagram-node{position:absolute;display:flex;align-items:center;justify-content:center;text-align:center;border:2px solid var(--ln-accent);background:var(--ln-bg);padding:.3em;overflow-wrap:anywhere;font-weight:500}.ln-diagram-edge-label{position:absolute;transform:translate(-50%,-50%);padding:0 .2em;background:var(--ln-bg);font-size:.8em;max-width:35%;text-align:center}
@@ -43,10 +52,10 @@ function imageContent(page,slot){
  return `<div class="ln-figure-grid" style="grid-template-columns:repeat(${columns},minmax(0,1fr))">${chosen.map(figure=>{
   const index=all.indexOf(figure),legacy=page.nativeAssets?.image
   const asset=page.nativeAssets?.images?.find(a=>a.materialId===figure.materialId)??(index===0&&legacy&&(!legacy.materialId||legacy.materialId===figure.materialId)?legacy:undefined)
-  return `<figure data-figure-index="${index}">${asset&&dataImage(asset.dataUrl)?`<img src="${asset.dataUrl}" alt="${esc(figure.caption)}" style="object-fit:${slot.style?.fit==='cover'?'cover':'contain'}">`:'<div class="ln-missing">缺少已核对的项目图片</div>'}<figcaption>${esc(figure.caption)}</figcaption></figure>`
+  return `<figure data-figure-index="${index}">${asset&&dataImage(asset.dataUrl)?`<img src="${asset.dataUrl}" alt="${esc(figure.description??figure.caption)}" style="object-fit:${slot.style?.fit==='cover'?'cover':'contain'}">`:'<div class="ln-missing">缺少已核对的项目图片</div>'}${figure.caption?`<figcaption>${esc(figure.caption)}</figcaption>`:''}</figure>`
  }).join('')}</div>`
 }
-function tableContent(table){return `<table><thead><tr>${table.columns.map(c=>`<th scope="col">${esc(c)}</th>`).join('')}</tr></thead><tbody>${table.rows.map(row=>`<tr>${row.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`}
+const tableContent=renderStructuredTable
 function chartContent(chart){
  const values=chart.series.flatMap(s=>s.values),low=Math.min(0,...values),high=Math.max(0,...values),span=high-low||1,zero=(0-low)/span*100
  const percent=value=>(value-low)/span*100
@@ -81,15 +90,16 @@ export function renderCompositionPage(page,spec){
  const {theme:t,layout}=spec,item=page.item,W=number(spec.canvas.width,240,7680,1600),H=number(spec.canvas.height,240,7680,900)
  const vars=`--ln-bg:${color(t.background)};--ln-ink:${color(t.ink)};--ln-accent:${color(t.accent)};--ln-muted:${color(t.muted)};--ln-font:${t.fontFamily==='serif'?'"Noto Serif CJK SC",SimSun,serif':'"Noto Sans CJK SC","Microsoft YaHei",sans-serif'};aspect-ratio:${W}/${H}`
  const slots=layout.slots.map(slot=>{
-  const r=slot.rect,s=slot.style??{},defaultSize=slot.role==='title'?t.titleSize:slot.role==='source'?t.captionSize:t.bodySize,fs=number(s.fontSize??defaultSize,16,96)
+  const r=slot.rect,s=slot.style??{},defaultSize=slot.role==='title'?t.titleSize:slot.role==='source'?t.captionSize:t.bodySize,fs=number(s.fontSize??defaultSize,16,320)
   const foreground=s.color??(slot.role==='title'?t.accent:slot.role==='source'?t.muted:t.ink)
-  const pos=`left:${number(r.x,0,1)*100}%;top:${number(r.y,0,1)*100}%;width:${number(r.w,0,1)*100}%;height:${number(r.h,0,1)*100}%;font-size:${fs/W*100}cqw;line-height:${number(t.lineHeight,1.2,1.9)};z-index:${number(slot.layer,0,20)};color:${color(foreground)};text-align:${['left','center','right'].includes(s.align)?s.align:'left'};justify-content:${s.verticalAlign==='middle'?'center':s.verticalAlign==='bottom'?'flex-end':'flex-start'}${s.fontWeight?`;font-weight:${number(s.fontWeight,400,700)}`:''}${s.background?`;background:${color(s.background)}`:''}${s.borderWidth?`;border:${number(s.borderWidth,0,6)/W*100}cqw solid ${color(s.borderColor??t.muted)}`:''}${s.padding?`;padding:${number(s.padding,0,40)/W*100}cqw`:''}`
+  const pos=`left:${number(r.x,0,1)*100}%;top:${number(r.y,0,1)*100}%;width:${number(r.w,0,1)*100}%;height:${number(r.h,0,1)*100}%;font-size:${fs/W*100}cqw;line-height:${number(s.lineHeight??(slot.role==='title'?1.2:t.lineHeight),1,2)}${s.letterSpacing!==undefined?`;letter-spacing:${number(s.letterSpacing,-4,48)/W*100}cqw`:''}${s.fontFamily?`;font-family:${s.fontFamily==='calligraphic-fallback'?`'AR PL UKai CN','KaiTi',serif`:s.fontFamily==='serif'?`'Noto Serif CJK SC',serif`:`'Noto Sans CJK SC',sans-serif`}`:''};z-index:${number(slot.layer,0,20)};color:${color(foreground)};text-align:${['left','center','right'].includes(s.align)?s.align:'left'};justify-content:${s.verticalAlign==='middle'?'center':s.verticalAlign==='bottom'?'flex-end':'flex-start'}${s.fontWeight?`;font-weight:${number(s.fontWeight,400,700)}`:''}${s.background?`;background:${color(s.background)}`:''}${s.borderWidth?`;border:${number(s.borderWidth,0,6)/W*100}cqw solid ${color(s.borderColor??t.muted)}`:''}${s.padding?`;padding:${number(s.padding,0,40)/W*100}cqw`:''}`
   let content=''
   if(slot.role==='title')content=`<h2>${esc(item.title)}</h2>`
+  if(slot.role==='text'){const b=item.textBlocks.find(b=>b.key===slot.binding);const value=renderTextBlock(b,s.emphasisColor??foreground);content=s.presentationVersion===1&&s.textMarker==='disc'?`<ul class="ln-text-list" data-presentation-origin="derived-style"><li data-text-block="${esc(b.key)}">${value}</li></ul>`:`<p data-text-block="${esc(b.key)}">${value}</p>`}
   if(slot.role==='claim')content=select(item.paragraphs,slot).map(text=>`<p>${esc(text)}</p>`).join('')
   if(slot.role==='body')content=`<ul${s.columns?` style="columns:${number(s.columns,1,3)};column-gap:1.2em"`:''}>${select(item.points,slot).map(text=>`<li>${esc(text)}</li>`).join('')}</ul>`
   if(slot.role==='image')content=imageContent(page,slot)
-  if(slot.role==='table')content=item.table?tableContent(item.table):'<div class="ln-missing">缺少表格内容</div>'
+  if(slot.role==='table')content=item.table?tableContent(item.table,{className:[s.tableDensity==='compact'?'ln-table-compact':'',s.tableGrid?'ln-table-grid':''].filter(Boolean).join(' '),columnWidths:s.tableColumnWidths}):'<div class="ln-missing">缺少表格内容</div>'
   if(slot.role==='chart')content=item.chart?chartContent(item.chart):'<div class="ln-missing">缺少图表内容</div>'
   if(slot.role==='timeline')content=item.timeline?timelineContent(item.timeline):'<div class="ln-missing">缺少时间轴内容</div>'
   if(slot.role==='diagram')content=item.diagram?diagramContent(item.diagram):'<div class="ln-missing">缺少关系图内容</div>'

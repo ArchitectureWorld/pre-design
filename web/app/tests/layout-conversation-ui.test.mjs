@@ -272,3 +272,5 @@ test('V3 design controls restore saved intent and submit native pipeline without
  document.querySelector('[data-layout-send]').click();await settle(()=>posted.length===1)
  assert.equal(posted[0].referencePipeline,'native-v3');assert.equal(posted[0].referenceScope,'brand');assert.equal(posted[0].referenceFidelity,'fidelity')
 })
+
+test('助手参考选项默认折叠在高级设置，输入与上传仍直接可用',t=>{const dom=new JSDOM('<aside/>'),container=dom.window.document.querySelector('aside');const ui=mountLayoutConversation({container,request:async()=>({configured:true}),notify(){},getContext:()=>({}),onResource(){},onImport(){}});t.after(()=>{ui.dispose();dom.window.close()});const details=container.querySelector('details[data-reference-advanced]');assert(details);assert.equal(details.open,false);assert.equal(details.querySelectorAll('select').length,3);assert(!details.contains(container.querySelector('textarea')));assert(!details.contains(container.querySelector('[data-chat-upload]')))});

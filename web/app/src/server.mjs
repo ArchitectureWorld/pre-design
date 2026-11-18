@@ -1,3 +1,4 @@
+import {createLayoutAnnotations} from './layout-library/layout-annotations.mjs'
 import {createLayoutLibrary} from './layout-library/store.mjs'
 import {registerLayoutRoutes} from './layout-library/routes.mjs'
 import {createLayoutJobs} from './layout-library/jobs.mjs'
@@ -134,9 +135,9 @@ export async function createApp({ db, workers, projectsRoot, users }) {
     next.finally(() => { if (chains.get(id) === next) chains.delete(id) }).catch(() => {})
     return next
   }
-  async function project(req) {
+  async function project(req,connection) {
     const id = idSchema.parse(req.params.id)
-    const [p] = await query('SELECT * FROM projects WHERE id=$1 AND owner_id=$2', [id, req.user.id])
+    const {rows:[p]} = await (connection??db).query('SELECT * FROM projects WHERE id=$1 AND owner_id=$2', [id, req.user.id])
     if (!p) throw fail(404, '项目不存在')
     const actual = await realpath(p.workspace)
     const rel = relative(root, actual)
@@ -553,8 +554,9 @@ export async function createApp({ db, workers, projectsRoot, users }) {
     return '本次执行未完成，请查看研究状态或由管理员检查运行记录。'
   }
   const scheduler = createJobScheduler({ db, getLimits: async () => (await platform.getPolicy()).limits, execute })
-  const layoutJobs=createLayoutJobs({db,platform,workers,library:layoutLibrary,uploads:layoutUploads,serial,controllers,kick:()=>scheduler.kick()})
-  registerLayoutRoutes({app,library:layoutLibrary,uploads:layoutUploads,project,workflows,serial,event,resolveLayoutAssets,
+  const layoutAnnotations=await createLayoutAnnotations(db,layoutLibrary)
+  const layoutJobs=createLayoutJobs({annotations:layoutAnnotations,db,platform,workers,library:layoutLibrary,uploads:layoutUploads,serial,controllers,kick:()=>scheduler.kick()})
+  registerLayoutRoutes({annotations:layoutAnnotations,app,library:layoutLibrary,uploads:layoutUploads,project,workflows,serial,event,resolveLayoutAssets,
     enqueueReference:layoutJobs.enqueue,listReferenceJobs:layoutJobs.list,cancelReference:layoutJobs.cancel,
     referenceConfiguration:layoutJobs.configuration,retryReference:layoutJobs.retry,
     listConversations:layoutJobs.conversations,getConversation:layoutJobs.conversation,recordReferenceImport:layoutJobs.imported})

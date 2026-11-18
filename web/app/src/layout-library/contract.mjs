@@ -1,6 +1,10 @@
+import {validateTextBlocks} from './text-blocks.mjs'
+import {tableMergeMap} from './table-structure.mjs'
+import {contrast} from './accessible-theme.mjs'
+export {contrast}
 import {createHash} from 'node:crypto'
 import {z} from 'zod'
-import {SCHEMA_V2,RENDERER_V2,compositionCanvasSchema,compositionLayoutSchema,validateCompositionLayout,chooseCompositionLayout,nativeFigures,nativeChartSchema,nativeTimelineSchema,nativeDiagramSchema} from './composition-contract.mjs'
+import {SCHEMA_V2,RENDERER_V2,compositionCanvasSchema,compositionLayoutSchema,validateCompositionLayout,chooseCompositionLayout,assertCompositionCoverage,nativeFigures,nativeChartSchema,nativeTimelineSchema,nativeDiagramSchema} from './composition-contract.mjs'
 import {validateReferenceProfile} from './reference-profile.mjs'
 import {SCHEMA_V3,RENDERER_V3,nativePackageFields,validateNativeDesignPackage} from './native-design-v3.mjs'
 export {SCHEMA_V3,RENDERER_V3}
@@ -22,9 +26,10 @@ const source=z.object({kind:z.enum(['manual','built-in','pptx','reference-text',
 const resourceSchema=z.object({schemaVersion:z.literal(SCHEMA),name:text(100),description:z.string().max(600).default(''),kind:z.enum(['theme','page','set']),tags:z.array(text(40)).max(12).default([]),canvas:z.object({width:z.literal(1600),height:z.literal(900)}).strict(),theme:themeSchema,layouts:z.array(layoutSchema).min(1).max(12),formats:z.tuple([z.literal('html')]),source,rights:z.object({basis:z.enum(['original','licensed','permission','unknown']),shareAllowed:z.boolean(),note:z.string().max(600)}).strict()}).strict()
 const resourceSchemaV2=resourceSchema.extend({schemaVersion:z.literal(SCHEMA_V2),canvas:compositionCanvasSchema,layouts:z.array(compositionLayoutSchema).min(1).max(24),designProfile:z.record(z.string(),z.unknown())}).strict()
 const resourceSchemaV3=resourceSchemaV2.extend(nativePackageFields).strict()
-export const nativeFigureSchema=z.object({materialId:z.uuid(),caption:text(160)}).strict()
+export const nativeTextBlocksSchema=z.array(z.unknown()).max(32).superRefine((v,ctx)=>{try{validateTextBlocks(v)}catch{ctx.addIssue({code:'custom',message:'局部文字键或强调范围无效。'})}})
+export const nativeFigureSchema=z.union([z.object({materialId:z.uuid(),caption:text(160)}).strict(),z.object({materialId:z.uuid(),caption:z.literal(''),captionStatus:z.literal('absent'),description:text(160)}).strict()])
 export const nativeFiguresSchema=z.array(nativeFigureSchema).min(1).max(6)
-export const nativeTableSchema=z.object({columns:z.array(text(100)).min(2).max(8),rows:z.array(z.array(z.string().max(300)).min(2).max(8)).min(1).max(40)}).strict().refine(t=>t.rows.every(r=>r.length===t.columns.length),'每行列数须与表头一致')
+export const nativeTableSchema=z.object({columns:z.array(z.string().max(100)).min(2).max(8),headerMerges:z.array(z.object({column:z.number().int().min(0).max(7),colSpan:z.number().int().min(2).max(8)}).strict()).max(4).optional(),rows:z.array(z.array(z.string().max(300)).min(2).max(8)).min(1).max(40),merges:z.array(z.object({row:z.number().int().min(0).max(39),column:z.number().int().min(0).max(7),rowSpan:z.number().int().min(1).max(40),colSpan:z.number().int().min(1).max(8)}).strict()).max(160).optional()}).strict().superRefine((t,ctx)=>{try{tableMergeMap(t)}catch{ctx.addIssue({code:'custom',message:'表格行列或合并结构无效，不得覆盖非空内容。'})}})
 export const defaultTheme=Object.freeze({background:'#f7f9fc',ink:'#24364c',accent:'#3454a0',muted:'#53647c',fontFamily:'sans',titleSize:48,bodySize:30,captionSize:18,lineHeight:1.5})
 const s=(role,x,y,w,h)=>({role,rect:{x,y,w,h}})
 export function defaultLayouts(){
@@ -40,10 +45,6 @@ export function defaultLayouts(){
 }
 export function createPackage(name='清晰蓝灰 · 标准汇报'){
  return {schemaVersion:SCHEMA,name,description:'原生版式资源；预览、试排与项目成果采用相同渲染器。',kind:'set',tags:['汇报','通用'],canvas:{width:1600,height:900},theme:{...defaultTheme},layouts:defaultLayouts(),formats:['html'],source:{kind:'manual',limitations:[]},rights:{basis:'original',shareAllowed:false,note:''}}
-}
-export function contrast(a,b){
- const luminance=h=>{const c=h.slice(1).match(/../g).map(x=>parseInt(x,16)/255).map(x=>x<=.04045?x/12.92:((x+.055)/1.055)**2.4);return .2126*c[0]+.7152*c[1]+.0722*c[2]}
- const x=luminance(a),y=luminance(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)
 }
 export function validateTheme(value){
  const t=themeSchema.parse(value)
@@ -97,7 +98,7 @@ export function chooseLayout(p,item,id){
  if(item.table&&l.kind!=='table')throw fail('不能用不含表格的版式丢弃本页表格。',409)
  if(figures.length&&l.kind!=='image-left')throw fail('不能用不含图片的版式丢弃本页图片。',409)
  if(item.table&&figures.length)throw fail('本版不支持同页同时配置图片和表格，请选择 V2 组合版式。',409)
- return l
+ return assertCompositionCoverage(l,item)
 }
 export function resolvePage({page,globalPackage,globalOverrides,local,manual,resourceRefs=[]}){
  assertInstanceContent(page,{requireId:false})
@@ -106,18 +107,23 @@ export function resolvePage({page,globalPackage,globalOverrides,local,manual,res
  const theme=validateTheme({...global.theme,...globalPatch.theme,...(local?.package?p.theme:{}),...localPatch.theme,...manualPatch.theme})
  const layout=chooseLayout(p,page.item,manualPatch.layoutId??localPatch.layoutId??(local?.package?undefined:globalPatch.layoutId))
  if([SCHEMA_V2,SCHEMA_V3].includes(p.schemaVersion))validateCompositionLayout(layout,theme,contrast)
- return {schemaVersion:p.schemaVersion,renderer:rendererForPackage(p),canvas:p.canvas,theme,layout,...(p.designProfile?{designProfile:p.designProfile}:{}),...(p.schemaVersion===SCHEMA_V3?Object.fromEntries(['designSpec','compilerVersion','upstreamRevision','rendererCompatibility','validationReceipts'].map(k=>[k,p[k]])):{}),resourceRefs,manual:manualPatch,formats:['html']}
+ return {schemaVersion:p.schemaVersion,renderer:rendererForPackage(p),canvas:p.canvas,theme,layout,...(p.designProfile?{designProfile:p.designProfile}:{}),...(p.schemaVersion===SCHEMA_V3?Object.fromEntries(['designSpec','compilerVersion','upstreamRevision','rendererCompatibility','validationReceipts','themeDerivations','fidelityFeatures','decorativeAssets','rights'].map(k=>[k,p[k]])):{}),resourceRefs,manual:manualPatch,formats:['html']}
 }
 export function exportReusable(page,name){
  if(!page.nativeLayout||![RENDERER,RENDERER_V2,RENDERER_V3].includes(page.nativeLayout.renderer))throw fail('请先应用原生版式后再保存为资源。',409)
+ assertInstanceContent(page,{requireId:false});assertCompositionCoverage(page.nativeLayout.layout,page.item)
  const p=createPackage(name);p.theme={...page.nativeLayout.theme};p.layouts=[structuredClone(page.nativeLayout.layout)];p.kind='page';p.source={kind:'project-page',parents:page.nativeLayout.resourceRefs??[],limitations:['仅保留样式和内容位置；项目正文、图片、表格、身份和原件均不复制。']}
  if([RENDERER_V2,RENDERER_V3].includes(page.nativeLayout.renderer)){p.schemaVersion=page.nativeLayout.renderer===RENDERER_V3?SCHEMA_V3:SCHEMA_V2;p.canvas={...page.nativeLayout.canvas};p.designProfile=structuredClone(page.nativeLayout.designProfile)}
  if(p.schemaVersion===SCHEMA_V3){
-  for(const k of ['designSpec','compilerVersion','upstreamRevision','rendererCompatibility','validationReceipts'])p[k]=structuredClone(page.nativeLayout[k])
+  for(const k of ['designSpec','compilerVersion','upstreamRevision','rendererCompatibility','validationReceipts','themeDerivations','fidelityFeatures','decorativeAssets','rights']){if(k==='rights'&&page.nativeLayout[k]===undefined)continue;p[k]=structuredClone(page.nativeLayout[k])}
+  if(p.decorativeAssets){const used=new Set((p.layouts[0].decorations??[]).flatMap(d=>[d.assetId,d.maskAssetId].filter(Boolean)));p.decorativeAssets=p.decorativeAssets.filter(a=>used.has(a.id));if(!p.decorativeAssets.length)delete p.decorativeAssets}
+  if(p.fidelityFeatures)p.fidelityFeatures=p.fidelityFeatures.filter(f=>f.layoutId===p.layouts[0].id)
+  if(!p.fidelityFeatures?.length)delete p.fidelityFeatures
+  if(p.decorativeAssets?.length)p.source.limitations=['项目内容字段不复制；独立装饰资产整对象保留，裁切不是脱敏，图像内文字或业务数据不会自动清除。']
   p.designProfile.archetypes=p.designProfile.archetypes.filter(a=>a.id===p.layouts[0].archetypeId)
   const fit=p.layouts[0].contentFitRules,archetype=p.designProfile.archetypes[0]
-  const reduced=archetype.capacity.images!==fit.maxImages||archetype.capacity.bodyPoints!==fit.maxBodyPoints||archetype.capacity.tableRows!==fit.maxTableRows
-  archetype.capacity={images:fit.maxImages,bodyPoints:fit.maxBodyPoints,tableRows:fit.maxTableRows}
+  const reduced=archetype.capacity.images!==fit.maxImages||archetype.capacity.bodyPoints!==fit.maxBodyPoints||archetype.capacity.tableRows!==fit.maxTableRows||(archetype.capacity.textBlocks??0)!==(fit.maxTextBlocks??0)
+  archetype.capacity={...(fit.maxTextBlocks!==undefined?{textBlocks:fit.maxTextBlocks}:{}),images:fit.maxImages,bodyPoints:fit.maxBodyPoints,tableRows:fit.maxTableRows}
   const system=p.designProfile.designSystem,next={...system,canvas:p.canvas,colors:Object.fromEntries(Object.keys(system.colors).map(k=>[k,p.theme[k]])),typography:Object.fromEntries(Object.keys(system.typography).map(k=>[k,p.theme[k]]))}
   const changedSystem=packageDigest(system)!==packageDigest(next);p.designProfile.designSystem=next
   if(reduced||changedSystem){let i=1;while(p.designProfile.evidence.some(e=>e.id==='user-export-'+i))i++;const id='user-export-'+i;p.designProfile.evidence.push({id,provenance:'user'});if(reduced)archetype.evidenceIds.push(id);if(changedSystem)next.evidenceIds.push(id)}
@@ -130,13 +136,14 @@ export function exportReusable(page,name){
 }
 export function assertInstanceContent(page,{requireId=true}={}){
  if(requireId&&!page?.id||!page?.item||typeof page.item.title!=='string'||!Array.isArray(page.item.paragraphs)||!Array.isArray(page.item.points))throw fail('页面输入不完整。')
- const item=page.item,known=new Set(['id','title','paragraphs','points','evidenceIndexes','figure','figures','table','chart','timeline','diagram','presentation','legacy'])
+ const item=page.item,known=new Set(['id','title','paragraphs','points','evidenceIndexes','figure','figures','table','chart','timeline','diagram','textBlocks','presentation','legacy'])
  if(Object.keys(item).some(key=>!known.has(key)))throw fail('页面包含未支持的内容字段，不能在试排时静默遗漏。',409)
  if(!item.title.trim()||[...item.paragraphs,...item.points].some(t=>typeof t!=='string'||!t.trim()))throw fail('页面文字内容无效。')
  if(item.evidenceIndexes!==undefined)z.array(z.number().int().nonnegative()).max(80).parse(item.evidenceIndexes)
  nativeFigures(item)
  if(item.figure!==undefined)nativeFigureSchema.parse(item.figure)
  if(item.figures!==undefined)nativeFiguresSchema.parse(item.figures)
+ if(item.textBlocks!==undefined)nativeTextBlocksSchema.parse(item.textBlocks)
  if(item.table!==undefined)nativeTableSchema.parse(item.table)
  if(item.chart!==undefined)nativeChartSchema.parse(item.chart)
  if(item.timeline!==undefined)nativeTimelineSchema.parse(item.timeline)

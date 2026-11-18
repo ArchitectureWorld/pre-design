@@ -21,3 +21,15 @@ test('V3 compiler rejects text boxes shorter than one rendered line instead of a
   assert.throws(()=>mod.compileNativeDesignPackageV3(input),/一行文字/)
  }
 })
+test('V3 retains source colors while recording deterministic readable derived theme',()=>{
+ const input=nativeDesignInput();input.designSpec.profile.designSystem.colors.muted='#7d8a8a';input.designSpec.profile.designSystem.colors.background='#f8f6f3';const before=JSON.stringify(input)
+ const result=mod.compileNativeDesignPackageV3(input)
+ assert.equal(JSON.stringify(input),before);assert.equal(result.designProfile.designSystem.colors.muted,'#7d8a8a');assert.equal(result.designSpec.profile.designSystem.colors.muted,'#7d8a8a')
+ assert.notEqual(result.theme.muted,'#7d8a8a');assert.equal(result.themeDerivations[0].source,'#7d8a8a');assert.equal(result.themeDerivations[0].derived,result.theme.muted);assert.match(result.source.limitations.join(' '),/派生/)
+})
+test('readable derivations survive validation and reject tampered records and rendering colors',async()=>{
+ const {validatePackage,contrast}=await import('../src/layout-library/contract.mjs');const {reuseGuideHtml}=await import('../src/layout-library/reuse-guide-ui.js')
+ const input=nativeDesignInput();input.designSpec.profile.designSystem.colors.muted='#7d8a8a';input.designSpec.profile.designSystem.colors.background='#f8f6f3';const pkg=mod.compileNativeDesignPackageV3(input)
+ assert(contrast(pkg.theme.muted,pkg.theme.background)>=4.5);assert.deepEqual(validatePackage(pkg),pkg);assert.match(reuseGuideHtml(pkg),/原色 #7d8a8a/)
+ for(const change of [p=>delete p.themeDerivations,p=>p.themeDerivations[0].source='#000000',p=>p.themeDerivations[0].derived='#000000',p=>p.themeDerivations[0].minimum=3,p=>p.theme.muted='#000000']){const p=structuredClone(pkg);change(p);assert.throws(()=>validatePackage(p))}
+})

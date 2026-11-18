@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto'
+import {contentMappingSchema,projectContentMapping} from './content-mapping.mjs'
 import {validatePackage,packageDigest,RENDERER,fail,patchSchema,resolvePage,exportReusable} from './contract.mjs'
 import {createReferenceReviews,assertReferenceReviewed,isReferenceReviewCurrent} from './reference-review.mjs'
 import {rendererForPackage} from './contract.mjs'
@@ -36,16 +37,21 @@ export async function createLayoutLibrary(db){
   for(const r of rows){const x=await get(actor,r.id);const [usage]=await query('SELECT count(*) AS n FROM layout_library_usage WHERE resource_id=$1',[r.id]);results.push({...x,usageCount:Number(usage.n),editable:own(r,actor)})}
   return results
  }
- async function mutation(actor,requestId,data,fn,connection){
+ async function mutation(actor,requestId,data,fn,connection,signal){
+  signal?.throwIfAborted()
   if(!/^[A-Za-z0-9_-]{1,100}$/.test(requestId??''))throw fail('请求编号不合法。')
   const hash=packageDigest(data),c=connection??await db.connect()
   try{
+   signal?.throwIfAborted()
    if(!connection)await c.query('BEGIN')
    await c.query("SELECT pg_advisory_xact_lock(hashtext($1))",['layout-library:'+actor.id])
    const [prior]=await query('SELECT * FROM layout_library_mutations WHERE actor_id=$1 AND request_id=$2',[actor.id,requestId],c)
    if(prior){if(prior.fingerprint!==hash)throw fail('请求编号已用于不同操作。',409);if(!connection)await c.query('COMMIT');return prior.result}
+   signal?.throwIfAborted()
    const result=await fn(c)
+   signal?.throwIfAborted()
    await c.query('INSERT INTO layout_library_mutations(actor_id,request_id,fingerprint,result) VALUES($1,$2,$3,$4)',[actor.id,requestId,hash,result])
+   signal?.throwIfAborted()
    if(!connection)await c.query('COMMIT')
    return result
   }catch(e){if(!connection)await c.query('ROLLBACK');throw e}finally{if(!connection)c.release()}
@@ -71,6 +77,8 @@ export async function createLayoutLibrary(db){
    if(r.version!==b.expectedVersion)throw fail('版式已有新版本，请刷新后编辑。',409)
    const version=r.version+1,hash=packageDigest(p)
    const [old]=await query('SELECT hash FROM layout_library_versions WHERE resource_id=$1 AND version=$2',[r.id,r.version],c)
+   if(b.requireActive&&r.retired)throw fail('版式已停用，请重新预览。',409)
+   if(b.expectedHash&&b.expectedHash!==old.hash)throw fail('版式内容已有变化，请重新预览。',409)
    if(old.hash===hash)return {id:r.id,version:r.version,hash,unchanged:true}
    await c.query('INSERT INTO layout_library_versions(resource_id,version,document,hash) VALUES($1,$2,$3,$4)',[r.id,version,p,hash])
    await c.query('UPDATE layout_library_resources SET version=$2,share_requested=false WHERE id=$1',[r.id,version]);return {id:r.id,version,hash}
@@ -148,7 +156,13 @@ export async function createLayoutLibrary(db){
   if(!preview)assertReferenceReviewed(x)
   return {resourceId:x.id,version:x.version,hash:x.hash,package:x.package}
  }
- async function saveBindings(actor,p,b,draft){
+ async function bindingMutationResult(actor,p,b){
+  const [prior]=await query('SELECT * FROM layout_library_mutations WHERE actor_id=$1 AND request_id=$2',[actor.id,b.requestId])
+  if(!prior)return null
+  if(prior.fingerprint!==packageDigest({...b,op:'bindings',projectId:p.id}))throw fail('请求编号已用于不同操作。',409)
+  return prior.result
+ }
+ async function saveBindings(actor,p,b,draft,{assertPreflight,preflight,signal}={}){
   if(!draft||draft.stale||draft.id!==b.draftId)throw fail('稿件已变化，请重新选择当前页。',409)
   const pages=draft.flow.flatMap(ch=>draft.blocks.filter(bl=>bl.chapterId===ch).flatMap(bl=>(bl.items??[]).map(item=>({id:'visual-page-'+item.id,item}))))
   return mutation(actor,b.requestId,{...b,op:'bindings',projectId:p.id},async c=>{
@@ -156,32 +170,50 @@ export async function createLayoutLibrary(db){
    const previous=await bindings(p,c)
    if(previous.revision!==b.expectedRevision)throw fail('版式配置已更新，请刷新后重试。',409)
    const same=previous.draftId===draft.id
-   const doc={global:same?previous.global:null,globalOverrides:same?{...previous.globalOverrides}:{},local:same?structuredClone(previous.local):{},manual:same?structuredClone(previous.manual):{},reviewPageIds:same?[...previous.reviewPageIds??[]]:[]}
+   const doc={global:same?previous.global:null,globalOverrides:same?{...previous.globalOverrides}:{},local:same?structuredClone(previous.local):{},manual:same?structuredClone(previous.manual):{},contentMappings:same?structuredClone(previous.contentMappings??{}):{},reviewPageIds:same?[...previous.reviewPageIds??[]]:[]}
+   if(b.scope==='content'&&b.pageIds?.length!==1)throw fail('文字映射必须逐页明确保存。',409)
+   if(b.scope!=='content'&&b.contentMapping!==undefined)throw fail('文字映射需要明确指定内容范围。',409)
    if(b.scope==='global'){doc.global=await freezeRef(actor,b.resource,c);doc.globalOverrides=patchSchema.parse(b.overrides??{})}
    else{
     if(!b.pageIds?.length||b.pageIds.some(id=>!pages.some(p=>p.id===id)))throw fail('选择页面不属于当前稿件。',404)
     for(const id of b.pageIds){
      doc.reviewPageIds=doc.reviewPageIds.filter(pageId=>pageId!==id)
-     if(b.scope==='manual'){
+     if(b.scope==='content'){
+      if(b.remove){if(b.contentMapping!==undefined)throw fail('移除映射不能同时提交新映射。',409);delete doc.contentMappings[id]}
+      else doc.contentMappings[id]=contentMappingSchema.parse(b.contentMapping)
+      if(b.resource!==undefined)doc.local[id]={resource:await freezeRef(actor,b.resource,c),overrides:patchSchema.parse(b.overrides??{})}
+      else if(b.overrides!==undefined)doc.manual[id]={...(doc.manual[id]??{}),...patchSchema.parse(b.overrides),theme:{...doc.manual[id]?.theme,...b.overrides.theme}}
+     }else if(b.scope==='manual'){
       if(b.remove)delete doc.manual[id];else doc.manual[id]={...(doc.manual[id]??{}),...patchSchema.parse(b.overrides??{}),theme:{...doc.manual[id]?.theme,...b.overrides?.theme}}
      }else if(b.scope==='local'){
       if(b.remove)delete doc.local[id];else doc.local[id]={resource:await freezeRef(actor,b.resource,c),overrides:patchSchema.parse(b.overrides??{})}
      }else throw fail('绑定范围不合法。')
     }
    }
-   for(const page of pages)resolvePage({page,globalPackage:doc.global?.package,globalOverrides:doc.globalOverrides,local:{package:doc.local[page.id]?.resource?.package,overrides:doc.local[page.id]?.overrides},manual:doc.manual[page.id]})
+   compilePages(pages,doc)
+   await assertPreflight?.(c)
+   signal?.throwIfAborted()
    const revision=previous.revision+1
    await c.query('INSERT INTO layout_project_bindings(project_id,draft_id,revision,document) VALUES($1,$2,$3,$4) ON CONFLICT(project_id) DO UPDATE SET draft_id=excluded.draft_id,revision=excluded.revision,document=excluded.document,updated_at=now()',[p.id,draft.id,revision,doc])
+   signal?.throwIfAborted()
    await c.query('INSERT INTO layout_binding_versions(project_id,revision,draft_id,document) VALUES($1,$2,$3,$4)',[p.id,revision,draft.id,doc])
-   return {revision,draftId:draft.id,status:'saved-pending-apply'}
-  })
+   return {revision,draftId:draft.id,status:'saved-pending-apply',...(preflight?{preflight}:{})}
+  },undefined,signal)
  }
  function compilePages(pages,config){
   return pages.map(page=>{
+   // Re-layouts can start from an already projected visual page. Verify its
+   // provenance before restoring the source; never silently discard edits.
+   const saved=page.contentMappingSource
+   if(saved&&packageDigest(page.item)!==saved.projectedFingerprint)throw fail('映射后的页面内容已变化，请回到原稿重新核对。',409)
+   const source=saved?.item??page.item,mapping=config.contentMappings?.[page.id]
+   const {contentMappingSource:_previous,...base}=page
+   const item=mapping?projectContentMapping(source,mapping):structuredClone(source)
+   const projected={...base,item,...(mapping?{contentMappingSource:{item:structuredClone(source),projectedFingerprint:packageDigest(item)}}:{})}
    const local=config.local[page.id],refs=[config.global,local?.resource].filter(Boolean).map(r=>({resourceId:r.resourceId,version:r.version,hash:r.hash}))
    const manual={...(page.protectedLayout??{}),...(config.manual[page.id]??{}),theme:{...page.protectedLayout?.theme,...config.manual[page.id]?.theme}}
-   const nativeLayout=resolvePage({page,globalPackage:config.global?.package,globalOverrides:config.globalOverrides,local:{package:local?.resource?.package,overrides:local?.overrides},manual,resourceRefs:refs})
-   return {...page,nativeLayout}
+   const nativeLayout=resolvePage({page:projected,globalPackage:config.global?.package,globalOverrides:config.globalOverrides,local:{package:local?.resource?.package,overrides:local?.overrides},manual,resourceRefs:refs})
+   return {...projected,nativeLayout}
   })
  }
  // The draft writer owns the project lock and transaction.
@@ -195,10 +227,10 @@ export async function createLayoutLibrary(db){
   const ambiguous=!draft.changedItemId&&Math.max(oldBlock?.items?.length??0,newBlock?.items?.length??0)>1&&JSON.stringify(oldBlock?.items)!==JSON.stringify(newBlock?.items)
   const resetIds=new Set(ambiguous?[...oldBlock?.items??[],...newBlock?.items??[]].map(item=>'visual-page-'+item.id):[])
   const hadBindings=[...resetIds].some(id=>row.document.local?.[id]||row.document.manual?.[id])
-  const reviewPageIds=[...new Set([...(row.document.reviewPageIds??[]),...(hadBindings?[...resetIds]:[])])].filter(id=>ids.has(id))
+  const reviewPageIds=[...new Set([...(row.document.reviewPageIds??[]),...(hadBindings?[...resetIds]:[]),...Object.keys(row.document.contentMappings??{})])].filter(id=>ids.has(id))
   const keep=([id])=>ids.has(id)&&!resetIds.has(id)
   const document={...row.document,local:Object.fromEntries(Object.entries(row.document.local??{}).filter(keep)),
-   manual:Object.fromEntries(Object.entries(row.document.manual??{}).filter(keep)),reviewPageIds,carriedFromDraftId:previous.id}
+   manual:Object.fromEntries(Object.entries(row.document.manual??{}).filter(keep)),contentMappings:{},reviewPageIds,carriedFromDraftId:previous.id}
   const revision=row.revision+1
   await c.query('UPDATE layout_project_bindings SET draft_id=$2,revision=$3,document=$4,updated_at=now() WHERE project_id=$1',[p.id,draft.id,revision,document])
   await c.query('INSERT INTO layout_binding_versions(project_id,revision,draft_id,document) VALUES($1,$2,$3,$4)',[p.id,revision,draft.id,document])
@@ -209,5 +241,5 @@ export async function createLayoutLibrary(db){
    return reviews.confirm(actor,body,c)
   })
  }
- return {referenceComparison:reviews.comparison,confirmReferenceReview,previewRef:(actor,ref)=>freezeRef(actor,ref,undefined,{preview:true}),sourceFile,list,get,create,revise,saveValidation,publish,retire,requestShare,bindings,saveBindings,carryBindings,compilePages,freezeRef,exportReusable,isRemoved,remove:(actor,b)=>changeDeletion(actor,b),restore:(actor,b)=>changeDeletion(actor,b,true)}
+ return {referenceComparison:reviews.comparison,confirmReferenceReview,previewRef:(actor,ref)=>freezeRef(actor,ref,undefined,{preview:true}),sourceFile,list,get,create,revise,saveValidation,publish,retire,requestShare,bindings,bindingMutationResult,saveBindings,carryBindings,compilePages,freezeRef,exportReusable,isRemoved,remove:(actor,b)=>changeDeletion(actor,b),restore:(actor,b)=>changeDeletion(actor,b,true)}
 }

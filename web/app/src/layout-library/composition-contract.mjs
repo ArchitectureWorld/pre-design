@@ -11,19 +11,26 @@ const color=z.string().regex(/^#[0-9a-fA-F]{6}$/)
 export const compositionCanvasSchema=z.object({width:z.number().finite().min(240).max(7680),height:z.number().finite().min(240).max(7680)}).strict().refine(c=>c.width/c.height>=.2&&c.width/c.height<=5,'画布比例须在 1:5 至 5:1 之间。')
 const rect=z.object({x:z.number().min(0).max(1),y:z.number().min(0).max(1),w:z.number().positive().max(1),h:z.number().positive().max(1)}).strict()
 export const compositionStyleSchema=z.object({
- fontSize:z.number().min(16).max(96).optional(),fontWeight:z.union([z.literal(400),z.literal(500),z.literal(600),z.literal(700)]).optional(),
+ presentationVersion:z.literal(1).optional(),textMarker:z.literal('disc').optional(),captionPolicy:z.literal('when-present').optional(),
+ tableDensity:z.enum(['normal','compact']).optional(),tableGrid:z.boolean().optional(),tableColumnWidths:z.array(z.number().finite().positive().max(1000)).min(2).max(8).optional(),
+ fontFamily:z.enum(['sans','serif','calligraphic-fallback']).optional(),letterSpacing:z.number().min(-4).max(48).optional(),lineHeight:z.number().min(1).max(2).optional(),fontSize:z.number().min(16).max(320).optional(),fontWeight:z.union([z.literal(400),z.literal(500),z.literal(600),z.literal(700)]).optional(),
  align:z.enum(['left','center','right']).optional(),verticalAlign:z.enum(['top','middle','bottom']).optional(),
- color:color.optional(),background:color.optional(),borderColor:color.optional(),borderWidth:z.number().min(0).max(6).optional(),padding:z.number().min(0).max(40).optional(),
+ emphasisColor:color.optional(),color:color.optional(),background:color.optional(),borderColor:color.optional(),borderWidth:z.number().min(0).max(6).optional(),padding:z.number().min(0).max(40).optional(),
  fit:z.enum(['contain','cover']).optional(),columns:z.number().int().min(1).max(3).optional(),
 }).strict()
 const compositionSlotSchema=z.object({
- id,role:z.enum(['title','claim','body','image','table','chart','timeline','diagram','source']),rect,
+ id,role:z.enum(['title','claim','body','image','table','chart','timeline','diagram','source','text']),binding:id.optional(),purpose:z.enum(['label','heading','subheading','body','conclusion']).optional(),rect,
  index:z.number().int().min(0).max(63).optional(),
  range:z.object({start:z.number().int().min(0).max(63),end:z.number().int().min(1).max(64)}).strict().refine(r=>r.end>r.start,'内容范围须为非空的半开区间。').optional(),
  layer:z.number().int().min(0).max(20).optional(),overlap:z.literal('allow').optional(),style:compositionStyleSchema.optional(),
 }).strict().superRefine((slot,ctx)=>{
+ if((slot.role==='text')!==!!slot.binding||slot.purpose&&slot.role!=='text')ctx.addIssue({code:'custom',message:'局部文字必须有独立绑定键，其他槽位不能声明。'})
  if(slot.index!==undefined&&slot.range)ctx.addIssue({code:'custom',message:'槽位 index 与 range 只能选择一种。'})
  if(!['claim','body','image'].includes(slot.role)&&(slot.index!==undefined||slot.range))ctx.addIssue({code:'custom',message:'单一内容槽位不能配置 index 或 range。'})
+ if(slot.role!=='table'&&['tableDensity','tableGrid','tableColumnWidths'].some(k=>slot.style?.[k]!==undefined))ctx.addIssue({code:'custom',message:'表格样式只适用于表格槽位。'})
+ if((slot.style?.textMarker||slot.style?.captionPolicy)&&slot.style.presentationVersion!==1)ctx.addIssue({code:'custom',message:'内容呈现策略须显式声明版本1。'})
+ if(slot.style?.textMarker&&(slot.role!=='text'||slot.purpose!=='body'))ctx.addIssue({code:'custom',message:'圆点列表仅适用于独立正文文字槽。'})
+ if(slot.style?.captionPolicy&&slot.role!=='image')ctx.addIssue({code:'custom',message:'图注策略仅适用于图片槽。'})
  if(slot.style?.fit&&slot.role!=='image')ctx.addIssue({code:'custom',message:'fit 只适用于图片槽位。'})
  if(slot.style?.columns&&!['body','image'].includes(slot.role))ctx.addIssue({code:'custom',message:'columns 只适用于正文或图片槽位。'})
  if(slot.style?.fontSize!==undefined&&slot.style.fontSize<(slot.role==='title'?32:['source','image'].includes(slot.role)?16:22))ctx.addIssue({code:'custom',message:'槽位字号低于对应内容的最小可读字号。'})
@@ -53,6 +60,7 @@ export function validateCompositionLayout(layout,theme,contrast){
   const {rect:r,style={}}=slot
   if(r.x+r.w>1.000001||r.y+r.h>1.000001)throw invalid('组合槽位超出画布。')
   const background=style.background??theme.background
+  if(style.emphasisColor&&contrast(style.emphasisColor,background)<4.5)throw invalid('局部强调与背景的对比度不足。')
   const foreground=style.color??(slot.role==='title'?theme.accent:slot.role==='source'?theme.muted:theme.ink)
   if(contrast(foreground,background)<(slot.role==='title'?3:4.5))throw invalid('组合槽位文字与背景的对比度不足。')
   if(['image','table','chart','timeline','diagram'].includes(slot.role)&&contrast(theme.muted,background)<4.5)throw invalid('组合槽位图注与背景的对比度不足。')

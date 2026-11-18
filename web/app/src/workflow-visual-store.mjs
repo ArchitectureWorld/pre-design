@@ -8,12 +8,12 @@ const fingerprint=body=>createHash('sha256').update(JSON.stringify(body)).digest
 export async function createWorkflowVisualStore(db,{currentDraft,layoutLibrary,verifyLayoutPages=verifyPages,resolveLayoutAssets=async pages=>pages}){
  await db.query(`CREATE TABLE IF NOT EXISTS workflow_visuals(id uuid PRIMARY KEY,project_id uuid NOT NULL REFERENCES projects(id),version integer NOT NULL,draft_id uuid NOT NULL REFERENCES workflow_drafts(id),document jsonb NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(project_id,version));
  CREATE TABLE IF NOT EXISTS workflow_visual_requests(project_id uuid NOT NULL REFERENCES projects(id),request_id text NOT NULL,fingerprint text NOT NULL,result jsonb NOT NULL,PRIMARY KEY(project_id,request_id));`)
- const query=async(sql,args=[])=>(await db.query(sql,args)).rows
+ const query=async(sql,args=[],c=db)=>(await c.query(sql,args)).rows
  const hydrate=row=>row?{...row.document,id:row.id,version:row.version,createdAt:new Date(row.created_at).toISOString()}:null
- async function current(p,draft){
-  const rows=await query('SELECT * FROM workflow_visuals WHERE project_id=$1 ORDER BY version DESC',[p.id]),doc=hydrate(rows[0])
+ async function current(p,draft,c=db){
+  const rows=await query('SELECT * FROM workflow_visuals WHERE project_id=$1 ORDER BY version DESC',[p.id],c),doc=hydrate(rows[0])
   if(doc){doc.stale=!draft||draft.stale||draft.id!==doc.draftId||!draft.approval;delete doc.renderedHtml}
-  if(doc&&layoutLibrary){const config=await layoutLibrary.bindings(p);doc.layoutPending=config.revision!==(doc.layoutBindingRevision??0)||config.draftId!==null&&config.draftId!==draft?.id}
+  if(doc&&layoutLibrary){const config=await layoutLibrary.bindings(p,c);doc.layoutPending=config.revision!==(doc.layoutBindingRevision??0)||config.draftId!==null&&config.draftId!==draft?.id}
   return {current:doc,history:rows.map(row=>({id:row.id,version:row.version,draftId:row.draft_id,createdAt:new Date(row.created_at).toISOString()}))}
  }
  async function generate(p,body){

@@ -1,3 +1,4 @@
+import {mountContentMapping} from './content-mapping-ui.js'
 import {mountNativePreview} from './preview-ui.js'
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
 const uid=()=>crypto.randomUUID?.()??Array.from(crypto.getRandomValues(new Uint8Array(16)),x=>x.toString(16).padStart(2,'0')).join('')
@@ -5,7 +6,7 @@ const mime='application/x-pre-design-layout'
 const layoutNames={points:'要点',columns:'双栏',focus:'重点','image-left':'左图右文',table:'数据比较'}
 
 export function mountCanvasLayouts({nodeLayer,viewport,getProject,request,notify,mutate,refresh,openLibrary}){
- let config=null,projectKey='',generation=0,loadNumber=0,panel=null,target=null,previewHandle=null,resources=[],identity,chain=Promise.resolve(),saving=false
+ let config=null,projectKey='',generation=0,loadNumber=0,panel=null,target=null,previewHandle=null,mappingHandle=null,resources=[],identity,chain=Promise.resolve(),saving=false
  const current=()=>{const p=getProject(),d=p?.workflow?.current;return d?.formatVersion===2&&!d.stale?{p,d}:null}
  const pages=()=>current()?.d.blocks.flatMap(block=>(block.items??[]).map(item=>({id:'visual-page-'+item.id,item,block})))??[]
  const effective=()=>config&&!config.stale?config:{revision:config?.revision??0,global:null,globalOverrides:{},local:{},manual:{}}
@@ -15,7 +16,7 @@ export function mountCanvasLayouts({nodeLayer,viewport,getProject,request,notify
   const patch=effective().manual?.[pageId]
   return {...protectedLayout,...patch,theme:{...protectedLayout?.theme,...patch?.theme}}
  }
- function close(){previewHandle?.dispose();previewHandle=null;panel?.remove();panel=null;target=null}
+ function close(){mappingHandle?.dispose();mappingHandle=null;previewHandle?.dispose();previewHandle=null;panel?.remove();panel=null;target=null}
  function reset(){generation++;loadNumber++;config=null;projectKey='';close()}
  function status(){const c=current();if(!c||!config?.revision)return '待配置';const deck=c.p.workflow.visuals?.current;return deck&&!deck.stale&&deck.layoutBindingRevision===config.revision?'已应用':deck?'已保存 · 待重排':'已保存 · 待生成'}
  function label(pageId){
@@ -100,7 +101,7 @@ export function mountCanvasLayouts({nodeLayer,viewport,getProject,request,notify
    <div class="canvas-layout-fields"><label>页面布局<select data-canvas-layout-kind><option value="">按内容匹配</option>${Object.entries(layoutNames).map(([id,name])=>`<option value="${id}" ${patch.layoutId===id?'selected':''}>${name}</option>`).join('')}</select></label><label>标题颜色<input data-canvas-accent maxlength="7" placeholder="继承" value="${esc(patch.theme?.accent??'')}"></label></div>
    ${page?`<details class="canvas-layout-pages"><summary>同时配置其他页</summary>${pages().map(p=>`<label><input data-bind-page type="checkbox" value="${p.id}" ${p.id===page.id?'checked disabled':''}>${esc(p.item.title)}</label>`).join('')}</details>`:''}
    <div class="canvas-layout-preview" data-page-layout-preview></div><div class="canvas-layout-status" data-layout-status role="status">${page&&c.reviewPageIds?.includes(page.id)?'页脚本已重组，请重新选择本页版式。':status()}</div>
-   <footer><button data-save-page-layout class="primary">保存设置</button><button data-reset-page-layout>${page?'恢复继承':'恢复默认'}</button><button data-open-layout-library>版式库…</button>${ctx?.d.approval?`<button data-apply-layout>${usableDeck?'更新成果':'生成整套成果'}</button>`:''}${usableDeck&&page?'<button data-save-layout-variant>存入版式库</button>':''}</footer><div data-layout-variant-form></div>`
+   <footer><button data-save-page-layout class="primary">保存设置</button><button data-reset-page-layout>${page?(c.contentMappings?.[page.id]?'恢复继承并还原原文':'恢复继承'):'恢复默认'}</button><button data-open-layout-library>版式库…</button>${ctx?.d.approval?`<button data-apply-layout>${usableDeck?'更新成果':'生成整套成果'}</button>`:''}${usableDeck&&page?'<button data-save-layout-variant>存入版式库</button>':''}</footer><div data-layout-variant-form></div><div data-content-mapping-host></div>`
   panel.querySelector('[data-layout-close]').onclick=close
   for(const type of ['pointerdown','dblclick','keydown'])panel.addEventListener(type,event=>{if(event.key==='Escape'){event.preventDefault();close()}event.stopPropagation()})
   panel.querySelector('[data-layout-layer]')?.addEventListener('change',()=>{
@@ -109,7 +110,7 @@ export function mountCanvasLayouts({nodeLayer,viewport,getProject,request,notify
   })
   panel.querySelectorAll('[data-pick-style]').forEach(b=>{
    const ref=b.dataset.pickStyle?{resourceId:b.dataset.pickStyle,version:Number(b.dataset.version)}:null
-   b.onclick=()=>{const ids=selectedPages();void save(target,{scope:scope(),pageIds:ids,resource:ref,overrides:overrides()}).catch(()=>{})}
+   b.onclick=()=>{const ids=selectedPages();void chooseBinding(target,{scope:scope(),pageIds:ids,resource:ref,overrides:overrides()}).catch(e=>notify(e.message))}
    b.ondragstart=event=>{event.dataTransfer.setData(mime,JSON.stringify(ref));event.dataTransfer.effectAllowed='copy';viewport.classList.add('is-layout-dragging')}
    b.ondragend=clearDrag
   })
@@ -117,8 +118,8 @@ export function mountCanvasLayouts({nodeLayer,viewport,getProject,request,notify
    const selected=target.pageId?effective().local?.[target.pageId]?.resource:effective().global
    void save(target,{scope:scope(),pageIds:selectedPages(),resource:selected?{resourceId:selected.resourceId,version:selected.version}:null,overrides:overrides()}).catch(()=>{})
   }
-  panel.querySelector('[data-reset-page-layout]').onclick=()=>void save(target,{scope:scope(),pageIds:selectedPages(),remove:true,resource:null,overrides:{}}).catch(()=>{})
-  panel.querySelector('[data-open-layout-library]').onclick=()=>{const snapshot={...target},ids=selectedPages(),layer=scope();close();void openLibrary({onPick:choice=>save(snapshot,{scope:layer,pageIds:ids,resource:{resourceId:choice.resourceId,version:choice.version},overrides:choice.layoutId?{layoutId:choice.layoutId}:{}})})}
+  panel.querySelector('[data-reset-page-layout]').onclick=()=>void save(target,{scope:scope()==='local'&&effective().contentMappings?.[target.pageId]?'content':scope(),pageIds:selectedPages(),remove:true,resource:null,overrides:{}}).catch(()=>{})
+  panel.querySelector('[data-open-layout-library]').onclick=()=>{const snapshot={...target},ids=selectedPages(),layer=scope();close();void openLibrary({onPick:choice=>chooseBinding(snapshot,{scope:layer,pageIds:ids,resource:{resourceId:choice.resourceId,version:choice.version},overrides:choice.layoutId?{layoutId:choice.layoutId}:{}})})}
   panel.querySelector('[data-apply-layout]')?.addEventListener('click',()=>void apply())
   panel.querySelector('[data-save-layout-variant]')?.addEventListener('click',()=>{
    panel.querySelector('[data-layout-variant-form]').innerHTML='<input data-variant-name placeholder="版式名称" maxlength="100"><button data-variant-save>保存</button>'
@@ -128,19 +129,52 @@ export function mountCanvasLayouts({nodeLayer,viewport,getProject,request,notify
  }
  function setStatus(text){if(panel)panel.querySelector('[data-layout-status]').textContent=text}
  function assertTarget(snapshot){const ctx=current();if(!ctx||ctx.p.id!==snapshot.projectId||ctx.d.id!==snapshot.draftId)throw Error('项目或页脚本已更新，请重新选择。');return ctx}
+ async function offerRestore(snapshot,body){
+  if(body.pageIds.length!==1)throw Error('请逐页还原原文并更换版式。')
+  if(!panel||target?.pageId!==snapshot.pageId)await open(snapshot.pageId)
+  assertTarget(snapshot);if(!panel)return
+  mappingHandle?.dispose();mappingHandle=null
+  const host=panel.querySelector('[data-content-mapping-host]')
+  host.innerHTML='<p>这页已有文字映射。更换此版式会移除映射并恢复完整原稿，不会删除内容。</p><button data-restore-mapping>还原原文并使用此版式</button><button data-cancel-restore>取消</button>'
+  host.querySelector('[data-cancel-restore]').onclick=()=>host.replaceChildren()
+  host.querySelector('[data-restore-mapping]').onclick=()=>void save(snapshot,{...body,scope:'content',remove:true}).then(()=>host.replaceChildren()).catch(()=>{})
+ }
+ async function chooseBinding(snapshot,body){
+  if(body.scope==='manual')return save(snapshot,body)
+  if(!body.resource){if(effective().contentMappings?.[snapshot.pageId])return offerRestore(snapshot,body);return save(snapshot,body)}
+  const record=resources.find(r=>r.id===body.resource.resourceId&&r.version===body.resource.version)??await request('/layout-library/'+body.resource.resourceId+'/'+body.resource.version)
+  assertTarget(snapshot)
+  const layouts=record.package.layouts.filter(l=>(!body.overrides?.layoutId||l.id===body.overrides.layoutId)&&l.slots?.some(s=>s.role==='text'))
+  if(!layouts.length){if(effective().contentMappings?.[snapshot.pageId])return offerRestore(snapshot,body);return save(snapshot,body)}
+  if(!snapshot.pageId||body.pageIds.length!==1){notify('包含独立文字组件的版式请逐页映射原文，不能批量猜测。');return}
+  const item=pages().find(p=>p.id===snapshot.pageId)?.item
+  const mappedKeys=new Set((effective().contentMappings?.[snapshot.pageId]?.entries??[]).map(e=>e.targetKey))
+  const required=layouts.map(l=>({...l,slots:l.slots.filter(s=>s.role!=='text'||mappedKeys.has(s.binding)||!item?.textBlocks?.some(b=>b.key===s.binding))})).filter(l=>l.slots.some(s=>s.role==='text'))
+  if(!required.length)return save(snapshot,body)
+  if(!panel||target?.pageId!==snapshot.pageId)await open(snapshot.pageId)
+  assertTarget(snapshot)
+  const latest=await request('/projects/'+snapshot.projectId+'/layout-bindings')
+  assertTarget(snapshot);if(!panel||target?.pageId!==snapshot.pageId)return
+  const source=latest.contentSources?.[snapshot.pageId]
+  if(!source)throw Error('当前原文映射信息不可用，请刷新。')
+  mappingHandle?.dispose()
+  mappingHandle=mountContentMapping(panel.querySelector('[data-content-mapping-host]'),{layouts:required,source,features:record.package.fidelityFeatures??[],initialMapping:latest.contentMappings?.[snapshot.pageId],onSave:({layoutId,contentMapping})=>save(snapshot,{...body,scope:'content',overrides:{...body.overrides,layoutId},contentMapping})})
+  setStatus('请选择每个独立文字组件的原文来源。');position()
+ }
  function save(snapshot,body){
   if(!snapshot)return Promise.resolve()
   const operation={...snapshot},data=structuredClone(body)
   chain=chain.catch(()=>{}).then(async()=>{
    const ctx=assertTarget(operation)
    if(data.scope!=='global'&&!data.pageIds.length)throw Error('请至少选择一页。')
-   saving=true;paint();setStatus('正在保存…')
+   saving=true;paint();setStatus(data.scope==='content'&&!data.remove?'正在按原文真实试排，通过后保存…':'正在保存…')
    const latest=await request('/projects/'+ctx.p.id+'/layout-bindings')
    const result=await request('/projects/'+ctx.p.id+'/layout-bindings',{method:'POST',body:{requestId:uid(),baseRevision:ctx.p.revision,draftId:ctx.d.id,expectedRevision:latest.revision,scope:data.scope,
-    ...(data.scope!=='global'?{pageIds:data.pageIds,remove:!!data.remove}:{}),resource:data.resource,overrides:data.overrides}})
+    ...(data.scope!=='global'?{pageIds:data.pageIds,remove:!!data.remove}:{}),resource:data.resource,overrides:data.overrides,...(data.contentMapping?{contentMapping:data.contentMapping}:{})}})
    assertTarget(operation);config=await request('/projects/'+ctx.p.id+'/layout-bindings');loadNumber++;paint();setStatus(status())
    for(const node of nodeLayer.querySelectorAll('[data-canvas-layout]'))if(data.scope==='global'||data.pageIds.includes(node.dataset.layoutPage)){node.classList.add('just-saved');setTimeout(()=>node.classList.remove('just-saved'),800)}
    if(panel){
+    const reset=panel.querySelector('[data-reset-page-layout]');if(reset)reset.textContent=target.pageId?(effective().contentMappings?.[target.pageId]?'恢复继承并还原原文':'恢复继承'):'恢复默认'
     const ref=target.pageId?effective().local?.[target.pageId]?.resource:effective().global
     panel.querySelectorAll('[data-pick-style]').forEach(b=>b.classList.toggle('selected',b.dataset.pickStyle===(ref?.resourceId??'')))
     await preview()
@@ -179,7 +213,7 @@ export function mountCanvasLayouts({nodeLayer,viewport,getProject,request,notify
   if(!event.dataTransfer?.types.includes(mime))return
   const node=event.target.closest('[data-node-kind]'),button=node?.querySelector('[data-canvas-layout]');if(!button)return
   event.preventDefault();event.stopPropagation();clearDrag()
-  try{const resource=JSON.parse(event.dataTransfer.getData(mime)),ctx=current();if(!ctx)return;const pageId=button.dataset.layoutPage==='global'?null:button.dataset.layoutPage;void save({projectId:ctx.p.id,draftId:ctx.d.id,pageId},{scope:pageId?'local':'global',pageIds:pageId?[pageId]:[],resource,overrides:{}}).catch(()=>{})}catch(error){notify(error.message)}
+  try{const resource=JSON.parse(event.dataTransfer.getData(mime)),ctx=current();if(!ctx)return;const pageId=button.dataset.layoutPage==='global'?null:button.dataset.layoutPage;void chooseBinding({projectId:ctx.p.id,draftId:ctx.d.id,pageId},{scope:pageId?'local':'global',pageIds:pageId?[pageId]:[],resource,overrides:{}}).catch(e=>notify(e.message))}catch(error){notify(error.message)}
  }
  const outside=event=>{if(panel&&!panel.contains(event.target)&&!event.target.closest('[data-canvas-layout]'))close()}
  const resize=()=>position()

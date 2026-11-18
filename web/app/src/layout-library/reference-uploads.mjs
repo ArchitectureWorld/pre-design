@@ -1,3 +1,4 @@
+import {readPdfPlacementEvidence} from './pdf-placement-evidence-store.mjs'
 import{createHash,randomUUID}from'node:crypto'
 import{mkdir,realpath,writeFile,open,rm}from'node:fs/promises'
 import{constants}from'node:fs'
@@ -135,6 +136,12 @@ export async function createReferenceUploads(db,{root:storageRoot,extractor}={})
   if(!row)throw fail('当前账号没有该参考原页。请上传对应原件后对照。',404)
   return preview(actor,row.id,page)
  }
+ async function placementEvidence(actor,id,sha256,page){
+  const row=await record(actor,id),document=typeof row.document==='string'?JSON.parse(row.document):row.document
+  if(row.sha256!==sha256)throw fail('参考来源指纹已变化。',409)
+  if(!Number.isSafeInteger(page)||page<1||!document.images.some(image=>(image.page??1)===page))throw fail('此页没有已读取的参考图像。',404)
+  return readPdfPlacementEvidence(db,{ownerId:actor.id,fileId:id,sourceSha256:sha256,page})
+ }
  async function resolveFiles(actor,files,c=db){
   const resolved=[]
   for(const file of files){
@@ -149,7 +156,7 @@ export async function createReferenceUploads(db,{root:storageRoot,extractor}={})
    const row=await record(actor,file.id),document=typeof row.document==='string'?JSON.parse(row.document):row.document
    if(row.sha256!==file.sha256)throw fail('参考原件已变化。',409)
    await verifiedBytes(row.id,'source',row.sha256,MAX_REFERENCE_UPLOAD_BYTES)
-   for(const image of document.images)output.push({fileId:row.id,name:row.filename,sourceSha256:row.sha256,page:image.page,mimeType:image.mimeType,width:image.width,height:image.height,sha256:image.sha256,bytes:image.bytes})
+   for(const image of document.images)output.push({fileId:row.id,name:row.filename,sourceSha256:row.sha256,page:image.page??(document.kind==='image'?1:undefined),mimeType:image.mimeType,width:image.width,height:image.height,sha256:image.sha256,bytes:image.bytes})
   }
   return output
  }
@@ -237,5 +244,5 @@ export async function createReferenceUploads(db,{root:storageRoot,extractor}={})
   }
   return output
  }
- return {create,createFromStream,get,download,artifact,preview,previewBySource,resolveFiles,validateImageBudget,modelImages,ensurePdfPages,ensureDocumentPages,imageManifest,loadImageBatch}
+ return {create,createFromStream,get,download,artifact,preview,previewBySource,placementEvidence,resolveFiles,validateImageBudget,modelImages,ensurePdfPages,ensureDocumentPages,imageManifest,loadImageBatch}
 }

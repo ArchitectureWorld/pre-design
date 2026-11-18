@@ -18,19 +18,26 @@ export function compositionSamplePages(pkg){
   const textCount=count('body',density==='short'?Math.min(2,fit?archetype.capacity.bodyPoints:archetype.capacity.bodyPoints||2):fit?archetype.capacity.bodyPoints:archetype.capacity.bodyPoints||3)
   const imageCount=count('image',archetype.capacity.images||1)
   const item={title:has('title')?(density==='short'?'城市更新 · 居民服务':'围绕居民日常需求统筹服务设施与分期实施安排'):'',paragraphs:Array.from({length:count('claim',1)},(_,i)=>statements[i%statements.length]),points:Array.from({length:textCount},(_,i)=>points[i%points.length]),evidenceIndexes:has('source')?[0]:[]}
+  if(has('text'))item.textBlocks=layout.slots.filter(s=>s.role==='text').map(s=>({key:s.binding,text:s.purpose==='label'?'壹':s.purpose==='heading'?'卡片标题':s.purpose==='subheading'?'局部说明':s.purpose==='conclusion'?'独立结论：结合实际资料判断。':'保留每个组件的真实内容，文字可独立替换，不截断或隐藏。'}))
   if(imageCount)item.figures=Array.from({length:imageCount},(_,i)=>({materialId:figureId(i),caption:'合成示意 · '+(i%2?'活动联系与分期安排':'设施分布与服务范围')}))
-  if(has('table'))item.table={columns:['项目','一期','二期'],rows:Array.from({length:Math.max(1,archetype.capacity.tableRows||3)},(_,i)=>[['服务设施','3','2'],['开放空间','2','4'],['开放时段','日间','全天']][i%3])}
+  if(has('table')){const n=layout.slots.find(s=>s.role==='table')?.style?.tableColumnWidths?.length??3;item.table={columns:Array.from({length:n},(_,i)=>['项目','一期','二期'][i]??'分类'+(i+1)),rows:Array.from({length:Math.max(1,archetype.capacity.tableRows||3)},(_,i)=>Array.from({length:n},(_,j)=>[['服务设施','3','2'],['开放空间','2','4'],['开放时段','日间','全天']][i%3][j]??'合成值'))}}
+  // Compact grouping columns are not prose columns. Author separate synthetic labels; real project cells are never shortened.
+  if(has('table')&&layout.slots.find(s=>s.role==='table')?.style?.tableDensity==='compact'){const n=item.table.columns.length;item.table.columns=Array.from({length:n},(_,i)=>['类','组','项','值','比'][i]??'值');item.table.rows=item.table.rows.map((_row,i)=>Array.from({length:n},(_,j)=>[String(i+1),'组','项','3','10%'][j]??'2'))}
   if(has('chart'))item.chart={type:'bar',title:'合成数据 · 服务覆盖对比',unit:'%',categories:['儿童','青年','长者'],series:[{name:'改善前',values:[32,45,38]},{name:'改善后',values:[68,72,75]}]}
   if(has('timeline'))item.timeline={title:'合成示例 · 实施安排',events:[{label:'近期',description:'补足基础服务'},{label:'中期',description:'完善空间联系'},{label:'远期',description:'持续维护评估'}]}
   if(has('diagram'))item.diagram={title:'合成示例 · 服务组织',direction:'horizontal',nodes:[{id:'need',label:'居民需求'},{id:'service',label:'服务配置'},{id:'operation',label:'运营维护'}],edges:[{from:'need',to:'service',label:'指导'},{from:'service',to:'operation',label:'衔接'}]}
   if(fit){
    const shorten=(text,max)=>Array.from(text).slice(0,max).join('')
    item.title=shorten(item.title,fit.maxTitleCharacters)
+   if(item.textBlocks){const budget=Math.floor(fit.maxTextCharacters/item.textBlocks.length);item.textBlocks=item.textBlocks.map(b=>({...b,text:shorten(b.text,budget)}))}
    let claimLeft=fit.maxClaimCharacters;item.paragraphs=item.paragraphs.map(s=>{const out=shorten(s,claimLeft);claimLeft-=Array.from(out).length;return out}).filter(Boolean)
    let bodyLeft=fit.maxBodyCharacters;item.points=item.points.map(s=>{const out=shorten(s,bodyLeft);bodyLeft-=Array.from(out).length;return out}).filter(Boolean)
    if(item.table){item.table.columns=item.table.columns.slice(0,fit.maxTableColumns);item.table.rows=item.table.rows.map(row=>row.slice(0,fit.maxTableColumns))}
   }
+  // Explicit demonstration on generated synthetic text only; never infer spans in project content.
+  for(const b of item.textBlocks??[]){const s=layout.slots.find(s=>s.role==='text'&&s.binding===b.key);if(s?.style?.presentationVersion===1&&s.style.textMarker==='disc'&&s.style.emphasisColor){const quote=Array.from(b.text).slice(0,2).join('');if(quote)b.spans=[{start:0,end:Array.from(quote).length,quote,style:'accent-strong'}]}}
   const page={id:`sample-${layout.id}-${density}`,number:pages.length+1,chapterTitle:'合成内容试排',sectionTitle:layout.label,item}
+  if(imageCount)for(const [index,figure]of item.figures.entries()){const slot=layout.slots.find(s=>s.role==='image'&&(s.index===index||s.range&&index>=s.range.start&&index<s.range.end||s.index===undefined&&!s.range));if(slot?.style?.presentationVersion===1&&slot.style.captionPolicy==='when-present'){figure.description=figure.caption;figure.caption='';figure.captionStatus='absent'}}
   if(imageCount)page.nativeAssets={images:item.figures.map((f,i)=>({dataUrl:REVIEW_IMAGES[i%REVIEW_IMAGES.length],materialId:f.materialId,sha256:'synthetic-fixture'}))}
   page.nativeLayout=resolvePage({page,globalPackage:pkg,local:{overrides:{layoutId:layout.id}}})
   pages.push(page)

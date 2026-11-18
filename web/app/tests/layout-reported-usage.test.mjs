@@ -1,0 +1,8 @@
+import test from 'node:test';import assert from 'node:assert/strict'
+import {layoutReferenceExecution} from '../../worker/layout-reference-runner.mjs'
+import {timedAcceptanceModel} from '../../../scripts/layout-library/real-acceptance-diagnostics.mjs'
+const policy={revision:1,routes:{vision:{primary:{provider:'p',model:'m'}}}},run=events=>layoutReferenceExecution(events,{sessionId:'s',policy,modelRole:'vision'})
+test('preserves cache-separated provider values without inventing total arithmetic or price',async()=>{
+ const usage={inputTokens:4055,outputTokens:1076,totalTokens:9355,cacheReadTokens:4224},execution=run([{type:'assistant/message',seq:1,data:{usage}}]);assert.equal(execution.actualUsage,null);assert.deepEqual(execution.reportedUsage,{coverage:'reported-assistant-messages-only',arithmetic:'provider-defined-not-recomputed',messages:[{seq:1,...usage}],currencyCost:null});const records=[];await timedAcceptanceModel({stage:'semantics-1'},async()=>({execution}),records);assert.deepEqual(records[0].reportedUsage,execution.reportedUsage)
+})
+test('reported usage retains only safe numbers, deduplicates sequence and excludes arbitrary fields',()=>{const r=run([{type:'assistant/message',seq:1,data:{usage:{inputTokens:NaN,outputTokens:-1,totalTokens:1.5,cacheReadTokens:Infinity,secret:'private'}}},{type:'assistant/message',seq:2,data:{usage:{inputTokens:0,outputTokens:0,totalTokens:0}}},{type:'assistant/message',seq:2,data:{usage:{inputTokens:9,outputTokens:9,totalTokens:18}}}]);assert.deepEqual(r.reportedUsage.messages,[{seq:2,inputTokens:0,outputTokens:0,totalTokens:0}]);assert.equal(JSON.stringify(r).includes('private'),false)})

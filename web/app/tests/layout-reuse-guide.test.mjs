@@ -11,3 +11,7 @@ test('reusable asset guide shows verified roles, capacities and structural evide
  assert.doesNotMatch(reuseGuideHtml(pkg),/<script>/)
  assert.equal(reuseGuideHtml({layouts:[]}), '')
 })
+test('reusable guide exposes explicit derived-layout limitations without markup injection',async()=>{
+ const pkg=await nativePackageFixture();pkg.source.limitations=['派生版式：为完整保留17行数据扩大表格区域；原结构保留。','<script>bad</script>']
+ const html=reuseGuideHtml(pkg);assert.match(html,/派生版式/);assert.match(html,/17行/);assert.doesNotMatch(html,/<script>/)
+})

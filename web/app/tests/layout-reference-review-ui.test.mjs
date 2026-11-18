@@ -44,3 +44,54 @@ test('对照初始化尚未完成时关闭界面会取消请求，不留下孤�
  ui.dispose();assert.equal(signal.aborted,true);assert.equal(document.querySelector('dialog'),null)
  finish({status:'passed'});await ui.ready;assert.equal(loads,1);dom.window.close()
 })
+
+test('表格槽提示仅说明模板重建与合成数据，不冒称源PDF单元格或合并关系已提取',async t=>{
+ const dom=new JSDOM('<body></body>'),document=dom.window.document
+ document.defaultView.HTMLDialogElement.prototype.showModal=function(){this.open=true};document.defaultView.HTMLDialogElement.prototype.close=function(){this.open=false}
+ const p=compositionPackage();p.layouts.push({...p.layouts[0],id:'no-table',label:'无表格',slots:p.layouts[0].slots.filter(s=>s.role!=='table')})
+ const paths=[]
+ const request=async(path,options)=>{paths.push(path);return {receipt:{id:'compare-'+options.body.layoutId},source:{name:'参考.pdf',page:13,dataUrl:'data:image/png;base64,AA=='},html:'<main class="native-deck" data-canvas-width="1200" data-canvas-height="1000"><article>合成试排</article></main>'}}
+ const ui=openReferenceReview({document,request,resource:{id:'test',version:1,package:p,validation:{status:'passed'}}});t.after(()=>{ui.dispose();dom.window.close()});await ui.ready
+ const note=document.querySelector('[data-review-table-status]')
+ assert(note,'缺少模板与源数据区别提示');assert.equal(note.hidden,false)
+ assert.match(note.textContent,/可编辑模板表格.*重建结构/)
+ assert.match(note.textContent,/合成数据/)
+ assert.match(note.textContent,/不表示已从源参考稿提取单元格文本、数值或合并关系/)
+ assert.match(document.querySelector('.ll-profile-summary').textContent,/模板表格行容量/)
+ assert.equal(paths.length,1);assert(paths[0].endsWith('/compare'))
+ const select=document.querySelector('[data-review-layout]');select.value='no-table';select.dispatchEvent(new dom.window.Event('change'));assert.equal(note.hidden,true)
+ select.value='mixed';select.dispatchEvent(new dom.window.Event('change'));assert.equal(note.hidden,false)
+ assert.doesNotMatch(note.textContent,/原稿.*单图|已识别原生表格/)
+})
+
+test('没有设计profile也按实际table槽提示，迟到对照响应不能改回已切换布局的提示',async t=>{
+ const dom=new JSDOM('<body></body>'),document=dom.window.document
+ document.defaultView.HTMLDialogElement.prototype.showModal=function(){this.open=true};document.defaultView.HTMLDialogElement.prototype.close=function(){this.open=false}
+ const p=compositionPackage();delete p.designProfile;p.schemaVersion='pre-design.layout-package.v3';p.layouts.push({...p.layouts[0],id:'plain',slots:p.layouts[0].slots.filter(s=>s.role!=='table')})
+ const response=id=>({receipt:{id},source:null,html:'<main class="native-deck" data-canvas-width="1200" data-canvas-height="1000"><article>合成试排</article></main>'}),pending=[]
+ let calls=0
+ const request=async()=>++calls===1?response('initial'):new Promise(resolve=>pending.push(resolve))
+ const ui=openReferenceReview({document,request,resource:{id:'test',version:1,package:p,validation:{status:'passed'}}});t.after(()=>{ui.dispose();dom.window.close()});await ui.ready
+ assert.equal(document.querySelector('.ll-profile-summary'),null)
+ const note=document.querySelector('[data-review-table-status]'),select=document.querySelector('[data-review-layout]')
+ assert.equal(note.hidden,false)
+ select.value='plain';select.dispatchEvent(new dom.window.Event('change'));assert.equal(note.hidden,true)
+ select.value='mixed';select.dispatchEvent(new dom.window.Event('change'));assert.equal(note.hidden,false)
+ pending[1](response('current'));await settle(()=>document.querySelector('[data-review-status]').textContent.includes('页面检查通过'))
+ pending[0](response('stale'));await new Promise(resolve=>setImmediate(resolve));assert.equal(note.hidden,false)
+ assert.match(note.textContent,/源参考稿/);assert.doesNotMatch(note.textContent,/原生表格.*已提取|已识别.*图片/)
+})
+
+test('原生证据标明真实页且切换中清除旧来源，未采集不伪造零图像',async t=>{
+ const dom=new JSDOM('<body></body>'),document=dom.window.document
+ document.defaultView.HTMLDialogElement.prototype.showModal=function(){this.open=true};document.defaultView.HTMLDialogElement.prototype.close=function(){this.open=false}
+ const pkg=compositionPackage();pkg.layouts.push({...pkg.layouts[0],id:'next',label:'next'})
+ let resolveNext
+ const ui=openReferenceReview({document,resource:{id:'x',version:1,package:pkg,validation:{status:'passed'}},request:async(_p,o)=>o.body.layoutId==='next'?new Promise(resolve=>{resolveNext=resolve}):{receipt:{id:'first'},source:{name:'source.pdf',page:13,dataUrl:'data:image/png;base64,AA==',nativeImagePlacements:{status:'available',sourceSha256:'a'.repeat(64),page:13,occurrenceCount:3,clippedOrUncertainCount:1}},html:'<main data-canvas-width="800" data-canvas-height="600"><article>sample</article></main>'}})
+ t.after(()=>{ui.dispose();dom.window.close()});await ui.ready
+ const evidence=document.querySelector('[data-review-native-evidence]');assert.equal(evidence.hidden,false);assert.match(evidence.textContent,/3 次图像绘制/)
+ const select=document.querySelector('[data-review-layout]');select.value='next';select.dispatchEvent(new dom.window.Event('change'))
+ assert.equal(evidence.hidden,true);assert.equal(document.querySelector('[data-review-source]').children.length,0)
+ resolveNext({receipt:{id:'next'},source:{name:'old.pdf',page:15,dataUrl:'data:image/png;base64,AA=='},html:'<main data-canvas-width="800" data-canvas-height="600"><article>sample</article></main>'})
+ await settle(()=>!evidence.hidden);assert.match(evidence.textContent,/未采集/);assert.doesNotMatch(evidence.textContent,/3 次|0 次/)
+})

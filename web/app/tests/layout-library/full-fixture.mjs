@@ -10,14 +10,14 @@ import {createPackage} from '../../src/layout-library/contract.mjs'
 import {confirmedOutlineFixture,draft} from '../fixtures/outline.mjs'
 import {referenceStageFixture} from '../fixtures/reference-workflow.mjs'
 
-export async function fullLayoutFixture({uploadDelayMs=0,modelDelayMs=250}={}){
+export async function fullLayoutFixture({uploadDelayMs=0,modelDelayMs=250,referenceResponder=referenceStageFixture}={}){
  const env=await createTestDb();assert.equal(env.engine,'postgresql','统一工作台浏览器验收需要 PRE_DOSSIER_TEST_DATABASE')
  const root=await mkdtemp(join(tmpdir(),'layout-workbench-')),contexts=new Map(),modelCalls=[]
  const worker={async call(p,b){if(b.operation==='create')contexts.set(p.id,{project:{projectId:p.id,currentRevision:0},proposals:[],stateObjects:[]});return structuredClone(contexts.get(p.id))},
  async run(){return {response:JSON.stringify({reportTitle:'画布验收',blocks:[['outline-01-1','项目区位','任务书提供项目所在地。'],['outline-01-2','资源构成','项目周边具有公共服务设施。']].map(([id,heading,sectionText])=>({id,heading,sectionText,sectionEvidenceIndexes:[0],items:[{title:heading+'图示',paragraphs:['本页呈现'+heading+'。'],points:['使用合成内容验证版式。'],presentation:{layout:'points',note:'以要点呈现。'},evidenceIndexes:[0]}],internalNotes:[]}))})}},
  async runLayoutReference(input){
   modelCalls.push(input);input.onEvent?.({stage:'generating'});await new Promise(r=>setTimeout(r,modelDelayMs))
-  if(input.stage)return referenceStageFixture(input)
+  if(input.stage)return referenceResponder(input)
   const context=JSON.parse(input.prompt.slice(input.prompt.lastIndexOf('\n')+1))
   if(context.message.includes('现在用了'))return {response:JSON.stringify({reply:'当前标题采用蓝灰色。'}),execution:{controlled:true}}
   const pkg=structuredClone(context.currentPackage??createPackage())

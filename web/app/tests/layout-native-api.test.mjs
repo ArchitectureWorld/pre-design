@@ -18,3 +18,51 @@ test('prepared native conversation carries native options into original job payl
  const p=await conversations.prepare({id:'owner'},{text:'设计参考',referencePipeline:'native-v3',referenceScope:'brand',referenceFidelity:'fidelity',files},'new-job',db)
  assert.equal(p.referenceAnalysisRequired,true);assert.equal(p.referencePipeline,'native-v3');assert.equal(p.referenceScope,'brand');assert.equal(p.referenceFidelity,'fidelity')
 })
+test('only new document conversations opt into component workflow; continuing old jobs retains legacy contract',async()=>{
+ const files=workflowFixture().payload.referenceFiles,uploads={resolveFiles:async(_actor,f)=>f??[],validateImageBudget:async()=>{}}
+ const input={text:'参考',referencePipeline:'native-v3',files}
+ const emptyDb={query:async()=>({rows:[]})}
+ const fresh=await createLayoutConversations(emptyDb,{},uploads).prepare({id:'owner'},input,'new',emptyDb)
+ assert.equal(fresh.referenceComponentVersion,2)
+ const previous={id:'old',status:'failed',payload:{text:'旧参考',referencePipeline:'native-v3',referenceFiles:files,referenceWorkflowVersion:1,prototypeContractVersions:{'archetype-1':'legacy-image-v1'}}}
+ const db={query:async sql=>({rows:sql.startsWith('SELECT id FROM jobs')?[{id:'old'}]:[previous]})}
+ const conversations=createLayoutConversations(db,{isRemoved:async()=>false},uploads)
+ const old=await conversations.prepare({id:'owner'},{...input,conversationId:'old'},'retry',db)
+ assert.equal(old.referenceDerivedSpecVersion,undefined);assert.equal(old.referenceComponentVersion,undefined)
+ assert.equal(old.referenceWorkflowVersion,1)
+ assert.deepEqual(old.prototypeContractVersions,previous.payload.prototypeContractVersions)
+ previous.payload.referenceComponentVersion=1
+ const newer=await conversations.prepare({id:'owner'},{...input,files:[],conversationId:'old'},'follow-up',db)
+ assert.equal(newer.referenceComponentVersion,1)
+ const plain=await createLayoutConversations(emptyDb,{},uploads).prepare({id:'owner'},{...input,files:[]},'plain',emptyDb)
+ assert.equal(plain.referenceComponentVersion,undefined)
+})
+test('retry selects the original job contract, not the latest conversation turn',async()=>{
+ const files=workflowFixture().payload.referenceFiles,old={id:'old',status:'failed',payload:{text:'original',referencePipeline:'native-v3',referenceFiles:files,referenceWorkflowVersion:1,prototypeContractVersions:{a:'legacy-image-v1'}}},newer={id:'newer',status:'failed',payload:{text:'new',referencePipeline:'native-v3',referenceFiles:files,referenceComponentVersion:1}}
+ const db={query:async sql=>({rows:sql.startsWith('SELECT id FROM jobs')?[{id:'old'}]:[old,newer]})},uploads={resolveFiles:async(_actor,f)=>f??[],validateImageBudget:async()=>{}}
+ const conversations=createLayoutConversations(db,{isRemoved:async()=>false},uploads),input={conversationId:'old',retrySourceJobId:'old',text:'retry',referencePipeline:'native-v3',files}
+ const result=await conversations.prepare({id:'owner'},input,'retry',db)
+ assert.equal(result.referenceWorkflowVersion,1);assert.equal(result.referenceComponentVersion,undefined)
+ assert.deepEqual(result.prototypeContractVersions,{a:'legacy-image-v1'})
+ assert.equal(result.referencePrototypeMappingPolicy,undefined)
+ await assert.rejects(conversations.prepare({id:'owner'},{...input,retrySourceJobId:'foreign'},'retry2',db))
+ const next=await conversations.prepare({id:'owner'},{...input,retrySourceJobId:undefined},'next',db)
+ assert.equal(next.referencePrototypeMappingPolicy,'matching-archetypes')
+})
+test('explicit new component request selects owned real pages without changing ordinary upload default',async()=>{
+ const files=workflowFixture(10).payload.referenceFiles,db={query:async()=>({rows:[]})},uploads={resolveFiles:async(_a,f)=>f??[],validateImageBudget:async()=>{}},conversations=createLayoutConversations(db,{},uploads)
+ const input={text:'test',files,referencePipeline:'native-v3',referenceExtraction:'components',componentPages:[5,2]}
+ const result=await conversations.prepare({id:'owner'},input,'new',db)
+ assert.equal(result.referenceDerivedSpecVersion,1);assert.equal(result.referenceImagePlacementVersion,1);assert.equal(result.referenceContentFitPolicyVersion,1);assert.equal(result.referenceTitleReuseVersion,1);assert.equal(result.referenceComponentVersion,3);assert.deepEqual(result.referenceComponentSelection,{fileId:files[0].id,pages:[2,5]})
+ await assert.rejects(conversations.prepare({id:'owner'},{...input,componentPages:undefined},'large',db),e=>e.code==='REFERENCE_COMPONENT_SELECTION_INVALID')
+ const ordinary=await conversations.prepare({id:'owner'},{text:'ordinary',files,referencePipeline:'native-v3'},'default',db)
+ assert.equal(ordinary.referenceDerivedSpecVersion,undefined);assert.equal(ordinary.referenceImagePlacementVersion,undefined);assert.equal(ordinary.referenceComponentVersion,2);assert.equal(ordinary.referenceComponentSelection,undefined)
+})
+test('visual semantics requires explicit new component opt-in and never upgrades ordinary uploads',async()=>{
+ const files=workflowFixture(1).payload.referenceFiles,db={query:async()=>({rows:[]})},uploads={resolveFiles:async(_a,f)=>f??[],validateImageBudget:async()=>{}},conversations=createLayoutConversations(db,{},uploads),input={text:'synthetic',files,referencePipeline:'native-v3',referenceExtraction:'components',componentPages:[1]}
+ assert.equal((await conversations.prepare({id:'owner'},input,'old',db)).referenceVisualSemanticsVersion,undefined)
+ assert.equal((await conversations.prepare({id:'owner'},{...input,referenceVisualSemantics:true},'new',db)).referenceVisualSemanticsVersion,1)
+ await assert.rejects(conversations.prepare({id:'owner'},{...input,referenceExtraction:undefined,referenceVisualSemantics:true},'invalid',db),e=>e.code==='REFERENCE_VISUAL_SEMANTICS_SELECTION_INVALID')
+})
+
+test('retry retains derived spec version only from selected original job',async()=>{const files=workflowFixture().payload.referenceFiles,old={id:'old',status:'failed',payload:{text:'original',referencePipeline:'native-v3',referenceFiles:files,referenceComponentVersion:3,referenceDerivedSpecVersion:1}},newer={id:'newer',status:'failed',payload:{text:'new',referencePipeline:'native-v3',referenceFiles:files,referenceComponentVersion:3}};const db={query:async sql=>({rows:sql.startsWith('SELECT id FROM jobs')?[{id:'old'}]:[old,newer]})},uploads={resolveFiles:async(_a,f)=>f??[],validateImageBudget:async()=>{}};const conversations=createLayoutConversations(db,{isRemoved:async()=>false},uploads),input={conversationId:'old',retrySourceJobId:'old',text:'retry',referencePipeline:'native-v3',files};assert.equal((await conversations.prepare({id:'owner'},input,'retry',db)).referenceDerivedSpecVersion,1);assert.equal((await conversations.prepare({id:'owner'},{...input,retrySourceJobId:'newer'},'retry-latest',db)).referenceDerivedSpecVersion,undefined)})

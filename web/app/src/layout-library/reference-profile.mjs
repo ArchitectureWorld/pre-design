@@ -3,7 +3,7 @@ import {z} from 'zod'
 export const REFERENCE_PROFILE_SCHEMA='pre-design.reference-profile.v2'
 export const referencePageTypes=['cover','section','text','figure','map','data','comparison','timeline','relationship','mixed']
 export const referenceStructures=['single-column','equal-columns','asymmetric-columns','grid','hero','full-bleed','stacked']
-export const referenceRoles=['title','claim','body','image','table','chart','timeline','diagram','source']
+export const referenceRoles=['title','claim','body','image','table','chart','timeline','diagram','source','text']
 const id=z.string().regex(/^[a-z][a-z0-9-]{0,63}$/)
 const hash=z.string().regex(/^[a-f0-9]{64}$/)
 const color=z.string().regex(/^#[0-9a-fA-F]{6}$/)
@@ -38,7 +38,7 @@ export const referenceProfileSchema=z.object({
   typography:z.object({fontFamily:z.enum(['sans','serif']),titleSize:z.number().min(32).max(90),bodySize:z.number().min(22).max(44),captionSize:z.number().min(16).max(30),lineHeight:z.number().min(1.2).max(1.9)}).strict(),
   spacing:z.object({margin:z.number().min(0).max(.3),gutter:z.number().min(0).max(.3)}).strict(),evidenceIds}).strict(),
  archetypes:z.array(z.object({id:z.string().regex(/^[a-z][a-z0-9-]{0,47}$/),pageType:z.enum(referencePageTypes),structure:z.enum(referenceStructures),density:z.enum(['low','medium','high']),
-  roles:z.array(z.enum(referenceRoles)).min(1).max(10),capacity:z.object({images:z.number().int().min(0).max(6),bodyPoints:z.number().int().min(0).max(30),tableRows:z.number().int().min(0).max(40)}).strict(),
+  roles:z.array(z.enum(referenceRoles)).min(1).max(10),capacity:z.object({textBlocks:z.number().int().min(0).max(32).optional(),images:z.number().int().min(0).max(6),bodyPoints:z.number().int().min(0).max(30),tableRows:z.number().int().min(0).max(40)}).strict(),
   regions:z.array(region).min(1).max(24).optional(),evidenceIds}).strict()).min(1).max(24),
  rules:z.array(rule).max(80),evidence:z.array(evidence).min(1).max(256),
  limitations:z.array(z.object({code:z.enum(['partial-coverage','text-only','unrendered-pages','approximate-measurement','unsupported-editable-mirror','font-substitution','unsupported-decoration','readability-adjusted','conflicting-sources','content-capacity-limited']),evidenceIds:z.array(id).max(128)}).strict()).max(20),
@@ -123,4 +123,17 @@ export function preserveRevisionProfile(value,basePackage){
  profile.designSystem=next
  const validated=validateReferenceProfile(profile)
  return {...value,designProfile:validated,...(value.schemaVersion==='pre-design.layout-package.v3'?{designSpec:{...value.designSpec,profile:validated}}:{})}
+}
+
+/** Admission-versioned preflight. Legacy package readers deliberately do not call it. */
+export function validateProfileCapacityRoles(profile){
+ for(const a of profile.archetypes){
+  for(const [role,field]of [['body','bodyPoints'],['image','images'],['table','tableRows'],['text','textBlocks']]){
+   const capacity=a.capacity[field]??0
+   if(capacity>0&&!a.roles.includes(role)||role==='text'&&a.roles.includes(role)&&capacity<1){
+    throw Object.assign(new Error(`原型 ${a.id} 的 ${field}=${capacity} 与 ${role} 角色不一致；已在生成设计原型前停止，请核对内容角色与容量。`),{statusCode:409,code:'REFERENCE_PROFILE_CAPACITY_INVALID',details:{archetypeId:a.id,role,field,capacity}})
+   }
+  }
+ }
+ return profile
 }

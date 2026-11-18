@@ -35,3 +35,6 @@ test('V3 rejects uncovered chart and missing project image; never silently loses
  const s=spec();s.layout.prototypeSvg='<svg><text>reference private data</text></svg>'
  assert.throws(()=>render(compositionPage(),s),/SVG/)
 })
+test('V3 captions use opaque page background, not unknown prototype artwork',()=>{
+ assert.match(module.NATIVE_V3_CSS,/\.ln-native-v3 \.ln-figure-grid figcaption\{background:var\(--ln-bg\);color:var\(--ln-muted\)\}/)
+})

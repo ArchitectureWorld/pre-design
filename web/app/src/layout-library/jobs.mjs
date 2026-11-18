@@ -1,3 +1,5 @@
+import {enrichPdfPlacementEvidence} from './pdf-placement-enrichment.mjs'
+import {selectComponentReferences} from './component-reference-selection.mjs'
 import {randomUUID,createHash} from 'node:crypto'
 import {readFile} from 'node:fs/promises'
 import {createPackage,validatePackage,packageDigest,fail} from './contract.mjs'
@@ -16,7 +18,7 @@ import {referenceFileSummary} from './reference-uploads.mjs'
 import {runPptMasterQualityCheck} from './ppt-master-quality.mjs'
 const skill=await readFile(new URL('../skills/layout-reference/SKILL.md',import.meta.url),'utf8')
 export const layoutSkillHash=createHash('sha256').update(skill).digest('hex')
-export function createLayoutJobs({db,platform,workers,library,uploads,serial,controllers,kick}){
+export function createLayoutJobs({db,platform,workers,library,uploads,serial,controllers,kick,annotations}){
  const query=async(sql,args=[],c=db)=>(await c.query(sql,args)).rows
  const conversations=createLayoutConversations(db,library,uploads)
  let checkpointStores
@@ -48,12 +50,15 @@ export function createLayoutJobs({db,platform,workers,library,uploads,serial,con
     if(count.n>=currentPolicy.limits.maxQueuedPerUser)throw fail('等待中的任务已达到上限。',429)
     const [used]=await query("SELECT count(*)::int AS n FROM job_reservations WHERE owner_id=$1 AND day=(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai')::date AND status<>'released'",[req.user.id],c)
     if(currentPolicy.limits.maxDailyJobsPerUser!==null&&used.n>=currentPolicy.limits.maxDailyJobsPerUser)throw fail('今日模型任务额度已用完。',429)
-    const id=randomUUID(),context=b.mode==='conversation'?await conversations.prepare(req.user,b,id,c):null
+    const id=randomUUID(),batch=b.annotationIds?await annotations.prepareBatch(req.user,b,c):null
+    const sourceConversation=batch&&!b.conversationId?await conversations.forResource(req.user,b.resourceId,b.resourceVersion,c):undefined
+    const effective=batch?{...b,...batch,...(sourceConversation?{conversationId:sourceConversation}:{})}:b,context=effective.mode==='conversation'?await conversations.prepare(req.user,effective,id,c):null
     const role=context?.modelRole??'parent',roles=role==='vision'&&context?.referenceAnalysisRequired?['parent','vision']:[role],policy=validateSnapshot(currentPolicy,roles)
     for(const required of roles)await workers.validateTaskConfiguration?.(policy,[required],{parentRole:required})
-    const {package:_package,...input}=b
+    const {package:_package,...input}=effective
     const payload={...input,...context,skillHash:layoutSkillHash}
     await c.query("INSERT INTO jobs(id,owner_id,request_id,fingerprint,kind,payload,status,policy_snapshot) VALUES($1,$2,$3,$4,'layout-reference',$5,'queued',$6)",[id,req.user.id,b.requestId,fingerprint,payload,policy])
+    if(batch)await annotations.submit(req.user,b.annotationIds,id,c)
     await c.query("INSERT INTO job_reservations(job_id,owner_id,day,status) VALUES($1,$2,(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai')::date,'reserved')",[id,req.user.id]);await c.query('COMMIT');void kick();return {id,status:'queued',...(context?{conversationId:context.conversationId}:{})}
    }catch(e){await c.query('ROLLBACK');throw e}finally{c.release()}
   })
@@ -75,12 +80,21 @@ export function createLayoutJobs({db,platform,workers,library,uploads,serial,con
    if(lazy){
     for(const file of job.payload.referenceFiles??[]){
      if(!['pdf','pptx'].includes(file.kind)||!file.id)continue
-     for(let start=1;start<=file.pageCount;start+=30){signal.throwIfAborted();activity.report({stage:'reading_material'});await uploads.ensureDocumentPages(actor,file.id,start,{signal})}
+     const starts=job.payload.referenceComponentVersion===3?[...new Set((job.payload.referenceComponentSelection?.pages??[]).map(page=>Math.floor((page-1)/30)*30+1))]:Array.from({length:Math.ceil(file.pageCount/30)},(_,i)=>i*30+1)
+     if(job.payload.referenceComponentVersion===3&&(!starts.length||job.payload.referenceComponentSelection.fileId!==file.id))throw fail('组件选页信息失效。',409,'REFERENCE_COMPONENT_SELECTION_INVALID')
+     for(const start of starts){signal.throwIfAborted();activity.report({stage:'reading_material'});await uploads.ensureDocumentPages(actor,file.id,start,{signal})}
     }
     job.payload={...job.payload,referenceFiles:await uploads.resolveFiles(actor,job.payload.referenceFiles??[])}
     await db.query("UPDATE jobs SET payload=$2 WHERE id=$1 AND status='running'",[job.id,job.payload])
    }
-   const images=workflow&&uploads?(lazy?await uploads.imageManifest(actor,job.payload.referenceFiles??[]):await uploads.modelImages(actor,job.payload.referenceFiles??[])):[]
+   let images=workflow&&uploads?(lazy?await uploads.imageManifest(actor,job.payload.referenceFiles??[]):await uploads.modelImages(actor,job.payload.referenceFiles??[])):[]
+   if(workflow&&job.payload.referenceComponentVersion===3){
+    const selected=selectComponentReferences(job.payload.referenceFiles??[],images,job.payload.referenceComponentSelection)
+    job.payload={...job.payload,referenceFiles:selected.files};images=selected.images
+    await db.query("UPDATE jobs SET payload=$2 WHERE id=$1 AND status='running'",[job.id,job.payload])
+   }
+   job.payload=await enrichPdfPlacementEvidence({payload:job.payload,actor,uploads,signal})
+   if(job.payload.referenceImagePlacementVersion!==undefined)await db.query("UPDATE jobs SET payload=$2 WHERE id=$1 AND status='running'",[job.id,job.payload])
    const stageCheckpoints=lazy?(await (checkpointStores??=createReferenceCheckpointStore(db)))(actor):undefined
    let newStageCalls=0
    const runModel=async input=>{if(++newStageCalls>60)throw fail('本轮已达到60次阶段调用上限，已保存完成检查点。',429,'REFERENCE_STAGE_BUDGET');return workers.runLayoutReference({...input,signal:AbortSignal.any([signal,AbortSignal.timeout(180000)])})}
@@ -162,8 +176,8 @@ export function createLayoutJobs({db,platform,workers,library,uploads,serial,con
   if(!previous)throw fail('任务不存在。',404)
   if(!['failed','interrupted','cancelled'].includes(previous.status))throw fail('此任务仍在运行或已经生成版式。',409)
   const p=previous.payload
-  return enqueue(req,{requestId:body.requestId,name:p.name,text:p.text,allowModel:true,mode:'conversation',conversationId:p.conversationId??req.params.jobId,
-   resourceId:p.baseResource?.id,resourceVersion:p.baseResource?.version,package:p.basePackage,files:p.files,selection:p.selection,referenceIntent:p.referenceIntent,referencePipeline:p.referencePipeline,referenceScope:p.referenceScope,referenceFidelity:p.referenceFidelity})
+  return enqueue(req,{retrySourceJobId:req.params.jobId,requestId:body.requestId,name:p.name,text:p.text,allowModel:true,mode:'conversation',conversationId:p.conversationId??req.params.jobId,
+   resourceId:p.baseResource?.id,resourceVersion:p.baseResource?.version,package:p.basePackage,files:p.files,selection:p.selection,referenceIntent:p.referenceIntent,referencePipeline:p.referencePipeline,referenceScope:p.referenceScope,referenceFidelity:p.referenceFidelity,...(p.annotationIds?{annotationIds:p.annotationIds,annotationRevisions:p.annotationRevisions,packageHash:p.packageHash}:{})})
  }
  async function cancel(req){
   const id=req.params.jobId;if(!/^[a-f0-9-]{36}$/.test(id))throw fail('任务编号不合法。')

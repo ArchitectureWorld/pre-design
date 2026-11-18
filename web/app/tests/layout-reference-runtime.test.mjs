@@ -140,3 +140,43 @@ test('真实DSH携图时仅沿视觉备用链切换协议，保留图片且不�
  assert.equal(large.execution.actualRoute.model,visual.model);assert.equal(large.execution.referenceImages.length,30)
  const fallbackImages=requests.at(-1).body.messages.flatMap(m=>Array.isArray(m.content)?m.content:[]).filter(c=>c.type==='image_url');assert.equal(fallbackImages.length,30);assert.deepEqual(Buffer.from(fallbackImages.at(-1).image_url.url.split(',')[1],'base64'),image)
 })
+
+test('持久化attempt失败保留安全原因及请求耗时，不将成功fallback误报无失败',()=>{
+ const policy=defaultPolicy(),sessionId='layout-job',header=(seq,time,model)=>({type:'request/header',seq,time,data:{header:{config:{provider:'provider',model}}}})
+ const events=[header(1,1000,'primary'),{type:'assistant/attempt',seq:2,time:48577,data:{stream:[{type:'chunk',chunk:{type:'finish',reason:{kind:'error',failure:{code:'SERVER',message:'API error (504): private business body secret request_id'}}}}]}},header(3,48579,'fallback'),{type:'turn/end',seq:4,time:547370,data:{reason:{kind:'completed'}}}]
+ const trace=reference.layoutReferenceExecution(events,{sessionId,policy})
+ assert.equal(trace.failure?.code,'SERVER');assert.equal(trace.failure.httpStatus,504)
+ assert.deepEqual(trace.attempts.map(x=>[x.model,x.elapsedMs,x.failure?.code??null]),[['primary',47577,'SERVER'],['fallback',498791,null]])
+ assert.equal(trace.attempts[0].endedBy,'assistant/attempt');assert.equal(trace.attempts[1].endedBy,'turn/end')
+ assert(!JSON.stringify(trace).includes('private business'));assert(!JSON.stringify(trace).includes('request_id'))
+ assert.equal(trace.actualRoute.model,'fallback');assert.equal(trace.outcome,'completed')
+})
+
+test('缺失结束事件不捏造耗时，未知错误码不泄漏正文',()=>{
+ const policy=defaultPolicy(),sessionId='layout-job',header={type:'request/header',seq:1,time:1000,data:{header:{config:{provider:'p',model:'m'}}}}
+ const trace=reference.layoutReferenceExecution([header],{sessionId,policy})
+ assert.equal(trace.attempts[0].elapsedMs,null);assert.equal(trace.attempts[0].endedBy,null)
+ const failed=reference.layoutReferenceExecution([header,{type:'assistant/attempt',seq:2,time:1200,data:{stream:[{chunk:{type:'finish',reason:{failure:{code:'private customer note',message:'private body'}}}}]}}],{sessionId,policy})
+ assert.equal(failed.failure.code,'LAYOUT_MODEL_ERROR');assert(!JSON.stringify(failed).includes('private'))
+})
+
+test('retry失败归属当前请求，下一请求仅是上界且诊断采用固定白名单',()=>{
+ const policy=defaultPolicy(),sessionId='layout-job',h=(seq,time)=>({type:'request/header',seq,time,data:{header:{config:{provider:'p',model:'m'+seq}}}})
+ let events=[h(1,100),{type:'llm/retry',seq:2,time:200,data:{failure:{code:'SERVER',message:'API error (504): unavailable'}}},h(3,300)]
+ let trace=reference.layoutReferenceExecution(events,{sessionId,policy})
+ assert.equal(trace.attempts[0].elapsedMs,100);assert.equal(trace.attempts[0].failure.code,'SERVER')
+ trace=reference.layoutReferenceExecution([h(1,100),h(3,300)],{sessionId,policy})
+ assert.equal(trace.attempts[0].elapsedMs,null);assert.equal(trace.attempts[0].nextRequestAfterMs,200)
+ events[1].data.failure={code:'PRIVATE_CUSTOMER_TOKEN_ABC123',message:'private account 401 pending'}
+ trace=reference.layoutReferenceExecution(events,{sessionId,policy})
+ assert.equal(trace.failure.code,'LAYOUT_MODEL_ERROR');assert.equal(trace.failure.httpStatus,null);assert(!JSON.stringify(trace).includes('PRIVATE_CUSTOMER'))
+})
+test('只记录已报告的数值token用量，不伪造费用或重复计算事件',()=>{
+ const event={type:'assistant/message',seq:1,data:{usage:{inputTokens:10,outputTokens:4,totalTokens:14,secret:'private'},message:{content:'private'}}}
+ const trace=reference.layoutReferenceExecution([event,event],{sessionId:'layout-job',policy:defaultPolicy()})
+ assert.deepEqual(trace.actualUsage,{inputTokens:10,outputTokens:4,totalTokens:14,coverage:'reported-assistant-messages-only',reportedMessages:1,currencyCost:null})
+ assert(!JSON.stringify(trace).includes('private'))
+ for(const usage of [undefined,{inputTokens:-1,outputTokens:4,totalTokens:3},{inputTokens:10,outputTokens:4,totalTokens:99}]){
+  assert.equal(reference.layoutReferenceExecution([{...event,data:{usage}}],{sessionId:'layout-job',policy:defaultPolicy()}).actualUsage,null)
+ }
+})

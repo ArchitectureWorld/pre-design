@@ -6,7 +6,7 @@ import {createWorkflowVisualStore} from './workflow-visual-store.mjs'
 import {clientReportPdf} from './client-report.mjs'
 
 export async function createWorkflowStore(db,{layoutLibrary,verifyLayoutPages,resolveLayoutAssets}={}){
- const query=async(sql,args=[])=> (await db.query(sql,args)).rows
+ const query=async(sql,args=[],c=db)=> (await c.query(sql,args)).rows
  await query(`CREATE TABLE IF NOT EXISTS workflow_drafts(
   id uuid PRIMARY KEY,project_id uuid NOT NULL REFERENCES projects(id),job_id uuid NOT NULL UNIQUE REFERENCES jobs(id),
   version integer NOT NULL,outline_version integer NOT NULL,input_hash text NOT NULL,document jsonb NOT NULL,
@@ -18,27 +18,27 @@ export async function createWorkflowStore(db,{layoutLibrary,verifyLayoutPages,re
  ALTER TABLE workflow_reviews ADD COLUMN IF NOT EXISTS item_id text;
  CREATE TABLE IF NOT EXISTS workflow_approvals(project_id uuid NOT NULL REFERENCES projects(id),draft_id uuid NOT NULL REFERENCES workflow_drafts(id),request_id text NOT NULL,fingerprint text NOT NULL,result jsonb NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(project_id,request_id));`)
  const visuals=await createWorkflowVisualStore(db,{layoutLibrary,verifyLayoutPages,resolveLayoutAssets,currentDraft:async p=>(await current(p,false)).current})
- const latest=p=>query('SELECT * FROM workflow_drafts WHERE project_id=$1 ORDER BY version DESC LIMIT 1',[p.id]).then(rows=>rows[0])
- async function hydrate(row){
+ const latest=(p,c=db)=>query('SELECT * FROM workflow_drafts WHERE project_id=$1 ORDER BY version DESC LIMIT 1',[p.id],c).then(rows=>rows[0])
+ async function hydrate(row,c=db){
   if(!row)return null
-  const reviews=await query('SELECT DISTINCT block_id,item_id FROM workflow_reviews WHERE project_id=$1 AND draft_id=$2 ORDER BY block_id,item_id',[row.project_id,row.id])
-  const approval=(await query('SELECT result FROM workflow_approvals WHERE project_id=$1 AND draft_id=$2 ORDER BY created_at DESC LIMIT 1',[row.project_id,row.id]))[0]?.result??null
+  const reviews=await query('SELECT DISTINCT block_id,item_id FROM workflow_reviews WHERE project_id=$1 AND draft_id=$2 ORDER BY block_id,item_id',[row.project_id,row.id],c)
+  const approval=(await query('SELECT result FROM workflow_approvals WHERE project_id=$1 AND draft_id=$2 ORDER BY created_at DESC LIMIT 1',[row.project_id,row.id],c))[0]?.result??null
   const wholeBlockReviews=reviews.filter(r=>!r.item_id).map(r=>r.block_id)
   const reviewedItemIds=[...new Set([...reviews.flatMap(r=>r.item_id?[r.item_id]:[]),...row.document.blocks.filter(b=>wholeBlockReviews.includes(b.id)).flatMap(b=>workflowBlockItems(b).map(item=>item.id))])].sort()
   const reviewedBlockIds=row.document.blocks.filter(block=>wholeBlockReviews.includes(block.id)||workflowBlockItems(block).length&&workflowBlockItems(block).every(item=>reviewedItemIds.includes(item.id))).map(block=>block.id)
   return {...row.document,formatVersion:row.document.formatVersion??1,id:row.id,version:row.version,outlineVersion:row.outline_version,inputHash:row.input_hash,jobId:row.job_id,createdAt:new Date(row.created_at).toISOString(),reviewedBlockIds,reviewedItemIds,approval}
  }
- async function current(p,includeVisuals=true){
+ async function current(p,includeVisuals=true,c=db){
   const [rows,outlineRows,projectRows,files,lastJobs]=await Promise.all([
-   query('SELECT id,version,outline_version,input_hash,created_at,job_id FROM workflow_drafts WHERE project_id=$1 ORDER BY version DESC',[p.id]),
-   query('SELECT version,input_hash,confirmed_at,job_id FROM outline_versions WHERE project_id=$1 ORDER BY version DESC LIMIT 1',[p.id]),
-   query('SELECT name,metadata FROM projects WHERE id=$1',[p.id]),
-   query('SELECT id,filename,relative_path,sha256 FROM materials WHERE project_id=$1 ORDER BY id',[p.id]),
-   query("SELECT id FROM jobs WHERE project_id=$1 AND kind='outline' ORDER BY created_at DESC,id DESC LIMIT 1",[p.id]),
+   query('SELECT id,version,outline_version,input_hash,created_at,job_id FROM workflow_drafts WHERE project_id=$1 ORDER BY version DESC',[p.id],c),
+   query('SELECT version,input_hash,confirmed_at,job_id FROM outline_versions WHERE project_id=$1 ORDER BY version DESC LIMIT 1',[p.id],c),
+   query('SELECT name,metadata FROM projects WHERE id=$1',[p.id],c),
+   query('SELECT id,filename,relative_path,sha256 FROM materials WHERE project_id=$1 ORDER BY id',[p.id],c),
+   query("SELECT id FROM jobs WHERE project_id=$1 AND kind='outline' ORDER BY created_at DESC,id DESC LIMIT 1",[p.id],c),
   ])
-  const doc=rows.length?await hydrate(await latest(p)):null,outline=outlineRows[0],hash=outlineInputHash(projectRows[0]??p,files)
+  const doc=rows.length?await hydrate(await latest(p,c),c):null,outline=outlineRows[0],hash=outlineInputHash(projectRows[0]??p,files)
   if(doc)doc.stale=!outline?.confirmed_at||doc.outlineVersion!==outline.version||doc.inputHash!==hash||outline.input_hash!==hash||!!lastJobs[0]&&lastJobs[0].id!==outline.job_id
-  return {current:doc,history:rows.map(r=>({id:r.id,version:r.version,outlineVersion:r.outline_version,createdAt:new Date(r.created_at).toISOString(),jobId:r.job_id})),...(includeVisuals?{visuals:await visuals.current(p,doc)}:{})}
+  return {current:doc,history:rows.map(r=>({id:r.id,version:r.version,outlineVersion:r.outline_version,createdAt:new Date(r.created_at).toISOString(),jobId:r.job_id})),...(includeVisuals?{visuals:await visuals.current(p,doc,c)}:{})}
  }
  function requireOutline(outline){if(outline.status!=='confirmed'||!outline.flow?.length||outline.inputHash!==outline.currentInputHash)throw workflowError('请先确认当前章节流程，再生成本轮初稿。')}
  async function prepare(p,outline,body){

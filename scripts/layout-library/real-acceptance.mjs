@@ -1,3 +1,5 @@
+import {runComponentObservationTrial} from './component-observation-trial.mjs'
+import {acceptanceErrorRecord,timedAcceptanceModel} from './real-acceptance-diagnostics.mjs'
 // Opt-in, private, project-free acceptance. Never reads or writes production DB.
 import {readFile,writeFile,mkdir,stat,realpath} from 'node:fs/promises'
 import {createHash,randomUUID} from 'node:crypto'
@@ -5,9 +7,13 @@ import {basename,resolve,join} from 'node:path'
 import {pathToFileURL} from 'node:url'
 import {privateCheckpointStore} from './private-checkpoints.mjs'
 import {validateStageOutputLimits} from '../../web/app/src/layout-library/reference-stage-policy.mjs'
+export function assertProfileOnlyStage(stage){
+ if(stage!=='profile')throw Object.assign(Error('ACCEPTANCE_PROFILE_SCOPE_STOP'),{code:'ACCEPTANCE_PROFILE_SCOPE_STOP'})
+}
 export function acceptanceWorkflowOptions(c){
  validateStageOutputLimits(c.stageOutputTokenLimits)
- return {payload:{...(c.referenceWorkflowVersion!==undefined?{referenceWorkflowVersion:c.referenceWorkflowVersion}:{}),...(c.prototypeContractVersions!==undefined?{prototypeContractVersions:c.prototypeContractVersions}:{})},stageOutputTokenLimits:c.stageOutputTokenLimits}
+ if(c.referenceComponentVersion!==undefined&&![1,2,3].includes(c.referenceComponentVersion))throw Error('REFERENCE_COMPONENT_VERSION_INVALID')
+ return {payload:{...(c.referenceComponentVersion!==undefined?{referenceComponentVersion:c.referenceComponentVersion}:{}),...(c.referenceWorkflowVersion!==undefined?{referenceWorkflowVersion:c.referenceWorkflowVersion}:{}),...(c.prototypeContractVersions!==undefined?{prototypeContractVersions:c.prototypeContractVersions}:{})},stageOutputTokenLimits:c.stageOutputTokenLimits}
 }
 const digest=x=>createHash('sha256').update(x).digest('hex')
 export function acceptanceSummary(results){
@@ -63,6 +69,8 @@ export async function runAcceptance(manifestPath){
  const [{ProjectWorkers},{extractReferenceDocument},{runReferenceWorkflow},{validatePublication,samplePages},{renderNativeDocument},{validateSnapshot}]=await Promise.all([
   import('../../web/worker/runtime.mjs'),import('../../web/app/src/layout-library/reference-document.mjs'),import('../../web/app/src/layout-library/reference-workflow.mjs'),import('../../web/app/src/layout-library/validation.mjs'),import('../../web/app/src/layout-library/render.mjs'),import('../../web/app/src/model-policy.mjs')])
  const policy=validateSnapshot(JSON.parse(await readFile(m.policy,'utf8')),['parent','vision'])
+ if(m.profileOnly===true&&(m.cases.length!==1||maxCalls!==1||timeoutMs>180000||policy.routes.parent.fallbacks.length>1))throw Error('PROFILE_ONLY_BUDGET_INVALID')
+ if(m.componentObservationOnly===true&&(m.profileOnly===true||m.cases.length!==1||maxCalls!==1||timeoutMs>180000||policy.routes.vision.fallbacks.length>1||m.cases[0].selectedPages?.length!==1||m.cases[0].fullDocument))throw Error('COMPONENT_TRIAL_SCOPE_INVALID')
  const workers=new ProjectWorkers({settings:m.settings,credentials:m.credentials,privateRoot:join(out,'private-worker')})
  const configuration=workers.configuration.bind(workers)
  workers.configuration=async(...args)=>boundedModelRuntime(await configuration(...args))
@@ -71,7 +79,8 @@ export async function runAcceptance(manifestPath){
  const stageCheckpoints=m.checkpointDirectory?await privateCheckpointStore(m.checkpointDirectory):undefined
  let modelCalls=0
  for(const [i,c]of m.cases.entries()){
-  const record={case:i+1,passed:false,realModelVerified:false,sourceKind:null,sourceSha256:null,modelCalls:0,actualRequests:0,stages:[],humanVisualAcceptance:'pending'}
+  const record={case:i+1,passed:false,realModelVerified:false,sourceKind:null,sourceSha256:null,modelCalls:0,actualRequests:0,modelTimings:[],stages:[],humanVisualAcceptance:'pending'}
+  const startedAt=Date.now();record.startedAt=new Date(startedAt).toISOString();
   const folder=join(out,'case-'+(i+1));await mkdir(folder,{mode:0o700});const controller=new AbortController(),timer=setTimeout(()=>controller.abort(Error('ACCEPTANCE_TIMEOUT')),timeoutMs)
   try{
    if(typeof c.file!=='string'||!c.file.startsWith('/'))throw Error('ABSOLUTE_REFERENCE_REQUIRED')
@@ -80,18 +89,23 @@ export async function runAcceptance(manifestPath){
    const bytes=await readFile(c.file),filename=basename(c.file),parsed=await extractAcceptanceDocument({extract:extractReferenceDocument,bytes,filename,signal:controller.signal,fullDocument:c.fullDocument===true})
    const options=acceptanceWorkflowOptions(c);record.workflowOptions=structuredClone(options);
    const source=referenceInput({filename,bytes,parsed,selectedPages:c.selectedPages});record.selectedPages=c.selectedPages??null;record.sourceKind=parsed.kind;record.sourceSha256=source.file.sha256;record.extractionCoverage={totalPages:source.file.pageCount??null,readPages:source.file.readPages??[]}
-   const result=await runReferenceWorkflow({jobId:randomUUID(),payload:{...options.payload,name:'真实参考验收候选',text:c.request??'提炼参考设计，保留真实设计关系并用于实际内容试排。',referenceIntent:c.intent??'style',referenceScope:c.scope??'deck',referenceFidelity:c.fidelity??'standard',referencePipeline:'native-v3',referenceFiles:[source.file]},images:source.images,policy,skill,signal:controller.signal,stageCheckpoints,stageOutputTokenLimits:options.stageOutputTokenLimits,
+   const runTrial=m.componentObservationOnly===true?runComponentObservationTrial:runReferenceWorkflow
+   const result=await runTrial({source,jobId:randomUUID(),stopAfterProfile:m.profileOnly===true,payload:{...options.payload,name:'真实参考验收候选',text:c.request??'提炼参考设计，保留真实设计关系并用于实际内容试排。',referenceIntent:c.intent??'style',referenceScope:c.scope??'deck',referenceFidelity:c.fidelity??'standard',referencePipeline:'native-v3',referenceFiles:[source.file]},images:source.images,policy,skill,signal:controller.signal,stageCheckpoints,stageOutputTokenLimits:m.profileOnly===true?{...options.stageOutputTokenLimits,profile:8192}:options.stageOutputTokenLimits,
     loadArtifact:async ref=>{if(ref.sourceId!==source.file.id)throw Error('ARTIFACT_OWNER_MISMATCH');const a=source.artifacts.get(ref.path);if(!a||a.sha256!==ref.sha256)throw Error('ARTIFACT_HASH_MISMATCH');return a},
-    runModel:async input=>{if(modelCalls>=maxCalls)throw Object.assign(Error('ACCEPTANCE_CALL_BUDGET'),{code:'ACCEPTANCE_CALL_BUDGET'});modelCalls++;record.modelCalls++;console.log(JSON.stringify({case:i+1,stage:input.stage,modelCalls}));try{const value=await workers.runLayoutReference(input);record.actualRequests+=(value.execution?.parent?.requests??[]).length;return value}catch(error){record.actualRequests+=(error.execution?.parent?.requests??[]).length;throw error}}})
+    runModel:async input=>{if(m.profileOnly===true)assertProfileOnlyStage(input.stage);if(modelCalls>=maxCalls)throw Object.assign(Error('ACCEPTANCE_CALL_BUDGET'),{code:'ACCEPTANCE_CALL_BUDGET'});modelCalls++;record.modelCalls++;console.log(JSON.stringify({case:i+1,stage:input.stage,modelCalls}));try{const value=await timedAcceptanceModel(input,value=>workers.runLayoutReference(value),record.modelTimings);record.actualRequests+=(value.execution?.parent?.requests??[]).length;return value}catch(error){record.actualRequests+=(error.execution?.parent?.requests??[]).length;throw error}}})
    record.stages=result.execution.stages.map(s=>({stage:s.stage,status:s.status,actualRoute:s.execution?.actualRoute??null,modelInvoked:s.modelInvoked!==false,reused:s.reused===true}))
    record.reusedStages=record.stages.filter(s=>s.reused).length
    record.realModelVerified=record.stages.filter(s=>s.modelInvoked||s.reused).every(s=>!!s.actualRoute)&&record.stages.some(s=>s.actualRoute)
+   if(m.componentObservationOnly===true){record.componentObservationAccepted=true;record.componentObservation=result.analysis.componentObservation;record.scope='component-observation-only';record.visualFidelityEvaluated=false}
+   else if(m.profileOnly===true){record.profileAccepted=true;record.profile=result.analysis.profile;record.scope='profile-only';record.visualFidelityEvaluated=false}
+   else {
    const pkg=result.response.package;await writeFile(join(folder,'package.json'),JSON.stringify(pkg,null,2),{mode:0o600})
    await writeFile(join(folder,'sample-preview.html'),renderNativeDocument(samplePages(pkg),{title:'真实模型设计候选，合成内容试排，非人工验收'}),{mode:0o600})
    record.geometry=await validatePublication(pkg,{signal:controller.signal});record.passed=record.realModelVerified&&record.geometry.status==='passed'
-  }catch(error){record.error={code:error.code??error.name,issues:error.issues?.map(x=>({code:x.code,path:x.path,expected:x.expected})),failedStage:error.execution?.failedStage??null};if(error.execution)record.stages=error.execution.stages.map(s=>({stage:s.stage,status:s.status,actualRoute:s.execution?.actualRoute??null}));console.log(JSON.stringify({case:i+1,error:record.error}))}
-  finally{clearTimeout(timer)}
-  results.push(record);await writeFile(join(out,'receipt.json'),JSON.stringify({schema:'pre-design.real-reference-acceptance.v1',productionDeployed:false,budget:{maxStages:maxCalls,providerRetries:0,existingPolicyFallbacksRetained:true,hardCurrencyLimit:false},policyRevision:policy.revision,modelCalls,results,summary:acceptanceSummary(results)},null,2),{mode:0o600})
+   }
+  }catch(error){record.error=acceptanceErrorRecord(error,controller.signal);if(error.execution?.stages)record.stages=error.execution.stages.map(s=>({stage:s.stage,status:s.status,actualRoute:s.execution?.actualRoute??null}));console.log(JSON.stringify({case:i+1,error:record.error}))}
+  finally{clearTimeout(timer);record.finishedAt=new Date().toISOString();record.elapsedMs=Date.now()-startedAt}
+  results.push(record);await writeFile(join(out,'receipt.json'),JSON.stringify({schema:'pre-design.real-reference-acceptance.v1',productionDeployed:false,budget:{maxStages:maxCalls,timeoutMs,providerRetries:0,existingPolicyFallbacksRetained:true,hardCurrencyLimit:false},policyRevision:policy.revision,modelCalls,results,summary:acceptanceSummary(results)},null,2),{mode:0o600})
  }
  return {output:out,summary:acceptanceSummary(results)}
 }

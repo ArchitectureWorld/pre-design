@@ -1,5 +1,6 @@
 // Both states use the same fixed surface. Only its bounds move; text is never scaled.
 export function mountAnnotationComposer({save,notify}) {
+  const listeners=new window.AbortController()
   const surface=document.createElement('div')
   surface.className='annotation-composer'
   surface.hidden=true
@@ -107,19 +108,19 @@ export function mountAnnotationComposer({save,notify}) {
       // Workspace preview also binds the arrow keys.
       event.stopPropagation()
     }
-  },true)
+  },{capture:true,signal:listeners.signal})
   document.addEventListener('pointerdown',event=>{
     if(!session||surface.contains(event.target)||surface.dataset.phase==='closing'||session.saving)return
     if(surface.dataset.phase==='offer'||!input.value.trim())reset()
-  },true)
+  },{capture:true,signal:listeners.signal})
   document.addEventListener('focusin',event=>{
     if(!surface.contains(event.target))dismissOffer()
-  })
+  },{signal:listeners.signal})
   const reposition=()=>{if(session)position()}
-  window.addEventListener('resize',reposition)
-  window.visualViewport?.addEventListener('resize',reposition)
-  window.visualViewport?.addEventListener('scroll',reposition)
+  window.addEventListener('resize',reposition,{signal:listeners.signal})
+  window.visualViewport?.addEventListener('resize',reposition,{signal:listeners.signal})
+  window.visualViewport?.addEventListener('scroll',reposition,{signal:listeners.signal})
   // A selection changing underneath an open editor must never replace a draft.
   function dismissOffer(){if(session&&surface.dataset.phase==='offer')reset()}
-  return {offer,reset,dismissOffer}
+  return {offer,reset,dismissOffer,dispose(){reset();listeners.abort();surface.remove()}}
 }

@@ -1,6 +1,10 @@
+import {createContentMappingPreflight} from './content-mapping-preflight.mjs'
+import {prepareLayoutPreview} from './layout-preview.mjs'
+import {createContentFitPreviews} from './content-fit-preview.mjs'
 import {createHash} from 'node:crypto'
+import {contentMappingSchema,contentSourceOptions} from './content-mapping.mjs'
 import {z} from 'zod'
-import {createPackage,validatePackage,patchSchema,fail,exportReusable} from './contract.mjs'
+import {createPackage,validatePackage,patchSchema,fail,exportReusable,packageDigest} from './contract.mjs'
 import {samplePages,validatePublication} from './validation.mjs'
 import {renderNativeDocument} from './render.mjs'
 import {importReference} from './reference.mjs'
@@ -10,8 +14,23 @@ const id=z.string().uuid(),version=z.number().int().positive(),requestId=z.strin
 const target=z.object({requestId,id,version}).strict()
 const mutation=z.object({requestId}).strict()
 const ref=z.object({resourceId:id,version}).strict().nullable()
-const binding=z.object({requestId,baseRevision:z.number().int().nonnegative(),draftId:id,expectedRevision:z.number().int().nonnegative(),scope:z.enum(['global','local','manual']),pageIds:z.array(z.string().max(150)).min(1).max(200).refine(a=>new Set(a).size===a.length).optional(),resource:ref.optional(),overrides:patchSchema.optional(),remove:z.boolean().optional()}).strict()
-export function registerLayoutRoutes({app,library,uploads,project,workflows,serial,event,enqueueReference,listReferenceJobs,cancelReference,referenceConfiguration,retryReference,listConversations,getConversation,recordReferenceImport,resolveLayoutAssets=async pages=>pages,validator=validatePublication}){
+const binding=z.object({requestId,baseRevision:z.number().int().nonnegative(),draftId:id,expectedRevision:z.number().int().nonnegative(),scope:z.enum(['global','local','manual','content']),pageIds:z.array(z.string().max(150)).min(1).max(200).refine(a=>new Set(a).size===a.length).optional(),resource:ref.optional(),overrides:patchSchema.optional(),contentMapping:contentMappingSchema.optional(),remove:z.boolean().optional()}).strict()
+ .refine(b=>b.scope==='content'?b.pageIds?.length===1&&(b.remove?b.contentMapping===undefined:!!b.contentMapping):b.contentMapping===undefined,'文字映射须单页明确提交或移除')
+export function registerLayoutRoutes({app,library,annotations,uploads,project,workflows,serial,event,enqueueReference,listReferenceJobs,cancelReference,referenceConfiguration,retryReference,listConversations,getConversation,recordReferenceImport,resolveLayoutAssets=async pages=>pages,validator=validatePublication,mappingMeasure}){
+ const contentFit=createContentFitPreviews({library})
+ const mappingPreflight=createContentMappingPreflight({measure:mappingMeasure})
+ app.post('/api/layout-library/:resourceId/:version/content-fit-preview',{bodyLimit:256*1024},async(req,reply)=>{
+  reply.header('Cache-Control','private, no-store')
+  const controller=new AbortController(),abort=()=>controller.abort(),closed=()=>{if(!reply.raw.writableEnded)abort()}
+  req.raw.once('aborted',abort);reply.raw.once('close',closed)
+  if(req.raw.aborted||reply.raw.destroyed)abort()
+  try{return await contentFit.preview(req.user,id.parse(req.params.resourceId),version.parse(Number(req.params.version)),req.body,{signal:controller.signal})}
+  finally{req.raw.removeListener('aborted',abort);reply.raw.removeListener('close',closed)}
+ })
+ app.post('/api/layout-library/:resourceId/content-fit-confirm',{bodyLimit:4096},async(req,reply)=>{
+  reply.header('Cache-Control','private, no-store')
+  return contentFit.confirm(req.user,id.parse(req.params.resourceId),req.body)
+ })
  if(uploads){
   app.post('/api/layout-library/reference-files',{bodyLimit:Math.ceil(MAX_REFERENCE_UPLOAD_BYTES/3)*4+16384},async(req,reply)=>{
    const controller=new AbortController(),abort=()=>controller.abort(),closed=()=>{if(!reply.raw.writableEnded)abort()}
@@ -31,6 +50,22 @@ export function registerLayoutRoutes({app,library,uploads,project,workflows,seri
   app.get('/api/layout-library/reference-files/:fileId/download',async(req,reply)=>{
    const file=await uploads.download(req.user,id.parse(req.params.fileId))
    reply.header('Content-Disposition',`attachment; filename*=UTF-8''${encodeURIComponent(file.name)}`).header('Content-Security-Policy',"sandbox; default-src 'none'").type('application/octet-stream');return file.data
+  })
+ }
+
+ if(annotations){
+  app.get('/api/layout-library/:resourceId/:version/annotations',async req=>({annotations:await annotations.list(req.user,id.parse(req.params.resourceId),version.parse(Number(req.params.version)))}))
+  app.post('/api/layout-library/:resourceId/:version/annotations',async req=>{
+   const b=mutation.extend({packageHash:z.string().regex(/^[a-f0-9]{64}$/),layoutId:z.string().min(1).max(48),slotId:z.string().min(1).max(48).optional(),text:z.string().trim().min(1).max(5000)}).strict().parse(req.body)
+   const {requestId,text,...anchor}=b;return annotations.create(req.user,{requestId,text,anchor:{...anchor,resourceId:id.parse(req.params.resourceId),version:version.parse(Number(req.params.version))}})
+  })
+  for(const operation of ['edit','delete'])app.post('/api/layout-library/:resourceId/annotations/:annotationId/'+operation,async req=>{
+   const change=mutation.extend({expectedRevision:z.number().int().nonnegative()});const b=(operation==='edit'?change.extend({text:z.string().trim().min(1).max(5000)}):change).strict().parse(req.body)
+   return annotations.change(req.user,{...b,resourceId:id.parse(req.params.resourceId),noteId:id.parse(req.params.annotationId)},operation)
+  })
+  app.post('/api/layout-library/:resourceId/:version/annotations/batch-submit',async req=>{
+   const b=mutation.extend({packageHash:z.string().regex(/^[a-f0-9]{64}$/),annotationIds:z.array(id).min(1).max(50).refine(ids=>new Set(ids).size===ids.length),annotationRevisions:z.record(id,z.number().int().nonnegative()),allowModel:z.literal(true)}).strict().parse(req.body)
+   return enqueueReference(req,{...b,mode:'conversation',resourceId:id.parse(req.params.resourceId),resourceVersion:version.parse(Number(req.params.version)),files:[],text:'',referencePipeline:'native-v3'})
   })
  }
  app.get('/api/layout-library',async req=>({resources:await library.list(req.user)}))
@@ -79,9 +114,10 @@ export function registerLayoutRoutes({app,library,uploads,project,workflows,seri
   const page=samplePages(x.package).find(page=>page.nativeLayout.layout.id===b.layoutId&&page.id.endsWith('typical'))
   if(!page)throw fail('没有此版式的试排页面。',404)
   const html=renderNativeDocument([page],{title:'参考设计迁移 · 合成内容试排'})
+  const nativeImagePlacements=source&&uploads?.placementEvidence?await uploads.placementEvidence(req.user,source.fileId,source.sourceSha256,source.page):undefined
   const receipt=await library.referenceComparison(req.user,{id:resourceId,version:v,layoutId:b.layoutId,source,html})
   reply.header('Cache-Control','private, no-store')
-  return {receipt,html,profile:x.package.designProfile,references,fixture:true,source:source?{name:source.name,page:source.page,sha256:source.sha256,dataUrl:'data:'+source.mimeType+';base64,'+source.data.toString('base64')}:null}
+  return {receipt,html,profile:x.package.designProfile,references,fixture:true,source:source?{name:source.name,page:source.page,sha256:source.sha256,...(nativeImagePlacements?{nativeImagePlacements}:{}),dataUrl:'data:'+source.mimeType+';base64,'+source.data.toString('base64')}:null}
  })
  app.post('/api/layout-library/:resourceId/:version/reference-review',async req=>{
   const b=mutation.extend({packageHash:z.string().regex(/^[a-f0-9]{64}$/),comparisonIds:z.array(id).min(1).max(100),reviewed:z.literal(true)}).strict().parse(req.body)
@@ -118,36 +154,44 @@ export function registerLayoutRoutes({app,library,uploads,project,workflows,seri
  })
  app.get('/api/projects/:id/layout-bindings',async req=>{
   const p=await project(req),config=await library.bindings(p),state=await workflows.current(p)
-  return {...config,stale:config.draftId!==null&&config.draftId!==state.current?.id,appliedRevision:state.visuals?.current?.layoutBindingRevision??null,
+  const draft=state.current,contentSources=draft&&!draft.stale?Object.fromEntries(draft.blocks.flatMap(block=>(block.items??[]).map(item=>['visual-page-'+item.id,contentSourceOptions(item)]))):{}
+  return {...config,contentSources,contentDraftId:draft?.id??null,stale:config.draftId!==null&&config.draftId!==state.current?.id,appliedRevision:state.visuals?.current?.layoutBindingRevision??null,
    status:state.visuals?.current?.layoutBindingRevision===config.revision&&!state.visuals.current.stale?'applied':'saved-pending-apply'}
  })
- app.post('/api/projects/:id/layout-bindings',async req=>{
+ app.post('/api/projects/:id/layout-bindings',{bodyLimit:256*1024},async(req,reply)=>{
   const b=binding.parse(req.body),p=await project(req)
-  return serial(`enqueue:${p.id}`,async()=>{
+  const ordinary=()=>serial(`enqueue:${p.id}`,async()=>{
    if((p.state?.project?.currentRevision??0)!==b.baseRevision)throw fail('项目版本已变化。',409)
    const draft=(await workflows.current(p,false)).current
    const result=await library.saveBindings(req.user,p,b,draft);await event(p.id,{type:'layout-bindings-saved',revision:result.revision});return result
   })
+  if(b.scope!=='content'||b.remove)return ordinary()
+  const controller=new AbortController(),abort=()=>controller.abort(),closed=()=>{if(!reply.raw.writableEnded)abort()}
+  req.raw.once('aborted',abort);reply.raw.once('close',closed);if(req.raw.aborted||reply.raw.destroyed)abort()
+  const prepare=async (signal,connection)=>{
+   signal.throwIfAborted();const fresh=await project(req,connection)
+   if((fresh.state?.project?.currentRevision??0)!==b.baseRevision)throw fail('项目版本已变化。',409)
+   const state=await workflows.current(fresh,true,connection)
+   const snapshot=await prepareLayoutPreview({actor:req.user,p:fresh,state,b:{...b,pageId:b.pageIds[0]},library,resolveLayoutAssets,requireReviewed:true,connection});signal.throwIfAborted();return snapshot
+  }
+  try{return await mappingPreflight.run(req.user,{signal:controller.signal,replay:()=>library.bindingMutationResult(req.user,p,b),prepare,
+   commit:checked=>serial(`enqueue:${p.id}`,()=>checked(async (receipt,preflightSignal)=>{
+    const fresh=await project(req),draft=(await workflows.current(fresh,false)).current
+    const result=await library.saveBindings(req.user,fresh,b,draft,{preflight:receipt,signal:preflightSignal,assertPreflight:async connection=>{
+     const snapshot=await prepare(preflightSignal,connection)
+     if(packageDigest(snapshot)!==receipt.snapshotHash)throw fail('试排后内容或版式已变化，未保存，请重新核对。',409,'CONTENT_MAPPING_PREFLIGHT_STALE')
+    }})
+    await event(p.id,{type:'layout-bindings-saved',revision:result.revision});return result
+   }))
+  })}finally{req.raw.removeListener('aborted',abort);reply.raw.removeListener('close',closed)}
  })
+
  app.post('/api/projects/:id/layout-preview',async req=>{
-  const b=z.object({draftId:id,pageId:z.string().min(1).max(150),scope:z.enum(['global','local','manual']).optional(),resource:ref.optional(),overrides:patchSchema.optional()}).strict()
-   .refine(v=>v.scope||v.resource===undefined&&v.overrides===undefined,'预览覆盖需要指定范围').parse(req.body)
-  const p=await project(req),state=await workflows.current(p),draft=state.current
-  if(!draft||draft.stale||draft.id!==b.draftId)throw fail('稿件已更新，请重新选择页脚本。',409)
-  const pages=draft.flow.flatMap(chapterId=>draft.blocks.filter(block=>block.chapterId===chapterId).flatMap(block=>(block.items??[]).map(item=>({
-   id:'visual-page-'+item.id,itemId:item.id,blockId:block.id,item,chapterTitle:draft.chapters.find(c=>c.id===chapterId)?.title??chapterId,sectionTitle:block.title,
-  })))).map((page,index)=>({...page,number:index+1}))
-  const page=pages.find(page=>page.id===b.pageId)
-  if(!page)throw fail('当前稿件中没有这页脚本。',404)
-  const deck=state.visuals?.current
-  if(deck&&!deck.stale&&deck.draftId===draft.id)page.protectedLayout=deck.pages.find(previous=>previous.id===page.id)?.protectedLayout
-  const config=structuredClone(await library.bindings(p))
-  if(config.draftId&&config.draftId!==draft.id)throw fail('版式配置属于旧稿，请先为当前稿保存配置。',409)
-  if(b.scope==='global'){config.global=await library.previewRef(req.user,b.resource);config.globalOverrides=b.overrides??{}}
-  if(b.scope==='local')config.local[b.pageId]={resource:await library.previewRef(req.user,b.resource),overrides:b.overrides??{}}
-  if(b.scope==='manual')config.manual[b.pageId]={...config.manual[b.pageId],...b.overrides,theme:{...config.manual[b.pageId]?.theme,...b.overrides?.theme}}
-  const rendered=await resolveLayoutAssets(library.compilePages([page],config),p)
-  return {html:renderNativeDocument(rendered,{title:page.item.title}),draftId:draft.id,pageId:page.id,bindingRevision:config.revision}
+  const b=z.object({draftId:id,pageId:z.string().min(1).max(150),scope:z.enum(['global','local','manual','content']).optional(),resource:ref.optional(),overrides:patchSchema.optional(),contentMapping:contentMappingSchema.optional(),remove:z.boolean().optional()}).strict()
+   .refine(v=>v.scope||v.resource===undefined&&v.overrides===undefined,'预览覆盖需要指定范围')
+   .refine(v=>v.scope==='content'?(v.remove?v.contentMapping===undefined:!!v.contentMapping):v.contentMapping===undefined&&v.remove===undefined,'预览映射须明确提交或移除').parse(req.body)
+  const p=await project(req),state=await workflows.current(p)
+  const {identity,...preview}=await prepareLayoutPreview({actor:req.user,p,state,b,library,resolveLayoutAssets});return preview
  })
  app.post('/api/projects/:id/layout-save-page',async req=>{
   const b=mutation.extend({visualId:id,pageId:z.string().min(1).max(150),name:z.string().min(1).max(100)}).parse(req.body)
@@ -163,9 +207,9 @@ export function registerLayoutRoutes({app,library,uploads,project,workflows,seri
   app.get('/api/layout-library/conversations/:conversationId',req=>{id.parse(req.params.conversationId);return getConversation(req)})
   app.post('/api/layout-library/conversations',async req=>{
    const b=mutation.extend({conversationId:id.optional(),resourceId:id.optional(),resourceVersion:version.optional(),package:z.unknown().optional(),
-    referencePipeline:z.enum(['native-v3','legacy-v2']).optional(),referenceScope:z.enum(['brand','style','layout','deck']).optional(),referenceFidelity:z.enum(['standard','fidelity']).optional(),referenceIntent:z.enum(['style','structure']).optional(),name:z.string().trim().min(1).max(100).optional(),text:z.string().trim().max(16000).default(''),
+    referenceVisualSemantics:z.boolean().optional(),referenceExtraction:z.literal('components').optional(),componentPages:z.array(z.number().int().min(1).max(300)).min(1).max(6).optional(),referencePipeline:z.enum(['native-v3','legacy-v2']).optional(),referenceScope:z.enum(['brand','style','layout','deck']).optional(),referenceFidelity:z.enum(['standard','fidelity']).optional(),referenceIntent:z.enum(['style','structure']).optional(),name:z.string().trim().min(1).max(100).optional(),text:z.string().trim().max(16000).default(''),
     files:z.array(z.union([z.object({id}).strict(),z.object({name:z.string().min(1).max(180),text:z.string().min(1).max(16000)}).strict()])).max(8).default([]),
-    selection:z.object({layoutId:z.string().max(48),slot:z.enum(['title','claim','body','image','table','chart','timeline','diagram','source'])}).strict().nullable().optional(),
+    selection:z.object({layoutId:z.string().max(48),slot:z.enum(['title','claim','body','image','table','chart','timeline','diagram','source']),slotId:z.string().min(1).max(48).optional()}).strict().nullable().optional(),
     allowModel:z.literal(true)}).strict().refine(b=>b.text||b.files.length,'请输入消息或上传参考文件').refine(b=>!b.resourceId||b.resourceVersion,'请选择具体版式版本').parse(req.body)
    return enqueueReference(req,{...b,mode:'conversation'})
   })

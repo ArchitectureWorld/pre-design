@@ -1,3 +1,5 @@
+import {validateTextBlocks,renderTextBlock} from './layout-library/text-blocks.mjs'
+import {renderStructuredTable,expandedTableRows,expandedTableColumns} from './layout-library/table-structure.mjs'
 const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
 })[char])
@@ -35,8 +37,9 @@ const chartRows=chart=>[['分类',...chart.series.map(s=>s.name)],...chart.categ
 function structuredMarkdown(item){
  const diagram=item.diagram,nodes=new Map(diagram?.nodes.map(n=>[n.id,n.label])??[])
  return [
-  item.table?markdownTable([item.table.columns,...item.table.rows]):'',
-  ...itemFigures(item).map(figure=>`图像：${markdownValue(figure.caption)}（资料ID：${markdownValue(figure.materialId)}）`),
+  ...validateTextBlocks(item.textBlocks??[]).map(b=>markdownValue(b.text)),
+  item.table?markdownTable([expandedTableColumns(item.table),...expandedTableRows(item.table)])+(item.table.merges?.length||item.table.headerMerges?.length?'\n\n表格显示说明：合并单元格已展开，组标签重复显示以保留归属关系；原结构未修改。':''):'',
+  ...itemFigures(item).map(figure=>`图像：${markdownValue(figure.caption||figure.description)}（资料ID：${markdownValue(figure.materialId)}）`),
   item.chart?`图表：${markdownValue(item.chart.title??(item.chart.type==='line'?'折线图':'条形图'))}${item.chart.unit?'（单位：'+markdownValue(item.chart.unit)+'）':''}\n\n${markdownTable(chartRows(item.chart))}`:'',
   item.timeline?`时间轴${item.timeline.title?'：'+markdownValue(item.timeline.title):''}\n\n${item.timeline.events.map(e=>'- '+markdownValue(e.label)+(e.description?'：'+markdownValue(e.description):'')).join('\n')}`:'',
   diagram?`关系图${diagram.title?'：'+markdownValue(diagram.title):''}\n\n节点：${diagram.nodes.map(n=>markdownValue(n.label)).join('、')}\n\n${diagram.edges.map(e=>'- '+markdownValue(nodes.get(e.from))+' → '+markdownValue(nodes.get(e.to))+(e.label?'：'+markdownValue(e.label):'')).join('\n')}`:'',
@@ -60,13 +63,14 @@ export function renderWorkflowItem(item, headingLevel = 3) {
   const lines = text => escape(text).replaceAll('\n', '<br>')
   const paragraphs = item.paragraphs.map(paragraph => `<p>${lines(paragraph)}</p>`).join('')
   const points = item.points.length ? `<ul>${item.points.map(point => `<li>${lines(point)}</li>`).join('')}</ul>` : ''
-  const table=item.table?`<table class="workflow-script-table"><thead><tr>${item.table.columns.map(v=>`<th>${escape(v)}</th>`).join('')}</tr></thead><tbody>${item.table.rows.map(row=>`<tr>${row.map(v=>`<td>${escape(v)}</td>`).join('')}</tr>`).join('')}</tbody></table>`:''
-  const figure=itemFigures(item).map(f=>`<p class="workflow-script-figure">图像：${escape(f.caption)}（资料ID：${escape(f.materialId)}；输出前核验原件）</p>`).join('')
+  const textBlocks=validateTextBlocks(item.textBlocks??[]).map(b=>`<p data-text-block="${escape(b.key)}">${renderTextBlock(b)}</p>`).join('')
+  const table=item.table?renderStructuredTable(item.table,{className:'workflow-script-table'}):''
+  const figure=itemFigures(item).map(f=>`<p class="workflow-script-figure">图像：${escape((f.caption||f.description))}（资料ID：${escape(f.materialId)}；输出前核验原件）</p>`).join('')
   const chart=item.chart?`<section class="workflow-script-chart"><strong>图表：${escape(item.chart.title??(item.chart.type==='line'?'折线图':'条形图'))}${item.chart.unit?' · 单位：'+escape(item.chart.unit):''}</strong><table class="workflow-script-table">${chartRows(item.chart).map((row,i)=>`<tr>${row.map(value=>i?`<td>${escape(value)}</td>`:`<th>${escape(value)}</th>`).join('')}</tr>`).join('')}</table></section>`:''
   const timeline=item.timeline?`<section class="workflow-script-timeline"><strong>时间轴${item.timeline.title?'：'+escape(item.timeline.title):''}</strong><ol>${item.timeline.events.map(e=>`<li>${escape(e.label)}${e.description?'：'+escape(e.description):''}</li>`).join('')}</ol></section>`:''
   const diagram=item.diagram,nodes=new Map(diagram?.nodes.map(n=>[n.id,n.label])??[])
   const relationships=diagram?`<section class="workflow-script-diagram"><strong>关系图${diagram.title?'：'+escape(diagram.title):''}</strong><p>节点：${diagram.nodes.map(n=>escape(n.label)).join('、')}</p><ul>${diagram.edges.map(e=>`<li>${escape(nodes.get(e.from))} → ${escape(nodes.get(e.to))}${e.label?'：'+escape(e.label):''}</li>`).join('')}</ul></section>`:''
-  return `${heading ? `<${heading}>${escape(item.title)}</${heading}>` : ''}${paragraphs}${points}${table}${figure}${chart}${timeline}${relationships}`
+  return `${heading ? `<${heading}>${escape(item.title)}</${heading}>` : ''}${paragraphs}${points}${textBlocks}${table}${figure}${chart}${timeline}${relationships}`
 }
 
 export function workflowItemPresentation(block, index, sectionNumber) {

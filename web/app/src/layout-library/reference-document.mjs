@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+import { parsePdfImageInventory } from './pdf-image-inventory.mjs'
 import { execFile } from 'node:child_process'
 import { mkdtemp, writeFile, readFile, readdir, stat, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -256,8 +258,19 @@ async function extractPdf(bytes, signal, startPage = 1) {
     signal?.throwIfAborted()
     pdfTimeRemaining(deadline)
     if (!content.text && !textRestricted) limitations.push('未提取到 PDF 文字，已提供页面图像供视觉分析；本模块不进行 OCR。')
+    const sourceSha256=createHash('sha256').update(bytes).digest('hex')
+    let nativeInventory
+    try{
+      const listing=(await runPdfTool('pdfimages',['-f',String(startPage),'-l',String(endPage),'-list',input],{deadline,maxBuffer:1024*1024,timeoutMs:30000,signal})).toString('utf8')
+      nativeInventory=parsePdfImageInventory(listing,{sourceSha256,readPages})
+    }catch(error){
+      signal?.throwIfAborted()
+      if(error?.name==='AbortError'||error.statusCode===408)throw error
+      limitations.push('本批原生图像目录未能核验；仍可查看页面，但不推断图像对象或装饰身份。')
+    }
     const textPages = rawText.split('\f')
     const pages = images.map(image => ({
+      nativeImageInventory:{status:nativeInventory?'available':'unavailable',sourceSha256,objects:nativeInventory?.objects.filter(o=>o.page===image.page)??[]},
       page: image.page, kind: 'pdf-page', width: image.width, height: image.height, unit: 'preview-px', preview: true,
       text: (textPages[image.page - startPage] ?? '').replace(/[\u0000-\u0008\u000b\u000e-\u001f\u007f]/gu, '').trim().slice(0, 2000),
     }))

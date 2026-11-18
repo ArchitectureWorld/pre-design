@@ -42,3 +42,20 @@ test('recovery options preserve explicit stage versions and scoped caps',async()
  assert.deepEqual(acceptanceWorkflowOptions({}),{payload:{},stageOutputTokenLimits:undefined})
  assert.throws(()=>acceptanceWorkflowOptions({stageOutputTokenLimits:{oops:1}}),/REFERENCE_STAGE_LIMIT_INVALID/)
 })
+test('real acceptance explicitly selects new component version without changing absent legacy options',async()=>{
+ const {acceptanceWorkflowOptions}=await import('../../../scripts/layout-library/real-acceptance.mjs')
+ assert.deepEqual(acceptanceWorkflowOptions({referenceComponentVersion:1}).payload,{referenceComponentVersion:1})
+ assert.deepEqual(acceptanceWorkflowOptions({referenceComponentVersion:2}).payload,{referenceComponentVersion:2})
+ assert.deepEqual(acceptanceWorkflowOptions({referenceComponentVersion:3}).payload,{referenceComponentVersion:3})
+ assert.throws(()=>acceptanceWorkflowOptions({referenceComponentVersion:4}),/REFERENCE_COMPONENT_VERSION_INVALID/)
+})
+test('profile-only scope refuses new observation or downstream model calls',async()=>{
+ const {assertProfileOnlyStage}=await import('../../../scripts/layout-library/real-acceptance.mjs')
+ assert.doesNotThrow(()=>assertProfileOnlyStage('profile'))
+ for(const stage of ['observe-1','design-spec','prototype-1','coverage-map'])assert.throws(()=>assertProfileOnlyStage(stage),e=>e.code==='ACCEPTANCE_PROFILE_SCOPE_STOP')
+})
+test('profile-only output cap supports profile without altering saved policy',async()=>{
+ const {stagePolicyWithOutputLimit}=await import('../src/layout-library/reference-stage-policy.mjs')
+ const p={routes:{parent:{primary:{provider:'p',model:'m'},fallbacks:[]}},models:[{provider:'p',model:'m',maxOutputTokens:16000}]}
+ const limited=stagePolicyWithOutputLimit(p,'profile',{profile:8192});assert.equal(limited.models[0].maxOutputTokens,8192);assert.equal(p.models[0].maxOutputTokens,16000)
+})

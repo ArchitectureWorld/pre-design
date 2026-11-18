@@ -1,3 +1,4 @@
+import {prepareComponentSelection} from './component-reference-selection.mjs'
 import {createHash} from 'node:crypto'
 import {createPackage,validatePackage,fail} from './contract.mjs'
 import {referenceFileSummary} from './reference-uploads.mjs'
@@ -16,6 +17,11 @@ export function createLayoutConversations(db,library,uploads){
   if(!root)throw fail('会话不存在。',404)
   return query("SELECT * FROM jobs WHERE owner_id=$1 AND kind='layout-reference' AND (id=$2 OR payload->>'conversationId'=$2::text) ORDER BY created_at,id",[actor.id,conversationId],c)
  }
+ async function forResource(actor,resourceId,version,c){
+  // Only a successful native result for this exact owner/resource/version can supply source history.
+  const [row]=await query("SELECT id,payload FROM jobs WHERE owner_id=$1 AND kind='layout-reference' AND status='completed' AND result->>'id'=$2 AND CAST(result->>'version' AS text)=$3 ORDER BY created_at DESC,id DESC LIMIT 1",[actor.id,resourceId,String(version)],c)
+  return row?(row.payload?.conversationId??row.id):undefined
+ }
  async function prepare(actor,input,jobId,c){
   if(input.conversationId&&await library.isRemoved('conversation',input.conversationId,c))throw fail('此版式草稿已删除，请先撤销删除。',409)
   const history=input.conversationId?await rows(actor,input.conversationId,c):[]
@@ -28,7 +34,7 @@ export function createLayoutConversations(db,library,uploads){
   const files=uploads?await uploads.resolveFiles(actor,input.files??[],c):input.files??[]
   const name=(input.name??input.package?.name??resource?.package.name??files[0]?.name.replace(/\.[^.]+$/u,'').slice(0,100)??'我的版式').trim()||'我的版式'
   const basePackage=validatePackage({...input.package??resource?.package??history.at(-1)?.payload.basePackage??createPackage(name),name})
-  if(input.selection&&!basePackage.layouts.some(l=>l.id===input.selection.layoutId&&l.slots.some(s=>s.role===input.selection.slot)))throw fail('引用的版式位置已变化，请重新选择。',409)
+  if(input.selection&&!basePackage.layouts.some(l=>l.id===input.selection.layoutId&&l.slots.some(s=>s.role===input.selection.slot&&(!input.selection.slotId||s.id===input.selection.slotId))))throw fail('引用的版式位置已变化，请重新选择。',409)
   const references=new Map((history.at(-1)?.payload.referenceFiles??[]).map(f=>[fileKey(f),f]))
   if(history.length&&!history[0].payload.mode)references.set('text:先前文字参考',{name:'先前文字参考',text:history[0].payload.text})
   for(const file of files)references.set(fileKey(file),{...file,sha256:file.id?file.sha256:createHash('sha256').update(file.text).digest('hex')})
@@ -42,8 +48,27 @@ export function createLayoutConversations(db,library,uploads){
   const referenceIntent=input.referenceIntent??basePackage.designProfile?.intent??history.at(-1)?.payload.referenceIntent??'style'
   const referenceScope=input.referenceScope??basePackage.designSpec?.scope??'deck',referenceFidelity=input.referenceFidelity??basePackage.designSpec?.fidelity??'standard'
   const referenceAnalysisRequired=files.some(isDocument)||referenceFiles.some(isDocument)&&(!basePackage.designProfile||referenceIntent!==basePackage.designProfile.intent||!!basePackage.designSpec&&(referenceScope!==basePackage.designSpec.scope||referenceFidelity!==basePackage.designSpec.fidelity))
+  // Version selection belongs to admission, never inferred when replaying an old job.
+  const retryTurn=input.retrySourceJobId?history.find(row=>row.id===input.retrySourceJobId):null
+  if(input.retrySourceJobId&&!retryTurn)throw fail('重试来源不属于当前会话。',409)
+  const retained=(retryTurn??history.at(-1))?.payload??{},contractOptions={}
+  for(const key of ['referenceWorkflowVersion','prototypeContractVersions','referenceComponentVersion','referencePrototypeMappingPolicy','referenceComponentSelection','referenceTitleReuseVersion','referenceContentFitPolicyVersion','referenceImagePlacementVersion','referenceVisualSemanticsVersion','referenceEmphasisCandidateVersion','referenceProjectSourceVersion','referenceDerivedSpecVersion'])if(retained[key]!==undefined)contractOptions[key]=structuredClone(retained[key])
+  if(history.length&&referenceAnalysisRequired&&!retryTurn)contractOptions.referencePrototypeMappingPolicy='matching-archetypes'
+  if(!history.length&&referencePipeline==='native-v3'&&files.some(isDocument))contractOptions.referenceComponentVersion=2
+  if(input.referenceVisualSemantics===true&&input.referenceExtraction!=='components')throw fail('视觉语义试用仅用于新会话逐组件提取。',409,'REFERENCE_VISUAL_SEMANTICS_SELECTION_INVALID')
+  if(input.referenceExtraction==='components'){
+   if(history.length||referencePipeline!=='native-v3')throw fail('逐组件提取请新建会话，现有任务不会自动改版本。',409,'REFERENCE_COMPONENT_SELECTION_INVALID')
+   if(input.referenceVisualSemantics===true){contractOptions.referenceVisualSemanticsVersion=1;contractOptions.referenceEmphasisCandidateVersion=1}
+   contractOptions.referenceDerivedSpecVersion=1
+   contractOptions.referenceProjectSourceVersion=1
+   contractOptions.referenceTitleReuseVersion=1
+   contractOptions.referenceContentFitPolicyVersion=1
+   contractOptions.referenceImagePlacementVersion=1
+   contractOptions.referenceComponentVersion=3
+   contractOptions.referenceComponentSelection=prepareComponentSelection(referenceFiles,input.componentPages)
+  }else if(input.componentPages!==undefined)throw fail('页码选择仅用于显式逐组件提取。',409,'REFERENCE_COMPONENT_SELECTION_INVALID')
   const analysisTurn=history.findLast(row=>row.result?.analysis&&row.result.id===resource?.id&&row.result.version===resource?.version)
-  return {mode:'conversation',conversationId:input.conversationId??jobId,name,text:input.text||'请根据上传参考生成版式。',files,
+  return {...contractOptions,mode:'conversation',conversationId:input.conversationId??jobId,name,text:input.text||'请根据上传参考生成版式。',files,
    referenceFiles,referenceIntent,referencePipeline,referenceScope,referenceFidelity,referenceAnalysisRequired,modelRole:referenceAnalysisRequired&&referenceFiles.some(f=>f.hasImages)?'vision':'parent',basePackage,providedPackage:!!input.package||history.at(-1)?.payload.providedPackage===true,
    baseAnalysis:analysisTurn?.result.analysis??null,
    baseResource:resource?{id:resource.id,version:resource.version,hash:resource.hash,ownerId:resource.ownerId}:null,
@@ -68,5 +93,5 @@ export function createLayoutConversations(db,library,uploads){
    ...(!resource&&history.at(-1)?.payload.providedPackage?{draftPackage:history.at(-1).payload.basePackage}:{}),
    referenceFiles:(history.at(-1)?.payload.referenceFiles??[]).map(referenceFileSummary),turns:history.map(publicTurn)}
  }
- return {prepare,list,get}
+ return {prepare,list,get,forResource}
 }

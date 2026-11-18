@@ -1,0 +1,5 @@
+import test from 'node:test';import assert from 'node:assert/strict'
+import {createWorkflowStore} from '../src/workflow-store.mjs'
+import {createLayoutAssetResolver} from '../src/layout-library/assets.mjs'
+test('workflow snapshot and visual reads use supplied transaction connection, never pool query',async()=>{let active=false,count=0;const db={query:async()=>{if(active)throw Error('pool query during transaction');return{rows:[]}}};const store=await createWorkflowStore(db);active=true;const connection={query:async()=>{count++;return{rows:[]}}};const r=await store.current({id:'p',name:'test',metadata:{}},true,connection);assert.equal(r.current,null);assert.equal(r.visuals.current,null);assert(count>=6)})
+test('asset metadata lookup uses supplied transaction connection',async()=>{let used=false;const resolve=createLayoutAssetResolver({query:async()=>{throw Error('pool query during transaction')}}),connection={query:async()=>{used=true;return{rows:[]}}};await assert.rejects(resolve([{item:{figures:[{materialId:'00000000-0000-4000-8000-000000000001',caption:'test'}]}}],{id:'p'},connection),e=>e.statusCode===409);assert.equal(used,true)})

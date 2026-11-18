@@ -1,3 +1,4 @@
+import {renderStructuredTable} from './table-structure.mjs'
 // Pure, shared renderer: the same module is served to the Web UI and used on the server.
 // Only validated declarative tokens/slots enter here. No package-supplied HTML/CSS/JS is executed.
 import {RENDERER_V2,COMPOSITION_CSS,renderCompositionPage,assertCompositionCoverage} from './composition-render.mjs'
@@ -29,7 +30,7 @@ export function renderNativePage(page,spec=page.nativeLayout){
   if(s.role==='claim')body=item.paragraphs.map(p=>`<p>${esc(p)}</p>`).join('')
   if(s.role==='body')body=`<ul>${item.points.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>`
   if(s.role==='source')body=`<span>${esc(page.chapterTitle)} · 资料 ${esc((item.evidenceIndexes??[]).map(i=>`[${i+1}]`).join(' '))}</span><span>${esc(page.number)}</span>`
-  if(s.role==='table')body=item.table?`<table><thead><tr>${item.table.columns.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${item.table.rows.map(row=>`<tr>${row.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`:'<div class="ln-missing">缺少表格内容</div>'
+  if(s.role==='table')body=item.table?renderStructuredTable(item.table):'<div class="ln-missing">缺少表格内容</div>'
   if(s.role==='image'){
    const figure=item.figures?.[0]??item.figure,legacy=page.nativeAssets?.image
    const img=page.nativeAssets?.images?.find(a=>a.materialId===figure?.materialId)??(legacy&&(!legacy.materialId||legacy.materialId===figure?.materialId)?legacy:undefined)

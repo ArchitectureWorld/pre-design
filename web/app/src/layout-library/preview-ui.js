@@ -16,7 +16,7 @@ export function mountNativePreview(container,html,{onSelect}={}){
  if(onSelect)shadow.addEventListener('click',event=>{
   const slot=event.target.closest('[data-layout-slot]');if(!slot)return
   shadow.querySelectorAll('.is-selected').forEach(n=>n.classList.remove('is-selected'));slot.classList.add('is-selected')
-  onSelect({layoutId:slot.closest('[data-layout]')?.dataset.layout,slot:slot.dataset.layoutSlot})
+  onSelect({layoutId:slot.closest('[data-layout]')?.dataset.layout,slot:slot.dataset.layoutSlot,...(slot.dataset.layoutSlotId||slot.dataset.slotId?{slotId:slot.dataset.layoutSlotId||slot.dataset.slotId}:{})})
  })
  let width=-1
  const fit=()=>{const next=container.clientWidth;if(next>0&&next!==width){width=next;host.style.transform='scale('+(next/canvasWidth)+')'}}
