@@ -25,14 +25,14 @@ test('阶段稿按原任务映射正文、引用、审阅状态，不创建专�
 test('旧稿只读，可按本轮流程整理条目脚本',()=>{
  assert.equal(typeof ui.workflowDraftMutation,'function')
  const p=project(),record=ui.workflowRecord(p,draft.blocks[0])
- assert.deepEqual(ui.workflowDraftMutation(p),{outlineVersion:6})
+ assert.deepEqual(ui.workflowDraftMutation(p),{outlineVersion:6,researchMatrix:true})
  assert.throws(()=>ui.workflowDraftMutation(p,record,'请补充范围说明。','draft-1'),/旧版脚本.*整理条目/)
  assert.throws(()=>ui.workflowReviewMutation(p,record),/旧版脚本.*整理条目/)
  assert.throws(()=>ui.workflowDraftMutation(p,record,'修改','older-draft'),/引用.*旧版|重新引用/)
  p.workflow.current.stale=true
  assert.throws(()=>ui.workflowDraftMutation(p,record,'修改','draft-1'),/旧版|重新生成/)
  assert.throws(()=>ui.workflowReviewMutation(p,record),/旧版|重新生成/)
- assert.deepEqual(ui.workflowDraftMutation(p),{outlineVersion:6},'旧稿不妨碍按当前已确认流程重新生成')
+ assert.deepEqual(ui.workflowDraftMutation(p),{outlineVersion:6,researchMatrix:true},'旧稿不妨碍按当前已确认流程重新生成')
  p.outline.status='stale'
  assert.throws(()=>ui.workflowDraftMutation(p),/确认.*流程/)
 })

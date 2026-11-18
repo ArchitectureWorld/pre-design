@@ -46,6 +46,8 @@ export function registerDossierRoutes({app,integration,project,enqueue,event,fin
    {id:'W01',name:'汇报论证与篇章组织',state:'connected_limited',boundary:'确认流程进入阶段稿时，与 W02、W03 联合生成业务报告名和各节短标题。'},
    {id:'W02',name:'章节目条结构化正文',state:'connected_limited',boundary:'按章分节并保存独立汇报正文。每份页脚本保存主题、结论、上屏内容与呈现方式。'},
    {id:'W03',name:'内部备注与条件说明',state:'connected_limited',boundary:'问询与待决项进入内部备注；对外文字保留影响结论的实质条件。'},
+   {id:'A04',name:'章节与任务编排',state:'connected_limited',boundary:'新整稿入口按确认任务冻结研究计划；研究卡与写稿同一调用，逐项保存依据、假设和缺口。不是全部专业能力已独立执行或验收。'},
+   ...integration.registry.skills.filter(s=>s.family==='C'&&s.id!=='C01.02').map(s=>({id:s.id,name:s.name,state:'connected_limited',boundary:'已接入按章专业方法与研究卡候选；实际使用的Skill记录在对应研究卡中。未独立执行GIS、测量、调查、财务测算或业务验收。'})),
    {id:'A03',name:'任务适用性与资料充分性',state:'connected_limited',boundary:'章节推荐和资料核对逐章保存本轮深度、依据和限制。在章节详情查看；旧专业模块执行前仍单独核对条件。'},
    {id:'D01',name:'资料登记',state:'connected',boundary:'复用上传原件与哈希；未解析不算已读'},
    {id:'D02',name:'原文读取',state:'connected_limited',boundary:'复用DSH真实读取收执；Office/CAD/OCR仍按既有工具能力显示限制'},

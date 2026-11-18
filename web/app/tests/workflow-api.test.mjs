@@ -274,3 +274,30 @@ test('重启只恢复已有持久稿的中断任务，不重跑模型或将取�
   await f.db.query("UPDATE jobs SET status='cancelled' WHERE id=$1",[accepted.id])
   await f.restart();assert.equal((await f.state()).jobs.find(row=>row.id===accepted.id).status,'cancelled');assert.equal(f.calls.length,1)
 })
+
+test('研究矩阵真实队列冻结计划并保存研究卡；缺项失败保留原稿，局部编辑不冒称重跑研究',async t=>{
+ const f=await fixture(t)
+ let omit=false
+ f.workers.run=async(p,text)=>{
+  const job=(await f.db.query('SELECT payload FROM jobs WHERE id=$1',[p.task_id])).rows[0]
+  const plan=job.payload.researchPlan
+  if(!plan)return {response:JSON.stringify({blocks:[content().blocks.find(b=>b.id===job.payload.blockId)]})}
+  assert.match(text,/先研究，再写稿/)
+  const researchFindings=plan.tasks.map(task=>({taskId:task.id,skillIds:[task.skillIds[0]],status:'conditional',answer:'仅形成现有资料支持的阶段判断',conclusions:[{kind:'proposal',text:'将沿河公共服务作为候选',evidenceIndexes:[0],assumptions:['需求访谈尚未完成']}],gaps:['需求未验证']}))
+  return {response:JSON.stringify({...content(),...(!omit?{researchFindings}:{})})}
+ }
+ await f.generate({researchMatrix:true})
+ const first=(await f.state()).workflow.current
+ assert.equal(first.research.findings.length,2);assert.equal(first.research.reviewStatus,'unreviewed')
+ assert.deepEqual(first.research.plan.reportOrder,['01','03'])
+ const queued=(await f.db.query('SELECT payload FROM jobs WHERE id=$1',[first.jobId])).rows[0].payload
+ assert.deepEqual(first.research.plan,queued.researchPlan)
+ await f.generate({baseDraftId:first.id,blockId:'outline-01-1',text:'精简正文'})
+ const edited=(await f.state()).workflow.current
+ assert.equal(edited.version,2);assert.equal(edited.research.jobId,first.jobId)
+ assert.equal(edited.research.writingOnlyRevision,true);assert.deepEqual(edited.research.findings,first.research.findings)
+ omit=true;await f.generate({researchMatrix:true})
+ const after=await f.state();assert.equal(after.workflow.current.id,edited.id)
+ assert.ok(after.jobs.some(j=>j.status==='failed'&&/研究卡/.test(j.error)))
+ const other=await f.request('GET',f.base+'/state',undefined,1);assert.equal(other.statusCode,404)
+})

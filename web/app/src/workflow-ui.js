@@ -13,13 +13,14 @@ export const currentWorkflowVisual=project=>{
 
 export function workflowRecord(project,block,item){
  const draft=project.workflow.current,stale=workflowIsStale(project),id=item?.id??block.id
- const evidence=(item?.evidenceIndexes??block.sectionEvidenceIndexes??block.evidenceIndexes??[]).flatMap(index=>draft.evidence?.[index]?[{...draft.evidence[index],index}]:[])
+ const finding=draft.research?.findings?.find(f=>f.taskId===(block.sourceTaskId??block.id))
+ const evidence=[...new Set([...(item?.evidenceIndexes??block.sectionEvidenceIndexes??block.evidenceIndexes??[]),...(finding?.conclusions??[]).flatMap(c=>c.evidenceIndexes)])].flatMap(index=>draft.evidence?.[index]?[{...draft.evidence[index],index}]:[])
  const subdivided=!!item&&workflowBlockItems(block).length>1,title=subdivided||item?.presentation?item.title:block.title
  const approved=draft.approval?.draftId===draft.id||(item?(draft.reviewedItemIds??[]).includes(item.id):(draft.reviewedBlockIds??[]).includes(block.id))
  return {id:draft.outlineVersion===project.outline?.version?id:`workflow-${draft.id}:${id}`,objectId:id,blockId:block.id,itemId:item?.id,item,subdivided,
   outlineTask:true,workflowDraft:true,workflowDraftId:draft.id,workflowVersion:draft.version,outlineVersion:draft.outlineVersion,legacy:draft.formatVersion!==2,
   chapterId:block.chapterId,taskIndex:block.taskIndex,title,sectionBody:!item&&!!block.sectionText,pageScripts:!item&&block.sectionText?block.items.map(v=>({id:v.id,title:v.title})):[],body:item?workflowBodyMarkdown([item]):block.sectionText??block.body,thesis:title,internalNotes:block.internalNotes??[],
-  workflowEvidence:evidence,limitations:[...new Set([...(draft.limitations??[]),...(block.limitations??[])])],
+  researchFinding:finding,researchWritingOnly:!!draft.research?.writingOnlyRevision,workflowEvidence:evidence,limitations:[...new Set([...(draft.limitations??[]),...(block.limitations??[])])],
   approved,textGenerated:true,generated:false,stale,revision:project.revision}
 }
 
@@ -43,7 +44,7 @@ function editableDraft(project,record,referenceDraftId){
 
 export function workflowDraftMutation(project,record,text,referenceDraftId){
  if(project?.outline?.status!=='confirmed')throw new Error('请先确认本轮章节流程。')
- if(!record)return {outlineVersion:project.outline.version}
+ if(!record)return {outlineVersion:project.outline.version,researchMatrix:true}
  const draft=editableDraft(project,record,referenceDraftId),feedback=String(text??'').trim()
  if(!feedback)throw new Error('请填写本条修改意见。')
  return {outlineVersion:project.outline.version,baseDraftId:draft.id,blockId:record.blockId,itemId:record.itemId,text:feedback}
@@ -66,6 +67,7 @@ export function workflowPreviewMarkup(record,section){
  ${readOnly?`<div class="workflow-stale" role="status">${record.stale?'目录或资料已变化，本稿仅供查看与下载。':'此稿保留原文，可整理为条目脚本。'}<button type="button" data-workflow-generate>${record.stale?'重新生成本轮初稿':'整理条目脚本'}</button></div>`:''}
  <div class="script-divider"><span>${paneName}</span></div><div class="script-paragraphs" data-workflow-body>${body}</div>${record.pageScripts?.length?`<nav class="workflow-page-links" aria-label="本节页脚本"><span>页脚本</span>${record.pageScripts.map(v=>`<button type="button" class="link-like" data-open-page-script="${escape(v.id)}">${escape(v.title)} ↗</button>`).join('')}</nav>`:''}</div>
  <aside class="script-doc-aside" data-workflow-pane="notes" tabindex="0" aria-label="内部备注"><div class="script-aside-card workflow-internal-notes" data-workflow-internal-notes data-workflow-notes><span>内部备注</span>${notes.length?notes.map(note=>`<div class="workflow-note"><strong>${escape(note.title)}</strong><p>${escape(note.summary)}</p>${note.details.length?`<details><summary>查看原始说明</summary><ul>${note.details.map(value=>`<li>${escape(value)}</li>`).join('')}</ul></details>`:''}</div>`).join(''):'<p>暂无额外备注。</p>'}</div>
+ ${record.researchFinding?`<div class="script-aside-card" data-workflow-research><span>研究结论 · 尚未独立业务验收</span><p>${record.researchWritingOnly?'本次只修订文字，研究未重跑。':''}</p><p>${escape(({supported:'有依据的阶段判断',conditional:'条件性方案',insufficient:'资料不足'})[record.researchFinding.status])}</p><p>${escape(record.researchFinding.answer)}</p><small>${record.researchFinding.skillIds.map(escape).join(' · ')}</small>${record.researchFinding.conclusions.map(c=>`<p><strong>${escape(({fact:'来源事实',inference:'专业推断',proposal:'拟议建议'})[c.kind])}</strong>：${escape(c.text)} ${c.evidenceIndexes.map(i=>'['+(i+1)+']').join(' ')}</p>${c.assumptions.length?`<p>假设：${c.assumptions.map(escape).join('；')}</p>`:''}`).join('')}${record.researchFinding.gaps.length?`<p>缺口：${record.researchFinding.gaps.map(escape).join('；')}</p>`:''}</div>`:''}
  <div class="script-aside-card"><span>资料依据</span>${sources.length?sources.map(source=>`<details class="workflow-evidence"><summary>[${source.index+1}] ${escape(source.filename||'项目资料')}${source.locator?' · '+escape(source.locator):''}</summary><p>${escape(source.summary)}</p>${source.quote?`<blockquote>${escape(source.quote)}</blockquote>`:''}${sourceLink(source)}</details>`).join(''):'<p>暂无引用。</p>'}</div>
  <div class="script-aside-card"><span>初稿下载</span><button type="button" class="link-like" data-workflow-downloads>HTML / Markdown</button></div></aside></div>`
 }

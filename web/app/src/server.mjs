@@ -48,7 +48,7 @@ const annotationReference = z.object({
   workflowDraftId:idSchema.optional(), blockId:workflowBlockId.optional(), itemId:workflowItemId.optional(),
   visualId:idSchema.optional(), pageId:z.string().max(150).optional(),
 })
-const workflowDraftSchema = base.extend({outlineVersion:z.number().int().nonnegative(),baseDraftId:idSchema.optional(),blockId:workflowBlockId.optional(),itemId:workflowItemId.optional(),text:z.string().trim().max(16000).optional()})
+const workflowDraftSchema = base.extend({researchMatrix:z.boolean().optional(),outlineVersion:z.number().int().nonnegative(),baseDraftId:idSchema.optional(),blockId:workflowBlockId.optional(),itemId:workflowItemId.optional(),text:z.string().trim().max(16000).optional()})
   .refine(body=>(!body.baseDraftId&&!body.blockId)||!!(body.baseDraftId&&body.blockId&&body.text),'修订须指定当前初稿、本节及修改要求')
   .refine(body=>!body.itemId||!!body.blockId,'条目修订须指定所属节')
 const moduleIds = z.array(z.string().regex(/^[1-8]\.0[1-9]$/)).min(1).max(62).refine(ids => new Set(ids).size === ids.length)
