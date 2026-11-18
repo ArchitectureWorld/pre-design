@@ -39,12 +39,8 @@ jobs:
       - name: Install pinned dependencies in isolated runner
         run: bash scripts/layout-library/ci-install.sh
       - name: Install CJK fonts and PDF text extractor for true legacy regression
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq poppler-utils fonts-noto-cjk libreoffice-impress libreoffice-writer python3
-          fc-cache -f >/dev/null
-          fc-match 'Noto Sans CJK SC'
-          command -v pdftotext
+        timeout-minutes: 13
+        run: bash scripts/layout-library/ci-system-install.sh
       - name: Verify PostgreSQL, Fastify, visual rendering and Web regressions
         run: bash scripts/layout-library/ci-check.sh
       - uses: actions/upload-artifact@v4
