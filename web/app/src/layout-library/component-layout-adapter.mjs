@@ -1,14 +1,14 @@
-import {z} from 'zod'
+import {componentDecorationSchema,renderComponentDecorations,isOpaqueRectDecoration} from './component-decorations.mjs'
 import {proposeComponentSlots} from './reference-components.mjs'
 import {compositionCanvasSchema,compositionStyleSchema,validateCompositionLayout} from './composition-contract.mjs'
 import {nativeLayoutSchema} from './native-design-v3.mjs'
 import {contrast} from './accessible-theme.mjs'
 const fail=()=>{throw Object.assign(Error('组件样式、容量或可读空间不足，需明确适配。'),{code:'COMPONENT_ADAPTATION_REQUIRED'})}
 /** Explicit author-chosen style adaptation. Never represents source font/color extraction. */
-export function adaptObservedComponents({observation,allowedSources,canvas,theme,styles,id,label,archetypeId,maxTextCharacters,maxTitleCharacters=100,maxTableRows=0,maxTableColumns=0,adjustments={},decorations=[],componentStyles={}}){
+export function adaptObservedComponents({observation,allowedSources,canvas,theme,styles,id,label,archetypeId,maxTextCharacters,maxTitleCharacters=100,maxTableRows=0,maxTableColumns=0,adjustments={},decorations=[],componentStyles={},decorationVersion}){
  canvas=compositionCanvasSchema.parse(canvas)
  const proposal=proposeComponentSlots(observation,allowedSources,canvas)
- const decorationInputs=z.array(z.object({componentId:z.string(),shape:z.enum(['rect','diamond']),fill:z.string().regex(/^#[0-9a-fA-F]{6}$/),provenance:z.literal('derived-adaptation')}).strict()).max(64).parse(decorations)
+ const decorationInputs=componentDecorationSchema(decorationVersion).parse(decorations)
  if(new Set(decorationInputs.map(d=>d.componentId)).size!==decorationInputs.length)fail()
  const mappedDecorations=decorationInputs.map(d=>{const c=observation.components.find(c=>c.id===d.componentId&&c.kind==='decoration');if(!c)fail();return {...d,sourceRect:{...c.rect}}})
  for(const key of Object.keys(componentStyles))if(!proposal.slots.some(s=>s.id===key))fail()
@@ -27,7 +27,8 @@ export function adaptObservedComponents({observation,allowedSources,canvas,theme
    const a=slot.rect,b=d.sourceRect,overlap=Math.min(a.x+a.w,b.x+b.w)-Math.max(a.x,b.x)>.000001&&Math.min(a.y+a.h,b.y+b.h)-Math.max(a.y,b.y)>.000001
    if(!overlap)continue
    const contains=b.x<=a.x+.000001&&b.y<=a.y+.000001&&b.x+b.w+.000001>=a.x+a.w&&b.y+b.h+.000001>=a.y+a.h
-   if(!contains||d.shape!=='rect')fail()
+   const {sourceRect:_,...shape}=d
+   if(!contains||!isOpaqueRectDecoration(shape,decorationVersion))fail()
    if(style.background&&style.background.toLowerCase()!==d.fill.toLowerCase())fail()
    style.background=d.fill
    break
@@ -47,7 +48,7 @@ export function adaptObservedComponents({observation,allowedSources,canvas,theme
  if(!Number.isSafeInteger(maxTitleCharacters)||maxTitleCharacters<1||maxTitleCharacters>100)fail()
  const textCount=slots.filter(s=>s.role==='text').length
  if(!Number.isSafeInteger(maxTextCharacters)||maxTextCharacters<textCount||maxTextCharacters>50000)fail()
- const decorationSvg=mappedDecorations.map(d=>{const r=d.sourceRect,x=r.x*canvas.width,y=r.y*canvas.height,w=r.w*canvas.width,h=r.h*canvas.height;return d.shape==='rect'?`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${d.fill}"/>`:`<polygon points="${x+w/2},${y} ${x+w},${y+h/2} ${x+w/2},${y+h} ${x},${y+h/2}" fill="${d.fill}"/>`}).join('')
+ const decorationSvg=renderComponentDecorations(mappedDecorations,canvas,decorationVersion)
  const layout=nativeLayoutSchema.parse({id,label,kind:'composition',archetypeId,slots,prototypeSvg:`<svg xmlns="http://www.w3.org/2000/svg" width="${canvas.width}" height="${canvas.height}" viewBox="0 0 ${canvas.width} ${canvas.height}"><rect x="0" y="0" width="${canvas.width}" height="${canvas.height}" fill="${theme.background}"/>${decorationSvg}</svg>`,contentFitRules:{overflow:'reject',maxTitleCharacters,maxClaimCharacters:0,maxBodyPoints:0,maxBodyCharacters:0,maxImages:slots.filter(s=>s.role==='image').length,maxTableRows,maxTableColumns,maxTextBlocks:textCount,maxTextCharacters}})
  validateCompositionLayout(layout,theme,contrast)
  return {layout,review:{...proposal.audit,complete:false,unmapped:proposal.audit.unmapped.filter(id=>!mappedDecorations.some(d=>d.componentId===id)),mappedDecorations,visualAcceptance:'pending',styleProvenance:'derived-adaptation',geometryAdjustments,source:{...proposal.source,sourceValueUnchanged:true},unrepresentedGroups:proposal.groups.map(g=>g.id),contentFitStatus:'requires-real-content-browser-test',editability:'slot-model-only',shareAllowed:false},proposal}

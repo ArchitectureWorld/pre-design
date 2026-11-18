@@ -52,13 +52,14 @@ export function createLayoutConversations(db,library,uploads){
   const retryTurn=input.retrySourceJobId?history.find(row=>row.id===input.retrySourceJobId):null
   if(input.retrySourceJobId&&!retryTurn)throw fail('重试来源不属于当前会话。',409)
   const retained=(retryTurn??history.at(-1))?.payload??{},contractOptions={}
-  for(const key of ['referenceWorkflowVersion','prototypeContractVersions','referenceComponentVersion','referencePrototypeMappingPolicy','referenceComponentSelection','referenceTitleReuseVersion','referenceContentFitPolicyVersion','referenceImagePlacementVersion','referenceVisualSemanticsVersion','referenceEmphasisCandidateVersion','referenceProjectSourceVersion','referenceDerivedSpecVersion'])if(retained[key]!==undefined)contractOptions[key]=structuredClone(retained[key])
+  for(const key of ['referenceWorkflowVersion','prototypeContractVersions','referenceComponentVersion','referencePrototypeMappingPolicy','referenceComponentSelection','referenceTitleReuseVersion','referenceContentFitPolicyVersion','referenceImagePlacementVersion','referenceVisualSemanticsVersion','referenceEmphasisCandidateVersion','referenceProjectSourceVersion','referenceDerivedSpecVersion','referenceDecorationVersion'])if(retained[key]!==undefined)contractOptions[key]=structuredClone(retained[key])
   if(history.length&&referenceAnalysisRequired&&!retryTurn)contractOptions.referencePrototypeMappingPolicy='matching-archetypes'
   if(!history.length&&referencePipeline==='native-v3'&&files.some(isDocument))contractOptions.referenceComponentVersion=2
   if(input.referenceVisualSemantics===true&&input.referenceExtraction!=='components')throw fail('视觉语义试用仅用于新会话逐组件提取。',409,'REFERENCE_VISUAL_SEMANTICS_SELECTION_INVALID')
   if(input.referenceExtraction==='components'){
    if(history.length||referencePipeline!=='native-v3')throw fail('逐组件提取请新建会话，现有任务不会自动改版本。',409,'REFERENCE_COMPONENT_SELECTION_INVALID')
    if(input.referenceVisualSemantics===true){contractOptions.referenceVisualSemanticsVersion=1;contractOptions.referenceEmphasisCandidateVersion=1}
+   contractOptions.referenceDecorationVersion=1
    contractOptions.referenceDerivedSpecVersion=1
    contractOptions.referenceProjectSourceVersion=1
    contractOptions.referenceTitleReuseVersion=1
