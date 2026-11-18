@@ -1,3 +1,5 @@
+import {verifyNativePreviewFit} from './preview-ui.js'
+import {createProjectLayoutPreview} from './project-preview-ui.js'
 import {openContentAdaptation} from './content-adaptation-ui.js'
 import {mountLayoutAnnotations} from './annotations-ui.js'
 import {mountLayoutMatrix,openLayoutPreview} from './matrix-ui.js'
@@ -16,10 +18,10 @@ export function mountLayoutLibrary({request,notify}){
  const entry=document.createElement('button');entry.type='button';entry.className='ll-entry';entry.textContent='版式库';entry.dataset.layoutLibraryOpen=''
  document.querySelector('.top-right')?.prepend(entry)
  let dialog,identity,resources=[],conversations=[],selected=null,working=null,chat,previewHandle,largePreview,annotationsHandle,previewLayout='',layoutChosen=false,picker=null,generation=0,previewGeneration=0,previewTimer,busy=false,modelBusy=false,historyViewing=false,reviewHandle,viewEpoch=0,lastDeletion=null,activityLabel='正在生成版式…'
- const pending=new Map(),adaptationDrafts=new Map();let adaptationHandle
+ const pending=new Map(),adaptationDrafts=new Map(),previewFit=new Map();let adaptationHandle,previewContext=null,isPreviewCurrent=null,mappingPicker=null,mappingController=null
  const msg=text=>{const el=dialog?.querySelector('[data-ll-status]');if(el)el.textContent=text}
  const own=()=>!selected||selected.ownerId===identity?.id||identity?.role==='admin'
- function close(){adaptationHandle?.dispose();adaptationHandle=null;annotationsHandle?.dispose();annotationsHandle=null;largePreview?.dispose();largePreview=null;reviewHandle?.dispose();reviewHandle=null;generation++;viewEpoch++;clearTimeout(previewTimer);previewHandle?.dispose();chat?.dispose();dialog?.close();dialog?.remove();dialog=null;chat=null;pending.clear();picker=null}
+ function close(){mappingController?.abort();mappingController=null;adaptationHandle?.dispose();adaptationHandle=null;annotationsHandle?.dispose();annotationsHandle=null;largePreview?.dispose();largePreview=null;reviewHandle?.dispose();reviewHandle=null;generation++;viewEpoch++;clearTimeout(previewTimer);previewHandle?.dispose();chat?.dispose();dialog?.close();dialog?.remove();dialog=null;chat=null;pending.clear();previewFit.clear();picker=null;previewContext=null;isPreviewCurrent=null;mappingPicker=null}
  async function run(action){if(busy)return;busy=true;try{await action()}catch(error){msg(error.message);notify(error.message)}finally{busy=false}}
  async function post(path,body={},options={}){
   const key=JSON.stringify([path,body]);let requestId=pending.get(key);if(!requestId){requestId=rid();pending.set(key,requestId)}
@@ -32,7 +34,7 @@ export function mountLayoutLibrary({request,notify}){
   resources=library.resources;conversations=history.conversations;renderList()
  }
  async function open(options={}){
-  close();picker=options.onPick??null;const token=generation
+  close();picker=options.onPick??null;previewContext=options.previewContext?structuredClone(options.previewContext):null;isPreviewCurrent=options.isPreviewCurrent??null;mappingPicker=options.onMap??null;const token=generation
   selected=null;working=null;previewLayout='';modelBusy=false;historyViewing=false
   dialog=document.createElement('dialog');dialog.className='ll-dialog';dialog.dataset.layoutLibrary='';dialog.setAttribute('aria-label','版式工作台')
   dialog.innerHTML=`<header class="ll-head"><button data-library-nav aria-label="浏览版式" aria-expanded="false">☰</button><h2>版式库</h2><span data-ll-status role="status">正在连接…</span><button data-undo-delete hidden>撤销删除</button><button data-close aria-label="关闭版式库">×</button></header><div class="ll-main ll-unified"><aside class="ll-sidebar"><div class="ll-tools"><input data-search type="search" placeholder="搜索版式"><button data-new class="ll-primary">新建版式</button><button data-seed hidden>预置版式</button></div><div data-list class="ll-list"></div></aside><section class="ll-inspector" data-layout-results></section><aside class="ll-assistant" data-layout-chat></aside></div>`
@@ -125,6 +127,8 @@ export function mountLayoutLibrary({request,notify}){
   const form=dialog.querySelector('[data-editor]');if(form)for(const el of form.elements)el.disabled=modelBusy||!own()
   const name=dialog.querySelector('[data-resource-name]');if(name)name.disabled=modelBusy||!own()
   for(const button of dialog.querySelectorAll('[data-save],[data-validate],[data-publish],[data-use-layout],[data-reference-review],[data-content-adapt]'))button.disabled=modelBusy
+  const use=dialog.querySelector('[data-use-layout]');if(use&&previewContext)use.disabled=modelBusy||previewFit.get(previewLayout)!=='passed'
+  const map=dialog.querySelector('[data-configure-mapping]');if(map){map.hidden=!working?.layouts?.find(l=>l.id===previewLayout)?.slots?.some(s=>s.role==='text');map.disabled=modelBusy||!selected}
  }
  function renderResult(){
   if(!dialog)return
@@ -134,8 +138,8 @@ export function mountLayoutLibrary({request,notify}){
   const pkg=working;previewLayout=pkg.layouts.some(l=>l.id===previewLayout)?previewLayout:pkg.layouts[0].id
   panel.innerHTML=`<div class="ll-result-heading"><input data-resource-name aria-label="版式名称" value="${esc(pkg.name)}" maxlength="100"><span>${selected?'V'+selected.version+' · '+stateName(selected):'新建版式'}</span>${selected&&own()?`<select data-history aria-label="历史版本">${Array.from({length:selected.latestVersion},(_,i)=>`<option value="${i+1}" ${selected.version===i+1?'selected':''}>V${i+1}</option>`).join('')}</select>`:''}</div>
    <div class="ll-preview-controls"><select data-layout aria-label="预览布局">${pkg.layouts.map(l=>`<option value="${l.id}" ${l.id===previewLayout?'selected':''}>${esc(l.label)}</option>`).join('')}</select><button data-preview>更新预览</button></div>
-   <div data-preview-box aria-label="全部版式缩略图"></div>
-   <div class="ll-result-actions"><button data-save class="ll-primary">${selected&&own()?'保存修改':'保存版式'}</button>${selected?'<button data-validate>检查版式</button><button data-export>导出</button>':''}${selected&&pkg.designProfile&&selected.ownerId===identity?.id?'<button data-reference-review class="ll-primary">对照审阅</button>':''}${selected&&selected.ownerId===identity?.id?'<button data-content-adapt>内容适配预览</button>':''}${picker?'<button data-use-layout class="ll-primary">选用此版式</button>':''}</div>
+   <p data-preview-mode role="status"></p><div data-preview-box aria-label="全部版式缩略图"></div>
+   <div class="ll-result-actions"><button data-save class="ll-primary">${selected&&own()?'保存修改':'保存版式'}</button>${selected?'<button data-validate>检查版式</button><button data-export>导出</button>':''}${selected&&pkg.designProfile&&selected.ownerId===identity?.id?'<button data-reference-review class="ll-primary">对照审阅</button>':''}${selected&&selected.ownerId===identity?.id?'<button data-content-adapt>内容适配预览</button>':''}${mappingPicker&&previewContext?'<button data-configure-mapping>配置原文映射</button>':''}${picker?'<button data-use-layout class="ll-primary">选用此版式</button>':''}</div>
    <div data-layout-annotations></div>
    ${pkg.designProfile?`<details class="ll-profile"><summary>参考分析 · ${pkg.designProfile.archetypes.length} 种页面类型${selected?.referenceReview?.status==='confirmed'?' · 已确认':' · 待对照'}</summary>${referenceProfileHtml(pkg.designProfile)}</details>`:''}
    ${reuseGuideHtml(pkg)}
@@ -146,9 +150,10 @@ export function mountLayoutLibrary({request,notify}){
    <small class="ll-result-qa" data-qa-result>${selected?.validation?.status==='passed'?'页面检查通过':selected?.validation?.status==='failed'?'页面检查未通过':''}</small>`
   const form=panel.querySelector('[data-editor]');form.onsubmit=e=>e.preventDefault()
   form.querySelector('[data-json]').oninput=e=>{e.target.dataset.dirty='true'}
+  const invalidateProjectPreview=()=>{if(!previewContext)return;previewFit.clear();updateControls();previewGeneration++;largePreview?.dispose();largePreview=null;previewHandle?.dispose();previewHandle=null;panel.querySelector('[data-preview-box]').replaceChildren();panel.querySelector('[data-preview-mode]').textContent='当前页内容试看：请先保存版式修改，再比较真实内容。'}
   const schedule=()=>{clearTimeout(previewTimer);previewTimer=setTimeout(()=>{if(form.checkValidity())void preview(true).catch(e=>msg(e.message))},250)}
-  form.addEventListener('input',e=>{if(!e.target.matches('[data-json]'))schedule()})
-  panel.querySelector('[data-resource-name]').oninput=schedule
+  form.addEventListener('input',e=>{invalidateProjectPreview();if(!e.target.matches('[data-json]'))schedule()})
+  panel.querySelector('[data-resource-name]').oninput=()=>{invalidateProjectPreview();schedule()}
   panel.querySelector('[data-layout]').onchange=()=>{previewLayout=panel.querySelector('[data-layout]').value;layoutChosen=true;void preview(true).catch(e=>msg(e.message))}
   panel.querySelector('[data-preview]').onclick=()=>void run(()=>preview(true))
   panel.querySelector('[data-history]')?.addEventListener('change',event=>void run(()=>selectResource(selected.id,Number(event.target.value),{syncChat:false})))
@@ -182,7 +187,8 @@ export function mountLayoutLibrary({request,notify}){
    await reviewHandle.ready
   }))
   panel.querySelector('[data-export]')?.addEventListener('click',()=>void run(async()=>download(await request('/layout-library/'+selected.id+'/'+selected.version+'/export',{download:true}))))
-  panel.querySelector('[data-use-layout]')?.addEventListener('click',()=>void run(async()=>{if(!selected||!equal(readWorking(),selected.package))await save();await picker({resourceId:selected.id,version:selected.version,...(layoutChosen?{layoutId:previewLayout}:{})});close()}))
+  panel.querySelector('[data-configure-mapping]')?.addEventListener('click',()=>void run(async()=>{if(!previewContext||isPreviewCurrent?.()!==true||!selected||!equal(readWorking(),selected.package))throw Error('请先保存版式修改，并确认当前项目与稿件未变化。');const token=generation,controller=new AbortController();mappingController=controller;try{await mappingPicker({resourceId:selected.id,version:selected.version,layoutId:previewLayout},{signal:controller.signal,isCurrent:()=>!!dialog&&token===generation&&!controller.signal.aborted&&isPreviewCurrent?.()===true});if(token===generation&&!controller.signal.aborted){mappingController=null;close()}}catch(error){if(token===generation&&!controller.signal.aborted)throw error}finally{if(mappingController===controller)mappingController=null}}))
+  panel.querySelector('[data-use-layout]')?.addEventListener('click',()=>void run(async()=>{if(previewContext&&(previewFit.get(previewLayout)!=='passed'||isPreviewCurrent?.()!==true||!selected||!equal(readWorking(),selected.package)))throw Error('请先确认当前内容在所选版式中完整呈现，再选用。');if(!selected||!equal(readWorking(),selected.package))await save();await picker({resourceId:selected.id,version:selected.version,...(layoutChosen||previewContext?{layoutId:previewLayout}:{})});close()}))
   panel.querySelector('[data-publish]')?.addEventListener('click',()=>void run(async()=>{
    readForm();if(!equal(working,selected.package))throw Error('请先保存当前修改。');if(!panel.querySelector('[data-reviewed]').checked)throw Error('请核对参考与授权。')
    await post('/layout-library/'+selected.id+'/'+selected.version+'/publish',{visibility:panel.querySelector('[data-visibility]').value,reviewed:true});selected=await request('/layout-library/'+selected.id+'/'+selected.version);renderResult();await preview();await reload();msg('已发布此版本。')
@@ -204,10 +210,20 @@ export function mountLayoutLibrary({request,notify}){
   if(read)readForm()
   const box=dialog.querySelector('[data-preview-box]'),pkg=structuredClone(working)
   previewGeneration++;largePreview?.dispose();largePreview=null;previewHandle?.dispose()
-  const renderPreview=(layoutId,{signal}={})=>request('/layout-library/preview',{method:'POST',body:{package:pkg,layoutId},signal})
-  const select=id=>{previewLayout=id;layoutChosen=true;const selector=dialog?.querySelector('[data-layout]');if(selector)selector.value=id}
-  previewHandle=mountLayoutMatrix(box,{layouts:pkg.layouts,selectedId:previewLayout,renderPreview,onSelect:select,onOpen:(id,returnFocus)=>{
-   previewHandle.select(id);largePreview?.dispose();largePreview=openLayoutPreview({document,layout:pkg.layouts.find(l=>l.id===id),renderPreview,returnFocus,onSelect:selection=>{chat?.focusSelection(selection);annotationsHandle?.offer(selection,document.querySelector('.ll-large-preview'))}})
+  previewFit.clear();updateControls()
+  const mode=dialog.querySelector('[data-preview-mode]'),token=previewGeneration
+  let renderPreview
+  if(previewContext){
+   if(!selected||!equal(pkg,selected.package)){mode.textContent='当前页内容试看：请先保存版式修改，再比较真实内容。';box.replaceChildren();return}
+   mode.textContent='当前页内容效果 · 仅试看，未保存；不代表整套页面均适用。'
+   const resource=structuredClone(selected)
+   renderPreview=createProjectLayoutPreview({request,context:previewContext,resource,isCurrent:()=>!!dialog&&token===previewGeneration&&selected?.id===resource.id&&selected?.version===resource.version&&selected?.hash===resource.hash&&equal(working,resource.package)&&isPreviewCurrent?.()===true})
+  }else{mode.textContent='示例效果 · 未使用项目实际内容。';renderPreview=(layoutId,{signal}={})=>request('/layout-library/preview',{method:'POST',body:{package:pkg,layoutId},signal})}
+  const onPreviewState=(id,state)=>{if(!dialog||token!==previewGeneration)return;previewFit.set(id,state);updateControls()}
+  const verifyRendered=previewContext?async(host,options)=>{await verifyNativePreviewFit(host,options);if(isPreviewCurrent?.()!==true)throw Error('当前项目或稿件已变化，请重新打开预览。')}:undefined
+  const select=id=>{previewLayout=id;layoutChosen=true;updateControls();const selector=dialog?.querySelector('[data-layout]');if(selector)selector.value=id}
+  previewHandle=mountLayoutMatrix(box,{layouts:pkg.layouts,selectedId:previewLayout,renderPreview,verifyRendered,onPreviewState,onSelect:select,onOpen:(id,returnFocus)=>{
+   previewHandle.select(id);largePreview?.dispose();largePreview=openLayoutPreview({document,layout:pkg.layouts.find(l=>l.id===id),renderPreview,returnFocus,contextLabel:mode.textContent,verifyRendered,onPreviewState,onSelect:selection=>{chat?.focusSelection(selection);annotationsHandle?.offer(selection,document.querySelector('.ll-large-preview'))}})
   }})
  }
  async function importFile(file,options={}){

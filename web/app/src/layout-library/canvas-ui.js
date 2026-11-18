@@ -72,18 +72,22 @@ export function mountCanvasLayouts({nodeLayer,viewport,getProject,request,notify
   const x=r.right+12+width<v.right?r.right+12:Math.max(v.left+10,r.left-width-12)
   panel.style.left=Math.min(x,v.right-width-10)+'px';panel.style.top=Math.max(v.top+10,Math.min(r.top,v.bottom-panel.offsetHeight-10))+'px'
  }
- async function open(pageId,button){
+ async function open(pageId,button,{isCurrent=()=>true}={}){
+  if(!isCurrent())return false
   const ctx=current();if(!ctx)return
   close();target={pageId,projectId:ctx.p.id,draftId:ctx.d.id}
   panel=document.createElement('section');panel.className='canvas-layout-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-label',pageId?'本页版式':'全局版式');panel.dataset.canvasLayoutPanel=''
   document.body.append(panel)
-  const token=generation
+  const token=generation,openedPanel=panel
+  const valid=()=>{if(panel!==openedPanel||token!==generation)return false;if(!isCurrent()){close();return false}return true}
   panel.innerHTML='<div class="canvas-layout-loading">正在读取版式…</div>';position()
   const [library,user]=await Promise.all([request('/layout-library'),request('/me')])
-  if(!panel||token!==generation)return
+  if(!valid())return false
   const visible=library.resources.filter(r=>!r.retired&&(r.ownerId===user.id||r.publishedVersion))
-  resources=await Promise.all(visible.map(r=>r.ownerId!==user.id&&r.version!==r.publishedVersion?request('/layout-library/'+r.id+'/'+r.publishedVersion):r));identity=user
-  await load();if(!panel)return;renderPanel();button?.setAttribute('aria-expanded','true')
+  const loadedResources=await Promise.all(visible.map(r=>r.ownerId!==user.id&&r.version!==r.publishedVersion?request('/layout-library/'+r.id+'/'+r.publishedVersion):r))
+  if(!valid())return false
+  resources=loadedResources;identity=user
+  await load();if(!valid())return false;renderPanel();button?.setAttribute('aria-expanded','true');return true
  }
  function selectedPages(){return target?.pageId?[...panel.querySelectorAll('[data-bind-page]:checked')].map(n=>n.value):pages().map(p=>p.id)}
  function scope(){return target?.pageId?panel.querySelector('[data-layout-layer]').value:'global'}
@@ -119,7 +123,7 @@ export function mountCanvasLayouts({nodeLayer,viewport,getProject,request,notify
    void save(target,{scope:scope(),pageIds:selectedPages(),resource:selected?{resourceId:selected.resourceId,version:selected.version}:null,overrides:overrides()}).catch(()=>{})
   }
   panel.querySelector('[data-reset-page-layout]').onclick=()=>void save(target,{scope:scope()==='local'&&effective().contentMappings?.[target.pageId]?'content':scope(),pageIds:selectedPages(),remove:true,resource:null,overrides:{}}).catch(()=>{})
-  panel.querySelector('[data-open-layout-library]').onclick=()=>{const snapshot={...target},ids=selectedPages(),layer=scope();close();void openLibrary({onPick:choice=>chooseBinding(snapshot,{scope:layer,pageIds:ids,resource:{resourceId:choice.resourceId,version:choice.version},overrides:choice.layoutId?{layoutId:choice.layoutId}:{}})})}
+  panel.querySelector('[data-open-layout-library]').onclick=()=>{const snapshot={...target},ids=selectedPages(),previousLayer=scope(),layer=previousLayer==='manual'?'local':previousLayer;if(previousLayer==='manual')notify('从版式库选用将设置本页版式，已有手动覆盖仍保留并影响最终效果。');close();void openLibrary({...(snapshot.pageId&&ids.length===1?{previewContext:{projectId:snapshot.projectId,draftId:snapshot.draftId,pageId:snapshot.pageId},isPreviewCurrent:()=>{const c=current();return !!c&&c.p.id===snapshot.projectId&&c.d.id===snapshot.draftId},onMap:(choice,lifecycle={})=>chooseBinding(snapshot,{scope:'local',pageIds:ids,resource:{resourceId:choice.resourceId,version:choice.version},overrides:{layoutId:choice.layoutId}},{mappingOnly:true,signal:lifecycle.signal,isCurrent:lifecycle.isCurrent})}:{}),onPick:choice=>chooseBinding(snapshot,{scope:layer,pageIds:ids,resource:{resourceId:choice.resourceId,version:choice.version},overrides:choice.layoutId?{layoutId:choice.layoutId}:{}})})}
   panel.querySelector('[data-apply-layout]')?.addEventListener('click',()=>void apply())
   panel.querySelector('[data-save-layout-variant]')?.addEventListener('click',()=>{
    panel.querySelector('[data-layout-variant-form]').innerHTML='<input data-variant-name placeholder="版式名称" maxlength="100"><button data-variant-save>保存</button>'
@@ -139,22 +143,29 @@ export function mountCanvasLayouts({nodeLayer,viewport,getProject,request,notify
   host.querySelector('[data-cancel-restore]').onclick=()=>host.replaceChildren()
   host.querySelector('[data-restore-mapping]').onclick=()=>void save(snapshot,{...body,scope:'content',remove:true}).then(()=>host.replaceChildren()).catch(()=>{})
  }
- async function chooseBinding(snapshot,body){
+ async function chooseBinding(snapshot,body,{mappingOnly=false,signal,isCurrent=()=>true}={}){
+  const valid=()=>!signal?.aborted&&isCurrent()===true
+  if(!valid())return
+  if(mappingOnly&&(!body.resource||body.scope==='manual'))throw Error('请选择需要映射的本页版式。')
   if(body.scope==='manual')return save(snapshot,body)
   if(!body.resource){if(effective().contentMappings?.[snapshot.pageId])return offerRestore(snapshot,body);return save(snapshot,body)}
   const record=resources.find(r=>r.id===body.resource.resourceId&&r.version===body.resource.version)??await request('/layout-library/'+body.resource.resourceId+'/'+body.resource.version)
+  if(!valid())return
   assertTarget(snapshot)
   const layouts=record.package.layouts.filter(l=>(!body.overrides?.layoutId||l.id===body.overrides.layoutId)&&l.slots?.some(s=>s.role==='text'))
-  if(!layouts.length){if(effective().contentMappings?.[snapshot.pageId])return offerRestore(snapshot,body);return save(snapshot,body)}
+  if(!layouts.length){if(mappingOnly)throw Error('此版式没有需要配置的独立文字位置。');if(effective().contentMappings?.[snapshot.pageId])return offerRestore(snapshot,body);return save(snapshot,body)}
   if(!snapshot.pageId||body.pageIds.length!==1){notify('包含独立文字组件的版式请逐页映射原文，不能批量猜测。');return}
   const item=pages().find(p=>p.id===snapshot.pageId)?.item
   const mappedKeys=new Set((effective().contentMappings?.[snapshot.pageId]?.entries??[]).map(e=>e.targetKey))
-  const required=layouts.map(l=>({...l,slots:l.slots.filter(s=>s.role!=='text'||mappedKeys.has(s.binding)||!item?.textBlocks?.some(b=>b.key===s.binding))})).filter(l=>l.slots.some(s=>s.role==='text'))
+  const required=mappingOnly?layouts:layouts.map(l=>({...l,slots:l.slots.filter(s=>s.role!=='text'||mappedKeys.has(s.binding)||!item?.textBlocks?.some(b=>b.key===s.binding))})).filter(l=>l.slots.some(s=>s.role==='text'))
   if(!required.length)return save(snapshot,body)
-  if(!panel||target?.pageId!==snapshot.pageId)await open(snapshot.pageId)
+  if(!panel||target?.pageId!==snapshot.pageId){if(!await open(snapshot.pageId,undefined,{isCurrent:valid}))return}
+  if(!valid())return
   assertTarget(snapshot)
+  const mappingPanel=panel
   const latest=await request('/projects/'+snapshot.projectId+'/layout-bindings')
-  assertTarget(snapshot);if(!panel||target?.pageId!==snapshot.pageId)return
+  if(!valid())return
+  assertTarget(snapshot);if(!panel||panel!==mappingPanel||target?.pageId!==snapshot.pageId)return
   const source=latest.contentSources?.[snapshot.pageId]
   if(!source)throw Error('当前原文映射信息不可用，请刷新。')
   mappingHandle?.dispose()

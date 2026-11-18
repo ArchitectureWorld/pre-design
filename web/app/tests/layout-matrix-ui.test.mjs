@@ -22,3 +22,17 @@ test('large preview closes and restores focus without late response leaking',asy
 })
 test('preview concurrency is bounded and queued work never starts after dispose',async()=>{const {mountLayoutMatrix}=await import('../src/layout-library/matrix-ui.js'),dom=new JSDOM('<main/>');let count=0;const ui=mountLayoutMatrix(dom.window.document.querySelector('main'),{layouts:Array.from({length:12},(_,i)=>({id:String(i),label:String(i)})),renderPreview:()=>{count++;return new Promise(()=>{})}});assert.equal(count,3);ui.dispose();await tick();assert.equal(count,3);dom.window.close()})
 test('native component selection preserves stable slot identity',async()=>{const {mountNativePreview}=await import('../src/layout-library/preview-ui.js'),dom=new JSDOM('<main/>');let selected;const ui=mountNativePreview(dom.window.document.querySelector('main'),'<div class="native-deck"><div data-layout="a"><div data-layout-slot="body" data-layout-slot-id="card-heading">正文</div></div></div>',{onSelect:value=>selected=value});ui.host.shadowRoot.querySelector('[data-layout-slot]').click();assert.deepEqual(selected,{layoutId:'a',slot:'body',slotId:'card-heading'});ui.dispose();dom.window.close()})
+test('preview incompatibility is readable safe text in matrix and large view',async()=>{
+ const {mountLayoutMatrix,openLayoutPreview}=await import('../src/layout-library/matrix-ui.js'),dom=new JSDOM('<main/>'),doc=dom.window.document
+ dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true};dom.window.HTMLDialogElement.prototype.close=function(){this.open=false}
+ const renderPreview=async()=>{throw Error('需要原文映射 <img src=x onerror=alert(1)>')},layout={id:'a',label:'甲'}
+ const matrix=mountLayoutMatrix(doc.querySelector('main'),{layouts:[layout],renderPreview});await tick();assert.match(doc.querySelector('.ll-matrix-thumbnail').textContent,/需要原文映射/);assert.equal(doc.querySelector('img'),null)
+ const large=openLayoutPreview({document:doc,layout,renderPreview});await large.ready;assert.match(doc.querySelector('.ll-large-preview').textContent,/需要原文映射/);assert.equal(doc.querySelector('img'),null);large.dispose();matrix.dispose();dom.window.close()
+})
+test('current-content preview fit failure replaces cropped image and reports blocked state',async()=>{
+ const {mountLayoutMatrix,openLayoutPreview}=await import('../src/layout-library/matrix-ui.js'),dom=new JSDOM('<main/>'),doc=dom.window.document,states=[]
+ dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true};dom.window.HTMLDialogElement.prototype.close=function(){this.open=false}
+ const verifyRendered=async()=>{throw Error('当前内容超出版式可读空间，不能选用。')},layout={id:'a',label:'甲'},renderPreview=async()=>({html:html('裁字')})
+ const matrix=mountLayoutMatrix(doc.querySelector('main'),{layouts:[layout],renderPreview,verifyRendered,onPreviewState:(id,state)=>states.push([id,state])});await tick();assert.match(doc.querySelector('.ll-matrix-thumbnail').textContent,/超出/);assert.equal(doc.querySelector('.ll-preview-host'),null);assert.deepEqual(states,[['a','pending'],['a','failed']])
+ const large=openLayoutPreview({document:doc,layout,renderPreview,verifyRendered});await large.ready;assert.match(doc.querySelector('.ll-large-preview').textContent,/超出/);assert.equal(doc.querySelector('.ll-large-preview .ll-preview-host'),null);large.dispose();matrix.dispose();dom.window.close()
+})
