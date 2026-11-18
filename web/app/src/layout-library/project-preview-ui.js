@@ -21,3 +21,15 @@ export function createProjectLayoutPreview({request,context,resource,isCurrent}=
   return result
  }
 }
+
+/** Experimental own-content rendering only. Never saves or marks a layout usable. */
+export function createProjectEditorialPreview({request,context,resource,isCurrent,styleAcknowledged}={}){
+ if(styleAcknowledged!==true||typeof request!=='function')invalid()
+ const fixed=freeze(structuredClone(resource)),fixedContext=freeze(structuredClone(context))
+ return createProjectLayoutPreview({context:fixedContext,resource:fixed,isCurrent,request:async(_path,options)=>{
+  const b=options.body,layoutId=b.overrides.layoutId
+  const result=await request('/projects/'+fixedContext.projectId+'/layout-editorial-preview',{method:'POST',signal:options.signal,body:{draftId:b.draftId,pageId:b.pageId,resourceId:fixed.id,version:fixed.version,expectedHash:fixed.hash,layoutId,styleAcknowledged:true}})
+  if(!result||result.experimental!==true||result.resourceId!==fixed.id||result.version!==fixed.version||result.sourceHash!==fixed.hash||result.sourceLayoutId!==layoutId)invalid()
+  return result
+ }})
+}

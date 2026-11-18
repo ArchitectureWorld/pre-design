@@ -4,12 +4,12 @@ import {JSDOM} from 'jsdom'
 import {createPackage} from '../src/layout-library/contract.mjs'
 import {mountLayoutLibrary} from '../src/layout-library/ui.js'
 const tick=()=>new Promise(r=>setImmediate(r))
-async function fixture(t,{projectResponse}={}){
+async function fixture(t,{projectResponse,editorialResponse}={}){
  const dom=new JSDOM('<div class="top-right"></div>');globalThis.document=dom.window.document;globalThis.window=dom.window;dom.window.requestAnimationFrame=fn=>setImmediate(fn);dom.window.cancelAnimationFrame=clearImmediate;Object.defineProperty(dom.window.document,'fonts',{value:Object.assign([],{ready:Promise.resolve()})});for(const key of ['clientWidth','clientHeight','scrollWidth','scrollHeight'])Object.defineProperty(dom.window.HTMLElement.prototype,key,{get:()=>100,configurable:true})
  dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true};dom.window.HTMLDialogElement.prototype.close=function(){this.open=false}
  const pkg=createPackage('测试版式'),resource={id:'11111111-1111-4111-8111-111111111111',version:1,latestVersion:1,hash:'a'.repeat(64),ownerId:'owner',visibility:'private',package:pkg},calls=[]
  const html=value=>`<div class="native-deck" data-canvas-width="1600" data-canvas-height="900"><div data-layout-slot="body">${value}</div></div>`
- const request=async(path,options={})=>{calls.push({path,...options});if(path==='/me')return {id:'owner'};if(path==='/layout-library')return {resources:[resource]};if(path==='/layout-library/conversations')return {conversations:[]};if(path==='/layout-library/reference-config')return {configured:false};if(path==='/layout-library/11111111-1111-4111-8111-111111111111/1')return structuredClone(resource);if(path==='/layout-library/preview')return {html:html('示例')};if(path==='/projects/22222222-2222-4222-8222-222222222222/layout-preview'){if(projectResponse)return projectResponse(options);return {html:html('当前页实际内容 '+options.body.overrides.layoutId),draftId:'33333333-3333-4333-8333-333333333333',pageId:'page'}};throw Error('unexpected '+path)}
+ const request=async(path,options={})=>{calls.push({path,...options});if(path==='/me')return {id:'owner'};if(path==='/layout-library')return {resources:[resource]};if(path==='/layout-library/conversations')return {conversations:[]};if(path==='/layout-library/reference-config')return {configured:false};if(path==='/layout-library/11111111-1111-4111-8111-111111111111/1')return structuredClone(resource);if(path==='/layout-library/preview')return {html:html('示例')};if(path==='/projects/22222222-2222-4222-8222-222222222222/layout-editorial-preview'){if(editorialResponse)return editorialResponse(options);return {experimental:true,html:html('只读实验真实内容'),draftId:options.body.draftId,pageId:options.body.pageId,resourceId:resource.id,version:resource.version,sourceHash:resource.hash,sourceLayoutId:options.body.layoutId,fallback:true,typography:{body:{fontSize:22}}}};if(path==='/projects/22222222-2222-4222-8222-222222222222/layout-preview'){if(projectResponse)return projectResponse(options);return {html:html('当前页实际内容 '+options.body.overrides.layoutId),draftId:'33333333-3333-4333-8333-333333333333',pageId:'page'}};throw Error('unexpected '+path)}
  const ui=mountLayoutLibrary({request,notify:()=>{}});t.after(()=>{ui.dispose();dom.window.close();delete globalThis.document;delete globalThis.window})
  return {dom,ui,calls,resource}
 }
@@ -69,4 +69,18 @@ for(const outcome of ['resolve','reject'])test(`cancelled mapping cannot close o
  document.querySelector('[data-configure-mapping]').click();await tick();assert.equal(waiters.length,1)
  await f.ui.open({resourceId:f.resource.id,version:1});await tick();assert(waiters[0].lifecycle?.signal?.aborted);assert.equal(waiters[0].lifecycle.isCurrent(),false)
  waiters[0][outcome](Error('旧映射错误'));await tick();await tick();assert(document.querySelector('[data-layout-library]'));assert.match(document.querySelector('[data-preview-mode]').textContent,/示例/);assert.equal(document.querySelector('[data-ll-status]').textContent,'')
+})
+
+test('experimental editorial action is explicit own-content preview and never grants use or saves',async t=>{
+ const f=await fixture(t),choices=[];f.resource.package.schemaVersion='pre-design.layout-package.v3';
+ await f.ui.open({resourceId:f.resource.id,version:1,previewContext:{projectId:'22222222-2222-4222-8222-222222222222',draftId:'33333333-3333-4333-8333-333333333333',pageId:'page'},isPreviewCurrent:()=>true,onPick:c=>choices.push(c)});await tick();
+ const button=document.querySelector('[data-editorial-preview]');assert(button);button.click();await tick();assert(!f.calls.some(c=>c.path.endsWith('layout-editorial-preview')));assert.match(document.querySelector('[data-ll-status]').textContent,/确认/);
+ document.querySelector('[data-style-ack]').checked=true;button.click();for(let i=0;i<8;i++)await tick();
+ assert.match(document.querySelector('.ll-large-preview [data-preview-context]').textContent,/实验.*未保存/);assert.match(document.querySelector('.ll-large-preview [data-preview-context]').textContent,/22/);assert.match(document.querySelector('.ll-large-preview .ll-preview-host').shadowRoot.textContent,/只读实验真实内容/);assert.deepEqual(choices,[]);assert(f.calls.filter(c=>c.method==='POST').every(c=>c.path.endsWith('preview')));
+ await f.ui.open({resourceId:f.resource.id,version:1});assert.equal(document.querySelector('[data-editorial-preview]'),null);
+})
+test('closing experimental preview aborts work and cannot insert private result into another session',async t=>{
+ const waits=[],f=await fixture(t,{editorialResponse:options=>new Promise(resolve=>waits.push({options,resolve}))});f.resource.package.schemaVersion='pre-design.layout-package.v3';const context={projectId:'22222222-2222-4222-8222-222222222222',draftId:'33333333-3333-4333-8333-333333333333',pageId:'page'};
+ await f.ui.open({resourceId:f.resource.id,version:1,previewContext:context,isPreviewCurrent:()=>true});await tick();document.querySelector('[data-style-ack]').checked=true;document.querySelector('[data-editorial-preview]').click();await tick();assert.equal(waits.length,1);
+ await f.ui.open({resourceId:f.resource.id,version:1});assert(waits[0].options.signal.aborted);waits[0].resolve({experimental:true,draftId:context.draftId,pageId:context.pageId,resourceId:f.resource.id,version:1,sourceHash:f.resource.hash,sourceLayoutId:waits[0].options.body.layoutId,html:'<main>不得插入新会话的私有正文</main>'});for(let i=0;i<3;i++)await tick();assert.equal(document.querySelector('.ll-large-preview'),null);assert(!document.body.textContent.includes('不得插入'));
 })

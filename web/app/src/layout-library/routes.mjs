@@ -1,3 +1,4 @@
+import {createContentStylePreviews} from './content-style-preview.mjs'
 import {createContentMappingPreflight} from './content-mapping-preflight.mjs'
 import {prepareLayoutPreview} from './layout-preview.mjs'
 import {createContentFitPreviews} from './content-fit-preview.mjs'
@@ -16,8 +17,9 @@ const mutation=z.object({requestId}).strict()
 const ref=z.object({resourceId:id,version}).strict().nullable()
 const binding=z.object({requestId,baseRevision:z.number().int().nonnegative(),draftId:id,expectedRevision:z.number().int().nonnegative(),scope:z.enum(['global','local','manual','content']),pageIds:z.array(z.string().max(150)).min(1).max(200).refine(a=>new Set(a).size===a.length).optional(),resource:ref.optional(),overrides:patchSchema.optional(),contentMapping:contentMappingSchema.optional(),remove:z.boolean().optional()}).strict()
  .refine(b=>b.scope==='content'?b.pageIds?.length===1&&(b.remove?b.contentMapping===undefined:!!b.contentMapping):b.contentMapping===undefined,'文字映射须单页明确提交或移除')
-export function registerLayoutRoutes({app,library,annotations,uploads,project,workflows,serial,event,enqueueReference,listReferenceJobs,cancelReference,referenceConfiguration,retryReference,listConversations,getConversation,recordReferenceImport,resolveLayoutAssets=async pages=>pages,validator=validatePublication,mappingMeasure}){
+export function registerLayoutRoutes({app,library,annotations,uploads,project,workflows,serial,event,enqueueReference,listReferenceJobs,cancelReference,referenceConfiguration,retryReference,listConversations,getConversation,recordReferenceImport,resolveLayoutAssets=async pages=>pages,validator=validatePublication,mappingMeasure,editorialPreview}){
  const contentFit=createContentFitPreviews({library})
+ const contentStyle=editorialPreview??createContentStylePreviews({library,workflows})
  const mappingPreflight=createContentMappingPreflight({measure:mappingMeasure})
  app.post('/api/layout-library/:resourceId/:version/content-fit-preview',{bodyLimit:256*1024},async(req,reply)=>{
   reply.header('Cache-Control','private, no-store')
@@ -197,6 +199,14 @@ export function registerLayoutRoutes({app,library,annotations,uploads,project,wo
   })}finally{req.raw.removeListener('aborted',abort);reply.raw.removeListener('close',closed)}
  })
 
+ app.post('/api/projects/:id/layout-editorial-preview',{bodyLimit:4096},async(req,reply)=>{
+  reply.header('Cache-Control','private, no-store')
+  const controller=new AbortController(),abort=()=>controller.abort(),closed=()=>{if(!reply.raw.writableEnded)abort()}
+  req.raw.once('aborted',abort);reply.raw.once('close',closed)
+  if(req.raw.aborted||reply.raw.destroyed)abort()
+  try{const p=await project(req);return await contentStyle.preview(req.user,p,req.body,{signal:controller.signal,refreshProject:()=>project(req)})}
+  finally{req.raw.removeListener('aborted',abort);reply.raw.removeListener('close',closed)}
+ })
  app.post('/api/projects/:id/layout-preview',async req=>{
   const b=z.object({draftId:id,pageId:z.string().min(1).max(150),scope:z.enum(['global','local','manual','content']).optional(),resource:ref.optional(),overrides:patchSchema.optional(),contentMapping:contentMappingSchema.optional(),remove:z.boolean().optional()}).strict()
    .refine(v=>v.scope||v.resource===undefined&&v.overrides===undefined,'预览覆盖需要指定范围')

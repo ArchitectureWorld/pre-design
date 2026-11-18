@@ -1,0 +1,45 @@
+# 内容测量驱动风格计划（核心第一步）
+
+用户要求持续开发具备设计师美感的成果。本轮仅新增内核、测试与文档，不接 UI/store，不改变旧 v1/renderer/资源绑定。选择现有 Native V3 中的规则驱动内容流，不另造固定模板集合，不估算文字、不自动缩字号、不删改原文。纯文字 title/paragraphs/points；复杂内容拒绝。
+
+接口：prepareContentDrivenStylePlan({sourcePackage,layoutId,item,styleAcknowledged:true}) 返回冻结临时测量请求；buildContentDrivenStylePlan(request,{measureText}) 调用内部可信浏览器能力，输出 prototype、DesignSpec 增量与哈希收执。公开请求体不得注入测量函数/伪可信测量 JSON。临时请求含正文，不写入资源。
+
+单条 measurement-v1 请求：schemaVersion/requestHash/textId/role/text/width/canvas/style。回应：schemaVersion/requestHash/textId/fontsReady:true/units:canvas-pixels/lineBoxes:[{x,y,width,height}]/requiredWidth/requiredHeight。实际 h2/p/ul/li 同 renderer CSS、字体已加载；行盒相对槽位原点，无文字。外盒需求包含列表与段落边距，不仅墨迹。非法/漏项/错误身份/超宽/超高拒绝。
+
+源角色锚点、宽度、字号、字重、行高与颜色保留；按实际高度累计 title→paragraphs→points，间距由源 spacing 推导并标 inferred。短点不按数量硬分栏；不拉伸填满。底部来源槽保留，页脚与整页还需后续真实浏览器验收。此顺序流是第一步，不声称所有多栏源风格已设计完成。新规则/装饰标平台推导，不能伪称原稿复刻。
+
+TDD：能力与内容拒绝；单/多行标题动态起点；短点顺序；源样式差异；伪造/溢出拒绝；原包不变/输出无正文；Native Compiler 真验证。合成测量不等于真实字体测量或审美通过。后续可信 Chrome 适配器及同版本同内容的前后图由父协调，visualAcceptance 保持 pending。
+
+## 已实施与验证（首轮，尚待真实视觉评估）
+
+新增 `web/app/src/layout-library/content-driven-style-plan.mjs`、`web/app/tests/content-driven-style-plan.test.mjs`。8项核心测试先红后绿；真实 Native 编译门禁已跑。旧风格/卡片相关首轮32项通过。全Web首轮1187项：1114通过、57失败、16跳过，日志 `/tmp/content-style-full-suite.log`；存在PostgreSQL Unix socket EPERM和Chromium socket EPERM，不能宣称全套通过。暂存PDF草稿不属于本批。
+
+规则提取修订：同role多槽按x/id确定排序；只有有效样式完全相同、y/h差≤0.000001、横向不重叠时提取外包宽。receipt.roleRules存匿名sourceSlotIds、sourceRectsHash/sourceStyleHash及alignmentTolerance。padding明确派生为0、verticalAlign派生top，记录源值、派生值和continuous-text-flow原因；原源不变。不能从无claim/body的text组件臆造绑定。私有既有sparse-card-2+合成正文已实际prepare通过，未入库私有材料。
+
+真实 Chrome 字体 Range 行盒负 y 已用有界行高重测解决：源行高、1.5、1.75、2，最多四次，不缩字号、不裁掉负数证据；最终仍负 y 则拒绝。每次重新签发测量身份，保留派生原因及测量哈希。浏览器适配器复用 Native renderer/CSS，禁网络与服务工作线程，测量实际 h2/p/ul/li；整数 scrollWidth 不当作相对浮点宽度的溢出证据，实际 Range 边界仍优先。CSS 宽度量化仅允许 1/64 px 加浮点 epsilon，保留原始测量，不 clamp。15 项定向回归通过，包含量化正负例先红后绿。
+
+真实同项目六页只读测试、零模型调用：前四页原文完整且实际逐槽适配通过，第五页高度不足拒绝；第六页曾因上述量化误拒，修复后真实测量已继续，最终同样因可用高度不足拒绝，六页终态为四页可完整排版、两页明确拒绝，无裁切。私有截图与业务正文未入仓库。已经实际查看短页和长三点页：短页大片无效留白、标题过重，长页单层列表密集，虽然可读但不足以作为设计师质量成果。本内核尚未接入用户入口、资源保存或发布，不能当成已交付功能。
+
+下一步是明确标注平台推导的内容驱动编辑式构图与字号层级候选，使用真实浏览器验证完整原文与页脚，再比较实际视觉；不得将字数估计冒充适配通过，不得生成虚构配图，也不以机械增加固定模板数量代替设计。
+
+## 独立复核与产品接入门禁
+
+独立复核 15/15 通过，仅允许继续私有视觉实验，不证明产品候选合格。测量目前未绑定 renderer/CSS 版本和字体环境，跨环境使用必须重新完整验证，不能把本次摘要当永久 fit 收执。内容 hash 应留在私有收执，不向公开资源泄漏业务内容指纹。
+
+后续接入应独立版本化操作，不放宽普通 metadata revise：锁 owner/resource/version/hash、验证原私有来源链、保留全部旧布局/共享设计/权限，只追加推导布局；记录父版本和各派生布局原来源，不继承新版本审核/发布/绑定。特别是 content-style-* 缺少私有收执必须失败，不能退回原 PDF 审核路径。真实整页含页脚溢出/重叠及前后视觉对照通过后，才交正常审核流程。当前未实施该写入路径。
+
+## 编辑式候选实验
+
+新增独立 `content-style-composition-policy.mjs` / `content-style-composition-plan.mjs`，最多三个候选，完整正文只用原始索引。当前编译只支持单列与紧凑单列；列候选明确拒绝，不能冒称已实现分栏。候选字号层级为显式平台推导，仍经同一真实 renderer 测量；不依字符数量判定适配。原包、原 layout/style hash 保留，新增 accent 分隔线标为推导。标题、段落、要点与原页脚完整保留。
+
+入口先复制冻结 item，异步测量期间调用方修改不能污染结果；引用数组参与私有完整 inputContentHash 和输出 ID，正文构图 hash 单独保留。独立复核最终 12/12 通过，包含正文突变和同文不同引用。定向含测量内核 27/27；全 Web 引用修补前快照 1216 项：1142 通过、58 失败、16 跳过，其中研究矩阵新增队列测试在云端 PostgreSQL Unix socket EPERM，其余延续 PostgreSQL/Chrome 环境限制；不是全套通过。最后引用修补另跑定向通过。
+
+未接 UI、保存、发布或部署；同六个真实页的新版视觉正在另行验证。字体层级改变与分隔线本身不能证明设计质量提高。
+
+## v2 真实对照与只读入口
+
+显式 `content-style-composition-v2` 保留 v1 完整策略/计划哈希。主字号采用 `clamp(max(sourceBody, canvasHeight/30),22,32)`，紧凑22px只作明确fallback。根据实际内容总高度计算有界整组下移，来源页脚不动，不重排/删减原文。相同六个已授权项目页实际Chrome结果：前五页主30px通过，最长页主方案高度不足、22px回退通过。全槽含页脚的文本、边界、scroll、两两重叠检查通过，仍有长行、列表层级、紧凑字号偏小的视觉局限；不是设计师质量验收通过，也不是跨平台字体一致性证明。
+
+新增项目下只读实验预览端点及现有版式库按钮：只读服务器当前稿件，要求自有资源、最新版本/精确hash和显式风格重设计确认；前后检查授权项目、稿件、绑定与源资源快照。每用户单任务、全局2任务、60秒超时；断开取消并清理浏览器。无模型调用、不保存资源、不发布、不改绑定，不把实验fit写回原矩阵选用门禁。输出明确实验标签与回退字号，私有内容摘要不返回。最终API/UI需在真实数据库及Chrome另行验收，单元依赖注入不是业务验收。
+
+实验原文标签强调底座属于另一增量，本批只读v2入口不启用或依赖它；旧模型契约不因本批变化。当前尚未实现新构图保存/选用/成果导出，不能把只读体验称为完整闭环。
