@@ -73,3 +73,14 @@ test('重新推荐可随证据调整章组合，已提交的用户顺序继续�
  assert.deepEqual(store.nextOutlineFlow(submitted,d,{planningMode:'recommend'}),['03','01'])
  assert.deepEqual(store.nextOutlineFlow(prior,d,{planningMode:'check',flow:['06','01']}),['06','01'])
 })
+
+test('A03 生产提示要求逐项区分任务书的面积与未配准扫描图的观察',()=>{
+ const brief='任务书注明本次实施地块面积为 12,345 平方米。'
+ const scan='扫描图有红色轮廓及比例尺文字，未提供经核验的地理配准、控制点或测量数据。'
+ const prompt=outlinePrompt({previous:null,history:[],text:brief+'\n'+scan})
+ assert.ok(prompt.includes(brief)&&prompt.includes(scan))
+ assert.match(prompt,/逐项标明数值或精度主张的来源/)
+ assert.match(prompt,/原文记载值.{0,100}图面观察.{0,100}计算值/u)
+ assert.match(prompt,/不得.{0,65}距离、面积或角点坐标/u)
+ assert.match(prompt,/印刷比例尺.{0,60}不能替代/u)
+})
